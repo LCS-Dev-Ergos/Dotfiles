@@ -114,7 +114,7 @@ if [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]]; then
   export SDKMAN_DIR="$HOME/.sdkman"
   source "$HOME/.sdkman/bin/sdkman-init.sh"
 else
-  # SDKMAN! not found. Use our fallback logic to auto-detect Java.
+  # SDKMAN! not found. Use the fallback logic to auto-detect Java.
   setup_java_home_fallback() {
     if [[ "$OS_TYPE" == 'macOS' ]]; then
       # On macOS, use the system-provided utility
@@ -147,8 +147,8 @@ else
         export JAVA_HOME="$found_java_home"
         export PATH="$JAVA_HOME/bin:$PATH"
       else
-        echo "  Warning: Unable to automatically determine JAVA_HOME and SDKMAN! is not installed."
-        echo "    Please install Java and/or SDKMAN!, or set JAVA_HOME manually."
+        echo "⚠️ Warning: Unable to automatically determine JAVA_HOME and SDKMAN! is not installed."
+        echo "   Please install Java and/or SDKMAN!, or set JAVA_HOME manually."
       fi
     fi
   }
@@ -320,12 +320,12 @@ eval "$(zoxide init zsh)"
 if [[ "$OS_TYPE" == 'macOS' ]]; then
     export LCS_Data="/Volumes/LCS.Data"
     if [ ! -d "$LCS_Data" ]; then
-        echo "  Warning: LCS.Data volume is not mounted"
+        echo "⚠️ Warning: LCS.Data volume is not mounted"
     fi
 elif [[ "$OS_TYPE" == 'Linux' ]]; then
     export LCS_Data="/media/$USER/LCS.Data"
     if [ ! -d "$LCS_Data" ]; then
-        echo "  Warning: LCS.Data volume does not appear to be mounted in $LCS_Data"
+        echo "⚠️ Warning: LCS.Data volume does not appear to be mounted in $LCS_Data"
     fi
 fi
 
@@ -440,11 +440,11 @@ fix_path_order() {
       "/usr/local/bin" "/usr/local/sbin"
       "/usr/bin" "/bin" "/usr/sbin" "/sbin"
 
-      # ----- Linuxbrew ------
+      # ----- Linuxbrew ------ #
       "/home/linuxbrew/.linuxbrew/bin" "/home/linuxbrew/.linuxbrew/sbin"
 
-      # --- User and App-Specific Paths (Linux) ---
       "$HOME/.local/bin"
+      # ----- User and App-Specific Paths (Linux) ----- #
       "$HOME/.nix-profile/bin" "/nix/var/nix/profiles/default/bin"
       "$HOME/.ghcup/bin" "$HOME/.cabal/bin" 
       "$HOME/.cargo/bin"

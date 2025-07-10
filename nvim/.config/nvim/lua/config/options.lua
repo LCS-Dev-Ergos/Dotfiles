@@ -18,8 +18,9 @@ vim.g.format_on_save = false
 
 -- Formattazione automatica dei file C e C++
 vim.api.nvim_create_autocmd("BufWritePre", {
-    pattern = { "*.c", "*.cpp" },
-    callback = function()
-        require("conform").format()
-    end,
+  pattern = { "*.c", "*.cpp" },
+  callback = function() require("conform").format() end,
 })
+
+-- Aggiunge ocp-indent per l'indentazione di OCaml
+vim.opt.rtp:prepend("/Users/lcs-dev/.opam/ocaml-compiler/share/ocp-indent/vim")
