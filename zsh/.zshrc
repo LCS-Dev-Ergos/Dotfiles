@@ -399,15 +399,15 @@ fix_path_order() {
       "$(echo "$PATH" | tr ':' '\n' | grep 'fnm_multishells')"
       "$HOME/.sdkman/candidates/java/current/bin"
       
+      # ----- Homebrew ----- #
+      "/opt/homebrew/bin"
+      "/opt/homebrew/sbin"
+
       # ----- System Tools ----- #
       "/usr/bin"
       "/bin"
       "/usr/sbin"
       "/sbin"
-
-      # ----- Homebrew ----- #
-      "/opt/homebrew/bin"
-      "/opt/homebrew/sbin"
 
       # ----- Homebrew LLVM (for clang++, clang-format, etc.) ----- #
       "/opt/homebrew/opt/llvm/bin"
