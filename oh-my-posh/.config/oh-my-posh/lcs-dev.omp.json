@@ -28,7 +28,7 @@
           "style": "plain",
           "background": "transparent",
           "foreground": "p:terminal-yellow",
-          "template": "{{ if .WSL }}\uF17C{{ else if eq .OS \"windows\" }}\uE70F{{ else if eq .OS \"linux\" }}\uF17C{{ else if eq .OS \"darwin\" }}\uF179{{ else }}\uF128{{ end }} "
+          "template": "{{ if eq .OS \"darwin\" }}\uf179{{ else if eq .OS \"linux\" }}\ue73a{{ else }}\ue73a{{ end }}  "
         },
         {
           "type": "text",
@@ -67,7 +67,6 @@
           "style": "plain",
           "foreground": "p:terminal-white",
           "template": " \u0000"
-          
         },
         {
           "type": "node",
