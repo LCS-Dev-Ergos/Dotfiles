@@ -179,6 +179,8 @@ ZSH_THEME="robbyrussell"
 # Set default editor
 export EDITOR="nvim"
 
+# Configuration System Directory
+export CONFIG_DIR="$HOME/.config"
 
 # +++++++++++++++++++++++++++++++ OH-MY-ZSH +++++++++++++++++++++++++++++++++ #
 
