@@ -1,8 +1,15 @@
 # =========================================================================== #
+# +++++++++++++++++++++++++++ BASE CONFIGURATION ++++++++++++++++++++++++++++ #
+# =========================================================================== #
+
+# --------- Startup Commands -------- #
+# fastfetch
+
+# =========================================================================== #
 # +++++++++++++++++++++++++++ DETECT OPERATING SYSTEM +++++++++++++++++++++++ #
 # =========================================================================== #
 
-# Rileva il sistema operativo per caricare configurazioni specifiche
+# Detect operating system to load specific configurations
 case "$(uname -s)" in
     Darwin)
         export OS_TYPE='macOS'
@@ -16,146 +23,138 @@ case "$(uname -s)" in
 esac
 
 # =========================================================================== #
-# +++++++++++++++++++++++++++ BASE CONFIGURATION ++++++++++++++++++++++++++++ #
+# +++++++++++++++++++++++++++ ENVIRONMENT MANAGERS ++++++++++++++++++++++++++ #
 # =========================================================================== #
 
-# =============== Startup Commands =============== #
-# fastfetch # Assicurati che sia installato su entrambi i sistemi
-
-# =============== Helper Functions ============== #
-# Function to check for duplicates in the PATH
-check_path_dupes() {
-  echo $PATH | tr ':' '\n' | sort | uniq -d
-}
-
-# Optimized function to configure the PATH in batch mode
-setup_path() {
-  # Initial base path (standard per sistemi UNIX-like)
-  local base_path="/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin"
-  
-  # Array per percorsi (dipendenti dall'OS)
-  local prepend_dirs=()
-  local append_dirs=()
-
-  if [[ "$OS_TYPE" == 'macOS' ]]; then
-    # --- Percorsi per macOS ---
-    prepend_dirs=(
-    "/opt/homebrew/bin"
-    "$HOME/.local/bin"
-    "/usr/local/bin"
-    "/opt/homebrew/opt/llvm/bin"
-  )
-    append_dirs=(
-    "$HOME/.nix-profile/bin"
-    "/nix/var/nix/profiles/default/bin"
-    "/run/current-system/sw/bin"
-    "$HOME/.cabal/bin"
-    "$HOME/.ghcup/bin"
-    "$HOME/.ada/bin"
-    "$HOME/.cargo/bin"
-    "$GOPATH/bin"
-    "$GOROOT/bin"
-    "$HOME/.config/emacs/bin"
-    "/opt/homebrew/opt/openjdk/bin" 
-    "/usr/local/texlive/2025/bin/universal-darwin"
-    "/Library/TeX/texbin"
-    "$ANDROID_HOME/tools"
-    "$ANDROID_HOME/tools/bin"
-    "$ANDROID_HOME/platform-tools"
-    "/usr/local/git/bin"
-    "/usr/local/mysql/bin"
-    "/opt/homebrew/opt/ncurses/bin"
-    "$HOME/00_ENV/miniforge3/bin"
-    "$HOME/00_ENV/miniforge3/condabin"
-    "$HOME/.lcs-bin"
-    "$HOME/Library/Application Support/JetBrains/Toolbox/scripts"
-  )
-  elif [[ "$OS_TYPE" == 'Linux' ]]; then
-    # --- Percorsi per Linux ---
-    prepend_dirs=(
-      "/usr/local/bin"
-      "$HOME/.local/bin"
-      "/home/linuxbrew/.linuxbrew/bin"
-    )
-    append_dirs=(
-      "$HOME/.nix-profile/bin"
-      "/nix/var/nix/profiles/default/bin"
-      "/run/current-system/sw/bin"
-      "$HOME/.cabal/bin"
-      "$HOME/.ghcup/bin"
-      "$HOME/.ada/bin"
-      "$HOME/.cargo/bin"
-      "$GOPATH/bin"
-      "$GOROOT/bin"
-      "$HOME/.config/emacs/bin"
-      "$HOME/.local/share/fnm"
-      "$ANDROID_HOME/tools"
-      "$ANDROID_HOME/tools/bin"
-      "$ANDROID_HOME/platform-tools"
-      "$HOME/00_ENV/miniforge3/bin"
-      "$HOME/00_ENV/miniforge3/condabin"
-      "$HOME/.lcs-bin"
-    )
-  fi
-
-  local final_path="$base_path"
-  
-  # Aggiunge percorsi da anteporre (prepend)
-  for dir in "${prepend_dirs[@]}"; do
-    if [[ -d "$dir" && ":$final_path:" != *":$dir:"* ]]; then
-      final_path="$dir:$final_path"
-    fi
-  done
-
-  # Aggiunge percorsi da accodare (append)
-  for dir in "${append_dirs[@]}"; do
-    if [[ -d "$dir" && ":$final_path:" != *":$dir:"* ]]; then
-      final_path="$final_path:$dir"
-    fi
-  done
-  
-  export PATH="$final_path"
-}
-
-# =========================================================================== #
-# +++++++++++++++++++++++++++++ PATH CONFIGURATION ++++++++++++++++++++++++++ #
-# =========================================================================== #
-
-# Setup PATH in batch mode
-setup_path
-
-# =============== Terminal Variables ============= #
-if [ "$TERM" = "xterm-kitty" ]; then
-    export TERM=xterm-kitty
-else
-    export TERM=xterm-256color
+# ---------------------- Nix -------------------- #
+if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
+  . '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
+elif [ -e "$HOME/.nix-profile/etc/profile.d/nix.sh" ]; then
+  . "$HOME/.nix-profile/etc/profile.d/nix.sh"
 fi
 
-# Variabili d'ambiente specifiche per OS
+# ------------ Homebrew / Linuxbrew ------------- #
+# Search for Homebrew in standard macOS and Linux paths
+if [ -x "/opt/homebrew/bin/brew" ]; then # macOS Apple Silicon
+  eval "$(/opt/homebrew/bin/brew shellenv)"
+elif [ -x "/usr/local/bin/brew" ]; then # macOS Intel
+  eval "$(/usr/local/bin/brew shellenv)"
+elif [ -f "/home/linuxbrew/.linuxbrew/bin/brew" ]; then # Linux
+  eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+fi
+
+# OS-specific environment variables
 if [[ "$OS_TYPE" == 'macOS' ]]; then
-  # LLVM Flags (tipico per Homebrew su macOS)
-export LDFLAGS="-L/opt/homebrew/opt/llvm/lib"
-export CPPFLAGS="-I/opt/homebrew/opt/llvm/include"
-  # C/C++ Libraries
-  export CPATH=/opt/homebrew/include
-  # OpenJDK
-  export CPPFLAGS="-I/opt/homebrew/opt/openjdk/include"
+  # Force the use of system binaries to avoid conflicts.
+  export LD=/usr/bin/ld
+  export AR=/usr/bin/ar
+  # Activate these flags if you intend to use Homebrew's LLVM
+  export LDFLAGS="-L/opt/homebrew/opt/llvm/lib"
+  export CPPFLAGS="-I/opt/homebrew/opt/llvm/include"
+  export CPATH="/opt/homebrew/include"
 fi
 
-# Perl CPAN
+# Function for brew update with notification (specific to macOS with sketchybar)
+if [[ "$OS_TYPE" == 'macOS' ]]; then
+  function brew() {
+    command brew "$@"
+    if [[ $* =~ "upgrade" ]] || [[ $* =~ "update" ]] || [[ $* =~ "outdated" ]]; then
+      sketchybar --trigger brew_update
+    fi
+  }
+fi
+
+# =========================================================================== #
+# +++++++++++++++++++++ LANGUAGES AND DEVELOPMENT TOOLS +++++++++++++++++++++ #
+# =========================================================================== #
+
+# Haskell (ghcup-env)
+[ -f "$HOME/.ghcup/env" ] && . "$HOME/.ghcup/env"
+
+# GO Language
+export GOROOT="/usr/local/go"
+
+# FNM (Fast Node Manager)
+if command -v fnm &>/dev/null; then
+    eval "$(fnm env --use-on-cd --shell zsh)"
+fi
+
+# -------------- PyENV -------------- #
+export PYENV_ROOT="$HOME/.pyenv"
+[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
+eval "$(pyenv init -)"
+
+# >>> Conda initialize >>>
+# !! Contents within this block are managed by 'conda init' !!
+__conda_setup="$('$HOME/00_ENV/miniforge3/bin/conda' 'shell.zsh' 'hook' 2> /dev/null)"
+if [ $? -eq 0 ]; then
+    eval "$__conda_setup"
+else
+    if [ -f "$HOME/00_ENV/miniforge3/etc/profile.d/conda.sh" ]; then
+        . "$HOME/00_ENV/miniforge3/etc/profile.d/conda.sh"
+    else
+        export PATH="$HOME/00_ENV/miniforge3/bin:$PATH"
+    fi
+fi
+unset __conda_setup
+# <<< Conda initialize <<<
+
+# ----- Perl CPAN ----- #
 eval "$(perl -I$HOME/00_ENV/perl5/lib/perl5 -Mlocal::lib=$HOME/00_ENV/perl5)"
 
-# Path to your oh-my-zsh installation.
-export ZSH="$HOME/.oh-my-zsh"
+# ----- OPAM ----- #
+# This section can be safely removed at any time if needed.
+[[ ! -r "$HOME/.opam/opam-init/init.zsh" ]] || source "$HOME/.opam/opam-init/init.zsh" > /dev/null 2> /dev/null 
 
-# Set name of the theme to load
-ZSH_THEME="robbyrussell"
+# ------------ Java - Smart JAVA_HOME Management ------------ #
 
-# Set up XDG Base Directory Specification
-export XDG_CONFIG_HOME="$HOME/.config"
-
-# Set default editor
-export EDITOR="nvim"
+# First, prioritize SDKMAN! if it is installed.
+if [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]]; then
+  # SDKMAN! found. Let it manage everything.
+  export SDKMAN_DIR="$HOME/.sdkman"
+  source "$HOME/.sdkman/bin/sdkman-init.sh"
+else
+  # SDKMAN! not found. Use our fallback logic to auto-detect Java.
+  setup_java_home_fallback() {
+    if [[ "$OS_TYPE" == 'macOS' ]]; then
+      # On macOS, use the system-provided utility
+      if [ -x "/usr/libexec/java_home" ]; then
+        export JAVA_HOME=$(/usr/libexec/java_home)
+        export PATH="$JAVA_HOME/bin:$PATH"
+      fi
+    elif [[ "$OS_TYPE" == 'Linux' ]]; then
+      local found_java_home=""
+      # Method 1: For Debian/Ubuntu/Fedora based systems (uses update-alternatives)
+      if command -v update-alternatives &>/dev/null && command -v java &>/dev/null; then
+        local java_path=$(readlink -f $(which java))
+        if [[ -n "$java_path" ]]; then
+          found_java_home="${java_path%/bin/java}"
+        fi
+      fi
+      # Method 2: For Arch Linux systems (uses archlinux-java)
+      if [[ -z "$found_java_home" ]] && command -v archlinux-java &>/dev/null; then
+          local java_env=$(archlinux-java get)
+          if [[ -n "$java_env" ]]; then
+              found_java_home="/usr/lib/jvm/$java_env"
+          fi
+      fi
+      # Method 3: Generic fallback by searching in /usr/lib/jvm
+      if [[ -z "$found_java_home" ]] && [[ -d "/usr/lib/jvm" ]]; then
+          found_java_home=$(find /usr/lib/jvm -maxdepth 1 -type d -name "java-*-openjdk*" | sort -V | tail -n 1)
+      fi  
+      # Export variables only if we found a valid path
+      if [[ -n "$found_java_home" && -d "$found_java_home" ]]; then
+        export JAVA_HOME="$found_java_home"
+        export PATH="$JAVA_HOME/bin:$PATH"
+      else
+        echo "  Warning: Unable to automatically determine JAVA_HOME and SDKMAN! is not installed."
+        echo "    Please install Java and/or SDKMAN!, or set JAVA_HOME manually."
+      fi
+    fi
+  }
+  # Execute the fallback function
+  setup_java_home_fallback
+fi
 
 # =========================================================================== #
 # +++++++++++++++++++++++++++++++ OH-MY-ZSH +++++++++++++++++++++++++++++++ #
@@ -166,165 +165,51 @@ ZSH_CUSTOM=$HOME/.config/zsh
 
 # Which plugins would you like to load?
 # Note: zsh-syntax-highlighting must be the last plugin to work correctly
-plugins=( 
+plugins=(
     git
     sudo
     extract
     colored-man-pages
     zsh-autosuggestions
-    zsh-syntax-highlighting 
+    zsh-syntax-highlighting
 )
 
 source $ZSH/oh-my-zsh.sh
 
-# Cache di ZSH
+# ZSH Cache
 export ZSH_COMPDUMP="$ZSH/cache/.zcompdump-$HOST"
-
-# =========================================================================== #
-# +++++++++++++++++++++++++++ ENVIRONMENT VARIABLES +++++++++++++++++++++++++ #
-# =========================================================================== #
-
-# ------------ Homebrew / Linuxbrew ------------- #
-# Cerca Homebrew nei percorsi standard di macOS e Linux
-if [ -x "/opt/homebrew/bin/brew" ]; then # macOS Apple Silicon
-eval "$(/opt/homebrew/bin/brew shellenv)"
-elif [ -x "/usr/local/bin/brew" ]; then # macOS Intel
-  eval "$(/usr/local/bin/brew shellenv)"
-elif [ -f "/home/linuxbrew/.linuxbrew/bin/brew" ]; then # Linux
-  eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
-fi
-
-# ------------ Nix ------------------ #
-if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
-  . '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
-elif [ -e "$HOME/.nix-profile/etc/profile.d/nix.sh" ]; then
-  . "$HOME/.nix-profile/etc/profile.d/nix.sh"
-fi
-
-# Note: Nix paths are already configured in the setup_path function
-
-# =========================================================================== #
-# +++++++++++++++++++++ LINGUAGGI E STRUMENTI DI SVILUPPO +++++++++++++++++++ #
-# =========================================================================== #
-
-# Haskell (ghcup-env) - Generalizzato con $HOME
-[ -f "$HOME/.ghcup/env" ] && . "$HOME/.ghcup/env"
-
-# GO Language 
-export GOROOT=/usr/local/go
-export GOPATH=$HOME/00_ENV/go
-
-# ------------ Java - Gestione Intelligente di JAVA_HOME ------------ #
-
-# Prima di tutto, diamo priorità a SDKMAN! se è installato.
-if [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]]; then
-  # SDKMAN! trovato. Lasciamo che gestisca tutto.
-  export SDKMAN_DIR="$HOME/.sdkman"
-  source "$HOME/.sdkman/bin/sdkman-init.sh"
-else
-  # SDKMAN! non trovato. Usiamo la nostra logica di fallback per auto-rilevare Java.
-
-  setup_java_home_fallback() {
-    if [[ "$OS_TYPE" == 'macOS' ]]; then
-      # Su macOS, usiamo l'utility fornita dal sistema
-      if [ -x "/usr/libexec/java_home" ]; then
-        export JAVA_HOME=$(/usr/libexec/java_home)
-        export PATH="$JAVA_HOME/bin:$PATH"
-      fi
-    elif [[ "$OS_TYPE" == 'Linux' ]]; then
-      local found_java_home=""
-
-      # Metodo 1: Per sistemi basati su Debian/Ubuntu/Fedora (usa update-alternatives)
-      if command -v update-alternatives &>/dev/null && command -v java &>/dev/null; then
-        local java_path=$(readlink -f $(which java))
-        if [[ -n "$java_path" ]]; then
-          found_java_home="${java_path%/bin/java}"
-        fi
-      fi
-
-      # Metodo 2: Per sistemi Arch Linux (usa archlinux-java)
-      if [[ -z "$found_java_home" ]] && command -v archlinux-java &>/dev/null; then
-          local java_env=$(archlinux-java get)
-          if [[ -n "$java_env" ]]; then
-              found_java_home="/usr/lib/jvm/$java_env"
-          fi
-      fi
-
-      # Metodo 3: Fallback generico cercando in /usr/lib/jvm
-      if [[ -z "$found_java_home" ]] && [[ -d "/usr/lib/jvm" ]]; then
-          found_java_home=$(find /usr/lib/jvm -maxdepth 1 -type d -name "java-*-openjdk*" | sort -V | tail -n 1)
-      fi
-      
-      # Esporta le variabili solo se abbiamo trovato un percorso valido
-      if [[ -n "$found_java_home" && -d "$found_java_home" ]]; then
-        export JAVA_HOME="$found_java_home"
-        export PATH="$JAVA_HOME/bin:$PATH"
-      else
-        echo "⚠️  Attenzione: Impossibile determinare JAVA_HOME automaticamente e SDKMAN! non è installato."
-        echo "    Per favore, installa Java e/o SDKMAN!, o imposta JAVA_HOME manualmente."
-      fi
-    fi
-  }
-
-  # Esegui la funzione di fallback
-  setup_java_home_fallback
-fi
-
-# Android ADB (il percorso potrebbe variare su Linux)
-export ANDROID_HOME="$HOME/Library/Android/Sdk" # macOS
-if [[ "$OS_TYPE" == 'Linux' ]]; then
-    # Linux
-   export ANDROID_HOME="$HOME/Android/Sdk" 
-fi
-
-# FNM (Fast Node Manager)
-if command -v fnm &>/dev/null; then
-    eval "$(fnm env --use-on-cd --shell zsh)"
-fi
-
-# =========================================================================== #
-# +++++++++++++++++++++++++++ GLOBAL VARIABLES ++++++++++++++++++++++++++++++ #
-# =========================================================================== #
-# Questi sono percorsi personali e dovrebbero funzionare se il volume è montato
-
-# LCS.Data Volume
-export LCS_Data="/Volumes/LCS.Data"
-# Check if the volume is already mounted
-if [ ! -d "$LCS_Data" ]; then
-  echo "⚠️  Attenzione: Il volume LCS.Data non è montato"
-elif [[ "$OS_TYPE" == 'Linux' ]]; then
-    # Su Linux i volumi esterni vengono montati altrove, es. /media/utente/LCS.Data
-    export LCS_Data="/media/$USER/LCS.Data"
-    if [ ! -d "$LCS_Data" ]; then
-        echo "⚠️  Attenzione: Il volume LCS.Data non sembra montato in $LCS_Data"
-    fi
-fi
-
-# Configuration System Directory
-export CONFIG_DIR="$HOME/.config"
-
-# Clang-Format Configuration
-export CLANG_FORMAT_CONFIG="$HOME/.config/clang-format/.clang-format"
-
-# -------------------------------- BLOG ------------------------------------- #
-# Variables for Blog Automation
-export BLOG_POSTS_DIR="$LCS_Data/Blog/CS-Topics/content/posts/"
-export BLOG_STATIC_IMAGES_DIR="$LCS_Data/Blog/CS-Topics/static/images"
-export IMAGES_SCRIPT_PATH="$LCS_Data/Blog/Automatic-Updates/images.py"
-export OBSIDIAN_ATTACHMENTS_DIR="$HOME/Documents/Obsidian-Vault/XSPC-Vault/Blog/images"
 
 # =========================================================================== #
 # ++++++++++++++++++++++ PERSONAL CONFIGURATION - THEMES ++++++++++++++++++++ #
 # =========================================================================== #
-# Questa sezione è quasi interamente cross-platform
+
+# --------------------------- Terminal Variables ---------------------------- #
+if [ "$TERM" = "xterm-kitty" ]; then
+    export TERM=xterm-kitty
+else
+    export TERM=xterm-256color
+fi
+
+# Set up XDG Base Directory Specification
+export XDG_CONFIG_HOME="$HOME/.config"
+
+# Path to your oh-my-zsh installation.
+export ZSH="$HOME/.oh-my-zsh"
+
+# Set name of the theme to load
+ZSH_THEME="robbyrussell"
+
+# Set default editor
+export EDITOR="nvim"
 
 # -------------------------------- VI-MODE ---------------------------------- #
+# Enable vi mode
 bindkey -v
 
-# Riduce il ritardo per il cambio modalità (0.1 secondi)
-export KEYTIMEOUT=10
-zle -N zle-keymap-select
-zle -N zle-line-init
+# Reduce mode change delay (0.1 seconds)
+export KEYTIMEOUT=1
+
+# Simplified and more efficient logic to update prompt based on mode
 function zle-line-init() { zle -K viins }
 function zle-keymap-select() {
   case $KEYMAP in
@@ -332,9 +217,11 @@ function zle-keymap-select() {
     vicmd) zle reset-prompt ;;
   esac
 }
+zle -N zle-line-init
+zle -N zle-keymap-select
 
 # -------------------------------- PROMPT ----------------------------------- #
-# Oh My Posh - Prompt personalizzato
+# Oh My Posh - Custom prompt
 eval "$(oh-my-posh init zsh --config $XDG_CONFIG_HOME/oh-my-posh/lcs-dev.omp.json)"
 
 # --------------------------------- COLORS ---------------------------------- #
@@ -388,7 +275,6 @@ _fzf_compgen_dir() {
 
 source ~/.config/fzf-git/fzf-git.sh
 
-
 export FZF_CTRL_T_OPTS="--preview 'bat -n --color=always --line-range :500 {}'"
 export FZF_ALT_C_OPTS="--preview 'eza --tree --color=always {} | head -200'"
 
@@ -409,86 +295,183 @@ _fzf_comprun() {
 export BAT_THEME=tokyonight_night
 
 # =========================================================================== #
-# +++++++++++++++++++++++++++ APPLICATIONS OPTIONS ++++++++++++++++++++++++++ #
+# +++++++++++++++++++++++++++ SOURCE COMMANDS +++++++++++++++++++++++++++++++ #
 # =========================================================================== #
 
-# ------- Zoxide (better cd) -------- #
+# ------------ ngrok ---------------- #
+if command -v ngrok &>/dev/null; then
+    eval "$(ngrok completion)"
+fi
+
+# ----------- Angular CLI ----------- #
+if command -v ng &>/dev/null; then
+    source <(ng completion script)
+fi
+
+# ------- Zoxide (smarter cd) ------- #
 eval "$(zoxide init zsh)"
 
-# ------------ ngrok & Angular (cross-platform) ---------------- #
-if command -v ngrok &>/dev/null; then eval "$(ngrok completion)"; fi
-if command -v ng &>/dev/null; then source <(ng completion script); fi
+# =========================================================================== #
+# +++++++++++++++++++++++++++ GLOBAL VARIABLES ++++++++++++++++++++++++++++++ #
+# =========================================================================== #
 
-# -------------- PyENV -------------- #
-export PYENV_ROOT="$HOME/.pyenv"
-[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
-eval "$(pyenv init -)"
-
-# >>> Conda initialize >>>
-# !! Generalizzato con $HOME !!
-__conda_setup="$('$HOME/00_ENV/miniforge3/bin/conda' 'shell.zsh' 'hook' 2> /dev/null)"
-if [ $? -eq 0 ]; then
-    eval "$__conda_setup"
-else
-    if [ -f "$HOME/00_ENV/miniforge3/etc/profile.d/conda.sh" ]; then
-        . "$HOME/00_ENV/miniforge3/etc/profile.d/conda.sh"
-    else
-        export PATH="$HOME/00_ENV/miniforge3/bin:$PATH"
+# ----------- Directories ----------- #
+# LCS.Data Volume
+if [[ "$OS_TYPE" == 'macOS' ]]; then
+    export LCS_Data="/Volumes/LCS.Data"
+    if [ ! -d "$LCS_Data" ]; then
+        echo "  Warning: LCS.Data volume is not mounted"
+    fi
+elif [[ "$OS_TYPE" == 'Linux' ]]; then
+    export LCS_Data="/media/$USER/LCS.Data"
+    if [ ! -d "$LCS_Data" ]; then
+        echo "  Warning: LCS.Data volume does not appear to be mounted in $LCS_Data"
     fi
 fi
-unset __conda_setup
-# <<< Conda initialize <<<
+
+# Clang-Format Configuration
+export CLANG_FORMAT_CONFIG="$HOME/.config/clang-format/.clang-format"
+
+# ----- Blog ----- #
+export BLOG_POSTS_DIR="$LCS_Data/Blog/CS-Topics/content/posts/"
+export BLOG_STATIC_IMAGES_DIR="$LCS_Data/Blog/CS-Topics/static/images"
+export IMAGES_SCRIPT_PATH="$LCS_Data/Blog/Automatic-Updates/images.py"
+export OBSIDIAN_ATTACHMENTS_DIR="$HOME/Documents/Obsidian-Vault/XSPC-Vault/Blog/images"
 
 # =========================================================================== #
-# ++++++++++++++++++++++++++++++++ ALIASES +++++++++++++++++++++++++++++++++++ #
+# ++++++++++++++++++++++++++++++++ ALIASES ++++++++++++++++++++++++++++++++++ #
 # =========================================================================== #
 
-# --- Alias Comuni (Cross-Platform) ---
+# ----- Common Aliases (Cross-Platform) ----- #
 alias ..="cd .."
 alias ...="cd ../.."
 alias ....="cd ../../.."
 alias .....="cd ../../../.."
 alias ......="cd ../../../../.."
-alias ls="eza --color=always --long --git --icons=always"
-eval $(thefuck --alias)
-eval $(thefuck --alias fk)
-alias cd="z"
-alias c="clear"
-alias ranger='TERM=screen-256color ranger'
 
-# MySQL
-alias mysql=/usr/local/mysql/bin/mysql
-alias mysqladmin=/usr/local/mysql/bin/mysqladmin
+# Eza (modern ls replacement)
+alias ls="eza --color=always --long --git --icons=always"
+
+# thefuck alias (corrects mistyped commands)
+eval $(thefuck --alias)       # Creates the "fuck" alias
+eval $(thefuck --alias fk)    # Creates the shorter "fk" alias
+
+# Zoxide (smart cd replacement)
+alias cd="z"
 
 # Clang-Format alias
 alias clang-format='clang-format -style=file:$CLANG_FORMAT_CONFIG'
 
-# --- Alias Specifici per OS ---
+# ----- OS-Specific Aliases ----- #
 if [[ "$OS_TYPE" == 'macOS' ]]; then
   alias compile="clang++ -std=c++20 -O3 -march=native -flto=thin -ffast-math -I/usr/local/include"
   alias tailscale="/Applications/Tailscale.app/Contents/MacOS/Tailscale"
-  alias mysql=/usr/local/mysql/bin/mysql
-  alias mysqladmin=/usr/local/mysql/bin/mysqladmin
-  alias gcc='gcc-15' # Usa gcc di Homebrew
-alias lldb='/usr/bin/lldb'
+  alias gcc='gcc-15' # Use Homebrew's gcc
+  alias lldb='/usr/bin/lldb'
 elif [[ "$OS_TYPE" == 'Linux' ]]; then
   alias compile="g++ -std=c++20 -O3 -march=native -flto -ffast-math"
   alias gcc='gcc'
   alias lldb='lldb'
 fi
 
+alias c="clear"
+alias ranger='TERM=screen-256color ranger'
+
 # =========================================================================== #
+# ++++++++++++++++++++++ PATH FINALIZER (RUNS LAST) +++++++++++++++++++++++++ #
+# =========================================================================== #
+# This function runs last to ensure correct PATH order, resolve conflicts
+# (e.g., /usr/bin/ar vs homebrew) and remove duplicate entries.
 
+fix_path_order() {
+  # 1. Define the desired priority order for key directories
+  #    that cause conflicts or need high priority.
+  local -a desired_path_order=()
 
-#THIS MUST BE AT THE END OF THE FILE FOR SDKMAN TO WORK!!!
-export SDKMAN_DIR="$HOME/.sdkman"
-[[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]] && source "$HOME/.sdkman/bin/sdkman-init.sh"
+  # Build the list of desired paths based on the operating system
+  if [[ "$OS_TYPE" == 'macOS' ]]; then
+      desired_path_order=(
+      # ----- Version Managers (shims) ----- #
+      "$HOME/.pyenv/shims"
+      
+      # ----- Dynamic FNM directories ----- #
+      "$(echo "$PATH" | tr ':' '\n' | grep 'fnm_multishells')"
+      "$HOME/.sdkman/candidates/java/current/bin"
+      
+      # ----- System Tools ----- #
+      "/usr/bin"
+      "/bin"
+      "/usr/sbin"
+      "/sbin"
 
+      # ----- Homebrew ----- #
+      "/opt/homebrew/bin"
+      "/opt/homebrew/sbin"
 
-# BEGIN opam configuration
-# This is useful if you're using opam as it adds:
-#   - the correct directories to the PATH
-#   - auto-completion for the opam binary
-# This section can be safely removed at any time if needed.
-[[ ! -r '/Users/lcs-dev/.opam/opam-init/init.zsh' ]] || source '/Users/lcs-dev/.opam/opam-init/init.zsh' > /dev/null 2> /dev/null
-# END opam configuration
+      # ----- Homebrew LLVM (for clang++, clang-format, etc.) ----- #
+      "/opt/homebrew/opt/llvm/bin"
+      
+      # ----- User and App-Specific Paths (macOS) ----- #
+      "$HOME/.local/bin" "/usr/local/bin"
+      "$HOME/.nix-profile/bin" "/nix/var/nix/profiles/default/bin"
+      "$HOME/.ghcup/bin" "$HOME/.cabal/bin"
+      "$HOME/.cargo/bin"
+      "$HOME/.ada/bin"
+      "$GOPATH/bin" "$GOROOT/bin"
+      "$ANDROID_HOME/platform-tools" "$ANDROID_HOME/tools" "$ANDROID_HOME/tools/bin"
+      "$HOME/00_ENV/miniforge3/condabin" "$HOME/00_ENV/miniforge3/bin"
+
+      # ----- Other Paths ----- #
+      "$HOME/.config/emacs/bin"
+      "/usr/local/mysql/bin"
+      "/opt/homebrew/opt/ncurses/bin"
+      "/Library/TeX/texbin" "/usr/local/texlive/2025/bin/universal-darwin"
+      "$HOME/Library/Application Support/JetBrains/Toolbox/scripts"
+      "$HOME/.lcs-bin"
+    )
+    elif [[ "$OS_TYPE" == 'Linux' ]]; then
+      desired_path_order=(
+      # ----- Version Managers (shims) ----- #
+      "$HOME/.pyenv/shims"
+      "$(echo "$PATH" | tr ':' '\n' | grep 'fnm_multishells')"
+      "$HOME/.sdkman/candidates/java/current/bin"
+      
+      # ----- System Tools ----- #
+      "/usr/local/bin" "/usr/local/sbin"
+      "/usr/bin" "/bin" "/usr/sbin" "/sbin"
+
+      # ----- Linuxbrew ------
+      "/home/linuxbrew/.linuxbrew/bin" "/home/linuxbrew/.linuxbrew/sbin"
+
+      # --- User and App-Specific Paths (Linux) ---
+      "$HOME/.local/bin"
+      "$HOME/.nix-profile/bin" "/nix/var/nix/profiles/default/bin"
+      "$HOME/.ghcup/bin" "$HOME/.cabal/bin" 
+      "$HOME/.cargo/bin"
+      "$HOME/.ada/bin"
+      "$GOPATH/bin" "$GOROOT/bin"
+      "$HOME/00_ENV/miniforge3/condabin" "$HOME/00_ENV/miniforge3/bin"
+      "$HOME/.config/emacs/bin"
+      "$ANDROID_HOME/platform-tools" "$ANDROID_HOME/tools" "$ANDROID_HOME/tools/bin"
+      "$HOME/.lcs-bin"
+      )
+    fi
+
+  # Use `typeset -U` to create an array that automatically removes duplicates.
+  typeset -U path_array
+  path_array=()
+
+  # Iterate over our ordered list and add only existing directories.
+  for p in "${desired_path_order[@]}"; do
+    if [[ -d "$p" ]]; then
+      path_array+=("$p")
+    fi
+  done
+
+  # Rebuild and export the final, clean, and ordered PATH.
+  export PATH="${(j/:/)path_array}"
+}
+
+# Execute the function to finalize the PATH
+fix_path_order
+unset -f fix_path_order # Cleans the function from the environment
