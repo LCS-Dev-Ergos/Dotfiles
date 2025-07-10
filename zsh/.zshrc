@@ -157,29 +157,6 @@ else
 fi
 
 # =========================================================================== #
-# +++++++++++++++++++++++++++++++ OH-MY-ZSH +++++++++++++++++++++++++++++++ #
-# =========================================================================== #
-
-# Would you like to use another custom folder than $ZSH/custom?
-ZSH_CUSTOM=$HOME/.config/zsh
-
-# Which plugins would you like to load?
-# Note: zsh-syntax-highlighting must be the last plugin to work correctly
-plugins=(
-    git
-    sudo
-    extract
-    colored-man-pages
-    zsh-autosuggestions
-    zsh-syntax-highlighting
-)
-
-source $ZSH/oh-my-zsh.sh
-
-# ZSH Cache
-export ZSH_COMPDUMP="$ZSH/cache/.zcompdump-$HOST"
-
-# =========================================================================== #
 # ++++++++++++++++++++++ PERSONAL CONFIGURATION - THEMES ++++++++++++++++++++ #
 # =========================================================================== #
 
@@ -201,6 +178,28 @@ ZSH_THEME="robbyrussell"
 
 # Set default editor
 export EDITOR="nvim"
+
+
+# +++++++++++++++++++++++++++++++ OH-MY-ZSH +++++++++++++++++++++++++++++++++ #
+
+# Would you like to use another custom folder than $ZSH/custom?
+ZSH_CUSTOM=$HOME/.config/zsh
+
+# Which plugins would you like to load?
+# Note: zsh-syntax-highlighting must be the last plugin to work correctly
+plugins=(
+    git
+    sudo
+    extract
+    colored-man-pages
+    zsh-autosuggestions
+    zsh-syntax-highlighting
+)
+
+source $ZSH/oh-my-zsh.sh
+
+# ZSH Cache
+export ZSH_COMPDUMP="$ZSH/cache/.zcompdump-$HOST"
 
 # -------------------------------- VI-MODE ---------------------------------- #
 # Enable vi mode
