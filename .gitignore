@@ -48,11 +48,4 @@
 
 # Git Submodules
 alacritty/.config/alacritty/themes
-tmux/.config/tmux/plugins/tmux-continuum
-tmux/.config/tmux/plugins/tmux-resurrect
-tmux/.config/tmux/plugins/tokyo-night-tmux
-
-tmux/.config/tmux/plugins/t-smart-tmux-session-manager
-tmux/.config/tmux/plugins/tmux-yank
-tmux/.config/tmux/plugins/tpm
-tmux/.config/tmux/plugins/vim-tmux-navigator
+tmux/.config/tmux/plugins/
