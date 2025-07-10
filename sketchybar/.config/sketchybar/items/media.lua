@@ -3,7 +3,7 @@ local colors = require("colors")
 
 local whitelist = { ["TIDAL"] = true,
                     ["Spotify"] = true,
-                    ["Music"] = true    };
+                    ["Music"] = true };
 
 local media_cover = sbar.add("item", {
   position = "right",
