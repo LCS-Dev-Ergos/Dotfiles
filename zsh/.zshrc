@@ -103,11 +103,11 @@ function zle-keymap-select() {
 zle -N zle-line-init
 zle -N zle-keymap-select
 
-# -------------------------------- PROMPT ----------------------------------- #
+# --------------------------------- PROMPT ---------------------------------- #
 # Oh My Posh - Custom prompt
 eval "$(oh-my-posh init zsh --config $XDG_CONFIG_HOME/oh-my-posh/lcs-dev.omp.json)"
 
-# ------------------------------- COLORS & FZF ------------------------------ #
+# ------------------------------ COLORS & FZF ------------------------------- #
 # Set up fzf key bindings and fuzzy completion
 eval "$(fzf --zsh)"
 
@@ -241,6 +241,7 @@ fi
 
 # GO Language
 export GOROOT="/usr/local/go"
+export GOPATH=$HOME/00_ENV/go
 
 # Android Home for Platform Tools
 export ANDROID_HOME="$HOME/Library/Android/Sdk"
@@ -423,6 +424,8 @@ command -v ng &>/dev/null && source <(ng completion script)
 # =========================================================================== #
 # +++++++++++++++++ FINAL PATH REORDERING AND CLEANUP +++++++++++++++++++++++ #
 # =========================================================================== #
+# This runs LAST. It takes the messy PATH and rebuilds it in the desired order.
+# This guarantees that shims have top priority and the order is consistent.
 
 build_final_path() {
   # Store original PATH for debugging
@@ -441,7 +444,7 @@ build_final_path() {
       "$HOME/.opam/ocaml-compiler/bin"
       
       # ----- FNM (Current session only) ------ #
-      "$FNM_MULTISHELL_PATH"
+      "$FNM_MULTISHELL_PATH/bin"
       
       # -------------- Homebrew --------------- #
       "/opt/homebrew/bin"
@@ -455,7 +458,7 @@ build_final_path() {
       # ----- User and App-Specific Paths ----- #
       "$HOME/.local/bin"
       "$HOME/.nix-profile/bin" "/nix/var/nix/profiles/default/bin"
-      "$HOME/.ghcup/bin" "$HOME/.cabal/bin"
+      "$HOME/.ghcup/bin"
       "$HOME/.cargo/bin"
       "$HOME/.ada/bin"
       "$HOME/00_ENV/perl5/bin"
@@ -483,7 +486,7 @@ build_final_path() {
       "$HOME/.opam/ocaml-compiler/bin"
       
       # ----- FNM (Current session only) ------ #
-      "$FNM_MULTISHELL_PATH"
+      "$FNM_MULTISHELL_PATH/bin"
 
       # ------------ System Tools ------------- #
       "/usr/local/bin" "/usr/bin" "/bin"
@@ -495,7 +498,7 @@ build_final_path() {
       # ----- User and App-Specific Paths ----- #
       "$HOME/.local/bin"
       "$HOME/.nix-profile/bin" "/nix/var/nix/profiles/default/bin"
-      "$HOME/.ghcup/bin" "$HOME/.cabal/bin"
+      "$HOME/.ghcup/bin"
       "$HOME/.cargo/bin"
       "$HOME/.ada/bin"
       "$GOPATH/bin" "$GOROOT/bin"
@@ -530,7 +533,7 @@ build_final_path() {
       done
       
       # Skip FNM orphan directories
-      if [[ "$dir" == *"fnm_multishells"* && "$dir" != "$FNM_MULTISHELL_PATH" ]]; then
+      if [[ "$dir" == *"fnm_multishells"* && "$dir" != "$FNM_MULTISHELL_PATH/bin" ]]; then
         continue
       fi
       
@@ -557,7 +560,7 @@ if command -v fnm &>/dev/null; then
   (
     local fnm_multishells_dir="$HOME/.local/state/fnm_multishells"
     if [ -d "$fnm_multishells_dir" ]; then
-      find "$fnm_multishells_dir" -mindepth 1 -type d -mmin +2 -exec rm -rf {} + 2>/dev/null
+      find "$fnm_multishells_dir" -mindepth 1 -type d -mmin +60 -exec rm -rf {} + 2>/dev/null
     fi
   ) &!
 fi
