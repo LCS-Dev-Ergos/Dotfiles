@@ -180,20 +180,16 @@ export BAT_THEME=tokyonight_night
 # ++++++++++++++++++++++++++++++++ ALIASES ++++++++++++++++++++++++++++++++++ #
 # =========================================================================== #
 
-# ----- Common Aliases (Cross-Platform) ----- #
+# ------ Common Aliases (Cross-Platform) ------ #
 alias ..="cd .."
 alias ...="cd ../.."
 alias ....="cd ../../.."
 alias .....="cd ../../../.."
 alias ......="cd ../../../../.."
 
-# Base ZSH
-alias c="clear"
-alias ls="eza --color=always --long --git --icons=always"
-
 # Tools
-alias ranger='TERM=screen-256color ranger'
-alias clang-format='clang-format -style=file:$CLANG_FORMAT_CONFIG'
+alias ranger="TERM=screen-256color ranger"
+alias clang-format="clang-format -style=file:$CLANG_FORMAT_CONFIG"
 alias fnm-clean='echo "Pulizia delle sessioni fnm orfane..." &&
                  rm -rf ~/.local/state/fnm_multishells/* && echo "Pulizia completata."'
 
@@ -201,20 +197,77 @@ alias fnm-clean='echo "Pulizia delle sessioni fnm orfane..." &&
 eval $(thefuck --alias)       # Creates the "fuck" alias
 eval $(thefuck --alias fk)    # Creates the shorter "fk" alias
 
-# ----- OS-Specific Aliases ----- #
+# ------- Zoxide (smarter cd) ------- #
+eval "$(zoxide init zsh)"
+
+# ------- OS-Specific Aliases ------- #
 if [[ "$OS_TYPE" == 'macOS' ]]; then
   alias compile="clang++ -std=c++20 -O3 -march=native -flto=thin -ffast-math -I/usr/local/include"
   alias tailscale="/Applications/Tailscale.app/Contents/MacOS/Tailscale"
-  alias gcc='gcc-15' # Use Homebrew's gcc
-  alias lldb='/usr/bin/lldb'
+  
+  # macOS specific utilities
+  alias flushdns="sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder"
+  alias battery="pmset -g batt"
+  alias sleep="pmset sleepnow"
+  alias lock="pmset displaysleepnow"
+  alias emptytrash="sudo rm -rfv ~/.Trash; sudo rm -rfv /Volumes/*/.Trashes"
+  alias ports="sudo lsof -i -P | grep LISTEN"
+  alias path="echo -e \${PATH//:/\\n}"
+  alias topdir="du -h -d 1 | sort -hr"
+  alias localip="ipconfig getifaddr en0"
+
 elif [[ "$OS_TYPE" == 'Linux' ]]; then
   alias compile="g++ -std=c++20 -O3 -march=native -flto -ffast-math"
-  alias gcc='gcc'
-  alias lldb='lldb'
+  
+  # Linux specific utilities
+  alias update="sudo apt update && sudo apt upgrade"
+  alias install="sudo apt install"
+  alias search="apt search"
+  alias remove="sudo apt remove"
+  alias autoremove="sudo apt autoremove"
+  alias services="systemctl list-units --type=service"
+  alias logs="journalctl -f"
+  alias ports="ss -tuln"
+  alias firewall="sudo ufw status"
+  alias ip="curl -s ifconfig.me"
+  alias localip="hostname -I | awk '{print \$1}'"
+  alias path="echo -e \${PATH//:/\\n}"
+  alias topdir="du -h --max-depth=1 | sort -hr"
+  alias qr="qrencode -t ansiutf8"
+  alias mounted="mount | column -t"
+  alias listening="netstat -tuln"
+  alias openports="nmap -sT -O localhost"
 fi
 
-# ------------ Zoxide (smarter cd) ------------ #
-eval "$(zoxide init zsh)"
+# ----- Cross-Platform Development Aliases ----- #
+alias gst="git status"
+alias gaa="git add ."
+alias gcm="git commit -m"
+alias gp="git push"
+alias gl="git log --oneline -10"
+alias gd="git diff"
+alias gb="git branch"
+alias gco="git checkout"
+alias gcb="git checkout -b"
+alias gpl="git pull"
+alias gf="git fetch"
+alias greset="git reset --hard HEAD"
+alias gclean="git clean -fd"
+
+# ----- Productivity Aliases ----- #
+alias c="clear"
+alias ls="eza --color=always --long --git --icons=always"
+alias ll="ls -la"
+alias la="ls -la"
+alias l="ls -l"
+alias md="mkdir -p"
+alias count="wc -l"
+alias size="du -sh"
+alias biggest="du -hs * | sort -hr | head -10"
+alias epoch="date +%s"
+alias ping="ping -c 5"
+alias reload="source ~/.zshrc"
+alias edit="$EDITOR ~/.zshrc"
 
 # ----- OS-specific environment variables ----- #
 if [[ "$OS_TYPE" == 'macOS' ]]; then
@@ -222,9 +275,9 @@ if [[ "$OS_TYPE" == 'macOS' ]]; then
   export LD=/usr/bin/ld
   export AR=/usr/bin/ar
   # Activate these flags if you intend to use Homebrew's LLVM
+  export CPATH="/opt/homebrew/include"
   export LDFLAGS="-L/opt/homebrew/opt/llvm/lib"
   export CPPFLAGS="-I/opt/homebrew/opt/llvm/include"
-  export CPATH="/opt/homebrew/include"
 
   # Function for brew update with notification (specific to macOS with sketchybar)
   function brew() {
@@ -445,20 +498,20 @@ build_final_path() {
       
       # ----- FNM (Current session only) ------ #
       "$FNM_MULTISHELL_PATH/bin"
-      
+
       # -------------- Homebrew --------------- #
       "/opt/homebrew/bin"
       "/opt/homebrew/sbin"
       "/opt/homebrew/opt/llvm/bin"
-      
+
       # ------------ System Tools ------------- #
       "/usr/local/bin" "/usr/bin" "/bin"
       "/usr/sbin" "/sbin"
-      
+
       # ----- User and App-Specific Paths ----- #
       "$HOME/.local/bin"
       "$HOME/.nix-profile/bin" "/nix/var/nix/profiles/default/bin"
-      "$HOME/.ghcup/bin"
+      "$HOME/.ghcup/bin" "$HOME/.cabal/bin"
       "$HOME/.cargo/bin"
       "$HOME/.ada/bin"
       "$HOME/00_ENV/perl5/bin"
@@ -498,7 +551,7 @@ build_final_path() {
       # ----- User and App-Specific Paths ----- #
       "$HOME/.local/bin"
       "$HOME/.nix-profile/bin" "/nix/var/nix/profiles/default/bin"
-      "$HOME/.ghcup/bin"
+      "$HOME/.ghcup/bin" "$HOME/.cabal/bin"
       "$HOME/.cargo/bin"
       "$HOME/.ada/bin"
       "$GOPATH/bin" "$GOROOT/bin"
