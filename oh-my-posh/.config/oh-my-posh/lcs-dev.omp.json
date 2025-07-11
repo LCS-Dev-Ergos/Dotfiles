@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/schema.json",
   "console_title_template": " {{ .Folder }} :: {{if .Root}}Admin{{end}}",
-  "palette": { 
+  "palette": {
     "main-bg": "#24283b",
     "terminal-red": "#f7768e",
     "pistachio-green": "#9ece6a",
@@ -144,12 +144,12 @@
   "secondary_prompt": {
     "background": "transparent",
     "foreground": "p:terminal-blue",
-    "template": "\uf061 "
+    "template": "\uf061  "
   },
   "transient_prompt": {
     "background": "transparent",
     "foreground": "p:terminal-blue",
-    "template": "\uf061 "
+    "template": "\uf061  "
   },
   "final_space": true,
   "version": 3,
