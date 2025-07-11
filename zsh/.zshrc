@@ -2,163 +2,8 @@
 # +++++++++++++++++++++++++++ BASE CONFIGURATION ++++++++++++++++++++++++++++ #
 # =========================================================================== #
 
-# --------- Startup Commands -------- #
+# --------------------------- Startup Commands ------------------------------ #
 # fastfetch
-
-# =========================================================================== #
-# +++++++++++++++++++++++++++ DETECT OPERATING SYSTEM +++++++++++++++++++++++ #
-# =========================================================================== #
-
-# Detect operating system to load specific configurations
-case "$(uname -s)" in
-    Darwin)
-        export OS_TYPE='macOS'
-        ;;
-    Linux)
-        export OS_TYPE='Linux'
-        ;;
-    *)
-        export OS_TYPE='Other'
-        ;;
-esac
-
-# =========================================================================== #
-# +++++++++++++++++++++++++++ ENVIRONMENT MANAGERS ++++++++++++++++++++++++++ #
-# =========================================================================== #
-
-# ---------------------- Nix -------------------- #
-if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
-  . '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
-elif [ -e "$HOME/.nix-profile/etc/profile.d/nix.sh" ]; then
-  . "$HOME/.nix-profile/etc/profile.d/nix.sh"
-fi
-
-# ------------ Homebrew / Linuxbrew ------------- #
-# Search for Homebrew in standard macOS and Linux paths
-if [ -x "/opt/homebrew/bin/brew" ]; then # macOS Apple Silicon
-  eval "$(/opt/homebrew/bin/brew shellenv)"
-elif [ -x "/usr/local/bin/brew" ]; then # macOS Intel
-  eval "$(/usr/local/bin/brew shellenv)"
-elif [ -f "/home/linuxbrew/.linuxbrew/bin/brew" ]; then # Linux
-  eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
-fi
-
-# OS-specific environment variables
-if [[ "$OS_TYPE" == 'macOS' ]]; then
-  # Force the use of system binaries to avoid conflicts.
-  export LD=/usr/bin/ld
-  export AR=/usr/bin/ar
-  # Activate these flags if you intend to use Homebrew's LLVM
-  export LDFLAGS="-L/opt/homebrew/opt/llvm/lib"
-  export CPPFLAGS="-I/opt/homebrew/opt/llvm/include"
-  export CPATH="/opt/homebrew/include"
-fi
-
-# Function for brew update with notification (specific to macOS with sketchybar)
-if [[ "$OS_TYPE" == 'macOS' ]]; then
-  function brew() {
-    command brew "$@"
-    if [[ $* =~ "upgrade" ]] || [[ $* =~ "update" ]] || [[ $* =~ "outdated" ]]; then
-      sketchybar --trigger brew_update
-    fi
-  }
-fi
-
-# =========================================================================== #
-# +++++++++++++++++++++ LANGUAGES AND DEVELOPMENT TOOLS +++++++++++++++++++++ #
-# =========================================================================== #
-
-# Haskell (ghcup-env)
-[ -f "$HOME/.ghcup/env" ] && . "$HOME/.ghcup/env"
-
-# GO Language
-export GOROOT="/usr/local/go"
-
-# FNM (Fast Node Manager)
-if command -v fnm &>/dev/null; then
-    eval "$(fnm env --use-on-cd --shell zsh)"
-fi
-
-# -------------- PyENV -------------- #
-export PYENV_ROOT="$HOME/.pyenv"
-[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
-eval "$(pyenv init -)"
-
-# >>> Conda initialize >>>
-# !! Contents within this block are managed by 'conda init' !!
-__conda_setup="$('$HOME/00_ENV/miniforge3/bin/conda' 'shell.zsh' 'hook' 2> /dev/null)"
-if [ $? -eq 0 ]; then
-    eval "$__conda_setup"
-else
-    if [ -f "$HOME/00_ENV/miniforge3/etc/profile.d/conda.sh" ]; then
-        . "$HOME/00_ENV/miniforge3/etc/profile.d/conda.sh"
-    else
-        export PATH="$HOME/00_ENV/miniforge3/bin:$PATH"
-    fi
-fi
-unset __conda_setup
-# <<< Conda initialize <<<
-
-# ----- Perl CPAN ----- #
-eval "$(perl -I$HOME/00_ENV/perl5/lib/perl5 -Mlocal::lib=$HOME/00_ENV/perl5)"
-
-# ----- OPAM ----- #
-# This section can be safely removed at any time if needed.
-[[ ! -r "$HOME/.opam/opam-init/init.zsh" ]] || source "$HOME/.opam/opam-init/init.zsh" > /dev/null 2> /dev/null 
-
-# ------------ Java - Smart JAVA_HOME Management ------------ #
-
-# First, prioritize SDKMAN! if it is installed.
-if [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]]; then
-  # SDKMAN! found. Let it manage everything.
-  export SDKMAN_DIR="$HOME/.sdkman"
-  source "$HOME/.sdkman/bin/sdkman-init.sh"
-else
-  # SDKMAN! not found. Use the fallback logic to auto-detect Java.
-  setup_java_home_fallback() {
-    if [[ "$OS_TYPE" == 'macOS' ]]; then
-      # On macOS, use the system-provided utility
-      if [ -x "/usr/libexec/java_home" ]; then
-        export JAVA_HOME=$(/usr/libexec/java_home)
-        export PATH="$JAVA_HOME/bin:$PATH"
-      fi
-    elif [[ "$OS_TYPE" == 'Linux' ]]; then
-      local found_java_home=""
-      # Method 1: For Debian/Ubuntu/Fedora based systems (uses update-alternatives)
-      if command -v update-alternatives &>/dev/null && command -v java &>/dev/null; then
-        local java_path=$(readlink -f $(which java))
-        if [[ -n "$java_path" ]]; then
-          found_java_home="${java_path%/bin/java}"
-        fi
-      fi
-      # Method 2: For Arch Linux systems (uses archlinux-java)
-      if [[ -z "$found_java_home" ]] && command -v archlinux-java &>/dev/null; then
-          local java_env=$(archlinux-java get)
-          if [[ -n "$java_env" ]]; then
-              found_java_home="/usr/lib/jvm/$java_env"
-          fi
-      fi
-      # Method 3: Generic fallback by searching in /usr/lib/jvm
-      if [[ -z "$found_java_home" ]] && [[ -d "/usr/lib/jvm" ]]; then
-          found_java_home=$(find /usr/lib/jvm -maxdepth 1 -type d -name "java-*-openjdk*" | sort -V | tail -n 1)
-      fi  
-      # Export variables only if we found a valid path
-      if [[ -n "$found_java_home" && -d "$found_java_home" ]]; then
-        export JAVA_HOME="$found_java_home"
-        export PATH="$JAVA_HOME/bin:$PATH"
-      else
-        echo "⚠️ Warning: Unable to automatically determine JAVA_HOME and SDKMAN! is not installed."
-        echo "   Please install Java and/or SDKMAN!, or set JAVA_HOME manually."
-      fi
-    fi
-  }
-  # Execute the fallback function
-  setup_java_home_fallback
-fi
-
-# =========================================================================== #
-# ++++++++++++++++++++++ PERSONAL CONFIGURATION - THEMES ++++++++++++++++++++ #
-# =========================================================================== #
 
 # --------------------------- Terminal Variables ---------------------------- #
 if [ "$TERM" = "xterm-kitty" ]; then
@@ -202,6 +47,10 @@ source $ZSH/oh-my-zsh.sh
 
 # ZSH Cache
 export ZSH_COMPDUMP="$ZSH/cache/.zcompdump-$HOST"
+
+# =========================================================================== #
+# ++++++++++++++++++++++ PERSONAL CONFIGURATION - THEMES ++++++++++++++++++++ #
+# =========================================================================== #
 
 # -------------------------------- VI-MODE ---------------------------------- #
 # Enable vi mode
@@ -296,6 +145,23 @@ _fzf_comprun() {
 export BAT_THEME=tokyonight_night
 
 # =========================================================================== #
+# +++++++++++++++++++++++++++ DETECT OPERATING SYSTEM +++++++++++++++++++++++ #
+# =========================================================================== #
+
+# Detect operating system to load specific configurations
+case "$(uname -s)" in
+    Darwin)
+        export OS_TYPE='macOS'
+        ;;
+    Linux)
+        export OS_TYPE='Linux'
+        ;;
+    *)
+        export OS_TYPE='Other'
+        ;;
+esac
+
+# =========================================================================== #
 # +++++++++++++++++++++++++++ SOURCE COMMANDS +++++++++++++++++++++++++++++++ #
 # =========================================================================== #
 
@@ -311,6 +177,131 @@ fi
 
 # ------- Zoxide (smarter cd) ------- #
 eval "$(zoxide init zsh)"
+
+# =========================================================================== #
+# +++++++++++++++++++++++++++ ENVIRONMENT MANAGERS ++++++++++++++++++++++++++ #
+# =========================================================================== #
+
+# ---------------------- Nix -------------------- #
+if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
+  . '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
+elif [ -e "$HOME/.nix-profile/etc/profile.d/nix.sh" ]; then
+  . "$HOME/.nix-profile/etc/profile.d/nix.sh"
+fi
+
+# ------------ Homebrew / Linuxbrew ------------- #
+# Search for Homebrew in standard macOS and Linux paths
+if [ -x "/opt/homebrew/bin/brew" ]; then # macOS Apple Silicon
+  eval "$(/opt/homebrew/bin/brew shellenv)"
+elif [ -x "/usr/local/bin/brew" ]; then # macOS Intel
+  eval "$(/usr/local/bin/brew shellenv)"
+elif [ -f "/home/linuxbrew/.linuxbrew/bin/brew" ]; then # Linux
+  eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+fi
+
+# OS-specific environment variables
+if [[ "$OS_TYPE" == 'macOS' ]]; then
+  # Force the use of system binaries to avoid conflicts.
+  export LD=/usr/bin/ld
+  export AR=/usr/bin/ar
+  # Activate these flags if you intend to use Homebrew's LLVM
+  export LDFLAGS="-L/opt/homebrew/opt/llvm/lib"
+  export CPPFLAGS="-I/opt/homebrew/opt/llvm/include"
+  export CPATH="/opt/homebrew/include"
+fi
+
+# Function for brew update with notification (specific to macOS with sketchybar)
+if [[ "$OS_TYPE" == 'macOS' ]]; then
+  function brew() {
+    command brew "$@"
+    if [[ $* =~ "upgrade" ]] || [[ $* =~ "update" ]] || [[ $* =~ "outdated" ]]; then
+      sketchybar --trigger brew_update
+    fi
+  }
+fi
+
+# =========================================================================== #
+# +++++++++++++++++++++ LANGUAGES AND DEVELOPMENT TOOLS +++++++++++++++++++++ #
+# =========================================================================== #
+
+# GO Language
+export GOROOT="/usr/local/go"
+
+# -------------- PyENV -------------- #
+export PYENV_ROOT="$HOME/.pyenv"
+[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
+eval "$(pyenv init -)"
+
+# >>> Conda initialize >>>
+# !! Contents within this block are managed by 'conda init' !!
+__conda_setup="$('$HOME/00_ENV/miniforge3/bin/conda' 'shell.zsh' 'hook' 2> /dev/null)"
+if [ $? -eq 0 ]; then
+    eval "$__conda_setup"
+else
+    if [ -f "$HOME/00_ENV/miniforge3/etc/profile.d/conda.sh" ]; then
+        . "$HOME/00_ENV/miniforge3/etc/profile.d/conda.sh"
+    else
+        export PATH="$HOME/00_ENV/miniforge3/bin:$PATH"
+    fi
+fi
+unset __conda_setup
+# <<< Conda initialize <<<
+
+# ----- Perl CPAN ----- #
+eval "$(perl -I$HOME/00_ENV/perl5/lib/perl5 -Mlocal::lib=$HOME/00_ENV/perl5)"
+
+# Android Home for Platform Tools
+export ANDROID_HOME="$HOME/Library/Android/Sdk"
+
+# ------------ Java - Smart JAVA_HOME Management ------------ #
+
+# First, prioritize SDKMAN! if it is installed.
+if [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]]; then
+  # SDKMAN! found. Let it manage everything.
+  export SDKMAN_DIR="$HOME/.sdkman"
+  source "$HOME/.sdkman/bin/sdkman-init.sh"
+else
+  # SDKMAN! not found. Use the fallback logic to auto-detect Java.
+  setup_java_home_fallback() {
+    if [[ "$OS_TYPE" == 'macOS' ]]; then
+      # On macOS, use the system-provided utility
+      if [ -x "/usr/libexec/java_home" ]; then
+        export JAVA_HOME=$(/usr/libexec/java_home)
+        export PATH="$JAVA_HOME/bin:$PATH"
+      fi
+    elif [[ "$OS_TYPE" == 'Linux' ]]; then
+      local found_java_home=""
+      # Method 1: For Debian/Ubuntu/Fedora based systems (uses update-alternatives)
+      if command -v update-alternatives &>/dev/null && command -v java &>/dev/null; then
+        local java_path=$(readlink -f $(which java))
+        if [[ -n "$java_path" ]]; then
+          found_java_home="${java_path%/bin/java}"
+        fi
+      fi
+      # Method 2: For Arch Linux systems (uses archlinux-java)
+      if [[ -z "$found_java_home" ]] && command -v archlinux-java &>/dev/null; then
+          local java_env=$(archlinux-java get)
+          if [[ -n "$java_env" ]]; then
+              found_java_home="/usr/lib/jvm/$java_env"
+          fi
+      fi
+      # Method 3: Generic fallback by searching in /usr/lib/jvm
+      if [[ -z "$found_java_home" ]] && [[ -d "/usr/lib/jvm" ]]; then
+          found_java_home=$(find /usr/lib/jvm -maxdepth 1 -type d -name "java-*-openjdk*" | sort -V | tail -n 1)
+      fi  
+      # Export variables only if we found a valid path
+      if [[ -n "$found_java_home" && -d "$found_java_home" ]]; then
+        export JAVA_HOME="$found_java_home"
+        export PATH="$JAVA_HOME/bin:$PATH"
+      else
+        echo "⚠️ Warning: Unable to automatically determine JAVA_HOME and SDKMAN! is not installed."
+        echo "   Please install Java and/or SDKMAN!, or set JAVA_HOME manually."
+      fi
+    fi
+  }
+  # Execute the fallback function
+  setup_java_home_fallback
+fi
 
 # =========================================================================== #
 # +++++++++++++++++++++++++++ GLOBAL VARIABLES ++++++++++++++++++++++++++++++ #
@@ -394,23 +385,20 @@ fix_path_order() {
       desired_path_order=(
       # ----- Version Managers (shims) ----- #
       "$HOME/.pyenv/shims"
-      
-      # ----- Dynamic FNM directories ----- #
-      "$(echo "$PATH" | tr ':' '\n' | grep 'fnm_multishells')"
       "$HOME/.sdkman/candidates/java/current/bin"
-      
+
       # ----- Homebrew ----- #
       "/opt/homebrew/bin"
       "/opt/homebrew/sbin"
+
+      # ----- Homebrew LLVM ----- #
+      "/opt/homebrew/opt/llvm/bin"
 
       # ----- System Tools ----- #
       "/usr/bin"
       "/bin"
       "/usr/sbin"
       "/sbin"
-
-      # ----- Homebrew LLVM (for clang++, clang-format, etc.) ----- #
-      "/opt/homebrew/opt/llvm/bin"
       
       # ----- User and App-Specific Paths (macOS) ----- #
       "$HOME/.local/bin" "/usr/local/bin"
@@ -434,9 +422,8 @@ fix_path_order() {
       desired_path_order=(
       # ----- Version Managers (shims) ----- #
       "$HOME/.pyenv/shims"
-      "$(echo "$PATH" | tr ':' '\n' | grep 'fnm_multishells')"
       "$HOME/.sdkman/candidates/java/current/bin"
-      
+
       # ----- System Tools ----- #
       "/usr/local/bin" "/usr/local/sbin"
       "/usr/bin" "/bin" "/usr/sbin" "/sbin"
@@ -475,4 +462,24 @@ fix_path_order() {
 
 # Execute the function to finalize the PATH
 fix_path_order
-unset -f fix_path_order # Cleans the function from the environment
+
+# Cleans the function from the environment
+unset -f fix_path_order
+
+# =========================================================================== #
+# +++++++++++++++++ DYNAMIC ENVIRONMENT MANAGERS (Post-Finalizer) +++++++++++ #
+# =========================================================================== #
+# These scripts operate on our already clean PATH and can add
+# their dynamic magic (hooks, etc.) without being overwritten.
+
+# FNM (Fast Node Manager)
+if command -v fnm &>/dev/null; then
+    eval "$(fnm env --use-on-cd --shell zsh)"
+fi
+
+# Haskell (ghcup-env)
+[ -f "$HOME/.ghcup/env" ] && . "$HOME/.ghcup/env"
+
+# Opam
+[[ ! -r "$HOME/.opam/opam-init/init.zsh" ]] || source "$HOME/.opam/opam-init/init.zsh" > /dev/null 2> /dev/null
+
