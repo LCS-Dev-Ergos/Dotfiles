@@ -2,6 +2,39 @@
 # +++++++++++++++++++++++++++ BASE CONFIGURATION ++++++++++++++++++++++++++++ #
 # =========================================================================== #
 
+# If ZPROFILE_HAS_RUN variable doesn't exist, we're in a non-login shell
+# (e.g., VS Code). Load our base configuration to ensure clean PATH setup.
+# if [[ -z "$ZPROFILE_HAS_RUN" ]]; then
+#  source "${ZDOTDIR:-$HOME}/.zprofile"
+# fi
+
+# Enables the advanced features of VS Code's integrated terminal.
+# Must be in .zshrc because it is run for each new interactive shell.
+if [[ "$TERM_PROGRAM" == "vscode" ]]; then
+    . "$(code --locate-shell-integration-path zsh)"
+fi
+
+# =========================================================================== #
+# ++++++++++++++++++++++++ EXECUTION AND OS DETECTION +++++++++++++++++++++++ #
+# =========================================================================== #
+
+# Export this variable to let .zshrc know that this file has already run.
+# This is the crucial synchronization mechanism.
+export ZPROFILE_HAS_RUN=true
+
+# Detect operating system to load specific configurations
+case "$(uname -s)" in
+    Darwin)
+        export OS_TYPE='macOS'
+        ;;
+    Linux)
+        export OS_TYPE='Linux'
+        ;;
+    *)
+        export OS_TYPE='Other'
+        ;;
+esac
+
 # --------------------------- Startup Commands ------------------------------ #
 # fastfetch
 
@@ -12,6 +45,9 @@ else
     export TERM=xterm-256color
 fi
 
+# Configuration System Directory
+export CONFIG_DIR="$HOME/.config"
+
 # Set up XDG Base Directory Specification
 export XDG_CONFIG_HOME="$HOME/.config"
 
@@ -19,13 +55,10 @@ export XDG_CONFIG_HOME="$HOME/.config"
 export ZSH="$HOME/.oh-my-zsh"
 
 # Set name of the theme to load
-ZSH_THEME="robbyrussell"
+ZSH_THEME=""
 
 # Set default editor
 export EDITOR="nvim"
-
-# Configuration System Directory
-export CONFIG_DIR="$HOME/.config"
 
 # +++++++++++++++++++++++++++++++ OH-MY-ZSH +++++++++++++++++++++++++++++++++ #
 
@@ -74,8 +107,7 @@ zle -N zle-keymap-select
 # Oh My Posh - Custom prompt
 eval "$(oh-my-posh init zsh --config $XDG_CONFIG_HOME/oh-my-posh/lcs-dev.omp.json)"
 
-# --------------------------------- COLORS ---------------------------------- #
-# --------------- FZF --------------- #
+# ------------------------------- COLORS & FZF ------------------------------ #
 # Set up fzf key bindings and fuzzy completion
 eval "$(fzf --zsh)"
 
@@ -145,61 +177,46 @@ _fzf_comprun() {
 export BAT_THEME=tokyonight_night
 
 # =========================================================================== #
-# +++++++++++++++++++++++++++ DETECT OPERATING SYSTEM +++++++++++++++++++++++ #
+# ++++++++++++++++++++++++++++++++ ALIASES ++++++++++++++++++++++++++++++++++ #
 # =========================================================================== #
 
-# Detect operating system to load specific configurations
-case "$(uname -s)" in
-    Darwin)
-        export OS_TYPE='macOS'
-        ;;
-    Linux)
-        export OS_TYPE='Linux'
-        ;;
-    *)
-        export OS_TYPE='Other'
-        ;;
-esac
+# ----- Common Aliases (Cross-Platform) ----- #
+alias ..="cd .."
+alias ...="cd ../.."
+alias ....="cd ../../.."
+alias .....="cd ../../../.."
+alias ......="cd ../../../../.."
 
-# =========================================================================== #
-# +++++++++++++++++++++++++++ SOURCE COMMANDS +++++++++++++++++++++++++++++++ #
-# =========================================================================== #
+# Base ZSH
+alias c="clear"
+alias ls="eza --color=always --long --git --icons=always"
 
-# ------------ ngrok ---------------- #
-if command -v ngrok &>/dev/null; then
-    eval "$(ngrok completion)"
+# Tools
+alias ranger='TERM=screen-256color ranger'
+alias clang-format='clang-format -style=file:$CLANG_FORMAT_CONFIG'
+alias fnm-clean='echo "Pulizia delle sessioni fnm orfane..." &&
+                 rm -rf ~/.local/state/fnm_multishells/* && echo "Pulizia completata."'
+
+# thefuck alias (corrects mistyped commands)
+eval $(thefuck --alias)       # Creates the "fuck" alias
+eval $(thefuck --alias fk)    # Creates the shorter "fk" alias
+
+# ----- OS-Specific Aliases ----- #
+if [[ "$OS_TYPE" == 'macOS' ]]; then
+  alias compile="clang++ -std=c++20 -O3 -march=native -flto=thin -ffast-math -I/usr/local/include"
+  alias tailscale="/Applications/Tailscale.app/Contents/MacOS/Tailscale"
+  alias gcc='gcc-15' # Use Homebrew's gcc
+  alias lldb='/usr/bin/lldb'
+elif [[ "$OS_TYPE" == 'Linux' ]]; then
+  alias compile="g++ -std=c++20 -O3 -march=native -flto -ffast-math"
+  alias gcc='gcc'
+  alias lldb='lldb'
 fi
 
-# ----------- Angular CLI ----------- #
-if command -v ng &>/dev/null; then
-    source <(ng completion script)
-fi
-
-# ------- Zoxide (smarter cd) ------- #
+# ------------ Zoxide (smarter cd) ------------ #
 eval "$(zoxide init zsh)"
 
-# =========================================================================== #
-# +++++++++++++++++++++++++++ ENVIRONMENT MANAGERS ++++++++++++++++++++++++++ #
-# =========================================================================== #
-
-# ---------------------- Nix -------------------- #
-if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
-  . '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
-elif [ -e "$HOME/.nix-profile/etc/profile.d/nix.sh" ]; then
-  . "$HOME/.nix-profile/etc/profile.d/nix.sh"
-fi
-
-# ------------ Homebrew / Linuxbrew ------------- #
-# Search for Homebrew in standard macOS and Linux paths
-if [ -x "/opt/homebrew/bin/brew" ]; then # macOS Apple Silicon
-  eval "$(/opt/homebrew/bin/brew shellenv)"
-elif [ -x "/usr/local/bin/brew" ]; then # macOS Intel
-  eval "$(/usr/local/bin/brew shellenv)"
-elif [ -f "/home/linuxbrew/.linuxbrew/bin/brew" ]; then # Linux
-  eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
-fi
-
-# OS-specific environment variables
+# ----- OS-specific environment variables ----- #
 if [[ "$OS_TYPE" == 'macOS' ]]; then
   # Force the use of system binaries to avoid conflicts.
   export LD=/usr/bin/ld
@@ -208,10 +225,8 @@ if [[ "$OS_TYPE" == 'macOS' ]]; then
   export LDFLAGS="-L/opt/homebrew/opt/llvm/lib"
   export CPPFLAGS="-I/opt/homebrew/opt/llvm/include"
   export CPATH="/opt/homebrew/include"
-fi
 
-# Function for brew update with notification (specific to macOS with sketchybar)
-if [[ "$OS_TYPE" == 'macOS' ]]; then
+  # Function for brew update with notification (specific to macOS with sketchybar)
   function brew() {
     command brew "$@"
     if [[ $* =~ "upgrade" ]] || [[ $* =~ "update" ]] || [[ $* =~ "outdated" ]]; then
@@ -221,40 +236,72 @@ if [[ "$OS_TYPE" == 'macOS' ]]; then
 fi
 
 # =========================================================================== #
-# +++++++++++++++++++++ LANGUAGES AND DEVELOPMENT TOOLS +++++++++++++++++++++ #
+# ++++++++++++++++++++++++++++ GLOBAL VARIABLES +++++++++++++++++++++++++++++ #
 # =========================================================================== #
 
 # GO Language
 export GOROOT="/usr/local/go"
 
-# -------------- PyENV -------------- #
-export PYENV_ROOT="$HOME/.pyenv"
-[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
-eval "$(pyenv init -)"
-
-# >>> Conda initialize >>>
-# !! Contents within this block are managed by 'conda init' !!
-__conda_setup="$('$HOME/00_ENV/miniforge3/bin/conda' 'shell.zsh' 'hook' 2> /dev/null)"
-if [ $? -eq 0 ]; then
-    eval "$__conda_setup"
-else
-    if [ -f "$HOME/00_ENV/miniforge3/etc/profile.d/conda.sh" ]; then
-        . "$HOME/00_ENV/miniforge3/etc/profile.d/conda.sh"
-    else
-        export PATH="$HOME/00_ENV/miniforge3/bin:$PATH"
-    fi
-fi
-unset __conda_setup
-# <<< Conda initialize <<<
-
-# ----- Perl CPAN ----- #
-eval "$(perl -I$HOME/00_ENV/perl5/lib/perl5 -Mlocal::lib=$HOME/00_ENV/perl5)"
-
 # Android Home for Platform Tools
 export ANDROID_HOME="$HOME/Library/Android/Sdk"
 
-# ------------ Java - Smart JAVA_HOME Management ------------ #
+# Clang-Format Configuration
+export CLANG_FORMAT_CONFIG="$HOME/.config/clang-format/.clang-format"
 
+# ----------- Directories ----------- #
+# LCS.Data Volume
+if [[ "$OS_TYPE" == 'macOS' ]]; then
+    export LCS_Data="/Volumes/LCS.Data"
+    if [ ! -d "$LCS_Data" ]; then
+        echo "⚠️ Warning: LCS.Data volume is not mounted"
+    fi
+elif [[ "$OS_TYPE" == 'Linux' ]]; then
+    export LCS_Data="/media/$USER/LCS.Data"
+    if [ ! -d "$LCS_Data" ]; then
+        echo "⚠️ Warning: LCS.Data volume does not appear to be mounted in $LCS_Data"
+    fi
+fi
+
+# --------------- Blog -------------- #
+export BLOG_POSTS_DIR="$LCS_Data/Blog/CS-Topics/content/posts/"
+export BLOG_STATIC_IMAGES_DIR="$LCS_Data/Blog/CS-Topics/static/images"
+export IMAGES_SCRIPT_PATH="$LCS_Data/Blog/Automatic-Updates/images.py"
+export OBSIDIAN_ATTACHMENTS_DIR="$HOME/Documents/Obsidian-Vault/XSPC-Vault/Blog/images"
+
+# =========================================================================== #
+# +++++++++++++++++++++++ STATIC ENVIRONMENT MANAGERS +++++++++++++++++++++++ #
+# =========================================================================== #
+
+# --------------- Nix --------------- #
+if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
+  . '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
+elif [ -e "$HOME/.nix-profile/etc/profile.d/nix.sh" ]; then
+  . "$HOME/.nix-profile/etc/profile.d/nix.sh"
+fi
+
+# ------- Homebrew / Linuxbrew ------ #
+# Search for Homebrew in standard macOS and Linux paths
+if [ -x "/opt/homebrew/bin/brew" ]; then # macOS Apple Silicon
+  eval "$(/opt/homebrew/bin/brew shellenv)"
+elif [ -x "/usr/local/bin/brew" ]; then # macOS Intel
+  eval "$(/usr/local/bin/brew shellenv)"
+elif [ -f "/home/linuxbrew/.linuxbrew/bin/brew" ]; then # Linux
+  eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+fi
+
+# ------- Haskell (ghcup-env) ------- #
+[ -f "$HOME/.ghcup/env" ] && . "$HOME/.ghcup/env"
+
+# -------------- Opam --------------- #
+[[ ! -r "$HOME/.opam/opam-init/init.zsh" ]] || source "$HOME/.opam/opam-init/init.zsh" > /dev/null 2> /dev/null
+
+# =========================================================================== #
+# ++++++++++++++++++++++ DYNAMIC ENVIRONMENT MANAGERS  ++++++++++++++++++++++ #
+# =========================================================================== #
+
+# ===================== LANGUAGES AND DEVELOPMENT TOOLS ===================== #
+
+# --------------------- Java - Smart JAVA_HOME Management ------------------- #
 # First, prioritize SDKMAN! if it is installed.
 if [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]]; then
   # SDKMAN! found. Let it manage everything.
@@ -303,183 +350,214 @@ else
   setup_java_home_fallback
 fi
 
-# =========================================================================== #
-# +++++++++++++++++++++++++++ GLOBAL VARIABLES ++++++++++++++++++++++++++++++ #
-# =========================================================================== #
+# -------------- PyENV -------------- #
+export PYENV_ROOT="$HOME/.pyenv"
+[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
+eval "$(pyenv init -)"
 
-# ----------- Directories ----------- #
-# LCS.Data Volume
-if [[ "$OS_TYPE" == 'macOS' ]]; then
-    export LCS_Data="/Volumes/LCS.Data"
-    if [ ! -d "$LCS_Data" ]; then
-        echo "⚠️ Warning: LCS.Data volume is not mounted"
-    fi
-elif [[ "$OS_TYPE" == 'Linux' ]]; then
-    export LCS_Data="/media/$USER/LCS.Data"
-    if [ ! -d "$LCS_Data" ]; then
-        echo "⚠️ Warning: LCS.Data volume does not appear to be mounted in $LCS_Data"
+# -------------- CONDA -------------- #
+# >>> Conda initialize >>>
+# !! Contents within this block are managed by 'conda init' !!
+__conda_setup="$('$HOME/00_ENV/miniforge3/bin/conda' 'shell.zsh' 'hook' 2> /dev/null)"
+if [ $? -eq 0 ]; then
+    eval "$__conda_setup"
+else
+    if [ -f "$HOME/00_ENV/miniforge3/etc/profile.d/conda.sh" ]; then
+        . "$HOME/00_ENV/miniforge3/etc/profile.d/conda.sh"
+    else
+        export PATH="$HOME/00_ENV/miniforge3/bin:$PATH"
     fi
 fi
+unset __conda_setup
+# <<< Conda initialize <<<
 
-# Clang-Format Configuration
-export CLANG_FORMAT_CONFIG="$HOME/.config/clang-format/.clang-format"
-
-# ----- Blog ----- #
-export BLOG_POSTS_DIR="$LCS_Data/Blog/CS-Topics/content/posts/"
-export BLOG_STATIC_IMAGES_DIR="$LCS_Data/Blog/CS-Topics/static/images"
-export IMAGES_SCRIPT_PATH="$LCS_Data/Blog/Automatic-Updates/images.py"
-export OBSIDIAN_ATTACHMENTS_DIR="$HOME/Documents/Obsidian-Vault/XSPC-Vault/Blog/images"
+# ------------ Perl CPAN ------------ #
+eval "$(perl -I$HOME/00_ENV/perl5/lib/perl5 -Mlocal::lib=$HOME/00_ENV/perl5)"
 
 # =========================================================================== #
-# ++++++++++++++++++++++++++++++++ ALIASES ++++++++++++++++++++++++++++++++++ #
-# =========================================================================== #
+# FNM (Fast Node Manager)
+if command -v fnm &>/dev/null; then
+  # Clean up any existing orphan directories before starting
+  fnm_cleanup_orphans() {
+    local fnm_multishells_dir="$HOME/.local/state/fnm_multishells"
+    if [ -d "$fnm_multishells_dir" ]; then
+      # Remove directories older than 30 minutes
+      find "$fnm_multishells_dir" -mindepth 1 -type d -mmin +30 -exec rm -rf {} + 2>/dev/null
+    fi
+  }
+  
+  # Run cleanup before initialization
+  fnm_cleanup_orphans
 
-# ----- Common Aliases (Cross-Platform) ----- #
-alias ..="cd .."
-alias ...="cd ../.."
-alias ....="cd ../../.."
-alias .....="cd ../../../.."
-alias ......="cd ../../../../.."
+  # Set a global default version if it doesn't exist
+  if ! fnm default >/dev/null 2>&1; then
+    latest_installed=$(fnm list | grep -o 'v[0-9.]*' | sort -V | tail -n 1)
+    if [ -n "$latest_installed" ]; then
+      fnm default "$latest_installed"
+    fi
+  fi
 
-# Eza (modern ls replacement)
-alias ls="eza --color=always --long --git --icons=always"
+  # Initialize fnm
+  eval "$(fnm env --use-on-cd --shell zsh)"
 
-# thefuck alias (corrects mistyped commands)
-eval $(thefuck --alias)       # Creates the "fuck" alias
-eval $(thefuck --alias fk)    # Creates the shorter "fk" alias
-
-# Zoxide (smart cd replacement)
-alias cd="z"
-
-# Clang-Format alias
-alias clang-format='clang-format -style=file:$CLANG_FORMAT_CONFIG'
-
-# ----- OS-Specific Aliases ----- #
-if [[ "$OS_TYPE" == 'macOS' ]]; then
-  alias compile="clang++ -std=c++20 -O3 -march=native -flto=thin -ffast-math -I/usr/local/include"
-  alias tailscale="/Applications/Tailscale.app/Contents/MacOS/Tailscale"
-  alias gcc='gcc-15' # Use Homebrew's gcc
-  alias lldb='/usr/bin/lldb'
-elif [[ "$OS_TYPE" == 'Linux' ]]; then
-  alias compile="g++ -std=c++20 -O3 -march=native -flto -ffast-math"
-  alias gcc='gcc'
-  alias lldb='lldb'
+  # Hook for cleanup on shell exit
+  _fnm_cleanup_on_exit() {
+    if [ -n "$FNM_MULTISHELL_PATH" ] && [ -d "$FNM_MULTISHELL_PATH" ]; then
+      rm -rf "$FNM_MULTISHELL_PATH"
+    fi
+  }
+  autoload -U add-zsh-hook
+  add-zsh-hook zshexit _fnm_cleanup_on_exit
 fi
 
-alias c="clear"
-alias ranger='TERM=screen-256color ranger'
+# =========================================================================== #
+# +++++++++++++++++++++++++++ COMPLETIONS (LAST) ++++++++++++++++++++++++++++ #
+# =========================================================================== #
+
+# ------------ ngrok ---------------- #
+command -v ngrok &>/dev/null && eval "$(ngrok completion)"
+
+# ----------- Angular CLI ----------- #
+command -v ng &>/dev/null && source <(ng completion script)
 
 # =========================================================================== #
-# ++++++++++++++++++++++ PATH FINALIZER (RUNS LAST) +++++++++++++++++++++++++ #
+# +++++++++++++++++ FINAL PATH REORDERING AND CLEANUP +++++++++++++++++++++++ #
 # =========================================================================== #
-# This function runs last to ensure correct PATH order, resolve conflicts
-# (e.g., /usr/bin/ar vs homebrew) and remove duplicate entries.
 
-fix_path_order() {
-  # 1. Define the desired priority order for key directories
-  #    that cause conflicts or need high priority.
-  local -a desired_path_order=()
-
-  # Build the list of desired paths based on the operating system
+build_final_path() {
+  # Store original PATH for debugging
+  local original_path="$PATH"
+  
+  # Define the desired final order of directories in the PATH
+  local -a path_template
   if [[ "$OS_TYPE" == 'macOS' ]]; then
-      desired_path_order=(
-      # ----- Version Managers (shims) ----- #
+    path_template=(
+      # ----- DYNAMIC SHIMS (TOP PRIORITY) ---- #
       "$HOME/.pyenv/shims"
+      
+      # ----- STATIC SHIMS & LANGUAGE BINS ---- #
+      "$PYENV_ROOT/bin"
       "$HOME/.sdkman/candidates/java/current/bin"
-
-      # ----- Homebrew ----- #
+      "$HOME/.opam/ocaml-compiler/bin"
+      
+      # ----- FNM (Current session only) ------ #
+      "$FNM_MULTISHELL_PATH"
+      
+      # -------------- Homebrew --------------- #
       "/opt/homebrew/bin"
       "/opt/homebrew/sbin"
-
-      # ----- Homebrew LLVM ----- #
       "/opt/homebrew/opt/llvm/bin"
-
-      # ----- System Tools ----- #
-      "/usr/bin"
-      "/bin"
-      "/usr/sbin"
-      "/sbin"
       
-      # ----- User and App-Specific Paths (macOS) ----- #
-      "$HOME/.local/bin" "/usr/local/bin"
+      # ------------ System Tools ------------- #
+      "/usr/local/bin" "/usr/bin" "/bin"
+      "/usr/sbin" "/sbin"
+      
+      # ----- User and App-Specific Paths ----- #
+      "$HOME/.local/bin"
+      "$HOME/.nix-profile/bin" "/nix/var/nix/profiles/default/bin"
+      "$HOME/.ghcup/bin" "$HOME/.cabal/bin"
+      "$HOME/.cargo/bin"
+      "$HOME/.ada/bin"
+      "$HOME/00_ENV/perl5/bin"
+      "$HOME/00_ENV/miniforge3/condabin" "$HOME/00_ENV/miniforge3/bin"
+      "$GOPATH/bin" "$GOROOT/bin"
+      "$ANDROID_HOME/platform-tools" "$ANDROID_HOME/tools" "$ANDROID_HOME/tools/bin"
+      
+      # ------------- Other Paths ------------- #
+      "$HOME/.config/emacs/bin"
+      "/usr/local/mysql/bin"
+      "/opt/homebrew/opt/ncurses/bin"
+      "/Library/TeX/texbin"
+      "/usr/local/texlive/2025/bin/universal-darwin"
+      "$HOME/Library/Application Support/JetBrains/Toolbox/scripts"
+      "$HOME/.lcs-bin"
+    )
+  elif [[ "$OS_TYPE" == 'Linux' ]]; then
+    path_template=(
+      # ----- DYNAMIC SHIMS (TOP PRIORITY) ---- #
+      "$HOME/.pyenv/shims"
+      
+      # ----- STATIC SHIMS & LANGUAGE BINS ---- #
+      "$PYENV_ROOT/bin"
+      "$HOME/.sdkman/candidates/java/current/bin"
+      "$HOME/.opam/ocaml-compiler/bin"
+      
+      # ----- FNM (Current session only) ------ #
+      "$FNM_MULTISHELL_PATH"
+
+      # ------------ System Tools ------------- #
+      "/usr/local/bin" "/usr/bin" "/bin"
+      "/usr/local/sbin" "/usr/sbin" "/sbin"
+
+      # -------------- Linuxbrew -------------- #
+      "/home/linuxbrew/.linuxbrew/bin" "/home/linuxbrew/.linuxbrew/sbin"
+
+      # ----- User and App-Specific Paths ----- #
+      "$HOME/.local/bin"
       "$HOME/.nix-profile/bin" "/nix/var/nix/profiles/default/bin"
       "$HOME/.ghcup/bin" "$HOME/.cabal/bin"
       "$HOME/.cargo/bin"
       "$HOME/.ada/bin"
       "$GOPATH/bin" "$GOROOT/bin"
-      "$ANDROID_HOME/platform-tools" "$ANDROID_HOME/tools" "$ANDROID_HOME/tools/bin"
-      "$HOME/00_ENV/miniforge3/condabin" "$HOME/00_ENV/miniforge3/bin"
-
-      # ----- Other Paths ----- #
+      "$ANDROID_HOME/platform-tools" "$ANDROID_HOME/tools" "$ANDROID_HOME/tools/bin" # Android
+      
+      # ------------- Other Paths ------------- #
       "$HOME/.config/emacs/bin"
-      "/usr/local/mysql/bin"
-      "/opt/homebrew/opt/ncurses/bin"
-      "/Library/TeX/texbin" "/usr/local/texlive/2025/bin/universal-darwin"
-      "$HOME/Library/Application Support/JetBrains/Toolbox/scripts"
       "$HOME/.lcs-bin"
     )
-    elif [[ "$OS_TYPE" == 'Linux' ]]; then
-      desired_path_order=(
-      # ----- Version Managers (shims) ----- #
-      "$HOME/.pyenv/shims"
-      "$HOME/.sdkman/candidates/java/current/bin"
-
-      # ----- System Tools ----- #
-      "/usr/local/bin" "/usr/local/sbin"
-      "/usr/bin" "/bin" "/usr/sbin" "/sbin"
-
-      # ----- Linuxbrew ------ #
-      "/home/linuxbrew/.linuxbrew/bin" "/home/linuxbrew/.linuxbrew/sbin"
-
-      "$HOME/.local/bin"
-      # ----- User and App-Specific Paths (Linux) ----- #
-      "$HOME/.nix-profile/bin" "/nix/var/nix/profiles/default/bin"
-      "$HOME/.ghcup/bin" "$HOME/.cabal/bin" 
-      "$HOME/.cargo/bin"
-      "$HOME/.ada/bin"
-      "$GOPATH/bin" "$GOROOT/bin"
-      "$HOME/00_ENV/miniforge3/condabin" "$HOME/00_ENV/miniforge3/bin"
-      "$HOME/.config/emacs/bin"
-      "$ANDROID_HOME/platform-tools" "$ANDROID_HOME/tools" "$ANDROID_HOME/tools/bin"
-      "$HOME/.lcs-bin"
-      )
-    fi
-
-  # Use `typeset -U` to create an array that automatically removes duplicates.
-  typeset -U path_array
-  path_array=()
-
-  # Iterate over our ordered list and add only existing directories.
-  for p in "${desired_path_order[@]}"; do
-    if [[ -d "$p" ]]; then
-      path_array+=("$p")
+  fi
+  
+  # Create new PATH with only existing directories
+  local -a new_path_array=()
+  for dir in "${path_template[@]}"; do
+    if [[ -n "$dir" && -d "$dir" ]]; then
+      new_path_array+=("$dir")
     fi
   done
-
-  # Rebuild and export the final, clean, and ordered PATH.
-  export PATH="${(j/:/)path_array}"
+  
+  # Add any directories from original PATH that weren't in template
+  # (like VS Code extensions, etc.)
+  local -a original_path_array=("${(@s/:/)original_path}")
+  for dir in "${original_path_array[@]}"; do
+    if [[ -n "$dir" && -d "$dir" ]]; then
+      # Check if this directory is already in our new path
+      local found=false
+      for existing in "${new_path_array[@]}"; do
+        if [[ "$dir" == "$existing" ]]; then
+          found=true
+          break
+        fi
+      done
+      
+      # Skip FNM orphan directories
+      if [[ "$dir" == *"fnm_multishells"* && "$dir" != "$FNM_MULTISHELL_PATH" ]]; then
+        continue
+      fi
+      
+      if [[ "$found" == false ]]; then
+        new_path_array+=("$dir")
+      fi
+    fi
+  done
+  
+  # Convert array to PATH string
+  local IFS=':'
+  export PATH="${new_path_array[*]}"
+  
+  # Remove duplicates using typeset -U
+  typeset -U PATH
 }
 
-# Execute the function to finalize the PATH
-fix_path_order
+# Run the PATH rebuilding function
+build_final_path
+unset -f build_final_path
 
-# Cleans the function from the environment
-unset -f fix_path_order
-
-# =========================================================================== #
-# +++++++++++++++++ DYNAMIC ENVIRONMENT MANAGERS (Post-Finalizer) +++++++++++ #
-# =========================================================================== #
-# These scripts operate on our already clean PATH and can add
-# their dynamic magic (hooks, etc.) without being overwritten.
-
-# FNM (Fast Node Manager)
+# Background cleanup of old FNM directories
 if command -v fnm &>/dev/null; then
-    eval "$(fnm env --use-on-cd --shell zsh)"
+  (
+    local fnm_multishells_dir="$HOME/.local/state/fnm_multishells"
+    if [ -d "$fnm_multishells_dir" ]; then
+      find "$fnm_multishells_dir" -mindepth 1 -type d -mmin +2 -exec rm -rf {} + 2>/dev/null
+    fi
+  ) &!
 fi
-
-# Haskell (ghcup-env)
-[ -f "$HOME/.ghcup/env" ] && . "$HOME/.ghcup/env"
-
-# Opam
-[[ ! -r "$HOME/.opam/opam-init/init.zsh" ]] || source "$HOME/.opam/opam-init/init.zsh" > /dev/null 2> /dev/null
-
