@@ -428,8 +428,7 @@ unset __conda_setup
 # ------------ Perl CPAN ------------ #
 eval "$(perl -I$HOME/00_ENV/perl5/lib/perl5 -Mlocal::lib=$HOME/00_ENV/perl5)"
 
-# =========================================================================== #
-# FNM (Fast Node Manager)
+# ----- FNM (Fast Node Manager) ----- #
 if command -v fnm &>/dev/null; then
   # Clean up any existing orphan directories before starting
   fnm_cleanup_orphans() {
