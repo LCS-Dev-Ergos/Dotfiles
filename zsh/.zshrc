@@ -382,8 +382,8 @@ if command -v fnm &>/dev/null; then
   fnm_cleanup_orphans() {
     local fnm_multishells_dir="$HOME/.local/state/fnm_multishells"
     if [ -d "$fnm_multishells_dir" ]; then
-      # Remove directories older than 30 minutes
-      find "$fnm_multishells_dir" -mindepth 1 -type d -mmin +30 -exec rm -rf {} + 2>/dev/null
+      # Remove directories older than 60 minutes
+      find "$fnm_multishells_dir" -mindepth 1 -type l -mmin +60 -exec rm -rf {} + 2>/dev/null
     fi
   }
   
@@ -557,10 +557,7 @@ unset -f build_final_path
 
 # Background cleanup of old FNM directories
 if command -v fnm &>/dev/null; then
-  (
-    local fnm_multishells_dir="$HOME/.local/state/fnm_multishells"
-    if [ -d "$fnm_multishells_dir" ]; then
-      find "$fnm_multishells_dir" -mindepth 1 -type d -mmin +60 -exec rm -rf {} + 2>/dev/null
-    fi
-  ) &!
+  # Use 'at' to schedule a reliable, detached cleanup job. This avoids issues with shell exit signals (SIGHUP)
+  # The job will run 1 minute from now, ensuring it's out of the critical startup path
+  echo 'find "$HOME/.local/state/fnm_multishells" -mindepth 1 -type l -mmin +60 -exec rm -rf {} + 2>/dev/null' | at -M now + 1 minute 2>/dev/null
 fi
