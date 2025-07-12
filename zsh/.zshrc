@@ -795,3 +795,8 @@ if command -v fnm &>/dev/null; then
   # The job will run 1 minute from now, ensuring it's out of the critical startup path
   echo 'find "$HOME/.local/state/fnm_multishells" -mindepth 1 -type l -mmin +60 -exec rm -rf {} + 2>/dev/null' | at -M now + 1 minute 2>/dev/null
 fi
+
+# =========================================================================== #
+# +++++++++++++++++++++++++++ AUTOMATIC ADDITIONS +++++++++++++++++++++++++++ #
+# =========================================================================== #
+
