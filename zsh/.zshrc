@@ -4,14 +4,14 @@
 
 # If ZPROFILE_HAS_RUN variable doesn't exist, we're in a non-login shell
 # (e.g., VS Code). Load our base configuration to ensure clean PATH setup.
-# if [[ -z "$ZPROFILE_HAS_RUN" ]]; then
-#  source "${ZDOTDIR:-$HOME}/.zprofile"
-# fi
+if [[ -z "$ZPROFILE_HAS_RUN" ]]; then
+    source "${ZDOTDIR:-$HOME}/.zprofile"
+fi
 
 # Enables the advanced features of VS Code's integrated terminal.
 # Must be in .zshrc because it is run for each new interactive shell.
 if [[ "$TERM_PROGRAM" == "vscode" ]]; then
-    . "$(code --locate-shell-integration-path zsh)"
+    command -v code >/dev/null 2>&1 && . "$(code --locate-shell-integration-path zsh)"
 fi
 
 # =========================================================================== #
@@ -23,14 +23,32 @@ fi
 export ZPROFILE_HAS_RUN=true
 
 # Detect operating system to load specific configurations
-export OS_TYPE=$(case "$(uname -s)" in
-  Darwin) echo 'macOS' ;;
-  Linux)  echo 'Linux' ;;
-  *)      echo 'Other' ;;
-esac)
+if [[ "$(uname)" == "Darwin" ]]; then
+  PLATFORM="macOS"
+  ARCH_LINUX=false
+elif [[ "$(uname)" == "Linux" ]]; then
+  PLATFORM="Linux"
+  # Check if we're on Arch Linux
+  if [[ -f "/etc/arch-release" ]]; then
+    ARCH_LINUX=true
+  else
+    ARCH_LINUX=false
+  fi
+else
+  PLATFORM="Other"
+  ARCH_LINUX=false
+fi
 
 # --------------------------- Startup Commands ------------------------------ #
-# fastfetch
+# Conditional startup commands based on platform
+if [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" == true ]]; then
+  # Arch Linux specific startup commands
+  command -v fastfetch >/dev/null 2>&1 && fastfetch
+elif [[ "$PLATFORM" == "macOS" ]]; then
+  # macOS specific startup command
+  # command -v fastfetch >/dev/null 2>&1 && fastfetch
+  true # placeholder
+fi
 
 # --------------------------- Terminal Variables ---------------------------- #
 if [ "$TERM" = "xterm-kitty" ]; then
@@ -39,45 +57,88 @@ else
     export TERM=xterm-256color
 fi
 
-# Configuration System Directory
-export CONFIG_DIR="$HOME/.config"
+# +++++++++++++++++++++++++++++++ OH-MY-ZSH +++++++++++++++++++++++++++++++++ #
 
-# Set up XDG Base Directory Specification
-export XDG_CONFIG_HOME="$HOME/.config"
+# Path to Oh-My-Zsh installation (platform specific)
+if [[ "$PLATFORM" == "macOS" ]]; then
+  export ZSH="$HOME/.oh-my-zsh"
+elif [[ "$PLATFORM" == "Linux" ]]; then
+  if [[ -d "/usr/share/oh-my-zsh" ]]; then
+    export ZSH="/usr/share/oh-my-zsh"
+  else
+    export ZSH="$HOME/.oh-my-zsh"
+  fi
+fi
 
-# Path to your oh-my-zsh installation.
-export ZSH="$HOME/.oh-my-zsh"
+# Set custom directory if needed
+ZSH_CUSTOM=${ZSH_CUSTOM:-$HOME/.config/zsh}
 
 # Set name of the theme to load
 ZSH_THEME=""
 
-# Set default editor
-export EDITOR="nvim"
+# Check for plugin availability on Arch Linux
+if [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" == true ]]; then
+  # Make sure the ZSH_CUSTOM path is set correctly for Arch Linux
+  ZSH_CUSTOM="/usr/share/oh-my-zsh/custom"
+fi
 
-# +++++++++++++++++++++++++++++++ OH-MY-ZSH +++++++++++++++++++++++++++++++++ #
-
-# Would you like to use another custom folder than $ZSH/custom?
-ZSH_CUSTOM=$HOME/.config/zsh
-
-# Which plugins would you like to load?
+# Common plugins for all platforms
 # Note: zsh-syntax-highlighting must be the last plugin to work correctly
 plugins=(
-    git
-    sudo
-    extract
-    colored-man-pages
-    zsh-autosuggestions
-    zsh-syntax-highlighting
+  git
+  sudo
+  extract
+  colored-man-pages
 )
 
-source $ZSH/oh-my-zsh.sh
+# Platform-specific plugins
+if [[ "$PLATFORM" == "macOS" ]]; then
+  # macOS specific plugins
+  plugins+=(
+    zsh-autosuggestions
+    zsh-syntax-highlighting
+  )
+elif [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" == true ]]; then
+  # Arch Linux specific plugins
+  plugins+=(
+    fzf
+    zsh-256color
+    zsh-history-substring-search
+    zsh-autosuggestions
+    zsh-syntax-highlighting
+  )
+fi
 
 # ZSH Cache
 export ZSH_COMPDUMP="$ZSH/cache/.zcompdump-$HOST"
 
+source $ZSH/oh-my-zsh.sh
+
 # =========================================================================== #
 # ++++++++++++++++++++++ PERSONAL CONFIGURATION - THEMES ++++++++++++++++++++ #
 # =========================================================================== #
+
+# +++++++++++++++++++++++++++ PROMPT CONFIGURATION ++++++++++++++++++++++++++ #
+
+# Platform-specific prompt configuration
+if [[ "$PLATFORM" == "macOS" ]]; then
+  # macOS: Oh-My-Posh
+  if command -v oh-my-posh >/dev/null 2>&1; then
+    eval "$(oh-my-posh init zsh --config $XDG_CONFIG_HOME/oh-my-posh/lcs-dev.omp.json)"
+  fi
+elif [[ "$PLATFORM" == "Linux" ]]; then
+  # Linux: PowerLevel10k with Oh-My-Posh fallback
+  if [[ -f "/usr/share/zsh-theme-powerlevel10k/powerlevel10k.zsh-theme" ]]; then
+    source /usr/share/zsh-theme-powerlevel10k/powerlevel10k.zsh-theme
+    [[ -f ~/.p10k.zsh ]] && source ~/.p10k.zsh
+  elif [[ -f "$HOME/.oh-my-zsh/custom/themes/powerlevel10k/powerlevel10k.zsh-theme" ]]; then
+    source "$HOME/.oh-my-zsh/custom/themes/powerlevel10k/powerlevel10k.zsh-theme"
+    [[ -f ~/.p10k.zsh ]] && source ~/.p10k.zsh
+  elif command -v oh-my-posh >/dev/null 2>&1; then
+    # Fallback to Oh-My-Posh if PowerLevel10k is not available
+    eval "$(oh-my-posh init zsh --config $XDG_CONFIG_HOME/oh-my-posh/lcs-dev.omp.json)"
+  fi
+fi
 
 # -------------------------------- VI-MODE ---------------------------------- #
 # Enable vi mode
@@ -96,10 +157,6 @@ function zle-keymap-select() {
 }
 zle -N zle-line-init
 zle -N zle-keymap-select
-
-# --------------------------------- PROMPT ---------------------------------- #
-# Oh My Posh - Custom prompt
-eval "$(oh-my-posh init zsh --config $XDG_CONFIG_HOME/oh-my-posh/lcs-dev.omp.json)"
 
 # ------------------------------ COLORS & FZF ------------------------------- #
 # Set up fzf key bindings and fuzzy completion
@@ -180,6 +237,8 @@ alias ...="cd ../.."
 alias ....="cd ../../.."
 alias .....="cd ../../../.."
 alias ......="cd ../../../../.."
+alias c="clear"
+alias md='mkdir -p'
 
 # Tools
 alias ranger="TERM=screen-256color ranger"
@@ -188,32 +247,48 @@ alias fnm-clean='echo "Pulizia delle sessioni fnm orfane..." &&
                  rm -rf ~/.local/state/fnm_multishells/* && echo "Pulizia completata."'
 
 # thefuck alias (corrects mistyped commands)
-eval $(thefuck --alias)       # Creates the "fuck" alias
-eval $(thefuck --alias fk)    # Creates the shorter "fk" alias
+if command -v thefuck >/dev/null 2>&1; then
+    eval $(thefuck --alias)
+    eval $(thefuck --alias fk)
+fi
 
 # ------- Zoxide (smarter cd) ------- #
-eval "$(zoxide init zsh)"
+if command -v zoxide >/dev/null 2>&1; then
+    eval "$(zoxide init zsh)"
+    alias cd="z"
+fi
 
-# ------- OS-Specific Aliases ------- #
-if [[ "$OS_TYPE" == 'macOS' ]]; then
-  alias compile="clang++ -std=c++20 -O3 -march=native -flto=thin -ffast-math -I/usr/local/include"
+# ---------- OS-Specific Functions and Aliases ---------- #
+if [[ "$PLATFORM" == 'macOS' ]]; then
+  # -------- macOS Specific --------- #
+  alias compile="clang++ -std=c++20 -O3 -march=native -flto=thin -ffast-math -I/opt/homebrew/include"
   alias tailscale="/Applications/Tailscale.app/Contents/MacOS/Tailscale"
+  command -v eza >/dev/null 2>&1 && alias ls="eza --color=always --long --git --icons=always"
   
-  # macOS specific utilities
+  function brew() {
+    command brew "$@"
+    if [[ $* =~ "upgrade" ]] || [[ $* =~ "update" ]] || [[ $* =~ "outdated" ]]; then
+      # Ensure sketchybar is available before calling it
+      command -v sketchybar >/dev/null 2>&1 && sketchybar --trigger brew_update
+    fi
+  }
+
+  # -------- macOS utilities -------- #
   alias flushdns="sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder"
   alias battery="pmset -g batt"
   alias sleep="pmset sleepnow"
   alias lock="pmset displaysleepnow"
   alias emptytrash="rm -rfv ~/.Trash; find /Volumes -name '.Trashes' -type d -execdir sudo rm -rf {} + 2>/dev/null"
   alias ports="sudo lsof -i -P | grep LISTEN"
-  alias path="echo -e \${PATH//:/\\n}"
+  alias path="echo \$PATH | tr ':' '\n'"
   alias topdir="du -h -d 1 | sort -hr"
   alias localip="ipconfig getifaddr en0"
 
-elif [[ "$OS_TYPE" == 'Linux' ]]; then
+elif [[ "$PLATFORM" == 'Linux' ]]; then
+  # ----- Common Linux Aliases ------ #
   alias compile="g++ -std=c++20 -O3 -march=native -flto -ffast-math"
-  
-  # Linux specific utilities
+
+  # -------- Linux utilities -------- # 
   alias update="sudo apt update && sudo apt upgrade"
   alias install="sudo apt install"
   alias search="apt search"
@@ -231,9 +306,85 @@ elif [[ "$OS_TYPE" == 'Linux' ]]; then
   alias mounted="mount | column -t"
   alias listening="netstat -tuln"
   alias openports="nmap -sT -O localhost"
+
+  # ----- Arch Linux Specific ------- #
+  if [[ "$ARCH_LINUX" == true ]]; then
+    # Command not found handler for pacman
+    function command_not_found_handler {
+      local purple='\e[1;35m' bright='\e[0;1m' green='\e[1;32m' reset='\e[0m'
+      printf 'zsh: command not found: %s\n' "$1"
+      local entries=( ${(f)"$(/usr/bin/pacman -F --machinereadable -- "/usr/bin/$1")"} )
+      if (( ${#entries[@]} )); then
+        printf "${bright}$1${reset} may be found in the following packages:\n"
+        local pkg
+        for entry in "${entries[@]}" ; do
+          local fields=( ${(0)entry} )
+          if [[ "$pkg" != "${fields[2]}" ]]; then
+            printf "${purple}%s/${bright}%s ${green}%s${reset}\n" "${fields[1]}" "${fields[2]}" "${fields[3]}"
+          fi
+          printf '    /%s\n' "${fields[4]}"
+          pkg="${fields[2]}"
+        done
+      fi
+      return 127
+    }
+    
+    # Automatic detection of AUR helper
+    if pacman -Qi yay &>/dev/null; then
+      aurhelper="yay"
+    elif pacman -Qi paru &>/dev/null; then
+      aurhelper="paru"
+    fi
+    
+    # 'in' function for intelligent installation from official repos and AUR
+    function in {
+      local -a inPkg=("$@")
+      local -a arch=()
+      local -a aur=()
+      
+      for pkg in "${inPkg[@]}"; do
+        if pacman -Si "${pkg}" &>/dev/null; then
+          arch+=("${pkg}")
+        else
+          aur+=("${pkg}")
+        fi
+      done
+      
+      if [[ ${#arch[@]} -gt 0 ]]; then
+        sudo pacman -S --needed "${arch[@]}"
+      fi
+      
+      if [[ ${#aur[@]} -gt 0 ]] && [[ -n "$aurhelper" ]]; then
+        ${aurhelper} -S --needed "${aur[@]}"
+      fi
+    }
+    
+    # Aliases for package management on Arch
+    if [[ -n "$aurhelper" ]]; then
+      alias un='$aurhelper -Rns'
+      alias up='$aurhelper -Syu'
+      alias pl='$aurhelper -Qs'
+      alias pa='$aurhelper -Ss'
+      alias pc='$aurhelper -Sc'
+      alias po='pacman -Qtdq | $aurhelper -Rns -'
+    fi
+    
+    # Aliases for 'eza' on Arch (overrides generic Linux ones)
+    command -v eza >/dev/null 2>&1 && {
+      alias l='eza -lh --icons=auto'
+      alias ls='eza -1 --icons=auto'
+      alias ll='eza -lha --icons=auto --sort=name --group-directories-first'
+      alias ld='eza -lhD --icons=auto'
+      alias lt='eza --icons=auto --tree'
+    }
+
+    # Other aliases for Arch
+    command -v kitten >/dev/null 2>&1 && alias ssh='kitten ssh'
+    command -v code >/dev/null 2>&1 && alias vc='code'
+  fi
 fi
 
-# ----- Cross-Platform Development Aliases ----- #
+# -------- Cross-Platform Dev. Aliases -------- #
 alias gst="git status"
 alias gaa="git add ."
 alias gcm="git commit -m"
@@ -248,7 +399,7 @@ alias gf="git fetch"
 alias greset="git reset --hard HEAD"
 alias gclean="git clean -fd"
 
-# ----- Productivity Aliases ----- #
+# ------ Productivity Aliases ------- #
 alias c="clear"
 alias cd="z"
 alias ls="eza --color=always --long --git --icons=always"
@@ -274,14 +425,6 @@ if [[ "$OS_TYPE" == 'macOS' ]]; then
   export CPATH="/opt/homebrew/include"
   export LDFLAGS="-L/opt/homebrew/opt/llvm/lib"
   export CPPFLAGS="-I/opt/homebrew/opt/llvm/include"
-
-  # Function for brew update with notification (specific to macOS with sketchybar)
-  function brew() {
-    command brew "$@"
-    if [[ $* =~ "upgrade" ]] || [[ $* =~ "update" ]] || [[ $* =~ "outdated" ]]; then
-      sketchybar --trigger brew_update
-    fi
-  }
 fi
 
 # =========================================================================== #
@@ -297,6 +440,11 @@ export ANDROID_HOME="$HOME/Library/Android/Sdk"
 
 # Clang-Format Configuration
 export CLANG_FORMAT_CONFIG="$HOME/.config/clang-format/.clang-format"
+
+# OpenSSL for some Python packages (specific to environments that require it)
+if [[ "$PLATFORM" == "Linux" ]]; then
+    export CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1
+fi
 
 # ----------- Directories ----------- #
 # LCS.Data Volume
@@ -407,18 +555,33 @@ eval "$(pyenv init -)"
 
 # -------------- CONDA -------------- #
 # >>> Conda initialize >>>
-# !! Contents within this block are managed by 'conda init' !!
-__conda_setup="$('$HOME/00_ENV/miniforge3/bin/conda' 'shell.zsh' 'hook' 2> /dev/null)"
-if [ $? -eq 0 ]; then
-    eval "$__conda_setup"
-else
-    if [ -f "$HOME/00_ENV/miniforge3/etc/profile.d/conda.sh" ]; then
-        . "$HOME/00_ENV/miniforge3/etc/profile.d/conda.sh"
-    else
-        export PATH="$HOME/00_ENV/miniforge3/bin:$PATH"
+__conda_init() {
+    local conda_path=""
+    # Arch specific path
+    if [[ "$PLATFORM" == 'Linux' && -f "/opt/miniconda3/bin/conda" ]]; then
+        conda_path="/opt/miniconda3/bin/conda"
+    # User path (macOS or other Linux)
+    elif [[ -f "$HOME/00_ENV/miniforge3/bin/conda" ]]; then
+        conda_path="$HOME/00_ENV/miniforge3/bin/conda"
     fi
-fi
-unset __conda_setup
+
+    if [[ -n "$conda_path" ]]; then
+        __conda_setup="$("$conda_path" 'shell.zsh' 'hook' 2> /dev/null)"
+        if [ $? -eq 0 ]; then
+            eval "$__conda_setup"
+        else
+            local conda_dir=$(dirname $(dirname "$conda_path"))
+            if [ -f "$conda_dir/etc/profile.d/conda.sh" ]; then
+                . "$conda_dir/etc/profile.d/conda.sh"
+            else
+                export PATH="$(dirname "$conda_path"):$PATH"
+            fi
+        fi
+        unset __conda_setup
+    fi
+}
+__conda_init
+unset -f __conda_init
 # <<< Conda initialize <<<
 
 # ------------ Perl CPAN ------------ #
@@ -512,7 +675,7 @@ build_final_path() {
       "$HOME/00_ENV/perl5/bin"
       "$HOME/00_ENV/miniforge3/condabin" "$HOME/00_ENV/miniforge3/bin"
       "$GOPATH/bin" "$GOROOT/bin"
-      "$ANDROID_HOME/platform-tools" "$ANDROID_HOME/tools" "$ANDROID_HOME/tools/bin"
+      "$ANDROID_HOME/platform-tools" "$ANDROID_HOME/cmdline-tools/latest/bin"
       
       # ------------- Other Paths ------------- #
       "$HOME/.config/emacs/bin"
@@ -550,7 +713,7 @@ build_final_path() {
       "$HOME/.cargo/bin"
       "$HOME/.ada/bin"
       "$GOPATH/bin" "$GOROOT/bin"
-      "$ANDROID_HOME/platform-tools" "$ANDROID_HOME/tools" "$ANDROID_HOME/tools/bin"
+      "$ANDROID_HOME/platform-tools" "$ANDROID_HOME/cmdline-tools/latest/bin"
       
       # ------------- Other Paths ------------- #
       "$HOME/.config/emacs/bin"
