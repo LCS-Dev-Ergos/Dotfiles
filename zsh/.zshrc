@@ -23,17 +23,11 @@ fi
 export ZPROFILE_HAS_RUN=true
 
 # Detect operating system to load specific configurations
-case "$(uname -s)" in
-    Darwin)
-        export OS_TYPE='macOS'
-        ;;
-    Linux)
-        export OS_TYPE='Linux'
-        ;;
-    *)
-        export OS_TYPE='Other'
-        ;;
-esac
+export OS_TYPE=$(case "$(uname -s)" in
+  Darwin) echo 'macOS' ;;
+  Linux)  echo 'Linux' ;;
+  *)      echo 'Other' ;;
+esac)
 
 # --------------------------- Startup Commands ------------------------------ #
 # fastfetch
@@ -256,6 +250,7 @@ alias gclean="git clean -fd"
 
 # ----- Productivity Aliases ----- #
 alias c="clear"
+alias cd="z"
 alias ls="eza --color=always --long --git --icons=always"
 alias ll="ls -la"
 alias l="ls -l"
@@ -493,8 +488,8 @@ build_final_path() {
       
       # ----- STATIC SHIMS & LANGUAGE BINS ---- #
       "$PYENV_ROOT/bin"
-      "$HOME/.sdkman/candidates/java/current/bin"
       "$HOME/.opam/ocaml-compiler/bin"
+      "$HOME/.sdkman/candidates/java/current/bin"
       
       # ----- FNM (Current session only) ------ #
       "$FNM_MULTISHELL_PATH/bin"
@@ -555,7 +550,7 @@ build_final_path() {
       "$HOME/.cargo/bin"
       "$HOME/.ada/bin"
       "$GOPATH/bin" "$GOROOT/bin"
-      "$ANDROID_HOME/platform-tools" "$ANDROID_HOME/tools" "$ANDROID_HOME/tools/bin" # Android
+      "$ANDROID_HOME/platform-tools" "$ANDROID_HOME/tools" "$ANDROID_HOME/tools/bin"
       
       # ------------- Other Paths ------------- #
       "$HOME/.config/emacs/bin"
