@@ -53,10 +53,10 @@ yabai -m rule --add app="kitty" opacity=0.9875
 # ========================== Disabling Rules ================================= #
 
 # Exclude problematic apps from being managed:
-EXCLUDED_APPS="1Password|Activity Monitor|Alfred|App Store|Archive Utility|BetterDisplay|Calculator| \
-               CleanMyMac|Company Portal|Dictionary|Finder|Google Drive|LocalSend|Microsoft OneDrive| \
-               Photo Booth|Python|Software Update|Steam|Sudoku|System Preferences|System Settings| \
-               Tailscale|TextEdit|The Unarchiver|Transmission|VLC"
+EXCLUDED_APPS="1Password|Activity Monitor|Alfred|App Store|Archive Utility|BetterDisplay|Calculator|   \
+               |CleanMyMac|Company Portal|Dictionary|Finder|Google Drive|LocalSend|Microsoft OneDrive| \
+               |Photo Booth|Python|Software Update|Steam|Sudoku|System Preferences|System Settings|    \
+               |Tailscale|TextEdit|The Unarchiver|Transmission|VLC"
 
 yabai -m rule --add app="^($EXCLUDED_APPS)$" manage=off
 
