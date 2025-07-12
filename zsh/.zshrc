@@ -274,38 +274,56 @@ if [[ "$PLATFORM" == 'macOS' ]]; then
   }
 
   # -------- macOS utilities -------- #
-  alias flushdns="sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder"
-  alias battery="pmset -g batt"
-  alias sleep="pmset sleepnow"
-  alias lock="pmset displaysleepnow"
-  alias emptytrash="osascript -e 'tell application \"Finder\" to empty trash'"
-  alias ports="sudo lsof -i -P | grep LISTEN"
+  alias update="brew update && brew upgrade"
+  alias install="brew install"
+  alias search="brew search"
+  alias remove="brew remove"
+  alias clean="brew cleanup --prune=all"
+  alias logs="log show --predicate 'eventMessage contains \"error\"' --info --last 1h"
+  alias listening="lsof -i -P | grep LISTEN"
+  alias openports="nmap -sT -O localhost"
+  alias localip="ipconfig getifaddr en0"
   alias path="echo \$PATH | tr ':' '\n'"
   alias topdir="du -h -d 1 | sort -hr"
-  alias localip="ipconfig getifaddr en0"
-
+  alias flushdns="sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder" 
+  alias sleep="pmset sleepnow"
+  alias lock="pmset displaysleepnow"
+  alias battery="pmset -g batt"
+  alias emptytrash="osascript -e 'tell application \"Finder\" to empty trash'"
+  
 elif [[ "$PLATFORM" == 'Linux' ]]; then
-  # ----- Common Linux Aliases ------ #
+  # ------ Dev. Linux Aliases ------- #
   alias compile="g++ -std=c++20 -O3 -march=native -flto -ffast-math"
 
   # -------- Linux utilities -------- # 
-  alias update="sudo apt update && sudo apt upgrade"
-  alias install="sudo apt install"
-  alias search="apt search"
-  alias remove="sudo apt remove"
-  alias autoremove="sudo apt autoremove"
+  # Detect package manager and set aliases accordingly
+  if command -v pacman >/dev/null 2>&1; then
+    # Arch Linux
+    alias update="sudo pacman -Syu"
+    alias install="sudo pacman -S"
+    alias search="pacman -Ss"
+    alias remove="sudo pacman -R"
+    alias autoremove="sudo pacman -Rns \$(pacman -Qtdq)"
+  elif command -v apt >/dev/null 2>&1; then
+    # Debian/Ubuntu
+    alias update="sudo apt update && sudo apt upgrade"
+    alias install="sudo apt install"
+    alias search="apt search"
+    alias remove="sudo apt remove"
+    alias autoremove="sudo apt autoremove"
+  elif command -v dnf >/dev/null 2>&1; then
+  fi
   alias services="systemctl list-units --type=service"
   alias logs="journalctl -f"
   alias ports="ss -tuln"
+  alias listening="netstat -tuln"
+  alias openports="nmap -sT -O localhost"
   alias firewall="sudo ufw status"
   alias ip="curl -s ifconfig.me"
   alias localip="hostname -I | awk '{print \$1}'"
-  alias path="echo -e \${PATH//:/\\n}"
+  alias path="echo \$PATH | tr ':' '\n'"
   alias topdir="du -h --max-depth=1 | sort -hr"
-  alias qr="qrencode -t ansiutf8"
   alias mounted="mount | column -t"
-  alias listening="netstat -tuln"
-  alias openports="nmap -sT -O localhost"
   if command -v trash-empty >/dev/null 2>&1; then
     alias emptytrash='trash-empty'
   elif command -v gio >/dev/null 2>&1; then
