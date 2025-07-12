@@ -278,7 +278,7 @@ if [[ "$PLATFORM" == 'macOS' ]]; then
   alias battery="pmset -g batt"
   alias sleep="pmset sleepnow"
   alias lock="pmset displaysleepnow"
-  alias emptytrash="rm -rfv ~/.Trash; find /Volumes -name '.Trashes' -type d -execdir sudo rm -rf {} + 2>/dev/null"
+  alias emptytrash="osascript -e 'tell application \"Finder\" to empty trash'"
   alias ports="sudo lsof -i -P | grep LISTEN"
   alias path="echo \$PATH | tr ':' '\n'"
   alias topdir="du -h -d 1 | sort -hr"
@@ -306,6 +306,11 @@ elif [[ "$PLATFORM" == 'Linux' ]]; then
   alias mounted="mount | column -t"
   alias listening="netstat -tuln"
   alias openports="nmap -sT -O localhost"
+  if command -v trash-empty >/dev/null 2>&1; then
+    alias emptytrash='trash-empty'
+  elif command -v gio >/dev/null 2>&1; then
+    alias emptytrash='gio trash --empty'
+  fi
 
   # ----- Arch Linux Specific ------- #
   if [[ "$ARCH_LINUX" == true ]]; then
