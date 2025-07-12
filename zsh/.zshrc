@@ -243,8 +243,8 @@ alias md='mkdir -p'
 # Tools
 alias ranger="TERM=screen-256color ranger"
 alias clang-format="clang-format -style=file:$CLANG_FORMAT_CONFIG"
-alias fnm-clean='echo "Pulizia delle sessioni fnm orfane..." &&
-                 rm -rf ~/.local/state/fnm_multishells/* && echo "Pulizia completata."'
+alias fnm-clean='echo "Cleaning up orphaned fnm sessions..." &&
+                 rm -rf ~/.local/state/fnm_multishells/* && echo "Cleanup completed."'
 
 # thefuck alias (corrects mistyped commands)
 if command -v thefuck >/dev/null 2>&1; then
