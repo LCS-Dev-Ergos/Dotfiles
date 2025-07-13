@@ -1,8 +1,9 @@
 #!/usr/bin/env sh
-# ============================================================================ #
-# ========================= Yabai Configuration file ========================= #
+# =========================================================================== #
+# ========================= Yabai Configuration file ======================== #
 
-# ========================= Scripting Addition =============================== #
+
+# =========================== Scripting Addition ============================ #
 # For this to work you must configure sudo such that
 # it will be able to run the command without password
 
@@ -15,7 +16,7 @@ yabai -m signal --add event=window_focused action="sketchybar --trigger window_f
 #                       sleep \$(yabai -m config window_opacity_duration) && yabai -m window \
 #                       \$YABAI_WINDOW_ID --opacity 0.0"
 
-# ========================= Aspect Customization ============================= #
+# ========================== Aspect Customization =========================== #
 
 yabai -m config external_bar               all:40:0       \
                 mouse_follows_focus        off            \
@@ -44,13 +45,13 @@ yabai -m config external_bar               all:40:0       \
                 right_padding              12             \
                 window_gap                 12
 
-# ++++++++++++++++++++++++++++++ Custom Rules ++++++++++++++++++++++++++++++++ #
+# ++++++++++++++++++++++++++++++ Custom Rules +++++++++++++++++++++++++++++++ #
 yabai -m rule --add app="kitty" opacity=0.9875
 
-# ====================== End Aspect Customization ============================ #
+# ======================== End Aspect Customization ========================= #
 
 
-# ========================== Disabling Rules ================================= #
+# ============================= Disabling Rules ============================= #
 
 # Exclude problematic apps from being managed:
 EXCLUDED_APPS="1Password|Activity Monitor|Alfred|App Store|Archive Utility|BetterDisplay|Calculator|   \
@@ -77,7 +78,7 @@ yabai -m rule --add label="About This Mac" app="System Information" title="About
 NEURAL_DSP="Archetype Tim Henson X|Archetype Petrucci X"
 yabai -m rule --add app="^(${NEURAL_DSP})$" manage=off
 
-# +++++++++++++++++++++++++++++ JetBrains IDEs +++++++++++++++++++++++++++++++ #
+# +++++++++++++++++++++++++++++ JetBrains IDEs ++++++++++++++++++++++++++++++ #
 
 # Exclude JetBrains IDEs specific windows from being managed
 JETBRAINS_IDEs="CLion|CLion-EAP|DataGrip|DataGrip-EAP|GoLand-EAP|IntelliJ IDEA|IntelliJ IDEA EAP|IntelliJ IDEA-EAP| \
@@ -100,7 +101,7 @@ yabai -m rule --add \
              .*Resources?.*|.*Tip of the Day.*|.*Updates?.*|.*Welcome.*)$" \
     manage=off
 
-# +++++++++++++++++++++++++++++++++ Eclipse ++++++++++++++++++++++++++++++++++ #
+# +++++++++++++++++++++++++++++++++ Eclipse +++++++++++++++++++++++++++++++++ #
 yabai -m rule --add \
     label="Eclipse" \
     app="^.*Eclipse.*$" \
@@ -108,23 +109,22 @@ yabai -m rule --add \
              .*Problems?.*|.*Projects?.*|.*Resources?.*)$" \
     manage=off
 
-# ++++++++++++++++++++++++++++++ Other Exclusions ++++++++++++++++++++++++++++ #
+# +++++++++++++++++++++++++++++ Other Exclusions ++++++++++++++++++++++++++++ #
 # Exclude "VNC Viewer" specific windows from being managed
 yabai -m rule --add label="VNC Viewer" \
                     app="^VNC Viewer$" \
                     title="^(.*VNC.*|.*Viewer.*|.*RealVNC.*)$" \
                     manage=off
 
-# ========================= End Disabling Rules ============================== #
+# =========================== End Disabling Rules =========================== #
 
 
-# ============================ Other Stuff =================================== #
+# =============================== Other Stuff =============================== #
 # - bsp, stack or float
 yabai -m config layout bsp
 echo "yabai configuration loaded..."
 
-
-# ++++++++++++++++++++++++++++++ Border Style ++++++++++++++++++++++++++++++++ #
+# ++++++++++++++++++++++++++++++ Border Style +++++++++++++++++++++++++++++++ #
 
 # borders style=round                 \
 #         width=5.0                   \
@@ -137,4 +137,4 @@ echo "yabai configuration loaded..."
 #                    Rider,RustRover-EAP" \
 #         inactive_color=0xE63c3836       \
  
-# =========================== End Other Stuff ================================ #
+# ============================= End Other Stuff ============================= #
