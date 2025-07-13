@@ -8,7 +8,7 @@ TARGET_DIR=$(pwd)
 
 # List of directories to exclude
 EXCLUDE=(
-    ".andorid" ".vscode" "crossnote" "emacs" "fzf-fit.sh" "gh" "github-copilot"
+    ".andorid" ".vscode" "crossnote" "emacs" "fzf-fit" "gh" "github-copilot"
     "gtk-2.0" "jgit" "Microsoft" "raycast" "thefuck" "wireshark" "xbuild" "zsh"
 )
 
