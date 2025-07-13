@@ -440,7 +440,7 @@ alias reload="source ~/.zshrc"
 alias edit="$EDITOR ~/.zshrc"
 
 # ----- OS-specific environment variables ----- #
-if [[ "$OS_TYPE" == 'macOS' ]]; then
+if [[ "$PLATFORM" == 'macOS' ]]; then
   # Force the use of system binaries to avoid conflicts.
   export LD=/usr/bin/ld
   export AR=/usr/bin/ar
@@ -471,12 +471,12 @@ fi
 
 # ----------- Directories ----------- #
 # LCS.Data Volume
-if [[ "$OS_TYPE" == 'macOS' ]]; then
+if [[ "$PLATFORM" == 'macOS' ]]; then
     export LCS_Data="/Volumes/LCS.Data"
     if [ ! -d "$LCS_Data" ]; then
         echo "⚠️ Warning: LCS.Data volume is not mounted"
     fi
-elif [[ "$OS_TYPE" == 'Linux' ]]; then
+elif [[ "$PLATFORM" == 'Linux' ]]; then
     export LCS_Data="/media/$USER/LCS.Data"
     if [ ! -d "$LCS_Data" ]; then
         echo "⚠️ Warning: LCS.Data volume does not appear to be mounted in $LCS_Data"
@@ -531,13 +531,13 @@ if [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]]; then
 else
   # SDKMAN! not found. Use the fallback logic to auto-detect Java.
   setup_java_home_fallback() {
-    if [[ "$OS_TYPE" == 'macOS' ]]; then
+    if [[ "$PLATFORM" == 'macOS' ]]; then
       # On macOS, use the system-provided utility
       if [ -x "/usr/libexec/java_home" ]; then
         export JAVA_HOME=$(/usr/libexec/java_home)
         export PATH="$JAVA_HOME/bin:$PATH"
       fi
-    elif [[ "$OS_TYPE" == 'Linux' ]]; then
+    elif [[ "$PLATFORM" == 'Linux' ]]; then
       local found_java_home=""
       # Method 1: For Debian/Ubuntu/Fedora based systems (uses update-alternatives)
       if command -v update-alternatives &>/dev/null && command -v java &>/dev/null; then
@@ -667,7 +667,7 @@ build_final_path() {
   
   # Define the desired final order of directories in the PATH
   local -a path_template
-  if [[ "$OS_TYPE" == 'macOS' ]]; then
+  if [[ "$PLATFORM" == 'macOS' ]]; then
     path_template=(
       # ----- DYNAMIC SHIMS (TOP PRIORITY) ---- #
       "$HOME/.pyenv/shims"
@@ -709,7 +709,7 @@ build_final_path() {
       "$HOME/Library/Application Support/JetBrains/Toolbox/scripts"
       "$HOME/.lcs-bin"
     )
-  elif [[ "$OS_TYPE" == 'Linux' ]]; then
+  elif [[ "$PLATFORM" == 'Linux' ]]; then
     path_template=(
       # ----- DYNAMIC SHIMS (TOP PRIORITY) ---- #
       "$HOME/.pyenv/shims"
