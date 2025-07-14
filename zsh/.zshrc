@@ -614,13 +614,32 @@ eval "$(perl -I$HOME/00_ENV/perl5/lib/perl5 -Mlocal::lib=$HOME/00_ENV/perl5)"
 if command -v fnm &>/dev/null; then
   # Clean up any existing orphan directories before starting
   fnm_cleanup_orphans() {
+    # Define target directory and perform initial safety checks.
     local fnm_multishells_dir="$HOME/.local/state/fnm_multishells"
     if [ -d "$fnm_multishells_dir" ]; then
-      # Remove directories older than 60 minutes
-      find "$fnm_multishells_dir" -mindepth 1 -type l -mmin +60 -exec rm -rf {} + 2>/dev/null
+      # Remove symlinks not modified in the last 60 minutes.
+      find "$fnm_multishells_dir" -mindepth 1 -type l -mmin +60 -exec rm -f {} + 2>/dev/null
+    fi
+  }
+
+  # Heartbeat function to keep the current session "alive".
+  # It runs before every new prompt is displayed.
+  _fnm_update_timestamp() {
+    # Check if the FNM path for this shell exists.
+    if [ -n "$FNM_MULTISHELL_PATH" ] && [ -e "$FNM_MULTISHELL_PATH" ]; then
+      # Use 'touch -h' to update the modification time of the
+      # symbolic link itself, not the directory it points to.
+      touch -h "$FNM_MULTISHELL_PATH" 2>/dev/null
     fi
   }
   
+  # This function cleans up the current session's link upon shell exit.
+  _fnm_cleanup_on_exit() {
+    if [ -n "$FNM_MULTISHELL_PATH" ] && [ -e "$FNM_MULTISHELL_PATH" ]; then
+      rm -rf "$FNM_MULTISHELL_PATH"
+    fi
+  }
+
   # Run cleanup before initialization
   fnm_cleanup_orphans
 
@@ -635,14 +654,10 @@ if command -v fnm &>/dev/null; then
   # Initialize fnm
   eval "$(fnm env --use-on-cd --shell zsh)"
 
-  # Hook for cleanup on shell exit
-  _fnm_cleanup_on_exit() {
-    if [ -n "$FNM_MULTISHELL_PATH" ] && [ -d "$FNM_MULTISHELL_PATH" ]; then
-      rm -rf "$FNM_MULTISHELL_PATH"
-    fi
-  }
+  # Register the zsh hooks.
   autoload -U add-zsh-hook
-  add-zsh-hook zshexit _fnm_cleanup_on_exit
+  add-zsh-hook precmd _fnm_update_timestamp   # Heartbeat for active sessions.
+  add-zsh-hook zshexit _fnm_cleanup_on_exit   # Cleanup on exit.
 fi
 
 # =========================================================================== #
@@ -790,11 +805,11 @@ build_final_path
 unset -f build_final_path
 
 # Background cleanup of old FNM directories
-if command -v fnm &>/dev/null; then
+# if command -v fnm &>/dev/null; then
   # Use 'at' to schedule a reliable, detached cleanup job. This avoids issues with shell exit signals (SIGHUP)
   # The job will run 1 minute from now, ensuring it's out of the critical startup path
-  echo 'find "$HOME/.local/state/fnm_multishells" -mindepth 1 -type l -mmin +60 -exec rm -rf {} + 2>/dev/null' | at -M now + 1 minute 2>/dev/null
-fi
+#   echo 'find "$HOME/.local/state/fnm_multishells" -mindepth 1 -type l -mmin +60 -exec rm -rf {} + 2>/dev/null' | at -M now + 1 minute 2>/dev/null
+# fi
 
 # =========================================================================== #
 # +++++++++++++++++++++++++++ AUTOMATIC ADDITIONS +++++++++++++++++++++++++++ #
