@@ -96,7 +96,7 @@ yabai -m rule --add \
     label="Android Studio Narwhal" \
     app="^.*Android Studio.*$" \
     title="^(.*About.*|.*Add?.*|.*Android.*|.*Commits?.*|.*Configurations?.*|.*Convert.*|.*Debug.*|.*Delete.*| \
-             |.*Device.*|.*Directory.*|.*Errors?.*|.*Files?.*|.*Git.*|.*Icons?.*|.*Installations?.*|.*JetBrains.*| \
+             |.*Device.*|.*Directory.*|.*Errors?.*|.*Files?.*|.*Git.*|.*Gradle.*|.*Icons?.*|.*Installations?.*|.*JetBrains.*| \
              |.*Lines?.*|.*Log.*|.*Move.*|.*Plugins?.*|.*Process?.*|.*Projects?.*|.*Provide?.*|.*Rename.*| \
              |.*Resources?.*|.*SDK.*|.*Select?.*|.*Studio.*|.*Tip of the Day.*|.*Updates?.*|.*Welcome.*|.*devices?.*)$" \
     manage=off

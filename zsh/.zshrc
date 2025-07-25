@@ -710,6 +710,7 @@ build_final_path() {
       "$HOME/.ghcup/bin" "$HOME/.cabal/bin"
       "$HOME/.cargo/bin"
       "$HOME/.ada/bin"
+      "$HOME/Library/Application Support/Coursier/bin"
       "$HOME/00_ENV/perl5/bin"
       "$HOME/00_ENV/miniforge3/condabin" "$HOME/00_ENV/miniforge3/bin"
       "$GOPATH/bin" "$GOROOT/bin"
