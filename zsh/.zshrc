@@ -613,14 +613,22 @@ eval "$(perl -I$HOME/00_ENV/perl5/lib/perl5 -Mlocal::lib=$HOME/00_ENV/perl5)"
 # ----- FNM (Fast Node Manager) ----- #
 if command -v fnm &>/dev/null; then
 
+  # Declare a command counter specific to this session.
+  # 'local -i' makes it an integer local to the session.
+  local -i FNM_CMD_COUNTER=0
+
   # Heartbeat function to keep the current session "alive".
-  # It runs before every new prompt is displayed.
   _fnm_update_timestamp() {
-    # Check if the FNM path for this shell exists and is a symlink.
-    if [ -n "$FNM_MULTISHELL_PATH" ] && [ -L "$FNM_MULTISHELL_PATH" ]; then
-      # Use 'touch -h' to update the modification time of the
-      # symbolic link itself, not the directory it points to.
-      touch -h "$FNM_MULTISHELL_PATH" 2>/dev/null
+    # Increment the counter on every command.
+    ((FNM_CMD_COUNTER++))
+    # Only update if the counter has exceeded 30.
+    if (( FNM_CMD_COUNTER > 30 )); then
+      if [ -n "$FNM_MULTISHELL_PATH" ] && [ -L "$FNM_MULTISHELL_PATH" ]; then
+        # Update the timestamp of the link.
+        touch -h "$FNM_MULTISHELL_PATH" 2>/dev/null
+      fi
+      # Reset the counter to zero.
+      FNM_CMD_COUNTER=0
     fi
   }
 
