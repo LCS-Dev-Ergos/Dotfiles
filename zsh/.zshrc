@@ -612,49 +612,7 @@ eval "$(perl -I$HOME/00_ENV/perl5/lib/perl5 -Mlocal::lib=$HOME/00_ENV/perl5)"
 
 # ----- FNM (Fast Node Manager) ----- #
 if command -v fnm &>/dev/null; then
-  # Cleanup function to remove stale FNM sessions.
-  fnm_cleanup_orphans() {
-    local fnm_multishells_dir="$HOME/.local/state/fnm_multishells"
-    if [ -d "$fnm_multishells_dir" ]; then
-      # Remove symlinks not modified in the last 60 minutes.
-      find "$fnm_multishells_dir" -mindepth 1 -type l -mmin +60 -exec rm -f {} + 2>/dev/null
-    fi
-  }
-
-  # Heartbeat function that runs in the background to keep the session "alive".
-  _fnm_heartbeat_loop() {
-    # Loop indefinitely. This process will be killed when the parent shell exits.
-    while true; do
-      # Sleep for 15 minutes (900 seconds).
-      /bin/sleep 900
-      # Check if the symlink still exists before touching it.
-      if [ -L "$FNM_MULTISHELL_PATH" ]; then
-        # Use 'touch -h' to update the modification time of the
-        # symbolic link itself, not the directory it points to.
-        touch -h "$FNM_MULTISHELL_PATH" 2>/dev/null
-      else
-        # The link was removed, so this loop can exit.
-        break
-      fi
-    done
-  }
-
-  # This function cleans up the current session's link and heartbeat process upon shell exit.
-  _fnm_cleanup_on_exit() {
-    # If the heartbeat PID variable exists, kill the background process silently.
-    if [ -n "$FNM_HEARTBEAT_PID" ]; then
-      kill "$FNM_HEARTBEAT_PID" 2>/dev/null
-    fi
-    # Clean up the symlink itself.
-    if [ -n "$FNM_MULTISHELL_PATH" ] && [ -e "$FNM_MULTISHELL_PATH" ]; then
-      rm -f "$FNM_MULTISHELL_PATH"
-    fi
-  }
-
-  # Run cleanup for any previously orphaned sessions before initialization.
-  fnm_cleanup_orphans
-
-  # Set a global default version if it doesn't exist.
+  # Set a default version if it doesn't exist
   if ! fnm default >/dev/null 2>&1; then
     latest_installed=$(fnm list | grep -o 'v[0-9.]\+' | sort -V | tail -n 1)
     if [ -n "$latest_installed" ]; then
@@ -662,23 +620,8 @@ if command -v fnm &>/dev/null; then
     fi
   fi
 
-  # Initialize fnm.
+  # Initialize FNM
   eval "$(fnm env --use-on-cd --shell zsh)"
-
-  # After fnm is initialized, if the session path is set, start the heartbeat.
-  if [ -n "$FNM_MULTISHELL_PATH" ]; then
-    # Start the heartbeat loop in the background.
-    _fnm_heartbeat_loop &
-    # Save the PID of the background heartbeat process so we can kill it on exit.
-    FNM_HEARTBEAT_PID=$!
-    # Disown the process to prevent the shell from printing job status messages.
-    disown $FNM_HEARTBEAT_PID
-  fi
-
-  # Register the zsh hooks.
-  autoload -U add-zsh-hook
-  # The zshexit hook now handles both the symlink and the heartbeat process.
-  add-zsh-hook zshexit _fnm_cleanup_on_exit
 fi
 
 # =========================================================================== #
