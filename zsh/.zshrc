@@ -514,8 +514,8 @@ function serve() {
 # Interactively preview files in the current directory using fzf and bat/eza.
 # Usage: preview
 function preview() {
+  # Use eza for directory listings, bat for file previews
   fzf --preview '
-    # Use eza for directory listings, bat for file previews
     if [ -d {} ]; then
       eza --tree --color=always {}
     else
@@ -797,6 +797,7 @@ build_final_path() {
       
       # ------------- Other Paths ------------- #
       "$HOME/.config/emacs/bin"
+      "$HOME/.wakatime" 
       "/usr/local/mysql/bin"
       "/opt/homebrew/opt/ncurses/bin"
       "/Library/TeX/texbin"
