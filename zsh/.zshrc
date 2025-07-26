@@ -286,7 +286,7 @@ if [[ "$PLATFORM" == 'macOS' ]]; then
   alias path="echo \$PATH | tr ':' '\n'"
   alias topdir="du -h -d 1 | sort -hr"
   alias flushdns="sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder" 
-  alias sleep="pmset sleepnow"
+  alias gotosleep="pmset sleepnow"
   alias lock="pmset displaysleepnow"
   alias battery="pmset -g batt"
   alias emptytrash="osascript -e 'tell application \"Finder\" to empty trash'"
@@ -613,51 +613,72 @@ eval "$(perl -I$HOME/00_ENV/perl5/lib/perl5 -Mlocal::lib=$HOME/00_ENV/perl5)"
 # ----- FNM (Fast Node Manager) ----- #
 if command -v fnm &>/dev/null; then
   # Cleanup function to remove stale FNM sessions.
+  # This now uses the simple and reliable time-based check.
   fnm_cleanup_orphans() {
-    # Define target directory and perform initial safety checks.
     local fnm_multishells_dir="$HOME/.local/state/fnm_multishells"
     if [ -d "$fnm_multishells_dir" ]; then
       # Remove symlinks not modified in the last 60 minutes.
+      # This is now reliable because of the background heartbeat.
       find "$fnm_multishells_dir" -mindepth 1 -type l -mmin +60 -exec rm -f {} + 2>/dev/null
     fi
   }
 
-  # Heartbeat function to keep the current session "alive".
-  # It runs before every new prompt is displayed.
-  _fnm_update_timestamp() {
-    # Check if the FNM path for this shell exists.
-    if [ -n "$FNM_MULTISHELL_PATH" ] && [ -e "$FNM_MULTISHELL_PATH" ]; then
-      # Use 'touch -h' to update the modification time of the
-      # symbolic link itself, not the directory it points to.
-      touch -h "$FNM_MULTISHELL_PATH" 2>/dev/null
-    fi
+  # Heartbeat function that runs in the background to keep the session "alive".
+  _fnm_heartbeat_loop() {
+    # Loop indefinitely. This process will be killed when the parent shell exits.
+    while true; do
+      # Sleep for 15 minutes (900 seconds).
+      /bin/sleep 900
+      # Check if the symlink still exists before touching it.
+      if [ -L "$FNM_MULTISHELL_PATH" ]; then
+        # Use 'touch -h' to update the modification time of the
+        # symbolic link itself, not the directory it points to.
+        touch -h "$FNM_MULTISHELL_PATH" 2>/dev/null
+      else
+        # The link was removed, so this loop can exit.
+        break
+      fi
+    done
   }
-  
-  # This function cleans up the current session's link upon shell exit.
+
+  # This function cleans up the current session's link and heartbeat process upon shell exit.
   _fnm_cleanup_on_exit() {
+    # If the heartbeat PID variable exists, kill the background process silently.
+    if [ -n "$FNM_HEARTBEAT_PID" ]; then
+      kill "$FNM_HEARTBEAT_PID" 2>/dev/null
+    fi
+    # Clean up the symlink itself.
     if [ -n "$FNM_MULTISHELL_PATH" ] && [ -e "$FNM_MULTISHELL_PATH" ]; then
-      rm -rf "$FNM_MULTISHELL_PATH"
+      rm -f "$FNM_MULTISHELL_PATH"
     fi
   }
 
-  # Run cleanup before initialization
+  # Run cleanup for any previously orphaned sessions before initialization.
   fnm_cleanup_orphans
 
-  # Set a global default version if it doesn't exist
+  # Set a global default version if it doesn't exist.
   if ! fnm default >/dev/null 2>&1; then
-    latest_installed=$(fnm list | grep -o 'v[0-9.]*' | sort -V | tail -n 1)
+    latest_installed=$(fnm list | grep -o 'v[0-9.]\+' | sort -V | tail -n 1)
     if [ -n "$latest_installed" ]; then
       fnm default "$latest_installed"
     fi
   fi
 
-  # Initialize fnm
+  # Initialize fnm.
   eval "$(fnm env --use-on-cd --shell zsh)"
+
+  # After fnm is initialized, if the session path is set, start the heartbeat.
+  if [ -n "$FNM_MULTISHELL_PATH" ]; then
+    # Start the heartbeat loop in the background.
+    _fnm_heartbeat_loop &
+    # Save the PID of the background heartbeat process so we can kill it on exit.
+    FNM_HEARTBEAT_PID=$!
+  fi
 
   # Register the zsh hooks.
   autoload -U add-zsh-hook
-  add-zsh-hook precmd _fnm_update_timestamp   # Heartbeat for active sessions.
-  add-zsh-hook zshexit _fnm_cleanup_on_exit   # Cleanup on exit.
+  # The zshexit hook now handles both the symlink and the heartbeat process.
+  add-zsh-hook zshexit _fnm_cleanup_on_exit
 fi
 
 # =========================================================================== #
