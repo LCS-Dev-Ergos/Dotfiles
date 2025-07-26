@@ -612,7 +612,19 @@ eval "$(perl -I$HOME/00_ENV/perl5/lib/perl5 -Mlocal::lib=$HOME/00_ENV/perl5)"
 
 # ----- FNM (Fast Node Manager) ----- #
 if command -v fnm &>/dev/null; then
-  # Set a default version if it doesn't exist
+
+  # Heartbeat function to keep the current session "alive".
+  # It runs before every new prompt is displayed.
+  _fnm_update_timestamp() {
+    # Check if the FNM path for this shell exists and is a symlink.
+    if [ -n "$FNM_MULTISHELL_PATH" ] && [ -L "$FNM_MULTISHELL_PATH" ]; then
+      # Use 'touch -h' to update the modification time of the
+      # symbolic link itself, not the directory it points to.
+      touch -h "$FNM_MULTISHELL_PATH" 2>/dev/null
+    fi
+  }
+
+  # Set a global default version if it doesn't exist.
   if ! fnm default >/dev/null 2>&1; then
     latest_installed=$(fnm list | grep -o 'v[0-9.]\+' | sort -V | tail -n 1)
     if [ -n "$latest_installed" ]; then
@@ -620,8 +632,12 @@ if command -v fnm &>/dev/null; then
     fi
   fi
 
-  # Initialize FNM
+  # Initialize fnm.
   eval "$(fnm env --use-on-cd --shell zsh)"
+
+  # Register the zsh hook to keep the session link fresh.
+  autoload -U add-zsh-hook
+  add-zsh-hook precmd _fnm_update_timestamp
 fi
 
 # =========================================================================== #
