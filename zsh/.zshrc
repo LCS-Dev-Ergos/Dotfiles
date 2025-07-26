@@ -613,12 +613,10 @@ eval "$(perl -I$HOME/00_ENV/perl5/lib/perl5 -Mlocal::lib=$HOME/00_ENV/perl5)"
 # ----- FNM (Fast Node Manager) ----- #
 if command -v fnm &>/dev/null; then
   # Cleanup function to remove stale FNM sessions.
-  # This now uses the simple and reliable time-based check.
   fnm_cleanup_orphans() {
     local fnm_multishells_dir="$HOME/.local/state/fnm_multishells"
     if [ -d "$fnm_multishells_dir" ]; then
       # Remove symlinks not modified in the last 60 minutes.
-      # This is now reliable because of the background heartbeat.
       find "$fnm_multishells_dir" -mindepth 1 -type l -mmin +60 -exec rm -f {} + 2>/dev/null
     fi
   }
@@ -673,6 +671,8 @@ if command -v fnm &>/dev/null; then
     _fnm_heartbeat_loop &
     # Save the PID of the background heartbeat process so we can kill it on exit.
     FNM_HEARTBEAT_PID=$!
+    # Disown the process to prevent the shell from printing job status messages.
+    disown $FNM_HEARTBEAT_PID
   fi
 
   # Register the zsh hooks.
