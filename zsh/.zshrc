@@ -451,6 +451,97 @@ if [[ "$PLATFORM" == 'macOS' ]]; then
 fi
 
 # =========================================================================== #
+# ++++++++++++++++++++++++++++ USEFUL FUNCTIONS +++++++++++++++++++++++++++++ #
+# =========================================================================== #
+
+# --------------------------- Weather Forecast ------------------------------ #
+# Get weather information for a specified location.
+# Usage: weather <city> (e.g., weather Rome)
+function weather() {
+  local location="${1:-Bari}" # Default to Bari if no location is provided
+  curl "https://wttr.in/${location}?lang=it"
+}
+
+# --------------------------- Quick Backup ---------------------------------- #
+# Create a timestamped backup of a file.
+# Usage: bak <file>
+function bak() {
+  if [ -f "$1" ]; then
+    local backup_file="${1}.$(date +'%Y-%m-%d_%H-%M-%S').bak"
+    cp "$1" "$backup_file"
+    echo "Backup created: ${backup_file}"
+  else
+    echo "Error: File '$1' not found." >&2
+    return 1
+  fi
+}
+
+# ------------------------- Interactive Process Killer ---------------------- #
+# Interactively find and kill processes using fzf.
+# Usage: fkill
+function fkill() {
+  local pid
+  # Use ps to get processes, pipe to fzf for selection, and awk to get the PID
+  pid=$(ps -ef | sed 1d | fzf -m --tac --header='Press CTRL-C to cancel' | awk '{print $2}')
+
+  if [ "x$pid" != "x" ]; then
+    # Kill the selected process(es) with SIGKILL (9) by default
+    echo "$pid" | xargs kill -${1:-9}
+    echo "Process(es) with PID(s): $pid killed."
+  else
+    echo "No process selected."
+  fi
+}
+
+# --------------------------- Quick HTTP Server ----------------------------- #
+# Start a simple HTTP server in the current directory.
+# Requires Python to be installed.
+# Usage: serve [port]
+function serve() {
+    local port="${1:-8000}"
+    local ip=$(ipconfig getifaddr en0 2>/dev/null || hostname -I | awk '{print $1}' 2>/dev/null || echo "127.0.0.1")
+    echo "Serving current directory on http://${ip}:${port}"
+    # Python 3
+    command -v python3 &>/dev/null && python3 -m http.server "$port" && return
+    # Python 2 (fallback)
+    command -v python &>/dev/null && python -m SimpleHTTPServer "$port" && return
+    
+    echo "Error: Python not found. Cannot start server." >&2
+    return 1
+}
+
+# ------------------------- fzf File Previewer ------------------------------ #
+# Interactively preview files in the current directory using fzf and bat/eza.
+# Usage: preview
+function preview() {
+  fzf --preview '
+    # Use eza for directory listings, bat for file previews
+    if [ -d {} ]; then
+      eza --tree --color=always {}
+    else
+      bat --color=always --style=numbers --line-range=:200 {}
+    fi'
+}
+
+# ------------------------- Create Archives Quickly ------------------------- #
+# Quick helpers to create different types of archives.
+# Usage: mktar <dir>, mkgz <dir>, etc.
+mktar() { tar -cvf "${1%%/}.tar" "${1%%/}/"; }
+mkgz()  { tar -czvf "${1%%/}.tar.gz" "${1%%/}/"; }
+mktbz() { tar -cjvf "${1%%/}.tar.bz2" "${1%%/}/"; }
+
+# ------------------------- Recent Git Branches ----------------------------- #
+# Show local git branches, sorted by most recent commit date.
+# Usage: gbr
+function gbr() {
+  git for-each-ref \
+    --sort=-committerdate refs/heads/ \
+    --format='%(HEAD) %(color:yellow)%(refname:short)%(color:reset) - \
+              %(color:red)%(objectname:short)%(color:reset) - %(contents:subject) - \
+              %(authorname) (%(color:green)%(committerdate:relative)%(color:reset))'
+}
+
+# =========================================================================== #
 # ++++++++++++++++++++++++++++ GLOBAL VARIABLES +++++++++++++++++++++++++++++ #
 # =========================================================================== #
 
