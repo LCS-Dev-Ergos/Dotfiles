@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-# --- STYLES FOR CONSOLE OUTPUT ---
+# ----- STYLES FOR CONSOLE OUTPUT ----- #
 class styles:
     HEADER = '\033[95m'
     BLUE = '\033[94m'
