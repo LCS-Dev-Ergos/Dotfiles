@@ -1,22 +1,25 @@
-# Basato sullo stile LLVM con personalizzazioni
+# Based on LLVM style with customizations
 BasedOnStyle: LLVM
 
-# Mantieni l'operatore * vicino al tipo
+# Keep the * operator close to the type
 PointerAlignment: Left
 
-# Limite per la lunghezza di ogni riga
+# Limit for the length of each line
 ColumnLimit: 140
 
-# Dimensione dell'indentazione (2 spazi per coerenza con il C/C++)
+# Indentation size (2 spaces for consistency with C/C++)
 IndentWidth: 2
 
-# Usa spazi invece di tab
+# Use spaces instead of tabs
 UseTab: Never
 
-# Forza la dichiarazione template su una nuova riga
+# Namespace indentation
+NamespaceIndentation: All
+
+# Force template declaration on a new line
 AlwaysBreakTemplateDeclarations: Yes
 
-# Formattazione degli argomenti delle funzioni
+# Function argument formatting
 AlignAfterOpenBracket: AlwaysBreak
 AllowShortFunctionsOnASingleLine: InlineOnly
 BreakBeforeBraces: Custom
@@ -29,29 +32,47 @@ BraceWrapping:
   BeforeElse: false
   IndentBraces: false
 
-# Preferisci che gli include siano ordinati
+# Prefer includes to be sorted
 SortIncludes: true
 
-# Allineamento dei parametri per migliorare la leggibilità
+# Align parameters to improve readability
 AlignConsecutiveDeclarations: true
 AlignConsecutiveAssignments: true
 AlignTrailingComments: true
 
-# Spaziature
+# Spacing
 SpaceBeforeParens: ControlStatements
 SpacesInParentheses: false
 SpacesInSquareBrackets: false
 SpacesInAngles: false
 
-# Configura la gestione di struct e class
+# Configure struct and class handling
 AlwaysBreakAfterReturnType: None
 AllowShortBlocksOnASingleLine: false
 BinPackParameters: false
 
-# Configura la gestione di operatori e parametri
+# Configure handling of operators and parameters
 BreakBeforeBinaryOperators: NonAssignment
 BreakConstructorInitializers: AfterColon
 
-# Nome delle macro sempre in uppercase
+# Macro names always in uppercase
 MacroBlockBegin: AlwaysBreak
 MacroBlockEnd: AlwaysBreak
+
+# Configure preprocessing directives indentation
+IndentPPDirectives: None
+
+# Keep preprocessor directives at column 1 or indent them
+# AfterHash: indent after the hash
+# BeforeHash: indent before the hash
+# None: don't indent (default)
+
+# Indent width for preprocessing directives
+PPIndentWidth: 2
+
+# Don't reformat macros
+DisableFormat: false
+
+# Keep macro definitions formatting
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 1
