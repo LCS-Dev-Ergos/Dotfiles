@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Interactive Tree Visualizer</title>
+    <style type="text/css">
+      html,
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Helvetica, Arial, sans-serif;
+        width: 100%;
+        height: 100%;
+        padding: 0;
+        margin: 0;
+        background: linear-gradient(135deg, #f4ecd8 0%, #e8dcc0 100%);
+      }
+      #mynetwork {
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 1;
+      }
+      #info-box {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background: linear-gradient(
+          135deg,
+          rgba(255, 255, 255, 0.95) 0%,
+          rgba(248, 240, 225, 0.95) 100%
+        );
+        border: 1px solid #d4a574;
+        border-radius: 12px;
+        padding: 18px;
+        z-index: 2;
+        box-shadow: 0 6px 20px rgba(139, 126, 110, 0.3);
+        font-size: 14px;
+        backdrop-filter: blur(5px);
+      }
+      #info-box h3 {
+        margin-top: 0;
+        font-size: 18px;
+        color: #5e5146;
+        text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
+      }
+      #info-box table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      #info-box th,
+      #info-box td {
+        text-align: left;
+        padding: 8px;
+        border-bottom: 1px solid #d4a574;
+      }
+      #info-box th {
+        font-weight: bold;
+        color: #6b5d52;
+      }
+      #info-box td {
+        color: #5e5146;
+      }
+    </style>
+    <script type="text/javascript">
+      <!-- Contenuto della libreria vis.js -->
+      __VISJS_LIBRARY__;
+    </script>
+  </head>
+  <body>
+    <div id="info-box">__TYPE_INFO_HTML__</div>
+    <div id="mynetwork"></div>
+
+    <script type="text/javascript">
+      // ----- Data from Python ----- //
+      const rawNodesData = __NODES_DATA__;
+      const rawEdgesData = __EDGES_DATA__;
+
+      // --- MODIFICA CHIAVE: Processa i dati grezzi per creare etichette e tooltip ---
+      const processedNodes = rawNodesData.map((node) => ({
+        id: node.id,
+        label: String(node.label),
+        title: node.title,
+      }));
+
+      // ----- Vis.js Setup ----- //
+      const container = document.getElementById("mynetwork");
+      const nodes = new vis.DataSet(processedNodes);
+      const edges = new vis.DataSet(rawEdgesData);
+      const data = { nodes: nodes, edges: edges };
+
+      // ----- Uniform sepia color palette ----- //
+      const colorPalette = {
+        nodeDefault: "#a67c52",
+        nodeBorder: "#8b6f47",
+        nodeHover: "#c49771",
+        nodeSelected: "#d4a574",
+        nodeSelectedBorder: "#b8956a",
+        textDefault: "#ffffff",
+        edgeDefault: "#8b6f47",
+        edgeSelected: "#d4a574",
+      };
+
+      const options = {
+        layout: {
+          hierarchical: {
+            enabled: true,
+            sortMethod: "directed",
+            direction: "UD",
+            nodeSpacing: 120,
+            levelSeparation: 100,
+          },
+        },
+        physics: { enabled: false },
+        interaction: {
+          dragNodes: true,
+          zoomView: true,
+          dragView: true,
+          hover: true,
+          tooltipDelay: 200,
+        },
+        nodes: {
+          // ----- Uniform Node Styling ----- //
+          shape: "box",
+          shapeProperties: { borderRadius: 8 },
+          margin: 10,
+          font: { color: colorPalette.textDefault, size: 16, face: "arial" },
+          borderWidth: 3,
+          color: {
+            border: colorPalette.nodeBorder,
+            background: colorPalette.nodeDefault,
+            highlight: {
+              border: colorPalette.nodeHover,
+              background: "#c49771",
+            },
+            hover: { border: colorPalette.nodeHover, background: "#c49771" },
+          },
+          shadow: {
+            enabled: true,
+            color: "rgba(139, 111, 71, 0.3)",
+            size: 10,
+            x: 5,
+            y: 5,
+          },
+        },
+        edges: {
+          arrows: { to: { enabled: true, scaleFactor: 1, type: "arrow" } },
+          width: 2,
+          color: {
+            color: colorPalette.edgeDefault,
+            highlight: colorPalette.edgeDefault,
+            inherit: false,
+            opacity: 0.8,
+          },
+          smooth: {
+            enabled: true,
+            type: "cubicBezier",
+            forceDirection: "vertical",
+            roundness: 0.4,
+          },
+        },
+      };
+
+      const network = new vis.Network(container, data, options);
+
+      // ----- Click Event Handler ----- //
+      function resetColors() {
+        nodes.getIds().forEach((nodeId) => {
+          nodes.update({
+            id: nodeId,
+            color: {
+              background: colorPalette.nodeDefault,
+              border: colorPalette.nodeBorder,
+            },
+          });
+        });
+        edges.getIds().forEach((edgeId) => {
+          edges.update({
+            id: edgeId,
+            color: { color: colorPalette.edgeDefault },
+          });
+        });
+      }
+
+      network.on("click", function (params) {
+        resetColors();
+        if (params.nodes.length > 0) {
+          const selectedNodeId = params.nodes[0];
+          nodes.update({
+            id: selectedNodeId,
+            color: {
+              background: colorPalette.nodeSelected,
+              border: colorPalette.nodeSelectedBorder,
+            },
+          });
+          const connectedEdges = network.getConnectedEdges(selectedNodeId);
+          connectedEdges.forEach(function (edgeId) {
+            const edge = edges.get(edgeId);
+            const connectedNodeId =
+              edge.from === selectedNodeId ? edge.to : edge.from;
+            edges.update({
+              id: edgeId,
+              color: { color: colorPalette.edgeSelected },
+            });
+            nodes.update({
+              id: connectedNodeId,
+              color: {
+                background: colorPalette.nodeSelected,
+                border: colorPalette.nodeSelectedBorder,
+              },
+            });
+          });
+        }
+      });
+    </script>
+  </body>
+</html>

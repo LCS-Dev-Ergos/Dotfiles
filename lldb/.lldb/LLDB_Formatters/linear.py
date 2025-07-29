@@ -1,3 +1,16 @@
+# ---------------------------------------------------------------------- #
+# FILE: linear.py
+#
+# DESCRIPTION:
+# This module provides data formatters for linear, pointer-based data
+# structures such as singly-linked lists, stacks, and queues.
+#
+# The 'LinearContainerProvider' class generates a concise one-line
+# summary by traversing the structure through 'next' pointers. It is
+# designed to be adaptive to common member names (e.g., 'head', 'next',
+# 'value') and includes cycle detection to prevent infinite loops.
+# ---------------------------------------------------------------------- #
+
 from .helpers import (
     Colors,
     get_child_member_by_names,
@@ -27,10 +40,12 @@ class LinearContainerProvider:
     def update(self):
         """
         Initializes pointers and member names by searching through common conventions.
+        Detects if the list is doubly-linked or singly-linked based on member names.
         """
         self.head_ptr = get_child_member_by_names(
             self.valobj, ["head", "m_head", "_head", "top"]
         )
+        self.is_doubly_linked = False
         debug_print(
             f"Searching for head... Found: {'Yes' if self.head_ptr and self.head_ptr.IsValid() else 'No'}"
         )
@@ -50,8 +65,20 @@ class LinearContainerProvider:
                     if type_has_field(node_type, name):
                         self.value_name = name
                         break
+                for name in ["prev", "m_prev", "_prev", "pPrev"]:
+                    if type_has_field(node_type, name):
+                        self.is_doubly_linked = True
+                        break
+                debug_print(
+                    f"-> Found 'prev' member: {'Yes' if self.is_doubly_linked else 'No'}"
+                )
                 debug_print(f"-> Found 'next' member: '{self.next_ptr_name}'")
                 debug_print(f"-> Found 'value' member: '{self.value_name}'")
+                if self.is_doubly_linked:
+                    debug_print("-> This is a doubly-linked list.")
+                else:
+                    debug_print("-> This is a singly-linked list.")
+
             else:
                 debug_print("-> Failed to dereference head pointer.")
 
@@ -110,10 +137,15 @@ class LinearContainerProvider:
             node = dereferenced_node.GetChildMemberWithName(self.next_ptr_name)
             count += 1
 
-        final_summary_str = f" {Colors.BOLD_CYAN}->{Colors.RESET} ".join(summary)
+        separator = (
+            f" {Colors.BOLD_CYAN}<->{Colors.RESET} "
+            if self.is_doubly_linked
+            else f" {Colors.BOLD_CYAN}->{Colors.RESET} "
+        )
+        final_summary_str = separator.join(summary)
 
         if get_raw_pointer(node) != 0:
-            final_summary_str += f" {Colors.BOLD_CYAN}->{Colors.RESET} ..."
+            final_summary_str += f" {separator.strip()} ..."
 
         return f"{Colors.GREEN}size = {self.size}{Colors.RESET}, [{final_summary_str}]"
 

@@ -1,3 +1,16 @@
+# ---------------------------------------------------------------------- #
+# FILE: config.py
+#
+# DESCRIPTION:
+# This module implements the user-facing configuration command for the
+# formatters. It allows users to inspect and modify global settings
+# at runtime directly from the LLDB console.
+#
+# It contains the implementation for the 'formatter_config' command,
+# which provides an interface to the global variables defined in
+# the 'helpers.py' module.
+# ---------------------------------------------------------------------- #
+
 from .helpers import (
     g_summary_max_items,
     g_graph_max_neighbors,

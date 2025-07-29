@@ -1,3 +1,19 @@
+# ---------------------------------------------------------------------- #
+# FILE: helpers.py
+#
+# DESCRIPTION:
+# This module provides a collection of shared utility functions, global
+# configuration variables, and constants used across the entire
+# 'LLDB_Formatters' package.
+#
+# It centralizes common logic to avoid code duplication and includes:
+#   - Generic helper functions to interact with LLDB's SBValue and SBType.
+#   - Global settings that can be modified at runtime (e.g., via the
+#     'formatter_config' command).
+#   - ANSI color code definitions for colored console output.
+#   - A conditional debug printing utility.
+# ---------------------------------------------------------------------- #
+
 import os
 
 # ----- Global Configuration Settings ----- #

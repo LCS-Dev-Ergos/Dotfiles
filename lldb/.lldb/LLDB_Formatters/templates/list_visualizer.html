@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Interactive List Visualizer</title>
+    <style type="text/css">
+      html,
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Helvetica, Arial, sans-serif;
+        width: 100%;
+        height: 100%;
+        padding: 0;
+        margin: 0;
+        background: linear-gradient(135deg, #f4ecd8 0%, #e8dcc0 100%);
+      }
+      #mynetwork {
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 1;
+      }
+      #info-box {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background: linear-gradient(
+          135deg,
+          rgba(255, 255, 255, 0.95) 0%,
+          rgba(248, 240, 225, 0.95) 100%
+        );
+        border: 1px solid #d4a574;
+        border-radius: 12px;
+        padding: 18px;
+        z-index: 2;
+        box-shadow: 0 6px 20px rgba(139, 126, 110, 0.3);
+        font-size: 14px;
+        backdrop-filter: blur(5px);
+      }
+      #info-box h3 {
+        margin-top: 0;
+        font-size: 18px;
+        color: #5e5146;
+        text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
+      }
+      .play-button {
+        background-color: #a67c52;
+        color: white;
+        border: none;
+        padding: 10px 15px;
+        border-radius: 8px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        margin-top: 10px;
+      }
+      .play-button:hover {
+        background-color: #8b6f47;
+      }
+    </style>
+    <script type="text/javascript">
+      // ----- Include the vis.js library ----- //
+      __VISJS_LIBRARY__;
+    </script>
+  </head>
+  <body>
+    <div id="info-box">
+      <h3>List Information</h3>
+      <p>
+        <b>Variable:</b> __VAR_NAME__<br /><b>Type:</b> __TYPE_NAME__<br /><b
+          >Size:</b
+        >
+        __LIST_SIZE__
+      </p>
+      <button class="play-button" onclick="playAnimation()">
+        Play Traversal Animation
+      </button>
+    </div>
+    <div id="mynetwork"></div>
+
+    <script type="text/javascript">
+      // ----- Data from Python ----- //
+      const rawNodesData = __NODES_DATA__;
+      const rawEdgesData = __EDGES_DATA__;
+      const traversalOrder = __TRAVERSAL_ORDER_DATA__;
+      const isDoublyLinked = __IS_DOUBLY_LINKED__;
+
+      // ----- Process raw data into vis.js format ----- //
+      const processedNodes = rawNodesData.map((node) => ({
+        id: node.id,
+        value: node.value,
+        address: node.address,
+        // ----- Label for node ----- //
+        label: String(node.value),
+        // ----- Tooltip for details ----- //
+        title: `Value: ${node.value}\nAddress: ${node.address}`,
+      }));
+
+      const processedEdges = rawEdgesData.map((edge) => ({
+        ...edge,
+        arrows: { to: { enabled: true }, from: { enabled: isDoublyLinked } },
+      }));
+
+      // ----- Uniform sepia color palette ----- //
+      const colorPalette = {
+        nodeDefault: "#a67c52",
+        nodeBorder: "#8b6f47",
+        nodeHover: "#c49771",
+        nodeSelected: "#d4a574",
+        nodeAnimated: "#34a853",
+        textDefault: "#ffffff",
+        edgeDefault: "#8b6f47",
+      };
+
+      // ----- Vis.js Network Configuration ----- //
+      const container = document.getElementById("mynetwork");
+      const nodes = new vis.DataSet(processedNodes);
+      const edges = new vis.DataSet(processedEdges);
+      const data = { nodes: nodes, edges: edges };
+
+      const options = {
+        physics: {
+          enabled: true,
+          barnesHut: {
+            gravitationalConstant: -4000,
+            centralGravity: 0.1,
+            springLength: 150,
+            springConstant: 0.05,
+          },
+          solver: "barnesHut",
+        },
+        interaction: {
+          dragNodes: true,
+          zoomView: true,
+          dragView: true,
+          hover: true,
+          tooltipDelay: 200,
+        },
+        nodes: {
+          // ----- Uniform Node Styling ----- //
+          shape: "box",
+          shapeProperties: { borderRadius: 8 },
+          margin: 10,
+          font: {
+            color: colorPalette.textDefault,
+            size: 18,
+            face: "arial",
+            bold: { color: colorPalette.textDefault },
+          },
+          borderWidth: 3,
+          color: {
+            border: colorPalette.nodeBorder,
+            background: colorPalette.nodeDefault,
+            highlight: {
+              border: colorPalette.nodeHover,
+              background: "#c49771",
+            },
+            hover: { border: colorPalette.nodeHover, background: "#c49771" },
+          },
+          shadow: {
+            enabled: true,
+            color: "rgba(139, 111, 71, 0.3)",
+            size: 10,
+            x: 5,
+            y: 5,
+          },
+        },
+        edges: {
+          width: 2,
+          color: {
+            color: colorPalette.edgeDefault,
+            inherit: false,
+            opacity: 0.8,
+          },
+          smooth: { type: "dynamic" },
+        },
+      };
+
+      const network = new vis.Network(container, data, options);
+
+      // ----- UI Functionality ----- //
+      function playAnimation() {
+        resetAllNodeColors();
+        let delay = 0;
+        const animation_speed = 400;
+
+        traversalOrder.forEach((nodeId, index) => {
+          setTimeout(() => {
+            nodes.update({
+              id: nodeId,
+              color: {
+                background: colorPalette.nodeAnimated,
+                border: "#2c8b45",
+              },
+            });
+            if (index > 0) {
+              const prevNodeId = traversalOrder[index - 1];
+              nodes.update({
+                id: prevNodeId,
+                color: {
+                  background: colorPalette.nodeDefault,
+                  border: colorPalette.nodeBorder,
+                },
+              });
+            }
+            if (index === traversalOrder.length - 1) {
+              setTimeout(resetAllNodeColors, animation_speed * 2);
+            }
+          }, delay);
+          delay += animation_speed;
+        });
+      }
+
+      function resetAllNodeColors() {
+        nodes.getIds().forEach((nodeId) => {
+          nodes.update({
+            id: nodeId,
+            color: {
+              background: colorPalette.nodeDefault,
+              border: colorPalette.nodeBorder,
+            },
+          });
+        });
+      }
+    </script>
+  </body>
+</html>

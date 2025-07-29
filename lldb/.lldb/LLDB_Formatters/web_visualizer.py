@@ -1,7 +1,28 @@
+# ---------------------------------------------------------------------- #
+# FILE: web_visualizer.py
+#
+# DESCRIPTION:
+# This module implements advanced, interactive data structure
+# visualizations by generating self-contained HTML files that use the
+# 'vis.js' JavaScript library.
+#
+# It provides three main commands:
+#   - 'export_list_web': Generates an interactive, linear view of a
+#     linked list with traversal animation.
+#   - 'export_tree_web': Generates an interactive, hierarchical view
+#     of a tree structure.
+#   - 'export_graph_web': Generates an interactive, physics-based
+#     force-directed layout of a graph structure.
+#
+# The generated HTML file is automatically opened in the user's
+# default web browser.
+# ---------------------------------------------------------------------- #
+
 from .helpers import (
     get_child_member_by_names,
     get_raw_pointer,
     get_value_summary,
+    type_has_field,
 )
 
 from .tree import (
@@ -15,301 +36,229 @@ import tempfile
 import webbrowser
 import os
 import shlex
+import string
 
 
-# ----- HTML Template for Advanced Web Visualizer ----- #
-HTML_TEMPLATE = """
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Interactive Tree Visualizer</title>
-    <style type="text/css">
-        html, body {{
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            width: 100%;
-            height: 100%;
-            padding: 0;
-            margin: 0;
-            background: linear-gradient(135deg, #f4ecd8 0%, #e8dcc0 100%); /* More elegant sepia gradient */
-        }}
-        #mynetwork {{
-            width: 100%;
-            height: 100%;
-            position: absolute;
-            top: 0;
-            left: 0;
-            z-index: 1;
-        }}
-        #info-box {{
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 240, 225, 0.95) 100%);
-            border: 1px solid #d4a574;
-            border-radius: 12px;
-            padding: 18px;
-            z-index: 2;
-            box-shadow: 0 6px 20px rgba(139, 126, 110, 0.3);
-            font-size: 14px;
-            backdrop-filter: blur(5px);
-        }}
-        #info-box h3 {{
-            margin-top: 0;
-            font-size: 18px;
-            color: #5e5146;
-            text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
-        }}
-        #info-box table {{
-            width: 100%;
-            border-collapse: collapse;
-        }}
-        #info-box th, #info-box td {{
-            text-align: left;
-            padding: 8px;
-            border-bottom: 1px solid #d4a574;
-        }}
-        #info-box th {{
-            font-weight: bold;
-            color: #6b5d52;
-        }}
-        #info-box td {{
-            color: #5e5146;
-        }}
-    </style>
-    <script type="text/javascript">
-        // The embedded vis.js library content goes here
-        {visjs_library}
-    </script>
-</head>
-<body>
-
-<div id="info-box">
-{type_info_html}
-</div>
-<div id="mynetwork"></div>
-
-<script type="text/javascript">
-    // --- Data from Python ---
-    const nodesData = {nodes_data};
-    const edgesData = {edges_data};
-    const traversalOrder = {traversal_order_data}; // Keep this for animations
-
-    // --- Uniform sepia color palette ---
-    const colorPalette = {{
-        // Base colors
-        nodeDefault: '#a67c52',        // Main sepia brown
-        nodeBorder: '#8b6f47',         // Darker border
-        nodeHover: '#c49771',          // Lighter sepia for hover
-        nodeHoverBorder: '#a67c52',    // Hover border
-        nodeSelected: '#d4a574',       // Selection - sepia gold
-        nodeSelectedBorder: '#b8956a', // Selection border
-        
-        // Edge colors
-        edgeDefault: '#8b6f47',        // Same as node border
-        edgeHover: '#a67c52',          // Slightly lighter
-        edgeSelected: '#d4a574',       // Same as node selection
-        
-        // Text colors
-        textDefault: '#ffffff',        // White for contrast
-        textShadow: 'rgba(0,0,0,0.3)'  // Text shadow
-    }};
-
-    // --- Vis.js network configuration ---
-    const container = document.getElementById('mynetwork');
-    const nodes = new vis.DataSet(nodesData);
-    const edges = new vis.DataSet(edgesData);
-    const data = {{ nodes: nodes, edges: edges }};
-
-    // --- Style and layout options (Hierarchical) ---
-    const options = {{
-        layout: {{
-            hierarchical: {{
-                enabled: true,
-                sortMethod: 'directed',
-                direction: 'UD',
-                nodeSpacing: 150,
-                levelSeparation: 170,
-            }}
-        }},
-        interaction: {{ 
-                dragNodes: true, 
-                zoomView: true, 
-                dragView: true,
-                hover: true,
-                hoverConnectedEdges: true,
-                selectConnectedEdges: false
-        }},
-        physics: {{ enabled: false }},
-        nodes: {{
-            shape: 'box',
-            shapeProperties: {{ 
-                borderRadius: 12,
-                useBorderWithImage: false
-            }},
-            font: {{ 
-                size: 22, 
-                color: colorPalette.textDefault,
-                multi: 'html',
-                strokeWidth: 2,
-                strokeColor: colorPalette.textShadow
-            }},
-            borderWidth: 3,
-            size: 50,
-            margin: 12,
-            color: {{
-                background: colorPalette.nodeDefault,
-                border: colorPalette.nodeBorder,
-                highlight: {{
-                    background: colorPalette.nodeHover,
-                    border: colorPalette.nodeHoverBorder
-                }},
-                hover: {{
-                    background: colorPalette.nodeHover,
-                    border: colorPalette.nodeHoverBorder
-                }}
-            }},
-            shadow: {{
-                enabled: true,
-                color: 'rgba(139, 111, 71, 0.4)', // Sepia shadow
-                size: 18,
-                x: 6,
-                y: 6
-            }},
-            scaling: {{
-                min: 10,
-                max: 50
-            }}
-        }},
-        edges: {{
-            arrows: {{
-                to: {{
-                    enabled: true,
-                    scaleFactor: 1.2,
-                    type: 'arrow'
-                }}
-            }},
-            width: 3,
-            color: {{ 
-                color: colorPalette.edgeDefault,
-                highlight: colorPalette.edgeHover,
-                hover: colorPalette.edgeHover,
-                inherit: false,
-                opacity: 0.8
-            }},
-            smooth: {{
-                enabled: true,
-                type: 'cubicBezier',
-                forceDirection: 'vertical',
-                roundness: 0.4
-            }},
-            shadow: {{
-                enabled: true,
-                color: 'rgba(139, 111, 71, 0.2)',
-                size: 10,
-                x: 3,
-                y: 3
-            }}
-        }}
-    }};
-
-    const network = new vis.Network(container, data, options);
-
-    // --- Function to reset colors ---
-    function resetColors() {{
-        nodes.getIds().forEach(nodeId => {{
-            nodes.update({{
-                id: nodeId, 
-                color: {{
-                    background: colorPalette.nodeDefault, 
-                    border: colorPalette.nodeBorder
-                }}
-            }});
-        }});
-        edges.getIds().forEach(edgeId => {{
-            edges.update({{
-                id: edgeId, 
-                color: {{
-                    color: colorPalette.edgeDefault
-                }}
-            }});
-        }});
-    }}
-
-    // --- Interaction: Highlight connected nodes on click ---
-    network.on("click", function (params) {{
-        resetColors();
-
-        if (params.nodes.length > 0) {{
-            const selectedNodeId = params.nodes[0];
-            
-            // Highlight the selected node
-            nodes.update({{
-                id: selectedNodeId, 
-                color: {{
-                    background: colorPalette.nodeSelected, 
-                    border: colorPalette.nodeSelectedBorder
-                }}
-            }});
-
-            // Highlight connected edges and nodes
-            const connectedEdges = network.getConnectedEdges(selectedNodeId);
-            connectedEdges.forEach(function (edgeId) {{
-                const edge = edges.get(edgeId);
-                const connectedNodeId = (edge.from === selectedNodeId) ? edge.to : edge.from;
-                
-                edges.update({{
-                    id: edgeId, 
-                    color: {{
-                        color: colorPalette.edgeSelected
-                    }}
-                }});
-                nodes.update({{
-                    id: connectedNodeId, 
-                    color: {{
-                        background: colorPalette.nodeSelected, 
-                        border: colorPalette.nodeSelectedBorder
-                    }}
-                }});
-            }});
-        }}
-    }});
-
-    // --- Smoother hover effect ---
-    network.on("hoverNode", function (params) {{
-        document.body.style.cursor = 'pointer';
-    }});
-
-    network.on("blurNode", function (params) {{
-        document.body.style.cursor = 'default';
-    }});
-
-    // --- Click on empty area to deselect ---
-    network.on("click", function (params) {{
-        if (params.nodes.length === 0 && params.edges.length === 0) {{
-            resetColors();
-        }}
-    }});
-
-</script>
-
-</body>
-</html>
-"""
-
-
-def export_tree_web_command(debugger, command, result, internal_dict):
+# ----- Helper to build JSON for vis.js (for Trees) ----- #
+def _build_visjs_data(node_ptr, nodes_list, edges_list, visited_addrs):
     """
-    Implements the 'export_tree_web' command. It generates a self-contained
-    interactive HTML file with styling and traversal animation capabilities.
-    Usage: (lldb) export_tree_web <variable_name>
+    Recursively traverses a tree to build node and edge lists compatible with vis.js.
+    """
+    node_addr = get_raw_pointer(node_ptr)
+    if not node_ptr or node_addr == 0 or node_addr in visited_addrs:
+        return
+
+    visited_addrs.add(node_addr)
+    node_struct = _safe_get_node_from_pointer(node_ptr)
+    if not node_struct or not node_struct.IsValid():
+        return
+
+    # Get node value and children
+    value = get_child_member_by_names(node_struct, ["value", "val", "data", "key"])
+    val_summary = get_value_summary(value)
+    children = _get_node_children(node_struct)
+
+    # Prepare the title string for the node
+    title_str = f"Value: {val_summary}\nAddress: 0x{node_addr:x}"
+    if children:
+        title_str += "\n\nChildren:"
+        for child_ptr in children:
+            child_addr = get_raw_pointer(child_ptr)
+            if child_addr != 0:
+                title_str += f"\n - 0x{child_addr:x}"
+
+    # Add the current node to the nodes list with the new 'title' field
+    nodes_list.append(
+        {
+            "id": node_addr,
+            "label": val_summary,
+            "title": title_str,
+        }
+    )
+
+    # Create edges and recurse
+    for child_ptr in children:
+        child_addr = get_raw_pointer(child_ptr)
+        if child_addr != 0:
+            edges_list.append({"from": node_addr, "to": child_addr})
+            _build_visjs_data(child_ptr, nodes_list, edges_list, visited_addrs)
+
+
+# ----- Library and Template Loading Logic ----- #
+def _load_visjs_library():
+    """
+    Loads the content of the vis-network.min.js library from a file.
+    """
+    try:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        visjs_path = os.path.join(script_dir, "templates/vis-network.min.js")
+        with open(visjs_path, "r", encoding="utf-8") as f:
+            return f.read()
+    except Exception:
+        return "// FAILED TO LOAD VIS.JS LIBRARY"
+
+
+def _create_and_launch_web_visualizer(template_filename, template_data, result):
+    """
+    A generic helper to handle the creation of an interactive web visualizer.
+
+    This function performs the common tasks:
+    1. Loads the specified HTML template file.
+    2. Loads the vis.js library.
+    3. Substitutes all placeholders with the provided data.
+    4. Writes the result to a temporary file and opens it in the browser.
+    """
+    # 1. Load the main HTML template from its file.
+    try:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        template_path = os.path.join(script_dir, "templates", template_filename)
+        with open(template_path, "r", encoding="utf-8") as f:
+            final_html = f.read()
+    except Exception as e:
+        result.SetError(f"Failed to load HTML template '{template_filename}': {e}")
+        return
+
+    # 2. Load the vis.js library and add it to the data dictionary.
+    visjs_library_content = _load_visjs_library()
+    if visjs_library_content.startswith("//"):
+        result.SetError(f"Could not load vis.js library: {visjs_library_content}")
+        return
+    template_data["__VISJS_LIBRARY__"] = visjs_library_content
+
+    # 3. Substitute all placeholders using a loop.
+    for placeholder, value in template_data.items():
+        str_value = str(value) if not isinstance(value, str) else value
+        final_html = final_html.replace(placeholder, str_value)
+
+    # 4. Write the final HTML to a temporary file and open it.
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w", delete=False, suffix=".html", encoding="utf-8"
+        ) as f:
+            f.write(final_html)
+            output_filename = f.name
+
+        webbrowser.open(f"file://{os.path.realpath(output_filename)}")
+        result.AppendMessage(
+            f"Successfully exported visualizer to '{output_filename}'."
+        )
+    except Exception as e:
+        result.SetError(f"Failed to create or open the HTML file: {e}")
+
+
+# ----- Web Command for Lists ----- #
+def export_list_web_command(debugger, command, result, internal_dict):
+    """
+    Implements the 'weblist' command. Generates an interactive HTML file for a list.
+    Usage: (lldb) weblist <variable_name>
     """
     args = shlex.split(command)
     if not args:
-        result.SetError("Usage: export_tree_web <variable_name>")
+        result.SetError("Usage: weblist <variable_name>")
         return
 
     var_name = args[0]
+    frame = (
+        debugger.GetSelectedTarget().GetProcess().GetSelectedThread().GetSelectedFrame()
+    )
+    if not frame.IsValid():
+        result.SetError("Cannot execute command: invalid execution context.")
+        return
 
+    list_val = frame.FindVariable(var_name)
+    if not list_val or not list_val.IsValid():
+        result.SetError(f"Could not find variable '{var_name}'.")
+        return
+
+    # 1. Traverse the list to gather data.
+    head_ptr = get_child_member_by_names(list_val, ["head", "m_head", "_head", "top"])
+    if not head_ptr or get_raw_pointer(head_ptr) == 0:
+        result.AppendMessage("List is empty or head pointer not found.")
+        return
+
+    next_ptr_name, value_name, has_prev_field = None, None, False
+    first_node = head_ptr.Dereference()
+    if first_node and first_node.IsValid():
+        node_type = first_node.GetType()
+        for name in ["next", "m_next", "_next", "pNext"]:
+            if type_has_field(node_type, name):
+                next_ptr_name = name
+                break
+        for name in ["value", "val", "data", "m_data", "key"]:
+            if type_has_field(node_type, name):
+                value_name = name
+                break
+        for name in ["prev", "m_prev", "_prev", "pPrev"]:
+            if type_has_field(node_type, name):
+                has_prev_field = True
+                break
+
+    if not next_ptr_name or not value_name:
+        result.SetError(
+            "Could not determine list node structure ('next'/'value' members)."
+        )
+        return
+
+    nodes_data, edges_data, traversal_order, visited_addrs = [], [], [], set()
+    current_ptr = head_ptr
+    while get_raw_pointer(current_ptr) != 0:
+        node_addr = get_raw_pointer(current_ptr)
+        if node_addr in visited_addrs:
+            break
+        visited_addrs.add(node_addr)
+        traversal_order.append(node_addr)
+
+        node_struct = current_ptr.Dereference()
+        if not node_struct or not node_struct.IsValid():
+            break
+
+        val_summary = get_value_summary(node_struct.GetChildMemberWithName(value_name))
+        address_str = f"0x{node_addr:x}"
+
+        # Send raw data to the template. The label will be constructed in JS.
+        nodes_data.append(
+            {
+                "id": node_addr,
+                "value": val_summary,
+                "address": address_str,
+            }
+        )
+
+        next_ptr = node_struct.GetChildMemberWithName(next_ptr_name)
+        if get_raw_pointer(next_ptr) != 0:
+            edges_data.append({"from": node_addr, "to": get_raw_pointer(next_ptr)})
+        current_ptr = next_ptr
+
+    size_member = get_child_member_by_names(list_val, ["size", "m_size", "count"])
+    list_size = size_member.GetValueAsUnsigned() if size_member else len(nodes_data)
+
+    # 2. Prepare the data dictionary for the template.
+    template_data = {
+        "__NODES_DATA__": json.dumps(nodes_data),
+        "__EDGES_DATA__": json.dumps(edges_data),
+        "__TRAVERSAL_ORDER_DATA__": json.dumps(traversal_order),
+        "__VAR_NAME__": var_name,
+        "__TYPE_NAME__": list_val.GetTypeName(),
+        "__LIST_SIZE__": list_size,
+        "__IS_DOUBLY_LINKED__": json.dumps(has_prev_field),  # Pass the flag to JS
+    }
+
+    # 3. Call the generic helper to generate and open the page.
+    _create_and_launch_web_visualizer("list_visualizer.html", template_data, result)
+
+
+# ----- Web Command for Trees ----- #
+def export_tree_web_command(debugger, command, result, internal_dict):
+    """
+    Implements the 'webtree' command. Generates an interactive HTML file for a tree.
+    Usage: (lldb) webtree <variable_name>
+    """
+    args = shlex.split(command)
+    if not args:
+        result.SetError("Usage: webtree <variable_name>")
+        return
+
+    var_name = args[0]
     frame = (
         debugger.GetSelectedTarget().GetProcess().GetSelectedThread().GetSelectedFrame()
     )
@@ -327,28 +276,14 @@ def export_tree_web_command(debugger, command, result, internal_dict):
         result.AppendMessage("Tree is empty.")
         return
 
-    # Load the vis.js library content dynamically
-    visjs_library_content = _load_visjs_library()
-    if visjs_library_content.startswith("//"):
-        # If the library failed to load, report the error and stop.
-        result.SetError(
-            f"Could not load the vis.js library. Error: {visjs_library_content}"
-        )
-        return
-
-    # 1. Build the node/edge data AND the traversal order list
-    nodes_data = []
-    edges_data = []
-    visited_addrs = set()
+    # 1. Traverse the tree to gather data.
+    nodes_data, edges_data, visited_addrs = [], [], set()
     _build_visjs_data(root_node_ptr, nodes_data, edges_data, visited_addrs)
 
-    # Collect nodes in pre-order for animation
     preorder_nodes = []
     _collect_nodes_preorder(root_node_ptr, preorder_nodes)
-    # Get just the addresses (IDs) for JavaScript
     traversal_order_ids = [get_raw_pointer(node) for node in preorder_nodes]
 
-    # 2. Gather type information for the info box
     type_info = {
         "Variable Name": var_name,
         "Type Name": tree_val.GetTypeName(),
@@ -361,171 +296,22 @@ def export_tree_web_command(debugger, command, result, internal_dict):
         type_info_html += f"<tr><th>{key}</th><td>{value}</td></tr>"
     type_info_html += "</table>"
 
-    # 3. Populate the HTML template
-    final_html = HTML_TEMPLATE.format(
-        visjs_library=visjs_library_content,
-        nodes_data=json.dumps(nodes_data),
-        edges_data=json.dumps(edges_data),
-        traversal_order_data=json.dumps(traversal_order_ids),
-        type_info_html=type_info_html,
-    )
+    # 2. Prepare the data dictionary for the template.
+    template_data = {
+        "__NODES_DATA__": json.dumps(nodes_data),
+        "__EDGES_DATA__": json.dumps(edges_data),
+        "__TRAVERSAL_ORDER_DATA__": json.dumps(traversal_order_ids),
+        "__TYPE_INFO_HTML__": type_info_html,
+    }
 
-    # 4. Write to a temporary HTML file and open it
-    try:
-        with tempfile.NamedTemporaryFile(
-            "w", delete=False, suffix=".html", encoding="utf-8"
-        ) as f:
-            f.write(final_html)
-            output_filename = f.name
-
-        webbrowser.open(f"file://{os.path.realpath(output_filename)}")
-        result.AppendMessage(
-            f"Successfully exported animated tree to '{output_filename}'. Opening in browser..."
-        )
-    except Exception as e:
-        result.SetError(f"Failed to create or open the HTML file: {e}")
-
-
-def _load_visjs_library():
-    """
-    Loads the content of the vis-network.min.js library from a file.
-    This makes the script self-contained and avoids hardcoding the library.
-    """
-    try:
-        # Get the directory where the current script is located
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        visjs_path = os.path.join(script_dir, "vis-network.min.js")
-
-        with open(visjs_path, "r", encoding="utf-8") as f:
-            return f.read()
-    except FileNotFoundError:
-        # Return a specific error message if the file is missing
-        return "// VIS.JS LIBRARY NOT FOUND"
-    except Exception as e:
-        # Return a generic error message for other potential issues
-        return f"// FAILED TO LOAD VIS.JS: {e}"
-
-
-# ----- Helper to build JSON for vis.js ----- #
-def _build_visjs_data(node_ptr, nodes_list, edges_list, visited_addrs):
-    """
-    Recursively traverses a tree to build node and edge lists compatible with vis.js.
-    """
-    node_addr = get_raw_pointer(node_ptr)
-    if not node_ptr or node_addr == 0 or node_addr in visited_addrs:
-        return
-
-    visited_addrs.add(node_addr)
-    node_struct = _safe_get_node_from_pointer(node_ptr)
-    if not node_struct or not node_struct.IsValid():
-        return
-
-    # Add the current node to the nodes list
-    value = get_child_member_by_names(node_struct, ["value", "val", "data", "key"])
-    val_summary = get_value_summary(value)
-    nodes_list.append({"id": node_addr, "label": val_summary})
-
-    # Get children and create edges
-    children = _get_node_children(node_struct)
-    for child_ptr in children:
-        child_addr = get_raw_pointer(child_ptr)
-        if child_addr != 0:
-            # Add the edge
-            edges_list.append({"from": node_addr, "to": child_addr})
-            # Recurse on the child
-            _build_visjs_data(child_ptr, nodes_list, edges_list, visited_addrs)
-
-
-# ----- HTML Template for Graph Visualizer (Physics-based) -----
-GRAPH_HTML_TEMPLATE = """
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Interactive Graph Visualizer</title>
-  <style type="text/css">
-    html, body {{
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      width: 100%;
-      height: 100%;
-      padding: 0;
-      margin: 0;
-      background-color: #f0f0f0;
-    }}
-    #mynetwork {{
-      width: 100%;
-      height: 100%;
-      border: 1px solid lightgray;
-    }}
-  </style>
-  <script type="text/javascript">
-    // The embedded vis.js library content goes here
-    {visjs_library}
-  </script>
-</head>
-<body>
-
-<div id="mynetwork"></div>
-
-<script type="text/javascript">
-  // --- Data from Python ---
-  const nodesData = {nodes_data};
-  const edgesData = {edges_data};
-
-  // --- Vis.js Network Setup ---
-  const container = document.getElementById('mynetwork');
-  const nodes = new vis.DataSet(nodesData);
-  const edges = new vis.DataSet(edgesData);
-  const data = {{ nodes: nodes, edges: edges }};
-
-  // --- Styling and Layout Options (Physics-based) ---
-  const options = {{
-    nodes: {{
-      shape: 'dot',
-      size: 25,
-      font: {{ size: 18, color: '#333' }},
-      borderWidth: 2,
-      shadow: true
-    }},
-    edges: {{
-      width: 2,
-      shadow: true,
-      arrows: 'to'
-    }},
-    physics: {{
-      enabled: true,
-      barnesHut: {{
-        gravitationalConstant: -40000,
-        centralGravity: 0.2,
-        springLength: 150,
-        springConstant: 0.05,
-        damping: 0.09,
-        avoidOverlap: 0.1
-      }},
-      solver: 'barnesHut',
-      stabilization: {{ iterations: 2000 }}
-    }},
-    interaction: {{
-      dragNodes: true,
-      dragView: true,
-      zoomView: true,
-      tooltipDelay: 200
-    }}
-  }};
-
-  const network = new vis.Network(container, data, options);
-
-</script>
-
-</body>
-</html>
-"""
+    # 3. Call the generic helper to generate and open the page.
+    _create_and_launch_web_visualizer("tree_visualizer.html", template_data, result)
 
 
 # ----- Web Command for Graphs ----- #
 def export_graph_web_command(debugger, command, result, internal_dict):
     """
-    Implements the 'webgraph' command. It traverses a graph and generates
-    an interactive, physics-based HTML visualization.
+    Implements the 'webgraph' command. Generates an interactive HTML file for a graph.
     Usage: (lldb) webgraph <variable_name>
     """
     args = shlex.split(command)
@@ -546,6 +332,7 @@ def export_graph_web_command(debugger, command, result, internal_dict):
         result.SetError(f"Could not find variable '{var_name}'.")
         return
 
+    # 1. Traverse the graph to gather data.
     nodes_container = get_child_member_by_names(
         graph_val, ["nodes", "m_nodes", "adj", "adjacency_list"]
     )
@@ -557,61 +344,55 @@ def export_graph_web_command(debugger, command, result, internal_dict):
         result.AppendMessage("Graph is empty or nodes container not found.")
         return
 
-    # 1. Traverse the graph to collect nodes and edges
-    nodes_data = []
-    edges_data = []
-    visited_nodes = set()
+    nodes_data, edges_data, all_edge_tuples = [], [], set()
+    # First pass: collect all nodes and their data for tooltips
+    all_nodes = [
+        nodes_container.GetChildAtIndex(i)
+        for i in range(nodes_container.GetNumChildren())
+    ]
 
-    for i in range(nodes_container.GetNumChildren()):
-        node = nodes_container.GetChildAtIndex(i)
+    for node in all_nodes:
         if node.GetType().IsPointerType():
             node = node.Dereference()
         if not node or not node.IsValid():
             continue
 
         node_addr = get_raw_pointer(node)
-        if node_addr not in visited_nodes:
-            visited_nodes.add(node_addr)
-            node_value = get_child_member_by_names(
-                node, ["value", "val", "data", "key"]
-            )
-            val_summary = get_value_summary(node_value)
-            nodes_data.append({"id": node_addr, "label": val_summary})
+        val_summary = get_value_summary(
+            get_child_member_by_names(node, ["value", "val", "data", "key"])
+        )
 
+        # Build the title string with value and address
+        title_str = f"Value: {val_summary}\nAddress: 0x{node_addr:x}"
         neighbors = get_child_member_by_names(node, ["neighbors", "adj", "edges"])
         if neighbors and neighbors.IsValid() and neighbors.MightHaveChildren():
+            title_str += "\n\nNeighbors:"
             for j in range(neighbors.GetNumChildren()):
                 neighbor = neighbors.GetChildAtIndex(j)
                 if neighbor.GetType().IsPointerType():
                     neighbor = neighbor.Dereference()
                 if not neighbor or not neighbor.IsValid():
                     continue
-
                 neighbor_addr = get_raw_pointer(neighbor)
-                edges_data.append({"from": node_addr, "to": neighbor_addr})
+                title_str += f"\n - 0x{neighbor_addr:x}"
+                # Add edge only if it hasn't been added yet
+                if (node_addr, neighbor_addr) not in all_edge_tuples:
+                    edges_data.append({"from": node_addr, "to": neighbor_addr})
+                    all_edge_tuples.add((node_addr, neighbor_addr))
 
-    # 2. Load the library and populate the HTML template
-    visjs_library_content = _load_visjs_library()
-    if visjs_library_content.startswith("//"):
-        result.SetError(f"Could not load vis.js library: {visjs_library_content}")
-        return
-
-    final_html = GRAPH_HTML_TEMPLATE.format(
-        visjs_library=visjs_library_content,
-        nodes_data=json.dumps(nodes_data),
-        edges_data=json.dumps(edges_data),
-    )
-
-    # 3. Write to a temporary file and open it
-    try:
-        with tempfile.NamedTemporaryFile(
-            "w", delete=False, suffix=".html", encoding="utf-8"
-        ) as f:
-            f.write(final_html)
-            output_filename = f.name
-        webbrowser.open(f"file://{os.path.realpath(output_filename)}")
-        result.AppendMessage(
-            f"Successfully exported graph to '{output_filename}'. Opening in browser..."
+        nodes_data.append(
+            {
+                "id": node_addr,
+                "label": val_summary,
+                "title": title_str,
+            }
         )
-    except Exception as e:
-        result.SetError(f"Failed to create or open HTML file: {e}")
+
+    # 2. Prepare the data dictionary for the template.
+    template_data = {
+        "__NODES_DATA__": json.dumps(nodes_data),
+        "__EDGES_DATA__": json.dumps(edges_data),
+    }
+
+    # 3. Call the generic helper to generate and open the page.
+    _create_and_launch_web_visualizer("graph_visualizer.html", template_data, result)

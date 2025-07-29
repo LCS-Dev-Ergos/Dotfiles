@@ -1,3 +1,21 @@
+# ---------------------------------------------------------------------- #
+# FILE: tree.py
+#
+# DESCRIPTION:
+# This module contains all the logic for formatting and visualizing
+# tree data structures, supporting both binary and n-ary trees.
+#
+# Its features include:
+#   - A synthetic children provider ('GenericTreeProvider') to allow
+#     expanding tree nodes in the debugger's variable view.
+#   - A summary provider ('TreeSummary', 'tree_visualizer_provider')
+#     that generates a one-line summary or a JSON payload for VS Code.
+#   - A suite of 'pptree' commands for printing a visual representation
+#     of the tree directly in the LLDB console.
+#   - An 'export_tree' command to generate a Graphviz .dot file for
+#     offline visualization.
+# ---------------------------------------------------------------------- #
+
 from .helpers import (
     Colors,
     get_child_member_by_names,
@@ -236,10 +254,22 @@ def _get_node_children(node_struct):
 
 
 # ----- Helper functions to collect nodes in different orders (n-ary compatible) ----- #
-def _collect_nodes_preorder(node_ptr, nodes_list):
-    """Collect nodes in pre-order traversal (Root, Children)."""
+def _collect_nodes_preorder(node_ptr, nodes_list, visited_addrs=None):
+    """
+    Collect nodes in pre-order traversal (Root, Children).
+    Includes cycle detection to prevent infinite recursion.
+    """
+    # Initialize the visited set on the first call.
+    if visited_addrs is None:
+        visited_addrs = set()
+
     if not node_ptr or get_raw_pointer(node_ptr) == 0:
         return
+
+    node_addr = get_raw_pointer(node_ptr)
+    if node_addr in visited_addrs:
+        return  # Cycle detected
+    visited_addrs.add(node_addr)
 
     node = _safe_get_node_from_pointer(node_ptr)
     if not node or not node.IsValid():
@@ -250,17 +280,26 @@ def _collect_nodes_preorder(node_ptr, nodes_list):
 
     children = _get_node_children(node)
     for child in children:
-        _collect_nodes_preorder(child, nodes_list)
+        _collect_nodes_preorder(child, nodes_list, visited_addrs)
 
 
-def _collect_nodes_inorder(node_ptr, nodes_list):
+def _collect_nodes_inorder(node_ptr, nodes_list, visited_addrs=None):
     """
-    Collect nodes in in-order traversal.
+    Collect nodes in in-order traversal. Includes cycle detection.
     For binary trees: (Left, Root, Right).
     For n-ary trees, this uses a common generalization: (First Child, Root, Other Children).
     """
+    # Initialize the visited set on the first call.
+    if visited_addrs is None:
+        visited_addrs = set()
+
     if not node_ptr or get_raw_pointer(node_ptr) == 0:
         return
+
+    node_addr = get_raw_pointer(node_ptr)
+    if node_addr in visited_addrs:
+        return  # Cycle detected
+    visited_addrs.add(node_addr)
 
     node = _safe_get_node_from_pointer(node_ptr)
     if not node or not node.IsValid():
@@ -270,20 +309,32 @@ def _collect_nodes_inorder(node_ptr, nodes_list):
 
     # If there are children, visit the first child's subtree first.
     if children:
-        _collect_nodes_inorder(children[0], nodes_list)
+        _collect_nodes_inorder(children[0], nodes_list, visited_addrs)
 
     # Then, visit the root node.
     nodes_list.append(node_ptr)
 
     # Finally, visit the rest of the children's subtrees.
     for i in range(1, len(children)):
-        _collect_nodes_inorder(children[i], nodes_list)
+        _collect_nodes_inorder(children[i], nodes_list, visited_addrs)
 
 
-def _collect_nodes_postorder(node_ptr, nodes_list):
-    """Collect nodes in post-order traversal (Children, Root)."""
+def _collect_nodes_postorder(node_ptr, nodes_list, visited_addrs=None):
+    """
+    Collect nodes in post-order traversal (Children, Root).
+    Includes cycle detection to prevent infinite recursion.
+    """
+    # Initialize the visited set on the first call.
+    if visited_addrs is None:
+        visited_addrs = set()
+
     if not node_ptr or get_raw_pointer(node_ptr) == 0:
         return
+
+    node_addr = get_raw_pointer(node_ptr)
+    if node_addr in visited_addrs:
+        return  # Cycle detected
+    visited_addrs.add(node_addr)
 
     node = _safe_get_node_from_pointer(node_ptr)
     if not node or not node.IsValid():
@@ -292,16 +343,28 @@ def _collect_nodes_postorder(node_ptr, nodes_list):
     # Post-order: recurse on children first, then visit root.
     children = _get_node_children(node)
     for child in children:
-        _collect_nodes_postorder(child, nodes_list)
+        _collect_nodes_postorder(child, nodes_list, visited_addrs)
 
     nodes_list.append(node_ptr)
 
 
 # ----- Helper for the Pre-Order "drawing" view ----- #
-def _recursive_preorder_print(node_ptr, prefix, is_last, result):
+def _recursive_preorder_print(node_ptr, prefix, is_last, result, visited_addrs=None):
     """Helper function to recursively "draw" the tree in Pre-Order."""
+    # Initialize the visited set on the first call to prevent cycles.
+    if visited_addrs is None:
+        visited_addrs = set()
+
     if not node_ptr or get_raw_pointer(node_ptr) == 0:
         return
+
+    node_addr = get_raw_pointer(node_ptr)
+    if node_addr in visited_addrs:
+        result.AppendMessage(
+            f"{prefix}{'└── ' if is_last else '├── '}{Colors.RED}[CYCLE]{Colors.RESET}"
+        )
+        return
+    visited_addrs.add(node_addr)
 
     node = _safe_get_node_from_pointer(node_ptr)
     if not node or not node.IsValid():
@@ -315,19 +378,15 @@ def _recursive_preorder_print(node_ptr, prefix, is_last, result):
         f"{prefix}{'└── ' if is_last else '├── '}{Colors.YELLOW}{value_summary}{Colors.RESET}"
     )
 
-    # Then recurse on children
-    left = get_child_member_by_names(node, ["left", "m_left", "_left"])
-    right = get_child_member_by_names(node, ["right", "m_right", "_right"])
-
-    children = []
-    if left and get_raw_pointer(left) != 0:
-        children.append(left)
-    if right and get_raw_pointer(right) != 0:
-        children.append(right)
+    # Then recurse on children, using the centralized helper function.
+    # This ensures consistency with other commands and supports n-ary trees.
+    children = _get_node_children(node)
 
     for i, child in enumerate(children):
         new_prefix = f"{prefix}{'    ' if is_last else '│   '}"
-        _recursive_preorder_print(child, new_prefix, i == len(children) - 1, result)
+        _recursive_preorder_print(
+            child, new_prefix, i == len(children) - 1, result, visited_addrs
+        )
 
 
 # ----- Central dispatcher to handle all 'pptree' commands ----- #
@@ -367,6 +426,7 @@ def _pptree_command_dispatcher(debugger, command, result, internal_dict, order):
     # Select the correct approach based on the order
     if order == "preorder":
         # Pre-order traversal is well-suited for a recursive visual print.
+        # We pass an empty string for prefix and True for is_last for the root call.
         _recursive_preorder_print(root_node_ptr, "", True, result)
 
     elif order in ["inorder", "postorder"]:
@@ -374,6 +434,7 @@ def _pptree_command_dispatcher(debugger, command, result, internal_dict, order):
         # The correct and clearest output is a sequential list of values.
         nodes_list = []
         if order == "inorder":
+            # The 'visited' set is now handled internally by the function.
             _collect_nodes_inorder(root_node_ptr, nodes_list)
         else:  # postorder
             _collect_nodes_postorder(root_node_ptr, nodes_list)

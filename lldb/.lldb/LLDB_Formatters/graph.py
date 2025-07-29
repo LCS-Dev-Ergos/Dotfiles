@@ -1,3 +1,19 @@
+# ---------------------------------------------------------------------- #
+# FILE: graph.py
+#
+# DESCRIPTION:
+# This module provides data formatters and commands for visualizing
+# graph data structures.
+#
+# It contains:
+#   - 'GraphProvider': A synthetic children provider that displays a
+#     graph's nodes as children of the main graph object.
+#   - 'GraphNodeSummary': A summary provider for individual graph nodes,
+#     displaying the node's value and a list of its neighbors.
+#   - 'export_graph_command': A custom LLDB command to traverse a graph
+#     and export it to a Graphviz .dot file.
+# ---------------------------------------------------------------------- #
+
 from .helpers import (
     Colors,
     get_child_member_by_names,

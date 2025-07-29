@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Interactive Tree Visualizer</title>
+    <style type="text/css">
+      html,
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Helvetica, Arial, sans-serif;
+        width: 100%;
+        height: 100%;
+        padding: 0;
+        margin: 0;
+        background: linear-gradient(135deg, #f4ecd8 0%, #e8dcc0 100%);
+      }
+      #mynetwork {
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 1;
+      }
+      #info-box {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background: linear-gradient(
+          135deg,
+          rgba(255, 255, 255, 0.95) 0%,
+          rgba(248, 240, 225, 0.95) 100%
+        );
+        border: 1px solid #d4a574;
+        border-radius: 12px;
+        padding: 18px;
+        z-index: 2;
+        box-shadow: 0 6px 20px rgba(139, 126, 110, 0.3);
+        font-size: 14px;
+        backdrop-filter: blur(5px);
+      }
+    </style>
+    <script type="text/javascript">
+      <!-- Contenuto della libreria vis.js -->
+      __VISJS_LIBRARY__;
+    </script>
+  </head>
+  <body>
+    <div id="info-box">__TYPE_INFO_HTML__</div>
+    <div id="mynetwork"></div>
+
+    <script type="text/javascript">
+      // --- Data from Python ---
+      const rawNodesData = __NODES_DATA__;
+      const rawEdgesData = __EDGES_DATA__;
+
+      // --- Process Data ---
+      const processedNodes = rawNodesData.map((node) => ({
+        id: node.id,
+        label: String(node.label),
+        title: node.title,
+      }));
+
+      // --- Vis.js Setup ---
+      const container = document.getElementById("mynetwork");
+      const nodes = new vis.DataSet(processedNodes);
+      const edges = new vis.DataSet(rawEdgesData);
+      const data = { nodes: nodes, edges: edges };
+
+      const options = {
+        layout: {
+          hierarchical: {
+            enabled: true,
+            sortMethod: "directed",
+            direction: "UD",
+            nodeSpacing: 120,
+            levelSeparation: 100,
+          },
+        },
+        physics: { enabled: false }, // No physics for trees
+        interaction: {
+          dragNodes: true,
+          zoomView: true,
+          dragView: true,
+          hover: true,
+          tooltipDelay: 200,
+        },
+        nodes: {
+          shape: "box",
+          shapeProperties: { borderRadius: 8 },
+          margin: 10,
+          font: { color: "#ffffff", size: 16, face: "arial" },
+          borderWidth: 3,
+          color: {
+            border: "#8b6f47",
+            background: "#a67c52",
+            highlight: { border: "#c49771", background: "#c49771" },
+            hover: { border: "#c49771", background: "#c49771" },
+          },
+          shadow: {
+            enabled: true,
+            color: "rgba(139, 111, 71, 0.3)",
+            size: 10,
+            x: 5,
+            y: 5,
+          },
+        },
+        edges: {
+          arrows: { to: { enabled: true, scaleFactor: 1, type: "arrow" } },
+          width: 2,
+          color: { color: "#8b6f47", inherit: false, opacity: 0.8 },
+          smooth: {
+            enabled: true,
+            type: "cubicBezier",
+            forceDirection: "vertical",
+            roundness: 0.4,
+          },
+        },
+      };
+
+      const network = new vis.Network(container, data, options);
+    </script>
+  </body>
+</html>
