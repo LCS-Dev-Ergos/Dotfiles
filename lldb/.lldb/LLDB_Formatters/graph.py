@@ -4,8 +4,9 @@ from .helpers import (
     get_raw_pointer,
     get_value_summary,
     debug_print,
-    g_graph_max_neighbors
+    g_graph_max_neighbors,
 )
+
 
 # ----- Formatter for Graphs ----- #
 class GraphProvider:

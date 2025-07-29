@@ -8,6 +8,7 @@ from .helpers import (
     g_summary_max_items,
 )
 
+
 # ----- Formatter for Linear Data Structures (Lists, Stacks, Queues) ----- #
 class LinearContainerProvider:
     """

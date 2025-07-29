@@ -3,6 +3,7 @@ from .helpers import (
     g_graph_max_neighbors,
 )
 
+
 def formatter_config_command(debugger, command, result, internal_dict):
     """
     Implements the 'formatter_config' command to view and change global settings.

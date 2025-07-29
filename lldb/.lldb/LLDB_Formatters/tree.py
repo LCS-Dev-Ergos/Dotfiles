@@ -14,7 +14,6 @@ import json
 import base64
 
 
-
 # ----- Formatter for Trees (Binary and N-ary) ----- #
 class GenericTreeProvider:
     """

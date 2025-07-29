@@ -23,11 +23,7 @@ from .tree import (
     pptree_postorder_command,
     export_tree_command,
 )
-from .graph import (
-    GraphProvider,
-    GraphNodeSummary,
-    export_graph_command
-)
+from .graph import GraphProvider, GraphNodeSummary, export_graph_command
 from .web_visualizer import export_tree_web_command
 
 
@@ -67,56 +63,86 @@ def __lldb_init_module(debugger, internal_dict):
     # 1. Linear Structures (List, Stack, Queue)
     category.AddTypeSummary(
         lldb.SBTypeNameSpecifier(list_regex, True),
-        lldb.SBTypeSummary.CreateWithFunctionName("LLDB_Formatters.linear.LinearContainerSummary")
+        lldb.SBTypeSummary.CreateWithFunctionName(
+            "LLDB_Formatters.linear.LinearContainerSummary"
+        ),
     )
     category.AddTypeSummary(
         lldb.SBTypeNameSpecifier(stack_regex, True),
-        lldb.SBTypeSummary.CreateWithFunctionName("LLDB_Formatters.linear.LinearContainerSummary")
+        lldb.SBTypeSummary.CreateWithFunctionName(
+            "LLDB_Formatters.linear.LinearContainerSummary"
+        ),
     )
     category.AddTypeSummary(
         lldb.SBTypeNameSpecifier(queue_regex, True),
-        lldb.SBTypeSummary.CreateWithFunctionName("LLDB_Formatters.linear.LinearContainerSummary")
+        lldb.SBTypeSummary.CreateWithFunctionName(
+            "LLDB_Formatters.linear.LinearContainerSummary"
+        ),
     )
 
     # 2. Tree Structures
     # This provides the JSON payload for the VS Code visualizer.
     category.AddTypeSummary(
         lldb.SBTypeNameSpecifier(tree_regex, True),
-        lldb.SBTypeSummary.CreateWithFunctionName("LLDB_Formatters.tree.tree_visualizer_provider")
+        lldb.SBTypeSummary.CreateWithFunctionName(
+            "LLDB_Formatters.tree.tree_visualizer_provider"
+        ),
     )
 
     # 3. Graph Structures
     category.AddTypeSynthetic(
         lldb.SBTypeNameSpecifier(graph_regex, True),
-        lldb.SBTypeSynthetic.CreateWithClassName("LLDB_Formatters.graph.GraphProvider")
+        lldb.SBTypeSynthetic.CreateWithClassName("LLDB_Formatters.graph.GraphProvider"),
     )
     category.AddTypeSummary(
         lldb.SBTypeNameSpecifier(graph_node_regex, True),
-        lldb.SBTypeSummary.CreateWithFunctionName("LLDB_Formatters.graph.GraphNodeSummary")
+        lldb.SBTypeSummary.CreateWithFunctionName(
+            "LLDB_Formatters.graph.GraphNodeSummary"
+        ),
     )
 
     # --- Register Custom LLDB Commands ---
     # Each command is defined in its relevant module and registered here.
-    
+
     # Configuration command
-    debugger.HandleCommand("command script add -f LLDB_Formatters.config.formatter_config_command formatter_config")
+    debugger.HandleCommand(
+        "command script add -f LLDB_Formatters.config.formatter_config_command formatter_config"
+    )
 
     # Tree commands
-    debugger.HandleCommand("command script add -f LLDB_Formatters.tree.pptree_preorder_command pptree_preorder")
-    debugger.HandleCommand("command script add -f LLDB_Formatters.tree.pptree_inorder_command pptree_inorder")
-    debugger.HandleCommand("command script add -f LLDB_Formatters.tree.pptree_postorder_command pptree_postorder")
-    debugger.HandleCommand("command alias pptree pptree_preorder") # Default alias
-    debugger.HandleCommand("command script add -f LLDB_Formatters.tree.export_tree_command export_tree")
+    debugger.HandleCommand(
+        "command script add -f LLDB_Formatters.tree.pptree_preorder_command pptree_preorder"
+    )
+    debugger.HandleCommand(
+        "command script add -f LLDB_Formatters.tree.pptree_inorder_command pptree_inorder"
+    )
+    debugger.HandleCommand(
+        "command script add -f LLDB_Formatters.tree.pptree_postorder_command pptree_postorder"
+    )
+    debugger.HandleCommand("command alias pptree pptree_preorder")
+    debugger.HandleCommand(
+        "command script add -f LLDB_Formatters.tree.export_tree_command export_tree"
+    )
 
     # Graph commands
-    debugger.HandleCommand("command script add -f LLDB_Formatters.graph.export_graph_command export_graph")
+    debugger.HandleCommand(
+        "command script add -f LLDB_Formatters.graph.export_graph_command export_graph"
+    )
 
     # Web Visualizer commands
-    debugger.HandleCommand("command script add -f LLDB_Formatters.web_visualizer.export_tree_web_command export_tree_web")
-    debugger.HandleCommand("command alias webtree export_tree_web") # Convenient alias
-    debugger.HandleCommand("command script add -f LLDB_Formatters.web_visualizer.export_graph_web_command webgraph")
-    debugger.HandleCommand("command alias webg webgraph") # Convenient alias
+    debugger.HandleCommand(
+        "command script add -f LLDB_Formatters.web_visualizer.export_tree_web_command export_tree_web"
+    )
+    debugger.HandleCommand("command alias webtree export_tree_web")  # Convenient alias
+    debugger.HandleCommand(
+        "command script add -f LLDB_Formatters.web_visualizer.export_graph_web_command webgraph"
+    )
+    debugger.HandleCommand("command alias webg webgraph")  # Convenient alias
 
     # --- Final Output Message ---
-    print(f"{Colors.GREEN}Formatters and commands registered in category '{category_name}'.{Colors.RESET}")
-    print("Available commands: 'pptree', 'export_tree', 'export_graph', 'webtree', 'formatter_config', and more.")
+    print(
+        f"{Colors.GREEN}Formatters and commands registered in category '{category_name}'.{Colors.RESET}"
+    )
+    print(
+        "Available commands: 'pptree', 'export_tree', 'export_graph', 'webtree', 'formatter_config', and more."
+    )
