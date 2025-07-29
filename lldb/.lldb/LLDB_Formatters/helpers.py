@@ -71,7 +71,8 @@ def get_raw_pointer(value):
     if ptr_member and ptr_member.IsValid():
         return ptr_member.GetValueAsUnsigned()
 
-    return value.GetValueAsUnsigned()  # Fallback for other smart pointer-like types
+    # Fallback for other types: get the address of the value
+    return value.GetAddress().GetFileAddress()
 
 
 def type_has_field(type_obj, field_name):

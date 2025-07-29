@@ -291,7 +291,7 @@ def export_tree_web_command(debugger, command, result, internal_dict):
         "Is Reference": "Yes" if tree_val.GetType().IsReferenceType() else "No",
         "Number of Children": tree_val.GetNumChildren(),
     }
-    type_info_html = "<h3>Type Information</h3><table>"
+    type_info_html = "<h3>Tree Information</h3><table>"
     for key, value in type_info.items():
         type_info_html += f"<tr><th>{key}</th><td>{value}</td></tr>"
     type_info_html += "</table>"
@@ -389,9 +389,24 @@ def export_graph_web_command(debugger, command, result, internal_dict):
         )
 
     # 2. Prepare the data dictionary for the template.
+    num_nodes = get_child_member_by_names(graph_val, ["num_nodes", "V"])
+    num_edges = get_child_member_by_names(graph_val, ["num_edges", "E"])
+
+    type_info = {
+        "Variable Name": var_name,
+        "Type Name": graph_val.GetTypeName(),
+        "Nodes": num_nodes.GetValueAsUnsigned() if num_nodes else "N/A",
+        "Edges": num_edges.GetValueAsUnsigned() if num_edges else "N/A",
+    }
+    type_info_html = "<h3>Graph Information</h3><table>"
+    for key, value in type_info.items():
+        type_info_html += f"<tr><th>{key}</th><td>{value}</td></tr>"
+    type_info_html += "</table>"
+
     template_data = {
         "__NODES_DATA__": json.dumps(nodes_data),
         "__EDGES_DATA__": json.dumps(edges_data),
+        "__TYPE_INFO_HTML__": type_info_html,
     }
 
     # 3. Call the generic helper to generate and open the page.
