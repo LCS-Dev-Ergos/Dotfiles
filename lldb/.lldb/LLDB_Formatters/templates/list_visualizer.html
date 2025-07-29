@@ -44,6 +44,24 @@
         color: #5e5146;
         text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
       }
+      #info-box table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 10px;
+      }
+      #info-box th,
+      #info-box td {
+        text-align: left;
+        padding: 8px;
+        border-bottom: 1px solid #d4a574;
+      }
+      #info-box th {
+        font-weight: bold;
+        color: #6b5d52;
+      }
+      #info-box td {
+        color: #5e5146;
+      }
       .play-button {
         background-color: #a67c52;
         color: white;
@@ -53,7 +71,9 @@
         font-weight: bold;
         cursor: pointer;
         transition: background-color 0.2s;
+        width: 100%;
         margin-top: 10px;
+        box-sizing: border-box;
       }
       .play-button:hover {
         background-color: #8b6f47;
@@ -67,12 +87,20 @@
   <body>
     <div id="info-box">
       <h3>List Information</h3>
-      <p>
-        <b>Variable:</b> __VAR_NAME__<br /><b>Type:</b> __TYPE_NAME__<br /><b
-          >Size:</b
-        >
-        __LIST_SIZE__
-      </p>
+      <table>
+        <tr>
+          <th>Variable Name</th>
+          <td>__VAR_NAME__</td>
+        </tr>
+        <tr>
+          <th>Type Name</th>
+          <td>__TYPE_NAME__</td>
+        </tr>
+        <tr>
+          <th>Size</th>
+          <td>__LIST_SIZE__</td>
+        </tr>
+      </table>
       <button class="play-button" onclick="playAnimation()">
         Play Traversal Animation
       </button>
@@ -91,9 +119,7 @@
         id: node.id,
         value: node.value,
         address: node.address,
-        // ----- Label for node ----- //
         label: String(node.value),
-        // ----- Tooltip for details ----- //
         title: `Value: ${node.value}\nAddress: ${node.address}`,
       }));
 
@@ -109,6 +135,7 @@
         nodeHover: "#c49771",
         nodeSelected: "#d4a574",
         nodeAnimated: "#34a853",
+        nodeAnimatedBorder: "#2c8b45",
         textDefault: "#ffffff",
         edgeDefault: "#8b6f47",
       };
@@ -120,15 +147,17 @@
       const data = { nodes: nodes, edges: edges };
 
       const options = {
-        physics: {
-          enabled: true,
-          barnesHut: {
-            gravitationalConstant: -4000,
-            centralGravity: 0.1,
-            springLength: 150,
-            springConstant: 0.05,
+        layout: {
+          hierarchical: {
+            enabled: true,
+            direction: "LR",
+            sortMethod: "directed",
+            levelSeparation: 170,
+            nodeSpacing: 120,
           },
-          solver: "barnesHut",
+        },
+        physics: {
+          enabled: false,
         },
         interaction: {
           dragNodes: true,
@@ -138,7 +167,6 @@
           tooltipDelay: 200,
         },
         nodes: {
-          // ----- Uniform Node Styling ----- //
           shape: "box",
           shapeProperties: { borderRadius: 8 },
           margin: 10,
@@ -173,7 +201,11 @@
             inherit: false,
             opacity: 0.8,
           },
-          smooth: { type: "dynamic" },
+          smooth: {
+            type: "cubicBezier",
+            forceDirection: "horizontal",
+            roundness: 0.4,
+          },
         },
       };
 
@@ -191,7 +223,7 @@
               id: nodeId,
               color: {
                 background: colorPalette.nodeAnimated,
-                border: "#2c8b45",
+                border: colorPalette.nodeAnimatedBorder,
               },
             });
             if (index > 0) {
