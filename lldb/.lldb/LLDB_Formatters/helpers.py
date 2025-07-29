@@ -33,7 +33,8 @@ class Colors:
     RED = "\x1b[31m"
 
 
-# ----- Debug flag to control print statements ----- #
+# --------------- Debug flag to control print statements --------------- #
+
 DEBUG_ENABLED = False  # Set to True to see detailed debug output in the LLDB console
 
 
@@ -43,7 +44,27 @@ def debug_print(message):
         print(f"[Formatter Debug] {message}")
 
 
-# ----- Generic Helpers ----- #
+# -------------------------- Generic Helpers --------------------------- #
+
+
+def should_use_colors():
+    """
+    Returns True if the script is likely running in a terminal that
+    supports ANSI color codes (like CodeLLDB's debug console or a real terminal).
+    """
+    return os.environ.get("TERM_PROGRAM") == "vscode"
+
+
+def type_has_field(type_obj, field_name):
+    """
+    Checks if an SBType has a field with the given name by iterating.
+    """
+    for i in range(type_obj.GetNumberOfFields()):
+        if type_obj.GetFieldAtIndex(i).GetName() == field_name:
+            return True
+    return False
+
+
 def get_child_member_by_names(value, names):
     """
     Attempts to find and return the first valid child member from a list of possible names.
@@ -75,16 +96,6 @@ def get_raw_pointer(value):
     return value.GetAddress().GetFileAddress()
 
 
-def type_has_field(type_obj, field_name):
-    """
-    Checks if an SBType has a field with the given name by iterating.
-    """
-    for i in range(type_obj.GetNumberOfFields()):
-        if type_obj.GetFieldAtIndex(i).GetName() == field_name:
-            return True
-    return False
-
-
 def get_value_summary(value_child):
     """
     Extracts a displayable string from a value SBValue, preferring GetSummary.
@@ -100,11 +111,3 @@ def get_value_summary(value_child):
 
     # Fallback to GetValue() if no summary is available
     return value_child.GetValue()
-
-
-def should_use_colors():
-    """
-    Returns True if the script is likely running in a terminal that
-    supports ANSI color codes (like CodeLLDB's debug console or a real terminal).
-    """
-    return os.environ.get("TERM_PROGRAM") == "vscode"

@@ -13,16 +13,16 @@
 
 from .helpers import (
     Colors,
-    get_child_member_by_names,
     get_raw_pointer,
-    type_has_field,
     get_value_summary,
-    debug_print,
     g_summary_max_items,
+    get_child_member_by_names,
+    type_has_field,
+    debug_print,
 )
 
 
-# ----- Formatter for Linear Data Structures (Lists, Stacks, Queues) ----- #
+# ---- Formatter for Linear Data Structures (Lists, Stacks, Queues) ---- #
 class LinearContainerProvider:
     """
     Provides a summary for linear structures that follow a 'next' pointer.

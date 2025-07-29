@@ -18,12 +18,12 @@
 
 from .helpers import (
     Colors,
-    get_child_member_by_names,
     get_raw_pointer,
     get_value_summary,
+    g_summary_max_items,
+    get_child_member_by_names,
     debug_print,
     should_use_colors,
-    g_summary_max_items,
 )
 
 import shlex
