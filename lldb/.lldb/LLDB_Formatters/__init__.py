@@ -158,7 +158,6 @@ def __lldb_init_module(debugger, internal_dict):
     category.AddTypeSynthetic(
         lldb.SBTypeNameSpecifier(graph_regex, True),
         lldb.SBTypeSynthetic.CreateWithClassName("LLDB_Formatters.graph.GraphProvider"),
-        {"skip_frontend": True},
     )
     category.AddTypeSummary(
         lldb.SBTypeNameSpecifier(graph_node_regex, True),
