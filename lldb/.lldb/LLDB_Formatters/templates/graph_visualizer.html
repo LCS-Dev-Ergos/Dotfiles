@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Interactive Graph Visualizer</title>
+    <title>Interactive List Visualizer</title>
     <style type="text/css">
       html,
       body {
@@ -47,6 +47,7 @@
       #info-box table {
         width: 100%;
         border-collapse: collapse;
+        margin-bottom: 10px;
       }
       #info-box th,
       #info-box td {
@@ -61,67 +62,207 @@
       #info-box td {
         color: #5e5146;
       }
+      .play-button {
+        background-color: #a67c52;
+        color: white;
+        border: none;
+        padding: 10px 15px;
+        border-radius: 8px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        width: 100%;
+        margin-top: 10px;
+        box-sizing: border-box;
+      }
+      .play-button:hover {
+        background-color: #8b6f47;
+      }
+      .layout-controls {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid #d4a574;
+      }
+      .layout-controls button {
+        background-color: #6b5d52;
+        color: white;
+        border: none;
+        padding: 6px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        margin: 2px;
+        font-size: 12px;
+      }
+      .layout-controls button:hover {
+        background-color: #5e5146;
+      }
+      .layout-controls button.active {
+        background-color: #a67c52;
+      }
     </style>
-    <script type="text/javascript">
-      // ----- Include the vis.js library ----- //
-      __VISJS_LIBRARY__;
-    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.js"></script>
   </head>
   <body>
-    <div id="info-box">__TYPE_INFO_HTML__</div>
+    <div id="info-box">
+      <h3>Graph Information</h3>
+      <table>
+        <tr>
+          <th>Variable Name</th>
+          <td>my_std_graph</td>
+        </tr>
+        <tr>
+          <th>Type Name</th>
+          <td>StandardGraph</td>
+        </tr>
+        <tr>
+          <th>Nodes (V)</th>
+          <td>10</td>
+        </tr>
+        <tr>
+          <th>Edges (E)</th>
+          <td>14</td>
+        </tr>
+      </table>
+      <button class="play-button" onclick="playAnimation()">
+        Play Traversal Animation
+      </button>
+      <div class="layout-controls">
+        <div style="font-weight: bold; margin-bottom: 5px; color: #6b5d52">
+          Layout:
+        </div>
+        <button
+          onclick="setLayout('hierarchical')"
+          class="active"
+          id="hierarchical-btn"
+        >
+          Hierarchical
+        </button>
+        <button onclick="setLayout('physics')" id="physics-btn">Physics</button>
+        <button onclick="setLayout('circular')" id="circular-btn">
+          Circular
+        </button>
+      </div>
+    </div>
     <div id="mynetwork"></div>
 
     <script type="text/javascript">
-      // ----- Data from Python ----- //
-      const rawNodesData = __NODES_DATA__;
-      const rawEdgesData = __EDGES_DATA__;
+      // Sample data - replace with your actual data
+      const rawNodesData = [
+        { id: 1, value: 50, address: "0x13cf04770" },
+        { id: 2, value: 60, address: "0x13cf04780" },
+        { id: 3, value: 40, address: "0x13cf04790" },
+        { id: 4, value: 20, address: "0x13cf047a0" },
+        { id: 5, value: 30, address: "0x13cf047b0" },
+        { id: 6, value: 10, address: "0x13cf047c0" },
+        { id: 7, value: 70, address: "0x13cf047d0" },
+        { id: 8, value: 80, address: "0x13cf047e0" },
+        { id: 9, value: 90, address: "0x13cf047f0" },
+        { id: 10, value: 100, address: "0x13cf04800" },
+      ];
 
-      // ----- Process raw nodes data to include labels and titles ----- //
-      const processedNodes = rawNodesData.map((node) => {
-        if (typeof node === "object" && node !== null && "id" in node) {
-          return {
-            id: node.id,
-            label: String(node.label),
-            title: node.title,
-          };
-        } else {
-          return {
-            id: node,
-            label: String(node),
-            title: String(node),
-          };
-        }
-      });
+      const rawEdgesData = [
+        { from: 1, to: 2 },
+        { from: 2, to: 3 },
+        { from: 3, to: 4 },
+        { from: 4, to: 5 },
+        { from: 5, to: 6 },
+        { from: 6, to: 7 },
+        { from: 7, to: 8 },
+        { from: 8, to: 9 },
+        { from: 2, to: 7 },
+        { from: 3, to: 5 },
+        { from: 5, to: 8 },
+        { from: 6, to: 9 },
+        { from: 7, to: 3 },
+        { from: 8, to: 4 },
+      ];
 
-      // ----- Vis.js Setup ----- //
-      const container = document.getElementById("mynetwork");
-      const nodes = new vis.DataSet(processedNodes);
-      const edges = new vis.DataSet(rawEdgesData);
-      const data = { nodes: nodes, edges: edges };
+      const traversalOrder = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+      const isDoublyLinked = false;
 
-      // ----- Uniform sepia color palette ----- //
+      // Process raw data into vis.js format
+      const processedNodes = rawNodesData.map((node) => ({
+        id: node.id,
+        value: node.value,
+        address: node.address,
+        label: String(node.value),
+        title: `Value: ${node.value}\nAddress: ${node.address}`,
+      }));
+
+      const processedEdges = rawEdgesData.map((edge) => ({
+        ...edge,
+        arrows: { to: { enabled: true }, from: { enabled: isDoublyLinked } },
+      }));
+
+      // Uniform sepia color palette
       const colorPalette = {
         nodeDefault: "#a67c52",
         nodeBorder: "#8b6f47",
         nodeHover: "#c49771",
         nodeSelected: "#d4a574",
-        nodeSelectedBorder: "#b8956a",
+        nodeAnimated: "#34a853",
+        nodeAnimatedBorder: "#2c8b45",
         textDefault: "#ffffff",
         edgeDefault: "#8b6f47",
-        edgeSelected: "#d4a574",
       };
 
-      const options = {
-        physics: {
-          enabled: true,
-          barnesHut: {
-            gravitationalConstant: -4000,
-            centralGravity: 0.1,
-            springLength: 150,
-            springConstant: 0.05,
+      // Vis.js Network Configuration
+      const container = document.getElementById("mynetwork");
+      const nodes = new vis.DataSet(processedNodes);
+      const edges = new vis.DataSet(processedEdges);
+      const data = { nodes: nodes, edges: edges };
+
+      // Different layout configurations
+      const layoutConfigs = {
+        hierarchical: {
+          layout: {
+            hierarchical: {
+              enabled: true,
+              direction: "LR",
+              sortMethod: "directed",
+              levelSeparation: 120, // Reduced from 170
+              nodeSpacing: 80, // Reduced from 120
+              blockShifting: true, // Allow nodes to move closer
+              edgeMinimization: true, // Minimize edge crossings
+              parentCentralization: true, // Better positioning of isolated nodes
+            },
           },
-          solver: "barnesHut",
+          physics: { enabled: false },
         },
+        physics: {
+          layout: { randomSeed: 2 },
+          physics: {
+            enabled: true,
+            stabilization: { iterations: 100 },
+            barnesHut: {
+              gravitationalConstant: -2000,
+              centralGravity: 0.3,
+              springLength: 95,
+              springConstant: 0.04,
+              damping: 0.09,
+            },
+          },
+        },
+        circular: {
+          layout: {
+            randomSeed: 2,
+          },
+          physics: {
+            enabled: true,
+            stabilization: { iterations: 50 },
+            repulsion: {
+              centralGravity: 0.2,
+              springLength: 200,
+              springConstant: 0.05,
+              nodeDistance: 100,
+              damping: 0.09,
+            },
+            solver: "repulsion",
+          },
+        },
+      };
+
+      const baseOptions = {
         interaction: {
           dragNodes: true,
           zoomView: true,
@@ -130,11 +271,15 @@
           tooltipDelay: 200,
         },
         nodes: {
-          // ----- Uniform Node Styling ----- //
           shape: "box",
           shapeProperties: { borderRadius: 8 },
           margin: 10,
-          font: { color: colorPalette.textDefault, size: 16, face: "arial" },
+          font: {
+            color: colorPalette.textDefault,
+            size: 18,
+            face: "arial",
+            bold: { color: colorPalette.textDefault },
+          },
           borderWidth: 3,
           color: {
             border: colorPalette.nodeBorder,
@@ -154,22 +299,80 @@
           },
         },
         edges: {
-          arrows: { to: { enabled: true, scaleFactor: 1, type: "arrow" } },
           width: 2,
           color: {
             color: colorPalette.edgeDefault,
-            highlight: colorPalette.edgeDefault,
             inherit: false,
             opacity: 0.8,
           },
-          smooth: { type: "dynamic" },
+          smooth: {
+            type: "cubicBezier",
+            forceDirection: "horizontal",
+            roundness: 0.4,
+          },
         },
       };
 
-      const network = new vis.Network(container, data, options);
+      let currentLayout = "hierarchical";
+      let network;
 
-      // ----- Click Event Handler ----- //
-      function resetColors() {
+      function createNetwork(layoutType) {
+        const options = { ...baseOptions, ...layoutConfigs[layoutType] };
+        if (network) {
+          network.destroy();
+        }
+        network = new vis.Network(container, data, options);
+      }
+
+      function setLayout(layoutType) {
+        currentLayout = layoutType;
+
+        // Update button states
+        document.querySelectorAll(".layout-controls button").forEach((btn) => {
+          btn.classList.remove("active");
+        });
+        document.getElementById(layoutType + "-btn").classList.add("active");
+
+        createNetwork(layoutType);
+      }
+
+      // Initialize with hierarchical layout
+      createNetwork("hierarchical");
+
+      // UI Functionality
+      function playAnimation() {
+        resetAllNodeColors();
+        let delay = 0;
+        const animation_speed = 400;
+
+        traversalOrder.forEach((nodeId, index) => {
+          setTimeout(() => {
+            nodes.update({
+              id: nodeId,
+              color: {
+                background: colorPalette.nodeAnimated,
+                border: colorPalette.nodeAnimatedBorder,
+              },
+            });
+            if (index > 0) {
+              const prevNodeId = traversalOrder[index - 1];
+              nodes.update({
+                id: prevNodeId,
+                color: {
+                  background: colorPalette.nodeDefault,
+                  border: colorPalette.nodeBorder,
+                },
+              });
+            }
+            if (index === traversalOrder.length - 1) {
+              setTimeout(resetAllNodeColors, animation_speed * 2);
+            }
+          }, delay);
+          delay += animation_speed;
+        });
+      }
+
+      function resetAllNodeColors() {
         nodes.getIds().forEach((nodeId) => {
           nodes.update({
             id: nodeId,
@@ -179,44 +382,7 @@
             },
           });
         });
-        edges.getIds().forEach((edgeId) => {
-          edges.update({
-            id: edgeId,
-            color: { color: colorPalette.edgeDefault },
-          });
-        });
       }
-
-      network.on("click", function (params) {
-        resetColors();
-        if (params.nodes.length > 0) {
-          const selectedNodeId = params.nodes[0];
-          nodes.update({
-            id: selectedNodeId,
-            color: {
-              background: colorPalette.nodeSelected,
-              border: colorPalette.nodeSelectedBorder,
-            },
-          });
-          const connectedEdges = network.getConnectedEdges(selectedNodeId);
-          connectedEdges.forEach(function (edgeId) {
-            const edge = edges.get(edgeId);
-            const connectedNodeId =
-              edge.from === selectedNodeId ? edge.to : edge.from;
-            edges.update({
-              id: edgeId,
-              color: { color: colorPalette.edgeSelected },
-            });
-            nodes.update({
-              id: connectedNodeId,
-              color: {
-                background: colorPalette.nodeSelected,
-                border: colorPalette.nodeSelectedBorder,
-              },
-            });
-          });
-        }
-      });
     </script>
   </body>
 </html>
