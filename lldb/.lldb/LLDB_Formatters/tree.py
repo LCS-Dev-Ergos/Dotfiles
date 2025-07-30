@@ -30,6 +30,13 @@ import shlex
 import os
 import json
 import base64
+import traceback
+
+try:
+    import lldb  # type: ignore
+except ImportError:
+    # This allows the package to be imported in other contexts without error.
+    lldb = None
 
 
 # ----- Formatter for Trees (Binary and N-ary) ----- #
@@ -98,17 +105,19 @@ class GenericTreeProvider:
 
 
 # ----- Summary function for Tree Root ----- #
-def TreeSummary(valobj, internal_dict):
+def TreeSummary(valobj, internal_dict, use_colors=None):
     """
     Provides a one-line summary for a tree root, showing an in-order traversal for binary trees.
     """
-    use_colors = should_use_colors()
+    if use_colors is None:
+        use_colors = should_use_colors()
 
     # Conditionally define colors
     C_GREEN = Colors.GREEN if use_colors else ""
     C_YELLOW = Colors.YELLOW if use_colors else ""
     C_CYAN = Colors.BOLD_CYAN if use_colors else ""
     C_RESET = Colors.RESET if use_colors else ""
+    C_RED = Colors.RED if use_colors else ""
 
     root_node = get_child_member_by_names(valobj, ["root", "m_root", "_root"])
     if not root_node or get_raw_pointer(root_node) == 0:
@@ -125,7 +134,7 @@ def TreeSummary(valobj, internal_dict):
 
         node_addr = get_raw_pointer(node_ptr)
         if node_addr in visited:
-            summary_parts.append(f"{Colors.RED}[CYCLE]{Colors.RESET}")
+            summary_parts.append(f"{C_RED}[CYCLE]{C_RESET}")
             return
         visited.add(node_addr)
 
@@ -149,23 +158,21 @@ def TreeSummary(valobj, internal_dict):
             return
 
         val_str = get_value_summary(value)
-        summary_parts.append(f"{Colors.YELLOW}{val_str}{Colors.RESET}")
+        summary_parts.append(f"{C_YELLOW}{val_str}{C_RESET}")
 
         if right:
             _in_order_traverse(right)
 
     _in_order_traverse(root_node)
 
-    summary_str = f" {Colors.BOLD_CYAN}<->{Colors.RESET} ".join(summary_parts)
+    summary_str = f" {C_CYAN}<->{C_RESET} ".join(summary_parts)
     if len(summary_parts) >= max_nodes:
         summary_str += " ..."
 
     size_member = get_child_member_by_names(valobj, ["size", "m_size", "count"])
     size_str = ""
     if size_member:
-        size_str = (
-            f"{Colors.GREEN}size = {size_member.GetValueAsUnsigned()}{Colors.RESET}, "
-        )
+        size_str = f"{C_GREEN}size = {size_member.GetValueAsUnsigned()}{C_RESET}, "
 
     return f"{size_str}[{summary_str}]"
 
@@ -176,17 +183,29 @@ def tree_visualizer_provider(valobj, internal_dict):
     Detects if it's running inside VS Code with CodeLLDB to provide the
     HTML visualizer. Otherwise, it falls back to the adaptive text summary.
     """
-    if os.environ.get("TERM_PROGRAM") == "vscode":
+    # A more reliable check for the CodeLLDB graphical visualizer.
+    # This setting is specific to the CodeLLDB extension.
+    is_codelldb_visualizer = False
+    if lldb is not None and hasattr(lldb, "debugger") and lldb.debugger is not None:
+        is_codelldb_visualizer = lldb.debugger.GetSetting(
+            "target.debugger.vscode"
+        ).GetBooleanValue(True)
+
+    if is_codelldb_visualizer:
         try:
+            # Generate the JSON payload for the graphical tree view.
             json_data = get_tree_json(valobj)
             json_string = json.dumps(json_data, separators=(",", ":"))
             b64_string = base64.b64encode(json_string.encode("utf-8")).decode("utf-8")
-            return f"$$JSON_VISUALIZER$${b64_string}"
+            # The special format '$JSON_VISUALIZER$' is intercepted by CodeLLDB.
+            return f"$JSON_VISUALIZER${b64_string}"
         except Exception as e:
+            # If JSON generation fails, fall back to a simple error message.
             return f"Error creating JSON visualizer: {e}"
     else:
-        # Fallback for the MS C/C++ extension's GUI and other consoles.
-        return TreeSummary(valobj, internal_dict)
+        # For all other environments (like the standard terminal or other IDEs),
+        # provide a clean, colorless summary.
+        return TreeSummary(valobj, internal_dict, use_colors=False)
 
 
 # ----- Helper to safely dereference a node pointer ----- #
@@ -474,35 +493,41 @@ def pptree_postorder_command(debugger, command, result, internal_dict):
 
 
 # ----- JSON Tree Visualizer ----- #
-def _build_json_tree_node(node_ptr):
+def _build_json_tree_node(node_ptr, depth):
     """
     Recursive helper to build a Python dictionary representing the tree node
     and its descendants, ready to be serialized to JSON.
     """
+    # SAFETY CHECK 1: Maximum recursion depth
+    MAX_DEPTH = 50
+    if depth > MAX_DEPTH:
+        return {"name": f"[RECURSION DEPTH LIMIT REACHED AT {MAX_DEPTH}]"}
+
+    # SAFETY CHECK 2: Null pointer
     if not node_ptr or get_raw_pointer(node_ptr) == 0:
         return None
 
-    node = node_ptr.Dereference()
+    # SAFETY CHECK 3: Valid node struct
+    node = _safe_get_node_from_pointer(node_ptr)
     if not node or not node.IsValid():
-        return None
+        return {"name": "[ERROR: Could not dereference node pointer]"}
 
-    # Get node members
+    # Standard logic
     value = get_child_member_by_names(node, ["value", "val", "data", "key"])
     left = get_child_member_by_names(node, ["left", "m_left", "_left"])
     right = get_child_member_by_names(node, ["right", "m_right", "_right"])
 
     val_summary = get_value_summary(value)
 
-    # Build the JSON object for this node
     json_node = {"name": val_summary}
     children = []
 
-    # Recurse for children
-    left_child = _build_json_tree_node(left)
+    # Recurse with incremented depth
+    left_child = _build_json_tree_node(left, depth + 1)
     if left_child:
         children.append(left_child)
 
-    right_child = _build_json_tree_node(right)
+    right_child = _build_json_tree_node(right, depth + 1)
     if right_child:
         children.append(right_child)
 
@@ -515,17 +540,60 @@ def _build_json_tree_node(node_ptr):
 # ----- Main JSON Provider Function ----- #
 def get_tree_json(valobj):
     """
-    This is the main JSON provider function that LLDB's front-end will call.
-    It orchestrates the JSON creation for a Tree object.
+    This is the main JSON provider function. It now initiates the
+    recursive build with an initial depth of 0.
     """
     root_node_ptr = get_child_member_by_names(valobj, ["root", "m_root", "_root"])
     if not root_node_ptr or get_raw_pointer(root_node_ptr) == 0:
         return {"kind": {"tree": True}, "root": {"name": "[Empty Tree]"}}
 
-    json_root = _build_json_tree_node(root_node_ptr)
+    # Start the recursion with depth=0
+    json_root = _build_json_tree_node(root_node_ptr, depth=0)
 
     # The final JSON payload expected by CodeLLDB's tree visualizer
     return {"kind": {"tree": True}, "root": json_root}
+
+
+# ----- Section: Debugging Helper Command ----- #
+def test_visualizer_command(debugger, command, result, internal_dict):
+    """
+    A temporary debug command to run the visualizer provider and print
+    the full Python traceback to the console if it fails.
+    Usage: test_visualizer <variable_name>
+    """
+    args = command.split()
+    if not args:
+        result.SetError("Usage: test_visualizer <variable_name>")
+        return
+
+    frame = (
+        debugger.GetSelectedTarget().GetProcess().GetSelectedThread().GetSelectedFrame()
+    )
+    if not frame.IsValid():
+        result.SetError("Cannot execute: invalid frame.")
+        return
+
+    var_to_test = frame.FindVariable(args[0])
+    if not var_to_test or not var_to_test.IsValid():
+        result.SetError(f"Could not find variable '{args[0]}'.")
+        return
+
+    # ----- This is the core of the debug tool ----- #
+    try:
+        # We explicitly call the function that is crashing.
+        output = tree_visualizer_provider(var_to_test, internal_dict)
+
+        # If it succeeds, print the output.
+        result.AppendMessage(
+            "--- Visualizer function executed successfully. Output: ---"
+        )
+        result.AppendMessage(output)
+
+    except Exception:
+        # If it crashes, we catch the exception and print the FULL traceback
+        # into LLDB's result stream, so we can finally see it.
+        result.SetError("!!! Visualizer function crashed. Traceback follows: !!!")
+        traceback.print_exc(file=result.GetErrorFile())
 
 
 # ----- Helper to build Graphviz .dot content for a tree (now n-ary compatible) ----- #

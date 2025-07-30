@@ -21,7 +21,7 @@ except ImportError:
     lldb = None
 
 # Import the public-facing functions and classes from the other modules
-# within this package. The '.' prefix indicates a relative import.
+# within this package.
 from .config import formatter_config_command
 from .helpers import Colors
 from .linear import LinearContainerSummary
@@ -212,6 +212,11 @@ def __lldb_init_module(debugger, internal_dict):
         "command script add -f LLDB_Formatters.web_visualizer.export_graph_web_command webgraph"
     )
     debugger.HandleCommand("command alias webg webgraph")  # Convenient alias
+
+    # Custom test command for visualizing data structures
+    debugger.HandleCommand(
+        "command script add -f lldb_formatters.test_visualizer_command test_visualizer"
+    )
 
     # ----- Final Output Message ----- #
     print(
