@@ -152,29 +152,29 @@ def LinearContainerSummary(valobj, internal_dict):
 
     # ----- Side Effect: DISABLED ----- #
     # Side Effect: Attempt to display the rich visualizer
-    try:
-        # 'debugger' module is only available when run by CodeLLDB
-        from debugger import display_html  # type: ignore
-
-        # Try to import the visualization function
-        try:
-            from .web_visualizer import generate_list_visualization_html
-
-            # Generate the HTML by calling the shared helper function
-            html_content = generate_list_visualization_html(valobj)
-            if html_content:
-                # This is the direct command to the VS Code UI
-                display_html(html_content, title=f"List: {valobj.GetName()}")
-        except ImportError:
-            # web_visualizer module not available
-            pass
-
-    except ImportError:
-        # Not running inside CodeLLDB, or the API is unavailable. Do nothing.
-        pass
-    except Exception as e:
-        # Silently ignore other errors to avoid crashing the summary provider
-        debug_print(f"Failed to call web visualizer from list provider: {e}")
+    # try:
+    #     # 'debugger' module is only available when run by CodeLLDB
+    #     from debugger import display_html  # type: ignore
+    #
+    #     # Try to import the visualization function
+    #     try:
+    #         from .web_visualizer import generate_list_visualization_html
+    #
+    #         # Generate the HTML by calling the shared helper function
+    #         html_content = generate_list_visualization_html(valobj)
+    #         if html_content:
+    #             # This is the direct command to the VS Code UI
+    #             display_html(html_content, title=f"List: {valobj.GetName()}")
+    #     except ImportError:
+    #         # web_visualizer module not available
+    #         pass
+    #
+    # except ImportError:
+    #     # Not running inside CodeLLDB, or the API is unavailable. Do nothing.
+    #     pass
+    # except Exception as e:
+    #     # Silently ignore other errors to avoid crashing the summary provider
+    #     debug_print(f"Failed to call web visualizer from list provider: {e}")
 
     # Main logic: generate the text summary
     use_colors = should_use_colors()
