@@ -23,35 +23,68 @@ from .helpers import (
     g_graph_max_neighbors,
 )
 
+# Import the web visualizer function for side effects
+# This will be used to generate an interactive HTML visualizer in the IDE.
+from .web_visualizer import generate_graph_visualization_html
+
 
 # ----- Formatter for Graphs ----- #
 class GraphProvider:
     """
     Provides a summary and synthetic children for an entire Graph structure.
     Displays the graph's nodes as children.
+    MODIFIED to also trigger the in-IDE web visualizer.
     """
 
     def __init__(self, valobj, internal_dict):
         self.valobj = valobj
         self.nodes_container = None
-        self.update()
+        # Note: We call update() from get_summary() to ensure it runs
+        # in the correct context every time the summary is requested.
 
     def update(self):
+        """Finds the container of nodes within the graph object."""
         self.nodes_container = get_child_member_by_names(
             self.valobj, ["nodes", "m_nodes", "adj", "adjacency_list"]
         )
 
     def num_children(self):
+        """Returns the number of nodes to display as children."""
+        self.update()  # Ensure container is found before counting
         if self.nodes_container and self.nodes_container.IsValid():
             return self.nodes_container.GetNumChildren()
         return 0
 
     def get_child_at_index(self, index):
+        """Returns the i-th node."""
         if self.nodes_container:
             return self.nodes_container.GetChildAtIndex(index)
         return None
 
     def get_summary(self):
+        """
+        Returns a concise one-line text summary.
+        The automatic visualization side effect has been removed.
+        Use the 'webgraph' command for manual visualization.
+        """
+        self.update()  # Find member variables first
+
+        # ----- Side Effect: DISABLED ----- #
+        # Side Effect: Attempt to display the rich visualizer
+        # try:
+        #     from debugger import display_html  # type: ignore
+        #
+        #     html_content = generate_graph_visualization_html(self.valobj)
+        #     if html_content:
+        #         display_html(html_content, title=f"Graph: {self.valobj.GetName()}")
+        #
+        # except ImportError:
+        #     # Not in CodeLLDB, do nothing.
+        #     pass
+        # except Exception as e:
+        #     debug_print(f"Failed to call web visualizer from graph provider: {e}")
+
+        # Main Purpose: Return the one-line text summary
         num_nodes_member = get_child_member_by_names(
             self.valobj, ["num_nodes", "V", "node_count"]
         )
@@ -59,6 +92,7 @@ class GraphProvider:
             self.valobj, ["num_edges", "E", "edge_count"]
         )
 
+        # The text summary should always be colorless for GUI panels
         summary = f"{Colors.MAGENTA}Graph{Colors.RESET}"
         if num_nodes_member:
             summary += f" | V = {num_nodes_member.GetValueAsUnsigned()}"

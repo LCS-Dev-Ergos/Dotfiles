@@ -33,7 +33,13 @@ from .tree import (
     export_tree_command,
 )
 from .graph import GraphProvider, GraphNodeSummary, export_graph_command
-from .web_visualizer import export_tree_web_command
+from .web_visualizer import (
+    export_tree_web_command,
+    generate_list_visualization_html,
+    generate_tree_visualization_html,
+    generate_graph_visualization_html,
+)
+import re
 
 
 # ----- Help Command ----- #
@@ -92,6 +98,7 @@ def formatter_help_command(debugger, command, result, internal_dict):
     result.AppendMessage(help_message)
 
 
+# ----- LLDB Module Initialization ----- #
 def __lldb_init_module(debugger, internal_dict):
     """
     This is the main entry point that LLDB calls when the 'LLDB_Formatters'

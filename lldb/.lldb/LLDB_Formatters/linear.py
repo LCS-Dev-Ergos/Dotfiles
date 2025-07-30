@@ -19,7 +19,12 @@ from .helpers import (
     get_child_member_by_names,
     type_has_field,
     debug_print,
+    should_use_colors,
 )
+
+# Import the web visualizer function for side effects
+# This will be used to generate an interactive HTML visualizer in the IDE.
+from .web_visualizer import generate_list_visualization_html
 
 
 # ---- Formatter for Linear Data Structures (Lists, Stacks, Queues) ---- #
@@ -51,12 +56,14 @@ class LinearContainerProvider:
         )
 
         if self.head_ptr and get_raw_pointer(self.head_ptr) != 0:
+            # Note: We must use Dereference() on the head_ptr to access the node's type info.
             node_obj = self.head_ptr.Dereference()
             debug_print(f"Head pointer is valid. Dereferencing to get node object.")
 
             if node_obj and node_obj.IsValid():
                 node_type = node_obj.GetType()
 
+                # Find member names for 'next', 'value', and 'prev'
                 for name in ["next", "m_next", "_next", "pNext"]:
                     if type_has_field(node_type, name):
                         self.next_ptr_name = name
@@ -69,41 +76,30 @@ class LinearContainerProvider:
                     if type_has_field(node_type, name):
                         self.is_doubly_linked = True
                         break
-                debug_print(
-                    f"-> Found 'prev' member: {'Yes' if self.is_doubly_linked else 'No'}"
-                )
-                debug_print(f"-> Found 'next' member: '{self.next_ptr_name}'")
-                debug_print(f"-> Found 'value' member: '{self.value_name}'")
-                if self.is_doubly_linked:
-                    debug_print("-> This is a doubly-linked list.")
-                else:
-                    debug_print("-> This is a singly-linked list.")
 
-            else:
-                debug_print("-> Failed to dereference head pointer.")
-
-        size_member = get_child_member_by_names(
-            self.valobj, ["size", "m_size", "_size", "count"]
-        )
-        if size_member:
-            self.size = size_member.GetValueAsUnsigned()
-        debug_print(
-            f"Found size member: {'Yes' if size_member else 'No'}. Size is {self.size}"
-        )
-
-    def get_summary(self):
+    def get_summary(self, use_colors=True):
+        """
+        This method accepts a 'use_colors' flag to conditionally
+        format the output string, making it safe for GUI panels.
+        """
         self.update()
+
+        # Conditionally define colors based on the context
+        C_GREEN = Colors.GREEN if use_colors else ""
+        C_RESET = Colors.RESET if use_colors else ""
+        C_YELLOW = Colors.YELLOW if use_colors else ""
+        C_BOLD_CYAN = Colors.BOLD_CYAN if use_colors else ""
+        C_RED = Colors.RED if use_colors else ""
 
         if not self.head_ptr:
             return "Could not find head pointer"
 
+        # Special case for an empty list
         if get_raw_pointer(self.head_ptr) == 0:
-            return f"{Colors.GREEN}size={self.size}{Colors.RESET}, []"
+            size_str = f"size = {self.size}"
+            return f"{C_GREEN}{size_str}{C_RESET}, []"
 
         if not self.next_ptr_name or not self.value_name:
-            debug_print(
-                "Bailing out: could not determine node structure (val/next names not found)."
-            )
             return "Cannot determine node structure (val/next)"
 
         summary = []
@@ -112,47 +108,77 @@ class LinearContainerProvider:
         max_items = g_summary_max_items
         visited = set()
 
+        # Traverse the list
         while get_raw_pointer(node) != 0 and count < max_items:
-            debug_print(
-                f"Loop iter {count+1}: node type='{node.GetTypeName()}', addr='{get_raw_pointer(node):#x}'"
-            )
-
             node_addr = get_raw_pointer(node)
             if node_addr in visited:
-                summary.append(f"{Colors.RED}[CYCLE DETECTED]{Colors.RESET}")
+                summary.append(f"{C_RED}[CYCLE DETECTED]{C_RESET}")
                 break
             visited.add(node_addr)
 
             dereferenced_node = node.Dereference()
             if not dereferenced_node or not dereferenced_node.IsValid():
-                debug_print("-> Node could not be dereferenced. Breaking loop.")
                 break
 
             value_child = dereferenced_node.GetChildMemberWithName(self.value_name)
             current_val_str = get_value_summary(value_child)
-            debug_print(f"-> Extracted value string: '{current_val_str}'")
-
-            summary.append(f"{Colors.YELLOW}{current_val_str}{Colors.RESET}")
+            summary.append(f"{C_YELLOW}{current_val_str}{C_RESET}")
 
             node = dereferenced_node.GetChildMemberWithName(self.next_ptr_name)
             count += 1
 
         separator = (
-            f" {Colors.BOLD_CYAN}<->{Colors.RESET} "
+            f" {C_BOLD_CYAN}<->{C_RESET} "
             if self.is_doubly_linked
-            else f" {Colors.BOLD_CYAN}->{Colors.RESET} "
+            else f" {C_BOLD_CYAN}->{C_RESET} "
         )
         final_summary_str = separator.join(summary)
 
+        # Append '...' if the list was truncated
         if get_raw_pointer(node) != 0:
             final_summary_str += f" {separator.strip()} ..."
 
-        return f"{Colors.GREEN}size = {self.size}{Colors.RESET}, [{final_summary_str}]"
+        size_str = f"size = {self.size}"
+        return f"{C_GREEN}{size_str}{C_RESET}, [{final_summary_str}]"
 
 
 def LinearContainerSummary(valobj, internal_dict):
     """
-    This function is registered with LLDB for Linear Structures.
+    This function returns a clean, context-aware text summary for Linear Structures.
+    The automatic web visualization has been disabled to prevent race conditions
+    and ensure stable behavior in the GUI.
+    Use the 'weblist' command for manual visualization.
     """
+
+    # ----- Side Effect: DISABLED ----- #
+    # Side Effect: Attempt to display the rich visualizer
+    try:
+        # 'debugger' module is only available when run by CodeLLDB
+        from debugger import display_html  # type: ignore
+
+        # Try to import the visualization function
+        try:
+            from .web_visualizer import generate_list_visualization_html
+
+            # Generate the HTML by calling the shared helper function
+            html_content = generate_list_visualization_html(valobj)
+            if html_content:
+                # This is the direct command to the VS Code UI
+                display_html(html_content, title=f"List: {valobj.GetName()}")
+        except ImportError:
+            # web_visualizer module not available
+            pass
+
+    except ImportError:
+        # Not running inside CodeLLDB, or the API is unavailable. Do nothing.
+        pass
+    except Exception as e:
+        # Silently ignore other errors to avoid crashing the summary provider
+        debug_print(f"Failed to call web visualizer from list provider: {e}")
+
+    # Main logic: generate the text summary
+    use_colors = should_use_colors()
     provider = LinearContainerProvider(valobj, internal_dict)
-    return provider.get_summary()
+    summary_str = provider.get_summary(use_colors=use_colors)
+
+    return summary_str

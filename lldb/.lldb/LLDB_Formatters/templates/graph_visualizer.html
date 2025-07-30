@@ -64,7 +64,7 @@
     </style>
     <script type="text/javascript">
       // ----- Include the vis.js library ----- //
-      __VISJS_LIBRARY__
+      __VISJS_LIBRARY__;
     </script>
   </head>
   <body>
@@ -78,7 +78,7 @@
 
       // ----- Process raw nodes data to include labels and titles ----- //
       const processedNodes = rawNodesData.map((node) => {
-        if (typeof node === 'object' && node !== null && 'id' in node) {
+        if (typeof node === "object" && node !== null && "id" in node) {
           return {
             id: node.id,
             label: String(node.label),

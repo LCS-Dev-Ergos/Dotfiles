@@ -34,9 +34,93 @@ import traceback
 
 try:
     import lldb  # type: ignore
+    import debugger  # type: ignore
 except ImportError:
     # This allows the package to be imported in other contexts without error.
     lldb = None
+    debugger = None
+
+
+# ----- Building the vis.js data for tree visualization ----- #
+def _build_visjs_data_for_tree(node_ptr, nodes_list, edges_list, visited_addrs):
+    """
+    Recursively traverses a tree to build node and edge lists compatible with vis.js.
+    This helper is specific to the tree visualization logic.
+    """
+    node_addr = get_raw_pointer(node_ptr)
+    if not node_ptr or node_addr == 0 or node_addr in visited_addrs:
+        return
+
+    visited_addrs.add(node_addr)
+    node_struct = _safe_get_node_from_pointer(node_ptr)
+    if not node_struct or not node_struct.IsValid():
+        return
+
+    value = get_child_member_by_names(node_struct, ["value", "val", "data", "key"])
+    val_summary = get_value_summary(value)
+
+    # Add the current node to the nodes list
+    nodes_list.append(
+        {
+            "id": node_addr,
+            "label": val_summary,
+            "title": f"Value: {val_summary}\nAddress: 0x{node_addr:x}",
+        }
+    )
+
+    # Recurse on all children
+    children = _get_node_children(node_struct)
+    for child_ptr in children:
+        child_addr = get_raw_pointer(child_ptr)
+        if child_addr != 0:
+            edges_list.append({"from": node_addr, "to": child_addr})
+            _build_visjs_data_for_tree(child_ptr, nodes_list, edges_list, visited_addrs)
+
+
+# ----- Generating the full HTML for tree visualization ----- #
+def _get_html_for_tree_visualization(valobj):
+    """
+    Generates the full, self-contained HTML for visualizing a tree,
+    ready to be displayed.
+    """
+    root_node_ptr = get_child_member_by_names(valobj, ["root", "m_root", "_root"])
+    if not root_node_ptr or get_raw_pointer(root_node_ptr) == 0:
+        return None  # Return None if the tree is empty
+
+    # 1. Gather tree data
+    nodes_data, edges_data, visited_addrs = [], [], set()
+    _build_visjs_data_for_tree(root_node_ptr, nodes_data, edges_data, visited_addrs)
+
+    # 2. Prepare data for the template
+    type_info_html = f"<h3>Tree: {valobj.GetName()} ({valobj.GetTypeName()})</h3>"
+    template_data = {
+        "__NODES_DATA__": json.dumps(nodes_data),
+        "__EDGES_DATA__": json.dumps(edges_data),
+        "__TYPE_INFO_HTML__": type_info_html,
+    }
+
+    # 3. Load vis.js and the HTML template
+    try:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+
+        # Load vis.js library
+        visjs_path = os.path.join(script_dir, "templates/vis-network.min.js")
+        with open(visjs_path, "r", encoding="utf-8") as f:
+            template_data["__VISJS_LIBRARY__"] = f.read()
+
+        # Load the HTML template file
+        template_path = os.path.join(script_dir, "templates", "tree_visualizer.html")
+        with open(template_path, "r", encoding="utf-8") as f:
+            final_html = f.read()
+
+        # Substitute placeholders
+        for placeholder, value in template_data.items():
+            final_html = final_html.replace(placeholder, str(value))
+
+        return final_html
+    except Exception as e:
+        # Return an error HTML if something goes wrong
+        return f"<html><body>Error generating visualizer: {e}</body></html>"
 
 
 # ----- Formatter for Trees (Binary and N-ary) ----- #
@@ -180,32 +264,35 @@ def TreeSummary(valobj, internal_dict, use_colors=None):
 # ----- Tree Visualizer Provider ----- #
 def tree_visualizer_provider(valobj, internal_dict):
     """
-    Detects if it's running inside VS Code with CodeLLDB to provide the
-    HTML visualizer. Otherwise, it falls back to the adaptive text summary.
+    This is the main summary provider for Tree structures. It has a dual role:
+    1. SIDE EFFECT: If in CodeLLDB, it generates and displays a rich HTML
+       visualizer in a new IDE tab using a direct API call.
+    2. RETURN VALUE: It always returns a concise, context-aware (colored or
+       colorless) text summary to be displayed in the debugger's variable panel.
     """
-    # A more reliable check for the CodeLLDB graphical visualizer.
-    # This setting is specific to the CodeLLDB extension.
-    is_codelldb_visualizer = False
-    if lldb is not None and hasattr(lldb, "debugger") and lldb.debugger is not None:
-        is_codelldb_visualizer = lldb.debugger.GetSetting(
-            "target.debugger.vscode"
-        ).GetBooleanValue(True)
 
-    if is_codelldb_visualizer:
-        try:
-            # Generate the JSON payload for the graphical tree view.
-            json_data = get_tree_json(valobj)
-            json_string = json.dumps(json_data, separators=(",", ":"))
-            b64_string = base64.b64encode(json_string.encode("utf-8")).decode("utf-8")
-            # The special format '$JSON_VISUALIZER$' is intercepted by CodeLLDB.
-            return f"$JSON_VISUALIZER${b64_string}"
-        except Exception as e:
-            # If JSON generation fails, fall back to a simple error message.
-            return f"Error creating JSON visualizer: {e}"
-    else:
-        # For all other environments (like the standard terminal or other IDEs),
-        # provide a clean, colorless summary.
-        return TreeSummary(valobj, internal_dict, use_colors=False)
+    # ----- Side Effect: DISABLED ----- #
+    # Side Effect: Attempt to display the rich visualizer
+    # try:
+    #     # 'debugger' module is only available when run by CodeLLDB
+    #     from debugger import display_html  # type: ignore
+    #
+    #     html_content = _get_html_for_tree_visualization(valobj)
+    #     if html_content:
+    #         # This is the direct command to the VS Code UI
+    #         display_html(html_content, title=f"Tree: {valobj.GetName()}")
+    #
+    # except ImportError:
+    #     # Not running inside CodeLLDB, or the API is unavailable. Do nothing.
+    #     pass
+    # except Exception as e:
+    #     # Silently ignore other errors to avoid crashing the summary provider
+    #     debug_print(f"Failed to generate/display web visualizer: {e}")
+
+    # Main Purpose: Return the text summary for the panel
+    # Use the reliable helper to check if we are in a color-supporting terminal.
+    is_terminal = should_use_colors()
+    return TreeSummary(valobj, internal_dict, use_colors=is_terminal)
 
 
 # ----- Helper to safely dereference a node pointer ----- #
@@ -493,6 +580,9 @@ def pptree_postorder_command(debugger, command, result, internal_dict):
 
 
 # ----- JSON Tree Visualizer ----- #
+# tree.py (versione corretta)
+
+
 def _build_json_tree_node(node_ptr, depth):
     """
     Recursive helper to build a Python dictionary representing the tree node
@@ -512,27 +602,27 @@ def _build_json_tree_node(node_ptr, depth):
     if not node or not node.IsValid():
         return {"name": "[ERROR: Could not dereference node pointer]"}
 
-    # Standard logic
+    # Estrai il valore del nodo
     value = get_child_member_by_names(node, ["value", "val", "data", "key"])
-    left = get_child_member_by_names(node, ["left", "m_left", "_left"])
-    right = get_child_member_by_names(node, ["right", "m_right", "_right"])
-
     val_summary = get_value_summary(value)
 
     json_node = {"name": val_summary}
-    children = []
+    json_children = []
 
-    # Recurse with incremented depth
-    left_child = _build_json_tree_node(left, depth + 1)
-    if left_child:
-        children.append(left_child)
+    # --- CHIAVE DELLA SOLUZIONE ---
+    # Usa l'helper generico per ottenere tutti i figli,
+    # indipendentemente dal fatto che sia un albero binario o n-ario.
+    children_pointers = _get_node_children(node)
 
-    right_child = _build_json_tree_node(right, depth + 1)
-    if right_child:
-        children.append(right_child)
+    # Itera sui figli trovati e costruisci ricorsivamente il JSON per ciascuno
+    for child_ptr in children_pointers:
+        json_child = _build_json_tree_node(child_ptr, depth + 1)
+        if json_child:
+            json_children.append(json_child)
 
-    if children:
-        json_node["children"] = children
+    # Se sono stati trovati dei figli, aggiungili al nodo JSON corrente
+    if json_children:
+        json_node["children"] = json_children
 
     return json_node
 
