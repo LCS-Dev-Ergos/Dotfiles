@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Enhanced Interactive List Visualizer</title>
+    <title>Interactive List Visualizer</title>
     <style type="text/css">
       html,
       body {
@@ -12,6 +12,7 @@
         padding: 0;
         margin: 0;
         background: linear-gradient(135deg, #f4ecd8 0%, #e8dcc0 100%);
+        overflow-x: hidden; /* Prevent horizontal scrollbar from info-box */
       }
       #mynetwork {
         width: 100%;
@@ -39,12 +40,62 @@
         backdrop-filter: blur(5px);
         max-width: 300px;
         max-height: 90vh;
-        overflow: hidden;
-        scrollbar-width: none;
-        -ms-overflow-style: none;
+        overflow-y: auto;
+        overflow-x: hidden;
+        scrollbar-width: thin;
+        scrollbar-color: #d4a574 transparent;
+        transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+      }
+      #info-box.hidden {
+        transform: translateX(calc(100% + 40px));
+        opacity: 0;
+        pointer-events: none;
       }
       #info-box::-webkit-scrollbar {
-        display: none;
+        width: 6px;
+      }
+      #info-box::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      #info-box::-webkit-scrollbar-thumb {
+        background-color: #d4a574;
+        border-radius: 3px;
+      }
+      #info-box::-webkit-scrollbar-thumb:hover {
+        background-color: #c49771;
+      }
+
+      /* Toggle button for info-box */
+      #toggle-info-btn {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background-color: #a67c52;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 45px;
+        height: 45px;
+        cursor: pointer;
+        font-size: 18px;
+        z-index: 3;
+        box-shadow: 0 4px 12px rgba(139, 126, 110, 0.4);
+        transition: all 0.3s ease-in-out;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #toggle-info-btn:hover {
+        background-color: #8b6f47;
+        transform: scale(1.05);
+      }
+      #toggle-info-btn.info-visible {
+        transform: translateX(-340px);
+      }
+
+      /* Initial state - info-box starts hidden */
+      #info-box.hidden + #toggle-info-btn {
+        transform: translateX(0);
       }
       #info-box h3 {
         margin-top: 0;
@@ -106,12 +157,16 @@
         cursor: not-allowed;
       }
       .layout-controls,
-      .animation-controls,
       .search-controls,
       .export-controls {
         margin-top: 15px;
         padding-top: 12px;
         border-top: 1px solid #d4a574;
+      }
+      .animation-controls {
+        margin-top: 15px;
+        padding-top: 12px;
+        /* Removed border-top to eliminate separator */
       }
       .layout-controls button,
       .animation-controls button,
@@ -263,7 +318,16 @@
     </script>
   </head>
   <body>
-    <div id="info-box">
+    <!-- Toggle button for info-box -->
+    <button
+      id="toggle-info-btn"
+      onclick="toggleInfoBox()"
+      title="Toggle Info Panel"
+    >
+      ⚙️
+    </button>
+
+    <div id="info-box" class="hidden">
       __TYPE_INFO_HTML__
 
       <!-- Animation Controls -->
@@ -741,8 +805,6 @@
         }
       }
 
-      // View Control Functions - REMOVED
-
       // Search and Highlight Functions
       function searchNodes(query) {
         clearHighlights();
@@ -960,11 +1022,38 @@
             animationState.speed + "ms";
         });
 
+      // Toggle info-box visibility
+      function toggleInfoBox() {
+        const infoBox = document.getElementById("info-box");
+        const toggleBtn = document.getElementById("toggle-info-btn");
+
+        infoBox.classList.toggle("hidden");
+        if (infoBox.classList.contains("hidden")) {
+          toggleBtn.classList.remove("info-visible");
+          toggleBtn.innerHTML = "⚙️";
+          toggleBtn.title = "Show Info Panel";
+        } else {
+          toggleBtn.classList.add("info-visible");
+          toggleBtn.innerHTML = "❌";
+          toggleBtn.title = "Hide Info Panel";
+        }
+      }
+
       // Initialize with hierarchical layout
       createNetwork("hierarchical");
 
       // Initialize UI state
       updateStats();
+
+      // Set initial state of info box to hidden
+      document.addEventListener("DOMContentLoaded", function () {
+        const infoBox = document.getElementById("info-box");
+        const toggleBtn = document.getElementById("toggle-info-btn");
+        infoBox.classList.add("hidden");
+        toggleBtn.classList.remove("info-visible");
+        toggleBtn.innerHTML = "⚙️";
+        toggleBtn.title = "Show Info Panel";
+      });
     </script>
   </body>
 </html>

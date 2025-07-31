@@ -191,7 +191,7 @@ class GenericTreeProvider:
 # ----- Summary function for Tree Root ----- #
 def TreeSummary(valobj, internal_dict, use_colors=None):
     """
-    Provides a one-line summary for a tree root, showing an in-order traversal for binary trees.
+    Provides a one-line summary for a tree root using pre-order traversal.
     """
     if use_colors is None:
         use_colors = should_use_colors()
@@ -212,7 +212,8 @@ def TreeSummary(valobj, internal_dict, use_colors=None):
     visited = set()
 
     # This inner function performs the recursive traversal
-    def _in_order_traverse(node_ptr):
+    def _pre_order_traverse(node_ptr):
+        """Helper to recursively traverse and collect node values in pre-order."""
         if get_raw_pointer(node_ptr) == 0 or len(summary_parts) >= max_nodes:
             return
 
@@ -222,34 +223,30 @@ def TreeSummary(valobj, internal_dict, use_colors=None):
             return
         visited.add(node_addr)
 
-        node = node_ptr.Dereference()
+        node = _safe_get_node_from_pointer(node_ptr)
         if not node or not node.IsValid():
             return
 
-        # Find members dynamically inside the node
-        left = get_child_member_by_names(node, ["left", "m_left", "_left"])
-        right = get_child_member_by_names(node, ["right", "m_right", "_right"])
+        # Find value member in the node struct
         value = get_child_member_by_names(node, ["value", "val", "data", "key"])
 
-        debug_print(
-            f"-> In-order: traversing node with value '{get_value_summary(value)}'"
-        )
-        if left:
-            _in_order_traverse(left)
-
-        # Stop if we've collected enough nodes
-        if len(summary_parts) >= max_nodes:
-            return
-
+        # 1. Process the current node (Root) FIRST
         val_str = get_value_summary(value)
         summary_parts.append(f"{C_YELLOW}{val_str}{C_RESET}")
 
-        if right:
-            _in_order_traverse(right)
+        if len(summary_parts) >= max_nodes:
+            return
 
-    _in_order_traverse(root_node)
+        # 2. Recurse on all children returned by the generic helper
+        children = _get_node_children(node)
+        for child in children:
+            _pre_order_traverse(child)
 
-    summary_str = f" {C_CYAN}<->{C_RESET} ".join(summary_parts)
+    _pre_order_traverse(root_node)
+
+    # Use a more appropriate separator for a hierarchical traversal
+    separator = f" {C_CYAN}->{C_RESET} "
+    summary_str = separator.join(summary_parts)
     if len(summary_parts) >= max_nodes:
         summary_str += " ..."
 

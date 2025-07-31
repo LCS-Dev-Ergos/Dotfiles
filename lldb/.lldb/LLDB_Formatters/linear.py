@@ -77,6 +77,16 @@ class LinearContainerProvider:
                         self.is_doubly_linked = True
                         break
 
+        # Check the size of the list
+        size_member = get_child_member_by_names(
+            self.valobj, ["count", "size", "m_size", "_size"]
+        )
+        if size_member:
+            self.size = size_member.GetValueAsUnsigned()
+        debug_print(
+            f"Found size member: {'Yes' if size_member else 'No'}. Size is {self.size}"
+        )
+
     def get_summary(self, use_colors=True):
         """
         This method accepts a 'use_colors' flag to conditionally
@@ -90,6 +100,8 @@ class LinearContainerProvider:
         C_YELLOW = Colors.YELLOW if use_colors else ""
         C_BOLD_CYAN = Colors.BOLD_CYAN if use_colors else ""
         C_RED = Colors.RED if use_colors else ""
+
+        size_str = f"size = {self.size}"
 
         if not self.head_ptr:
             return "Could not find head pointer"
@@ -138,7 +150,6 @@ class LinearContainerProvider:
         if get_raw_pointer(node) != 0:
             final_summary_str += f" {separator.strip()} ..."
 
-        size_str = f"size = {self.size}"
         return f"{C_GREEN}{size_str}{C_RESET}, [{final_summary_str}]"
 
 
