@@ -3,6 +3,11 @@
 # ------ Enhanced CMake & Shell Utilities for Competitive Programming ------- #
 # =========================================================================== #
 
+# ----- CONFIGURATION ----- #
+# Path to your global directory containing reusable headers like debug.h.
+# The script will create a symlink to this file in new projects.
+CP_ALGORITHMS_DIR="/Volumes/LCS.Data/CP-Problems/CodeForces/Algorithms"
+
 # Detect the script directory for reliable access to templates
 # Works both when the script is executed directly and when sourced
 if [ -n "$BASH_SOURCE" ]; then
@@ -51,6 +56,24 @@ function cppinit() {
     
     # Create an 'algorithms' directory for shared code like debug.h
     mkdir -p algorithms
+    # Create an input_cases directory for input files
+    mkdir -p input_cases
+
+    # Link to the global debug.h if configured, otherwise create a placeholder
+    local master_debug_header="$CP_ALGORITHMS_DIR/debug.h"
+    if [ -n "$CP_ALGORITHMS_DIR" ] && [ -f "$master_debug_header" ]; then
+        # Create a symbolic link to the master debug header
+        ln -s "$master_debug_header" "algorithms/debug.h"
+        echo "Created symlink to global debug.h: $master_debug_header"
+    else
+        # Fallback: create a local placeholder if the master file isn't found
+        touch "algorithms/debug.h"
+        echo "Warning: Global debug.h not found. Created a local placeholder at 'algorithms/debug.h'."
+        # Provide more context to the user if the path was set but incorrect
+        if [ -n "$CP_ALGORITHMS_DIR" ]; then
+            echo "         (Checked path: $master_debug_header)"
+        fi
+    fi
 
     # Create a basic configuration file
     cppconf
@@ -63,17 +86,15 @@ function cppinit() {
 function cppnew() {
     local problem_name=${1:-"main"}
     local template_type=${2:-"default"}
-    local file_name="${problem_name}.cpp"
+    local file_name="${problem_name}.cpp" # Default to .cpp extension
     local template_file
 
-    if [ -f "$file_name" ]; then
-        echo "File '$file_name' already exists."
+    if [ -f "${problem_name}.cpp" ] || [ -f "${problem_name}.cc" ] || [ -f "${problem_name}.cxx" ]; then
+        echo "File for problem '$problem_name' already exists."
         return 1
     fi
 
-    echo "Creating '$file_name' from template..."
     # Determine the template file based on the type
-    local template_content
     case $template_type in
         "pbds")
             template_file="$SCRIPT_DIR/templates/cpp/pbds.cpp"
@@ -83,10 +104,25 @@ function cppnew() {
             ;;
     esac
     
+    # Print a message indicating the creation of the file
+    echo "Creating '$file_name' from template '$template_file'..."
+
     # Replace placeholder and create file
     local template_content=$(cat "$template_file")
     echo "${template_content//__FILE_NAME__/$file_name}" > "$file_name"
     
+    # Also create a corresponding empty input file in the input_cases directory
+    local input_dir="input_cases"
+    local input_file="$input_dir/${problem_name}.in"
+
+    # Ensure the input directory exists
+    mkdir -p "$input_dir"
+
+    if [ ! -f "$input_file" ]; then
+        touch "$input_file"
+        echo "Created empty input file: $input_file"
+    fi
+
     # The debug header from template.txt should be placed in 'algorithms/debug.h'
     # For now, let's create a placeholder if it doesn't exist.
     if [ ! -f "algorithms/debug.h" ]; then
@@ -190,19 +226,34 @@ function cpprun() {
 function cppgo() {
     local target=$(_get_default_target)
     local exec_name=$(echo "${1:-$target}" | sed -E 's/\.(cpp|cc|cxx)$//')
+    
     local exec_path="./bin/$exec_name"
-    local input_file="input.txt"
-
-    # If second argument is provided, use it as input file
-    [ ! -z "$2" ] && input_file=$2
+    
+    # Define the directory for input files and the default input filename
+    local input_dir="input_cases"
+    local input_file_basename=${2:-"input.txt"}
+    
+    # Determine the final path to the input file
+    local final_input_path=""
+    if [ -f "$input_dir/$input_file_basename" ]; then
+        # Prioritize the file in the 'input_cases' directory
+        final_input_path="$input_dir/$input_file_basename"
+    elif [ -f "$input_file_basename" ]; then
+        # Fallback to the current directory for flexibility
+        final_input_path="$input_file_basename"
+    fi
 
     echo "Building target '$exec_name'..."
     if cmake --build build --target "$exec_name" -j; then
         echo "/===----- RUNNING -----===/"
-        if [ -f "$input_file" ]; then
-            echo "(input from $input_file)"
-            $exec_path < "$input_file"
+        if [ -n "$final_input_path" ]; then
+            echo "(input from $final_input_path)"
+            $exec_path < "$final_input_path"
         else
+            # If a specific input file was requested but not found, inform the user
+            if [ -n "$2" ]; then
+                echo "Warning: Input file '$2' not found in './' or './$input_dir/'."
+            fi
             $exec_path
         fi
         echo "/===----- FINISHED -----===/"
@@ -217,23 +268,32 @@ function cppjudge() {
     local target=$(_get_default_target)
     local exec_name=$(echo "${1:-$target}" | sed -E 's/\.(cpp|cc|cxx)$//')
     local exec_path="./bin/$exec_name"
+    local input_dir="input_cases"
 
     if ! cppbuild "$exec_name"; then
         echo "Build failed!"
         return 1
     fi
+    
+    # Check if there are any test cases
+    if ! ls "$input_dir/${exec_name}".*.in &>/dev/null; then
+        echo "No test cases found in '$input_dir/' for pattern '${exec_name}.*.in'"
+        return 0
+    fi
 
-    for test_in in ${exec_name}.*.in; do
+    # Loop through test cases in the 'input_cases' directory
+    for test_in in "$input_dir/${exec_name}".*.in; do
         if [ -f "$test_in" ]; then
-            local test_case=$(basename "$test_in" .in)
-            local test_out="${test_case}.out"
+            local test_case_base=$(basename "$test_in" .in)
+            local test_out="${test_case_base}.out"
             local temp_out=$(mktemp)
 
-            echo -n "Testing $test_case... "
+            echo -n "Testing $(basename "$test_in")... "
             $exec_path < "$test_in" > "$temp_out"
 
             if [ ! -f "$test_out" ]; then
-                echo "WARNING: Output file '$test_out' not found."
+                echo "⚠️  WARNING: Output file '$(basename "$test_out")' not found."
+                rm "$temp_out"
                 continue
             fi
 
@@ -241,11 +301,11 @@ function cppjudge() {
                 echo "✅ PASSED"
             else
                 echo "❌ FAILED"
-                echo "# --------- YOUR OUTPUT --------- #"
+                echo "/===--------- YOUR OUTPUT ----------===/"
                 cat "$temp_out"
-                echo "# ---------- EXPECTED ----------- #"
+                echo "/===----------- EXPECTED -----------===/"
                 cat "$test_out"
-                echo "# ------------------------------- #"
+                echo "/===--------------------------------===/"
             fi
             rm "$temp_out"
         fi

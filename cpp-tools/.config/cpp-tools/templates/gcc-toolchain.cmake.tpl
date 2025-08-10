@@ -44,3 +44,5 @@ message(STATUS "Forcing compiler to: ${GCC_EXECUTABLE}")
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Debug)
 endif()
+
+# ---------------------------------------------------------------------- #
