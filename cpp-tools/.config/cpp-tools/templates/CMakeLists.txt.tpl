@@ -110,7 +110,11 @@ function(cp_add_problem TARGET_NAME SOURCE_FILE)
     # ----- Target-specific compiler options ----- #
     target_compile_options(${TARGET_NAME} PRIVATE
         # Common warning flags for catching potential errors.
-        -Wall -Wextra -Wpedantic -Wshadow -Wconversion -Wsign-conversion
+        -Wall -Wextra -Wpedantic -Wshadow -Wconversion
+        
+        # Suppress warnings that are often just noise in CP
+        -Wno-unused-const-variable
+        -Wno-sign-conversion
         
         # Debug flags: full debug info, no optimization.
         $<$<CONFIG:Debug>:-g2 -O0>

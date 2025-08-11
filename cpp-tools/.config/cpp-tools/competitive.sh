@@ -77,6 +77,12 @@ function cppinit() {
         cp "$SCRIPT_DIR/templates/gcc-toolchain.cmake.tpl" ./gcc-toolchain.cmake
     fi
 
+    # Create .clangd configuration if it doesn't exist.
+    if [ ! -f ".clangd" ]; then
+        echo "Creating .clangd configuration from template..."
+        cp "$SCRIPT_DIR/templates/.clangd.tpl" ./.clangd
+    fi
+    
     # Create .gitignore if it doesn't exist.
     if [ ! -f ".gitignore" ]; then
         echo "Creating .gitignore..."
@@ -379,4 +385,4 @@ Enhanced CMake Utilities for Competitive Programming:
 EOF
 }
 
-echo "✅ Competitive Programming utilities loaded. Type 'cpphelp' for commands."
+# echo "✅ Competitive Programming utilities loaded. Type 'cpphelp' for commands."
