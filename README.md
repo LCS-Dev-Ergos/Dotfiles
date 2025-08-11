@@ -6,16 +6,19 @@ This repository contains my personal dotfiles for configuring various tools and 
 
 ## Table of Contents
 
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-  - [Clone the Repository](#clone-the-repository)
-  - [Using Stow](#using-stow)
-- [Directory Structure](#directory-structure)
-- [Usage](#usage)
-  - [macOS Instructions](#macos-instructions)
-  - [Linux Instructions](#linux-instructions)
-- [Contributing](#contributing)
-- [License](#license)
+- [Dotfiles](#dotfiles)
+  - [Table of Contents](#table-of-contents)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+    - [Clone the Repository](#clone-the-repository)
+    - [Using Stow](#using-stow)
+  - [Directory Structure](#directory-structure)
+  - [Usage](#usage)
+    - [macOS Instructions](#macos-instructions)
+    - [Linux Instructions](#linux-instructions)
+    - [Notes](#notes)
+  - [Contributing](#contributing)
+  - [License](#license)
 
 ## Prerequisites
 
@@ -45,7 +48,7 @@ GNU Stow is used to create symlinks from this repository to your home directory,
 
 Each subdirectory in this repository corresponds to a specific tool or application. For example:
 
-```
+```dir
 Dotfiles/
 ├── kitty/      # Kitty configuration file
 ├── nvim/       # Neovim configuration files
