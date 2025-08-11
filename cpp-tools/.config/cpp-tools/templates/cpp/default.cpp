@@ -1,6 +1,6 @@
 //===----------------------------------------------------------------------===//
 /**
- * @file:   __FILE_NAME__
+ * @file: __FILE_NAME__
  * @brief Codeforces Round #XXX (Div. X) - Problem Y
  * @author: Costantino Lombardi
  *
@@ -51,7 +51,7 @@ int main() {
   cin.tie(nullptr);
 
   int t = 1;
-  // cin >> t; // Uncomment this line for multiple test cases
+  cin >> t;
   while (t--) {
     solve();
   }

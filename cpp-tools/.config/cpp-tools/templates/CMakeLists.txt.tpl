@@ -29,10 +29,16 @@ endif()
 # We use the CXX compiler path determined by the toolchain file.
 set(GCC_EXECUTABLE ${CMAKE_CXX_COMPILER})
 
-# On macOS, we can reliably find paths using Homebrew's layout.
-if(APPLE AND EXISTS "/opt/homebrew/bin/brew")
-    message(STATUS "macOS Homebrew detected. Finding GCC system includes...")
+# Detect Homebrew prefix regardless of the CMAKE_SYSTEM_NAME value.
+if(IS_DIRECTORY "/opt/homebrew")
+    set(BREW_PREFIX "/opt/homebrew")
+    message(STATUS "Apple Silicon Homebrew layout detected. Finding GCC includes...")
+elseif(IS_DIRECTORY "/usr/local/Homebrew")
+    set(BREW_PREFIX "/usr/local/Homebrew")
+    message(STATUS "Intel Mac Homebrew layout detected. Finding GCC includes...")
+endif()
 
+if(BREW_PREFIX)
     # Get GCC version (e.g., "13.2.0")
     execute_process(
         COMMAND ${GCC_EXECUTABLE} -dumpversion
@@ -45,8 +51,6 @@ if(APPLE AND EXISTS "/opt/homebrew/bin/brew")
         OUTPUT_VARIABLE GCC_MACHINE
         OUTPUT_STRIP_TRAILING_WHITESPACE
     )
-
-    set(BREW_PREFIX "/opt/homebrew")
     
     # Construct the standard paths where Homebrew installs GCC headers.
     set(GCC_INCLUDE_PATHS
@@ -71,7 +75,7 @@ if(APPLE AND EXISTS "/opt/homebrew/bin/brew")
         message(WARNING "Could not find GCC system paths in Homebrew layout.")
     endif()
 else()
-    message(STATUS "Non-Homebrew system. Relying on compiler's default include paths.")
+    message(STATUS "Homebrew not found. Relying on compiler's default include paths.")
 endif()
 
 # ----------------------------- Project Settings ---------------------------- #
