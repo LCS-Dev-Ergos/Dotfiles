@@ -82,7 +82,7 @@ function cppinit() {
         echo "Creating .clangd configuration from template..."
         cp "$SCRIPT_DIR/templates/.clangd.tpl" ./.clangd
     fi
-    
+
     # Create .gitignore if it doesn't exist.
     if [ ! -f ".gitignore" ]; then
         echo "Creating .gitignore..."
@@ -359,6 +359,91 @@ function cppwatch() {
     fswatch -o "$source_file" | while read -r; do cppbuild "$target_name"; done
 }
 
+# Displays detailed diagnostic information about the toolchain and environment.
+function cppdiag() {
+    # Helper function to print formatted headers
+    _print_header() {
+        echo ""
+        echo "/===----------- $1 -----------===/"
+    }
+
+    echo "Running Competitive Programming Environment Diagnostics..."
+
+    _print_header "SYSTEM & SHELL"
+    # Display OS and shell information
+    uname -a
+    echo "Shell: $SHELL"
+    [ -n "$BASH_VERSION" ] && echo "Bash Version: $BASH_VERSION"
+    [ -n "$ZSH_VERSION" ] && echo "Zsh Version: $ZSH_VERSION"
+    echo "Script Directory: $SCRIPT_DIR"
+
+    _print_header "CORE TOOLS"
+    
+    # Check for g++
+    local GXX_PATH
+    GXX_PATH=$(command -v g++-15 || command -v g++-14 || command -v g++-13 || command -v g++)
+    if [ -n "$GXX_PATH" ]; then
+        echo "✅ g++:"
+        echo "   Path: $GXX_PATH"
+        echo "   Version: $($GXX_PATH --version | head -n 1)"
+    else
+        echo "❌ g++: Not found!"
+    fi
+
+    # Check for cmake
+    local CMAKE_PATH
+    CMAKE_PATH=$(command -v cmake)
+    if [ -n "$CMAKE_PATH" ]; then
+        echo "✅ cmake:"
+        echo "   Path: $CMAKE_PATH"
+        echo "   Version: $($CMAKE_PATH --version | head -n 1)"
+    else
+        echo "❌ cmake: Not found!"
+    fi
+
+    # Check for clangd
+    local CLANGD_PATH
+    CLANGD_PATH=$(command -v clangd)
+    if [ -n "$CLANGD_PATH" ]; then
+        echo "✅ clangd:"
+        echo "   Path: $CLANGD_PATH"
+        echo "   Version: $($CLANGD_PATH --version | head -n 1)"
+    else
+        echo "❌ clangd: Not found!"
+    fi
+
+    _print_header "PROJECT CONFIGURATION (in $(pwd))"
+    if [ -f "CMakeLists.txt" ]; then
+        echo "✅ Found CMakeLists.txt"
+        
+        # Check CMake Cache for the configured compiler
+        if [ -f "build/CMakeCache.txt" ];
+        then
+            local cached_compiler
+            cached_compiler=$(grep "CMAKE_CXX_COMPILER:FILEPATH=" build/CMakeCache.txt | cut -d'=' -f2)
+            echo "   CMake Cached CXX Compiler: $cached_compiler"
+        else
+            echo "   Info: No CMake cache found. Run 'cppconf' to generate it."
+        fi
+
+        # Display .clangd configuration if it exists
+        if [ -f ".clangd" ]; then
+            echo "✅ Found .clangd config:"
+            # Indent the content for readability
+            sed 's/^/   /' .clangd
+        else
+            echo "   Info: No .clangd config file found in this project."
+        fi
+
+    else
+        echo "❌ Not inside a project directory (CMakeLists.txt not found)."
+    fi
+
+    echo ""
+}
+
+# ------------------------------- HELP & USAGE ------------------------------ #
+
 # Displays the help message.
 function cpphelp() {
     cat << EOF
@@ -379,6 +464,7 @@ Enhanced CMake Utilities for Competitive Programming:
 [ UTILITIES ]
   cppwatch [name]          - Auto-rebuilds a target on file change.
   cppclean                 - Removes build artifacts.
+  cppdiag                  - Displays detailed diagnostic info about the toolchain.
   cpphelp                  - Shows this help message.
 
 * Most commands default to the most recently modified C++ source file.
