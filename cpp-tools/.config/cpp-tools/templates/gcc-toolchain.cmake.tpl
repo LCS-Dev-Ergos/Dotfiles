@@ -1,48 +1,59 @@
-# ---------------------------------------------------------------------- #
-# File: gcc-toolchain.cmake
+# =========================================================================== #
+# ----- CMake Toolchain File to Enforce GCC for Competitive Programming ----- #
+# =========================================================================== #
 #
 # Description:
-#   CMake toolchain file to force the use of a modern GCC compiler.
-#   This is the standard way to ensure headers like <bits/stdc++.h>
-#   and PBDS are found and used correctly by CMake.
+#   This file forces CMake to use a modern GCC compiler, which is crucial
+#   for competitive programming features like <bits/stdc++.h> and PBDS.
+#   It ensures that both the build process and the generated compile_commands.json
+#   for clangd are based on GCC, solving compiler-IDE conflicts.
 #
 # Usage:
-#   cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=../gcc-toolchain.cmake
-# ---------------------------------------------------------------------- #
+#   This file is used automatically by the 'cppconf' shell function via:
+#   cmake -DCMAKE_TOOLCHAIN_FILE=gcc-toolchain.cmake
+#
+# ============================================================================ #
 
-message(STATUS "Using GCC Toolchain File")
+message(STATUS "Using GCC Toolchain File to find and set a GCC compiler.")
 
-# Find the latest available GCC executable
-find_program(GCC_EXECUTABLE 
+# Set the CMAKE_SYSTEM_NAME to avoid CMake misconfigurations on macOS
+set(CMAKE_SYSTEM_NAME Generic)
+
+# Find the latest available GCC/G++ executable from a list of common names.
+# We prioritize Homebrew's path on macOS but also check standard system paths.
+find_program(GCC_EXECUTABLE
     NAMES g++-15 g++-14 g++-13 g++-12 g++
-    PATHS /opt/homebrew/bin /usr/local/bin
-    NO_DEFAULT_PATH
+    PATHS /opt/homebrew/bin /usr/local/bin /usr/bin
     DOC "Path to the g++ executable"
 )
 
-# If not found in priority paths, search in default locations
+# If no g++ is found, terminate with a helpful error message.
 if(NOT GCC_EXECUTABLE)
-    message(STATUS "GCC not found in Homebrew path, checking default system paths...")
-    find_program(GCC_EXECUTABLE 
-        NAMES g++-14 g++-13 g++-12 g++-11 g++
-    )
+    message(FATAL_ERROR "GCC (g++) not found! This toolchain requires GCC. "
+                        "Please install it (e.g., 'brew install gcc' on macOS "
+                        "or 'sudo apt install g++' on Debian/Ubuntu).")
 endif()
 
-# If still not found, raise an error
-if(NOT GCC_EXECUTABLE)
-    message(FATAL_ERROR "GCC not found! This toolchain requires GCC. \
-            Install with 'brew install gcc' or 'sudo apt install g++'.")
-endif()
+# Find the corresponding C compiler (gcc) based on the g++ path.
+get_filename_component(GCC_DIR ${GCC_EXECUTABLE} DIRECTORY)
+get_filename_component(GCC_NAME ${GCC_EXECUTABLE} NAME)
+string(REPLACE "g++" "gcc" C_COMPILER_NAME ${GCC_NAME})
+find_program(C_COMPILER_PATH
+    NAMES ${C_COMPILER_NAME}
+    HINTS ${GCC_DIR}
+)
 
-# Set the C and C++ compilers
-set(CMAKE_C_COMPILER   ${GCC_EXECUTABLE} CACHE PATH "C compiler"   FORCE)
-set(CMAKE_CXX_COMPILER ${GCC_EXECUTABLE} CACHE PATH "C++ compiler" FORCE)
+# Force CMake to use the found compilers for both C and C++.
+# The CACHE PATH and FORCE options ensure these settings override any defaults.
+set(CMAKE_C_COMPILER   ${C_COMPILER_PATH} CACHE PATH "C compiler"   FORCE)
+set(CMAKE_CXX_COMPILER ${GCC_EXECUTABLE}  CACHE PATH "C++ compiler" FORCE)
 
-message(STATUS "Forcing compiler to: ${GCC_EXECUTABLE}")
+message(STATUS "Toolchain forcing CXX compiler to: ${CMAKE_CXX_COMPILER}")
+message(STATUS "Toolchain forcing C compiler to:   ${CMAKE_C_COMPILER}")
 
-# Set the build type to Debug by default if not specified
+# Set the build type to Debug by default if not specified by the user.
 if(NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE Debug)
+  set(CMAKE_BUILD_TYPE Debug CACHE STRING "Default build type" FORCE)
 endif()
 
-# ---------------------------------------------------------------------- #
+# ============================================================================ #
