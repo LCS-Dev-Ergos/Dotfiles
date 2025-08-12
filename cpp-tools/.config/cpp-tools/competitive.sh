@@ -21,6 +21,20 @@
 # Example: CP_ALGORITHMS_DIR="$HOME/Documents/CP/Algorithms"
 CP_ALGORITHMS_DIR="/Volumes/LCS.Data/CP-Problems/CodeForces/Algorithms"
 
+# Check if terminal supports colors
+if test -t 1; then
+    N_COLORS=$(tput colors)
+    if test -n "$N_COLORS" && test $N_COLORS -ge 8; then
+        BOLD="$(tput bold)"
+        BLUE="$(tput setaf 4)"
+        CYAN="$(tput setaf 6)"
+        GREEN="$(tput setaf 2)"
+        RED="$(tput setaf 1)"
+        YELLOW="$(tput setaf 3)"
+        RESET="$(tput sgr0)"
+    fi
+fi
+
 # Detect the script directory for reliable access to templates.
 # This works for both bash and zsh when the script is sourced.
 if [ -n "$BASH_SOURCE" ]; then
@@ -28,7 +42,7 @@ if [ -n "$BASH_SOURCE" ]; then
 elif [ -n "$ZSH_VERSION" ]; then
     SCRIPT_DIR="$( cd "$( dirname "${(%):-%x}" )" &> /dev/null && pwd )"
 else
-    echo "Unsupported shell for script directory detection." >&2
+    echo "${RED}Unsupported shell for script directory detection.${RESET}" >&2
     # Fallback to current directory, though this may be unreliable
     SCRIPT_DIR="."
 fi
@@ -45,23 +59,22 @@ _get_default_target() {
 # Utility to check if the project is initialized.
 _check_initialized() {
     if [ ! -f "CMakeLists.txt" ] || [ ! -d "build" ]; then
-        echo "Error: Project is not initialized. Please run 'cppinit' first." >&2
+        echo "${RED}Error: Project is not initialized. Please run 'cppinit' first.${RESET}" >&2
         return 1
     fi
     return 0
 }
-
 
 # ------------------------- PROJECT SETUP & CONFIG -------------------------- #
 
 # Initializes or verifies a competitive programming directory.
 # This function is now idempotent.
 function cppinit() {
-    echo "Initializing Competitive Programming environment..."
+    echo "${CYAN}Initializing Competitive Programming environment...${RESET}"
 
     # Check for script directory, essential for finding templates.
     if [ -z "$SCRIPT_DIR" ] || [ ! -d "$SCRIPT_DIR/templates" ]; then
-        echo "Error: SCRIPT_DIR is not set or templates directory is missing." >&2
+        echo "${RED}Error: SCRIPT_DIR is not set or templates directory is missing.${RESET}" >&2
         return 1
     fi
 
@@ -101,22 +114,22 @@ function cppinit() {
             echo "Created symlink to global debug.h."
         else
             touch "algorithms/debug.h"
-            echo "Warning: Global debug.h not found. Created a local placeholder."
+            echo "${YELLOW}Warning: Global debug.h not found. Created a local placeholder.${RESET}"
         fi
     fi
 
     # Create a basic configuration. This will create the build directory.
     cppconf
 
-    echo "✅ Project initialized successfully!"
-    echo "Run 'cppnew <problem_name>' to create your first solution file."
+    echo "${BOLD}${GREEN}✅ Project initialized successfully!${RESET}"
+    echo "Run '${CYAN}cppnew <problem_name>${RESET}' to create your first solution file."
 }
 
 # Creates a new problem file from a template and re-runs CMake.
 function cppnew() {
     # Ensure the project is initialized before creating a new file.
     if [ ! -f "CMakeLists.txt" ]; then
-        echo "Project not initialized. Run 'cppinit' before creating a new problem." >&2
+        echo "${RED}Project not initialized. Run 'cppinit' before creating a new problem.${RESET}" >&2
         return 1
     fi
 
@@ -126,7 +139,7 @@ function cppnew() {
     local template_file
 
     if [ -f "${problem_name}.cpp" ] || [ -f "${problem_name}.cc" ] || [ -f "${problem_name}.cxx" ]; then
-        echo "Error: File for problem '$problem_name' already exists." >&2
+        echo "${RED}Error: File for problem '$problem_name' already exists.${RESET}" >&2
         return 1
     fi
 
@@ -141,11 +154,11 @@ function cppnew() {
     esac
 
     if [ ! -f "$template_file" ]; then
-        echo "Error: Template file '$template_file' not found." >&2
+        echo "${RED}Error: Template file '$template_file' not found.${RESET}" >&2
         return 1
     fi
     
-    echo "Creating '$file_name' from template '$template_type'..."
+    echo "${CYAN}Creating '$file_name' from template '$template_type'...${RESET}"
     # Replace placeholder and create the file.
     sed "s/__FILE_NAME__/$file_name/g" "$template_file" > "$file_name"
     
@@ -164,22 +177,22 @@ function cppconf() {
 
     # Check if the toolchain file exists, if not, create it.
     if [ ! -f "gcc-toolchain.cmake" ]; then
-        echo "Toolchain file not found. Running cppinit to fix..."
+        echo "${YELLOW}Toolchain file not found. Running cppinit to fix...${RESET}"
         cppinit
     fi
 
     # Log the configuration step.
-    echo "/===------------------------------------------------------------------------===/"
-    echo "Configuring project with build type: ${build_type} (using GCC toolchain)"
+    echo "${BLUE}/===------------------------------------------------------------------------===/${RESET}"
+    echo "${BLUE}Configuring project with build type: ${YELLOW}${build_type}${BLUE} (using GCC toolchain)${RESET}"
     
     # Run CMake, forcing the GCC toolchain. This correctly sets up the compiler
     # and include paths for both building and for clangd.
     if cmake -S . -B build -DCMAKE_BUILD_TYPE=${build_type} -DCMAKE_TOOLCHAIN_FILE=gcc-toolchain.cmake; then
-        echo "CMake configuration successful."
+        echo "${GREEN}CMake configuration successful.${RESET}"
         # Create the symlink for clangd.
         cmake --build build --target symlink_clangd
     else
-        echo "CMake configuration failed!" >&2
+        echo "${RED}CMake configuration failed!${RESET}" >&2
         return 1
     fi
 }
@@ -187,7 +200,7 @@ function cppconf() {
 # Creates and sets up a new directory for a contest.
 function cppcontest() {
     if [ -z "$1" ]; then
-        echo "Usage: cppcontest <ContestDirectoryName>" >&2
+        echo "${RED}Usage: cppcontest <ContestDirectoryName>${RESET}" >&2
         echo "Example: cppcontest Codeforces/Round_1037_Div_3" >&2
         return 1
     fi
@@ -196,7 +209,7 @@ function cppcontest() {
     
     # Create the directory if it doesn't exist.
     if [ ! -d "$contest_dir" ]; then
-        echo "Creating new contest directory: '$contest_dir'"
+        echo "${CYAN}Creating new contest directory: '$contest_dir'${RESET}"
         mkdir -p "$contest_dir"
     fi
     
@@ -204,14 +217,14 @@ function cppcontest() {
     
     # Initialize the project here if it's not already set up.
     if [ ! -f "CMakeLists.txt" ]; then
-        echo "Initializing new CMake project in '$(pwd)'..."
+        echo "Initializing new CMake project in '${BOLD}$(pwd)${RESET}'..."
         cppinit
     else
         echo "Project already initialized. Verifying configuration..."
         cppinit # Run to ensure all components are present.
     fi
 
-    echo "✅ Ready to work in $(pwd). Use 'cppnew <problem_name>' to start."
+    echo "${GREEN}✅ Ready to work in ${BOLD}$(pwd)${RESET}. Use '${CYAN}cppnew <problem_name>${RESET}' to start."
 }
 
 # ------------------------------- BUILD & RUN ------------------------------- #
@@ -220,7 +233,7 @@ function cppcontest() {
 function cppbuild() {
     _check_initialized || return 1
     local target_name=${1:-$(_get_default_target)}
-    echo "Building target: $target_name..."
+    echo "${CYAN}Building target: ${BOLD}$target_name${RESET}..."
     # Use -j to build in parallel.
     cmake --build build --target "$target_name" -j
 }
@@ -232,14 +245,14 @@ function cpprun() {
     local exec_path="./bin/$target_name"
     
     if [ ! -f "$exec_path" ]; then
-        echo "Executable '$exec_path' not found. Building first..."
+        echo "${YELLOW}Executable '$exec_path' not found. Building first...${RESET}"
         if ! cppbuild "$target_name"; then
-            echo "Build failed!" >&2
+            echo "${RED}Build failed!${RESET}" >&2
             return 1
         fi
     fi
 
-    echo "Running '$exec_path'..."
+    echo "${BLUE}Running '$exec_path'...${RESET}"
     "$exec_path"
 }
 
@@ -253,21 +266,21 @@ function cppgo() {
     local input_file=${2:-"${target_name}.in"}
     local input_path="input_cases/$input_file"
 
-    echo "Building target '$target_name'..."
+    echo "${CYAN}Building target '${BOLD}$target_name${CYAN}'...${RESET}"
     if cppbuild "$target_name"; then
-        echo "/===----- RUNNING: $target_name -----===/"
+        echo "${BLUE}${BOLD}/===----- RUNNING: $target_name -----===/${RESET}"
         if [ -f "$input_path" ]; then
-            echo "(input from $input_path)"
+            echo "(input from ${YELLOW}$input_path${RESET})"
             "$exec_path" < "$input_path"
         else
             if [ -n "$2" ]; then # Warn if a specific file was requested but not found.
-                 echo "Warning: Input file '$input_path' not found." >&2
+                 echo "${YELLOW}Warning: Input file '$input_path' not found.${RESET}" >&2
             fi
             "$exec_path"
         fi
-        echo "/===----------- FINISHED -----------===/"
+        echo "${BLUE}${BOLD}/===----------- FINISHED -----------===/${RESET}"
     else
-        echo "Build failed!" >&2
+        echo "${RED}Build failed!${RESET}" >&2
         return 1
     fi
 }
@@ -280,13 +293,13 @@ function cppjudge() {
     local input_dir="input_cases"
 
     if ! cppbuild "$target_name"; then
-        echo "Build failed!" >&2
+        echo "${RED}Build failed!${RESET}" >&2
         return 1
     fi
     
     # Check for test cases.
     if ! ls "$input_dir/${target_name}".*.in &>/dev/null; then
-        echo "No test cases found in '$input_dir/' for pattern '${target_name}.*.in'"
+        echo "${YELLOW}No test cases found in '$input_dir/' for pattern '${target_name}.*.in'${RESET}"
         return 0
     fi
 
@@ -301,21 +314,21 @@ function cppjudge() {
         "$exec_path" < "$test_in" > "$temp_out"
 
         if [ ! -f "$test_out" ]; then
-            echo "⚠️  WARNING: Output file '$(basename "$test_out")' not found."
+            echo "${BOLD}${YELLOW}⚠️  WARNING: Output file '$(basename "$test_out")' not found.${RESET}"
             rm "$temp_out"
             continue
         fi
 
         # Use diff with -w (ignore all whitespace) and -B (ignore blank lines).
         if diff -wB "$temp_out" "$test_out" >/dev/null; then
-            echo "✅ PASSED"
+            echo "${BOLD}${GREEN}✅ PASSED${RESET}"
         else
-            echo "❌ FAILED"
-            echo "/===--------- YOUR OUTPUT ----------===/"
+            echo "${BOLD}${RED}❌ FAILED${RESET}"
+            echo "${BOLD}${YELLOW}/===--------- YOUR OUTPUT ----------===/${RESET}"
             cat "$temp_out"
-            echo "/===----------- EXPECTED -----------===/"
+            echo "${BOLD}${YELLOW}/===----------- EXPECTED -----------===/${RESET}"
             cat "$test_out"
-            echo "/===--------------------------------===/"
+            echo "${BOLD}${YELLOW}/===--------------------------------===/${RESET}"
         fi
         rm "$temp_out"
     done
@@ -325,7 +338,7 @@ function cppjudge() {
 
 # Cleans the project by removing the build directory.
 function cppclean() {
-    echo "Cleaning project..."
+    echo "${CYAN}Cleaning project...${RESET}"
     rm -rf build bin lib
     # Also remove the symlink if it exists in the root.
     if [ -L "compile_commands.json" ]; then
@@ -345,16 +358,16 @@ function cppwatch() {
     elif [ -f "${target_name}.cc" ]; then source_file="${target_name}.cc";
     elif [ -f "${target_name}.cxx" ]; then source_file="${target_name}.cxx";
     else
-        echo "Error: Source file for target '$target_name' not found." >&2
+        echo "${RED}Error: Source file for target '$target_name' not found.${RESET}" >&2
         return 1
     fi
 
     if ! command -v fswatch &> /dev/null; then
-        echo "Error: 'fswatch' is not installed. Please run 'brew install fswatch'." >&2
+        echo "${RED}Error: 'fswatch' is not installed. Please run 'brew install fswatch'.${RESET}" >&2
         return 1
     fi
 
-    echo "Watching '$source_file' to rebuild target '$target_name'. Press Ctrl+C to stop."
+    echo "${CYAN}Watching '$source_file' to rebuild target '$target_name'. Press Ctrl+C to stop.${RESET}"
     # Initial build.
     cppbuild "$target_name"
 
@@ -366,10 +379,10 @@ function cppdiag() {
     # Helper function to print formatted headers
     _print_header() {
         echo ""
-        echo "/===----------- $1 -----------===/"
+        echo "${BOLD}${BLUE}/===----------- $1 -----------===/${RESET}"
     }
 
-    echo "Running Competitive Programming Environment Diagnostics..."
+    echo "${BOLD}Running Competitive Programming Environment Diagnostics...${RESET}"
 
     _print_header "SYSTEM & SHELL"
     # Display OS and shell information
@@ -385,60 +398,60 @@ function cppdiag() {
     local GXX_PATH
     GXX_PATH=$(command -v g++-15 || command -v g++-14 || command -v g++-13 || command -v g++)
     if [ -n "$GXX_PATH" ]; then
-        echo "✅ g++:"
-        echo "   Path: $GXX_PATH"
-        echo "   Version: $($GXX_PATH --version | head -n 1)"
+        echo "${GREEN}✅ g++:${RESET}"
+        echo "   ${CYAN}Path:${RESET} $GXX_PATH"
+        echo "   ${CYAN}Version:${RESET} $($GXX_PATH --version | head -n 1)"
     else
-        echo "❌ g++: Not found!"
+        echo "${RED}❌ g++: Not found!${RESET}"
     fi
 
     # Check for cmake
     local CMAKE_PATH
     CMAKE_PATH=$(command -v cmake)
     if [ -n "$CMAKE_PATH" ]; then
-        echo "✅ cmake:"
-        echo "   Path: $CMAKE_PATH"
-        echo "   Version: $($CMAKE_PATH --version | head -n 1)"
+        echo "${GREEN}✅ cmake:${RESET}"
+        echo "   ${CYAN}Path:${RESET} $CMAKE_PATH"
+        echo "   ${CYAN}Version:${RESET} $($CMAKE_PATH --version | head -n 1)"
     else
-        echo "❌ cmake: Not found!"
+        echo "${RED}❌ cmake: Not found!${RESET}"
     fi
 
     # Check for clangd
     local CLANGD_PATH
     CLANGD_PATH=$(command -v clangd)
     if [ -n "$CLANGD_PATH" ]; then
-        echo "✅ clangd:"
-        echo "   Path: $CLANGD_PATH"
-        echo "   Version: $($CLANGD_PATH --version | head -n 1)"
+        echo "${GREEN}✅ clangd:${RESET}"
+        echo "   ${CYAN}Path:${RESET} $CLANGD_PATH"
+        echo "   ${CYAN}Version:${RESET} $($CLANGD_PATH --version | head -n 1)"
     else
-        echo "❌ clangd: Not found!"
+        echo "${RED}❌ clangd: Not found!${RESET}"
     fi
 
     _print_header "PROJECT CONFIGURATION (in $(pwd))"
     if [ -f "CMakeLists.txt" ]; then
-        echo "✅ Found CMakeLists.txt"
+        echo "${GREEN}✅ Found CMakeLists.txt${RESET}"
         
         # Check CMake Cache for the configured compiler
         if [ -f "build/CMakeCache.txt" ];
         then
             local cached_compiler
             cached_compiler=$(grep "CMAKE_CXX_COMPILER:FILEPATH=" build/CMakeCache.txt | cut -d'=' -f2)
-            echo "   CMake Cached CXX Compiler: $cached_compiler"
+            echo "   ${CYAN}CMake Cached CXX Compiler:${RESET} $cached_compiler"
         else
-            echo "   Info: No CMake cache found. Run 'cppconf' to generate it."
+            echo "   ${YELLOW}Info: No CMake cache found. Run 'cppconf' to generate it.${RESET}"
         fi
 
         # Display .clangd configuration if it exists
         if [ -f ".clangd" ]; then
-            echo "✅ Found .clangd config:"
+            echo "${GREEN}✅ Found .clangd config:${RESET}"
             # Indent the content for readability
             sed 's/^/   /' .clangd
         else
-            echo "   Info: No .clangd config file found in this project."
+            echo "   ${YELLOW}Info: No .clangd config file found in this project.${RESET}"
         fi
 
     else
-        echo "❌ Not inside a project directory (CMakeLists.txt not found)."
+        echo "${RED}❌ Not inside a project directory (CMakeLists.txt not found).${RESET}"
     fi
 
     echo ""
@@ -449,25 +462,25 @@ function cppdiag() {
 # Displays the help message.
 function cpphelp() {
     cat << EOF
-Enhanced CMake Utilities for Competitive Programming:
+${BOLD}Enhanced CMake Utilities for Competitive Programming:${RESET}
 
-[ SETUP ]
-  cppinit                  - Initializes or verifies a project directory (idempotent).
-  cppnew [name] [template] - Creates a new .cpp file from a template ('default', 'pbds').
-  cppconf [type]           - (Re)configures the project (Debug, Release, Sanitize).
-  cppcontest [dir_name]    - Creates a new contest directory and initializes it.
+${BOLD}${CYAN}[ SETUP ]${RESET}
+  ${GREEN}cppinit${RESET}                  - Initializes or verifies a project directory (idempotent).
+  ${GREEN}cppnew${RESET} ${YELLOW}[name] [template]${RESET} - Creates a new .cpp file from a template ('default', 'pbds').
+  ${GREEN}cppconf${RESET} ${YELLOW}[type]${RESET}           - (Re)configures the project (Debug, Release, Sanitize).
+  ${GREEN}cppcontest${RESET} ${YELLOW}[dir_name]${RESET}    - Creates a new contest directory and initializes it.
 
-[ BUILD, RUN, TEST ]
-  cppbuild [name]          - Builds a target (defaults to most recent).
-  cpprun [name]            - Runs a target's executable.
-  cppgo [name] [input]     - Builds and runs. Uses '<name>.in' by default.
-  cppjudge [name]          - Tests against all sample cases (e.g., name.1.in -> name.1.out).
+${BOLD}${CYAN}[ BUILD, RUN, TEST ]${RESET}
+  ${GREEN}cppbuild${RESET} ${YELLOW}[name]${RESET}          - Builds a target (defaults to most recent).
+  ${GREEN}cpprun${RESET} ${YELLOW}[name]${RESET}            - Runs a target's executable.
+  ${GREEN}cppgo${RESET} ${YELLOW}[name] [input]${RESET}     - Builds and runs. Uses '<name>.in' by default.
+  ${GREEN}cppjudge${RESET} ${YELLOW}[name]${RESET}          - Tests against all sample cases (e.g., name.1.in -> name.1.out).
 
-[ UTILITIES ]
-  cppwatch [name]          - Auto-rebuilds a target on file change.
-  cppclean                 - Removes build artifacts.
-  cppdiag                  - Displays detailed diagnostic info about the toolchain.
-  cpphelp                  - Shows this help message.
+${BOLD}${CYAN}[ UTILITIES ]${RESET}
+  ${GREEN}cppwatch${RESET} ${YELLOW}[name]${RESET}          - Auto-rebuilds a target on file change.
+  ${GREEN}cppclean${RESET}                 - Removes build artifacts.
+  ${GREEN}cppdiag${RESET}                  - Displays detailed diagnostic info about the toolchain.
+  ${GREEN}cpphelp${RESET}                  - Shows this help message.
 
 * Most commands default to the most recently modified C++ source file.
 EOF
