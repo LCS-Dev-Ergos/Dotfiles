@@ -268,7 +268,7 @@ function cppgo() {
 
     echo "${CYAN}Building target '${BOLD}$target_name${CYAN}'...${RESET}"
     if cppbuild "$target_name"; then
-        echo "${BLUE}${BOLD}/===----- RUNNING: $target_name -----===/${RESET}"
+        echo "${BLUE}${BOLD}/===------ RUNNING: $target_name ------===/${RESET}"
         if [ -f "$input_path" ]; then
             echo "(input from ${YELLOW}$input_path${RESET})"
             "$exec_path" < "$input_path"
@@ -324,7 +324,7 @@ function cppjudge() {
             echo "${BOLD}${GREEN}✅ PASSED${RESET}"
         else
             echo "${BOLD}${RED}❌ FAILED${RESET}"
-            echo "${BOLD}${YELLOW}/===--------- YOUR OUTPUT ----------===/${RESET}"
+            echo "${BOLD}${YELLOW}/===---------- YOUR OUTPUT ---------===/${RESET}"
             cat "$temp_out"
             echo "${BOLD}${YELLOW}/===----------- EXPECTED -----------===/${RESET}"
             cat "$test_out"
