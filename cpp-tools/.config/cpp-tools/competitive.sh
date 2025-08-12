@@ -168,6 +168,8 @@ function cppconf() {
         cppinit
     fi
 
+    # Log the configuration step.
+    echo "/===------------------------------------------------------------------------===/"
     echo "Configuring project with build type: ${build_type} (using GCC toolchain)"
     
     # Run CMake, forcing the GCC toolchain. This correctly sets up the compiler
