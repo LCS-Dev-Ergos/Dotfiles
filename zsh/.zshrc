@@ -18,6 +18,19 @@ fi
 # ++++++++++++++++++++++++ EXECUTION AND OS DETECTION +++++++++++++++++++++++ #
 # =========================================================================== #
 
+# ---- ANSI Color Definitions ---- #
+# Check if the current shell is interactive and supports colors.
+# If so, define color variables. Otherwise, they will be empty strings.
+if [[ -t 1 ]]; then
+    C_RESET="\e[0m"
+    C_BOLD="\e[1m"
+    C_RED="\e[31m"
+    C_GREEN="\e[32m"
+    C_YELLOW="\e[33m"
+    C_BLUE="\e[34m"
+    C_CYAN="\e[36m"
+fi
+
 # Export this variable to let .zshrc know that this file has already run.
 # This is the crucial synchronization mechanism.
 export ZPROFILE_HAS_RUN=true
@@ -247,8 +260,8 @@ alias md='mkdir -p'
 # Tools
 alias ranger="TERM=screen-256color ranger"
 alias clang-format="clang-format -style=file:$CLANG_FORMAT_CONFIG"
-alias fnm-clean='echo "Cleaning up orphaned fnm sessions..." &&
-                 rm -rf ~/.local/state/fnm_multishells/* && echo "Cleanup completed."'
+alias fnm-clean='echo "${CYAN}Cleaning up orphaned fnm sessions...${RESET}" &&
+                 rm -rf ~/.local/state/fnm_multishells/* && echo "${GREEN}Cleanup completed.${RESET}"'
 
 # thefuck alias (corrects mistyped commands)
 if command -v thefuck >/dev/null 2>&1; then
@@ -473,9 +486,9 @@ function bak() {
   if [ -f "$1" ]; then
     local backup_file="${1}.$(date +'%Y-%m-%d_%H-%M-%S').bak"
     cp "$1" "$backup_file"
-    echo "Backup created: ${backup_file}"
+    echo "${C_GREEN}Backup created: ${backup_file}${C_RESET}"
   else
-    echo "Error: File '$1' not found." >&2
+    echo "${C_RED}Error: File '$1' not found.${C_RESET}" >&2
     return 1
   fi
 }
@@ -491,9 +504,9 @@ function fkill() {
   if [ "x$pid" != "x" ]; then
     # Kill the selected process(es) with SIGKILL (9) by default
     echo "$pid" | xargs kill -${1:-9}
-    echo "Process(es) with PID(s): $pid killed."
+    echo "${C_GREEN}Process(es) with PID(s): $pid killed.${C_RESET}"
   else
-    echo "No process selected."
+    echo "${C_YELLOW}No process selected.${C_RESET}"
   fi
 }
 
@@ -504,13 +517,13 @@ function fkill() {
 function serve() {
     local port="${1:-8000}"
     local ip=$(ipconfig getifaddr en0 2>/dev/null || hostname -I | awk '{print $1}' 2>/dev/null || echo "127.0.0.1")
-    echo "Serving current directory on http://${ip}:${port}"
+    echo "${C_CYAN}Serving current directory on http://${ip}:${port}${C_RESET}"
     # Python 3
     command -v python3 &>/dev/null && python3 -m http.server "$port" && return
     # Python 2 (fallback)
     command -v python &>/dev/null && python -m SimpleHTTPServer "$port" && return
     
-    echo "Error: Python not found. Cannot start server." >&2
+    echo "${C_RED}Error: Python not found. Cannot start server.${C_RESET}" >&2
     return 1
 }
 
@@ -569,12 +582,12 @@ fi
 if [[ "$PLATFORM" == 'macOS' ]]; then
     export LCS_Data="/Volumes/LCS.Data"
     if [ ! -d "$LCS_Data" ]; then
-        echo "⚠️ Warning: LCS.Data volume is not mounted"
+        echo "${C_YELLOW}⚠️ Warning: LCS.Data volume is not mounted${C_RESET}"
     fi
 elif [[ "$PLATFORM" == 'Linux' ]]; then
     export LCS_Data="/media/$USER/LCS.Data"
     if [ ! -d "$LCS_Data" ]; then
-        echo "⚠️ Warning: LCS.Data volume does not appear to be mounted in $LCS_Data"
+        echo "${C_YELLOW}⚠️ Warning: LCS.Data volume does not appear to be mounted in $LCS_Data${C_RESET}"
     fi
 fi
 
@@ -657,8 +670,8 @@ else
         export JAVA_HOME="$found_java_home"
         export PATH="$JAVA_HOME/bin:$PATH"
       else
-        echo "⚠️ Warning: Unable to automatically determine JAVA_HOME and SDKMAN! is not installed."
-        echo "   Please install Java and/or SDKMAN!, or set JAVA_HOME manually."
+        echo "${C_YELLOW}⚠️ Warning: Unable to automatically determine JAVA_HOME and SDKMAN! is not installed.${C_RESET}"
+        echo "   ${C_YELLOW}Please install Java and/or SDKMAN!, or set JAVA_HOME manually.${C_RESET}"
       fi
     fi
   }
@@ -890,14 +903,6 @@ build_final_path() {
 build_final_path
 unset -f build_final_path
 
-# Background cleanup of old FNM directories
-# if command -v fnm &>/dev/null; then
-  # Use 'at' to schedule a reliable, detached cleanup job. This avoids issues with shell exit signals (SIGHUP)
-  # The job will run 1 minute from now, ensuring it's out of the critical startup path
-#   echo 'find "$HOME/.local/state/fnm_multishells" -mindepth 1 -type l -mmin +60 -exec rm -rf {} + 2>/dev/null' | at -M now + 1 minute 2>/dev/null
-# fi
-
 # =========================================================================== #
 # +++++++++++++++++++++++++++ AUTOMATIC ADDITIONS +++++++++++++++++++++++++++ #
 # =========================================================================== #
-
