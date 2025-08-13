@@ -136,8 +136,9 @@ source $ZSH/oh-my-zsh.sh
 # Platform-specific prompt configuration
 if [[ "$PLATFORM" == "macOS" ]]; then
   # macOS: Oh-My-Posh
-  if command -v oh-my-posh >/dev/null 2>&1; then
-    eval "$(oh-my-posh init zsh --config $XDG_CONFIG_HOME/oh-my-posh/lcs-dev.omp.json)"
+  local omp_config="$XDG_CONFIG_HOME/oh-my-posh/lcs-dev.omp.json"
+  if command -v oh-my-posh >/dev/null 2>&1 && [ -f "$omp_config" ]; then
+    eval "$(oh-my-posh init zsh --config $omp_config)"
   fi
  # Load scripts for "Competitive Programming"
   if [ -f ~/.config/cpp-tools/competitive.sh ]; then
@@ -151,9 +152,12 @@ elif [[ "$PLATFORM" == "Linux" ]]; then
   elif [[ -f "$HOME/.oh-my-zsh/custom/themes/powerlevel10k/powerlevel10k.zsh-theme" ]]; then
     source "$HOME/.oh-my-zsh/custom/themes/powerlevel10k/powerlevel10k.zsh-theme"
     [[ -f ~/.p10k.zsh ]] && source ~/.p10k.zsh
-  elif command -v oh-my-posh >/dev/null 2>&1; then
-    # Fallback to Oh-My-Posh if PowerLevel10k is not available
-    eval "$(oh-my-posh init zsh --config $XDG_CONFIG_HOME/oh-my-posh/lcs-dev.omp.json)"
+  else
+    # Fallback to Oh-My-Posh only if available and configured
+    local omp_config="$XDG_CONFIG_HOME/oh-my-posh/lcs-dev.omp.json"
+    if command -v oh-my-posh >/dev/null 2>&1 && [ -f "$omp_config" ]; then
+      eval "$(oh-my-posh init zsh --config $omp_config)"
+    fi
   fi
 fi
 
@@ -223,7 +227,15 @@ _fzf_compgen_dir() {
   fd --type=d --hidden --exclude .git . "$1"
 }
 
-source ~/.config/fzf-git/fzf-git.sh
+# --- FIX: Source fzf-git.sh only if it exists ---
+if [[ -f "$HOME/.config/fzf-git/fzf-git.sh" ]]; then
+    source ~/.config/fzf-git/fzf-git.sh
+else
+    # Check common Arch path as a fallback
+    if [[ "$PLATFORM" == "Linux" && -f "/usr/share/fzf/fzf-git.sh" ]]; then
+        source /usr/share/fzf/fzf-git.sh
+    fi
+fi
 
 export FZF_CTRL_T_OPTS="--preview 'bat -n --color=always --line-range :500 {}'"
 export FZF_ALT_C_OPTS="--preview 'eza --tree --color=always {} | head -200'"
@@ -717,7 +729,11 @@ unset -f __conda_init
 # <<< Conda initialize <<<
 
 # ------------ Perl CPAN ------------ #
-eval "$(perl -I$HOME/00_ENV/perl5/lib/perl5 -Mlocal::lib=$HOME/00_ENV/perl5)"
+# --- FIX: Only run if the local::lib directory exists ---
+local_perl_dir="$HOME/00_ENV/perl5"
+if [[ -d "$local_perl_dir" ]]; then
+    eval "$(perl -I$local_perl_dir/lib/perl5 -Mlocal::lib=$local_perl_dir)"
+fi
 
 # ----- FNM (Fast Node Manager) ----- #
 if command -v fnm &>/dev/null; then
