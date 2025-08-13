@@ -480,6 +480,12 @@ if [[ "$PLATFORM" == 'macOS' ]]; then
   export CPPFLAGS="-I/opt/homebrew/opt/llvm/include"
 fi
 
+if [[ "$PLATFORM == 'Linux" && "$ARCH_LINUX" == true ]] then
+  # Set Electron flags.
+  export ELECTRON_OZONE_PLATFORM_HINT="wayland"
+  export NATIVE_WAYLAND="1"
+fi
+
 # =========================================================================== #
 # ++++++++++++++++++++++++++++ USEFUL FUNCTIONS +++++++++++++++++++++++++++++ #
 # =========================================================================== #
@@ -535,7 +541,7 @@ function serve() {
     command -v python3 &>/dev/null && python3 -m http.server "$port" && return
     # Python 2 (fallback)
     command -v python &>/dev/null && python -m SimpleHTTPServer "$port" && return
-    
+ 
     echo "${C_RED}Error: Python not found. Cannot start server.${C_RESET}" >&2
     return 1
 }

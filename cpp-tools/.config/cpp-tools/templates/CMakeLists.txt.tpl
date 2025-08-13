@@ -239,9 +239,6 @@ function(cp_add_problem TARGET_NAME SOURCE_FILE)
         # Suppress warnings that are often just noise in CP
         -Wno-unused-const-variable
         -Wno-sign-conversion
-        
-        # Use GCC's C++ standard library
-        -stdlib=libstdc++
 
         # Debug flags: full debug info, no optimization
         $<$<CONFIG:Debug>:-g2 -O0>
@@ -253,11 +250,17 @@ function(cp_add_problem TARGET_NAME SOURCE_FILE)
         $<$<CONFIG:Sanitize>:-g -O1 -fsanitize=address,undefined -fno-omit-frame-pointer>
     )
 
-    # ----- Target-specific include directories ----- #
+    # ----- Target-specific include directories --------- #
     if(IS_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/algorithms)
         target_include_directories(${TARGET_NAME} PRIVATE 
             ${CMAKE_CURRENT_SOURCE_DIR}/algorithms
         )
+    endif()
+
+    # ----- START: Platform-Specific Toolchain Flags ----- #
+    if(APPLE)
+        target_compile_options(${TARGET_NAME} PRIVATE -stdlib=libstdc++)
+        target_link_options(${TARGET_NAME} PRIVATE -stdlib=libstdc++)
     endif()
 
     # Add detected GCC include dirs as SYSTEM include dirs so they
@@ -270,8 +273,7 @@ function(cp_add_problem TARGET_NAME SOURCE_FILE)
     endif()
 
     # ----- Linker options ----- #
-    target_link_options(${TARGET_NAME} PRIVATE 
-        -stdlib=libstdc++
+    target_link_options(${TARGET_NAME} PRIVATE
         # Sanitizer linking for Sanitize builds
         $<$<CONFIG:Sanitize>:-fsanitize=address,undefined>
     )
