@@ -19,7 +19,16 @@
 # Path to your global directory containing reusable headers like debug.h.
 # The script will create a symlink to this file in new projects.
 # Example: CP_ALGORITHMS_DIR="$HOME/Documents/CP/Algorithms"
-CP_ALGORITHMS_DIR="/Volumes/LCS.Data/CP-Problems/CodeForces/Algorithms"
+if [[ "$PLATFORM" == "macOS" ]]; then
+    # Default path for macOS.
+    CP_ALGORITHMS_DIR="/Volumes/LCS.Data/CP-Problems/CodeForces/Algorithms"
+elif [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" == true ]]; then
+    # Default path for Arch Linux.
+    CP_ALGORITHMS_DIR="$HOME/LCS.Data/CP-Problems/CodeForces/Algorithms"
+else
+    # Fallback for other platforms, set as a default path.
+    CP_ALGORITHMS_DIR="$HOME/CP/Algorithms"
+fi
 
 # Check if terminal supports colors
 if test -t 1; then
