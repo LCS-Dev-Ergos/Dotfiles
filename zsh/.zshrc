@@ -227,7 +227,7 @@ _fzf_compgen_dir() {
   fd --type=d --hidden --exclude .git . "$1"
 }
 
-# --- FIX: Source fzf-git.sh only if it exists ---
+# Source fzf-git.sh only if it exists
 if [[ -f "$HOME/.config/fzf-git/fzf-git.sh" ]]; then
     source ~/.config/fzf-git/fzf-git.sh
 else
@@ -597,7 +597,7 @@ if [[ "$PLATFORM" == 'macOS' ]]; then
         echo "${C_YELLOW}⚠️ Warning: LCS.Data volume is not mounted${C_RESET}"
     fi
 elif [[ "$PLATFORM" == 'Linux' ]]; then
-    export LCS_Data="/media/$USER/LCS.Data"
+    export LCS_Data="/LCS.Data"
     if [ ! -d "$LCS_Data" ]; then
         echo "${C_YELLOW}⚠️ Warning: LCS.Data volume does not appear to be mounted in $LCS_Data${C_RESET}"
     fi
@@ -614,20 +614,32 @@ export OBSIDIAN_ATTACHMENTS_DIR="$HOME/Documents/Obsidian-Vault/XSPC-Vault/Blog/
 # =========================================================================== #
 
 # --------------- Nix --------------- #
-if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
-  . '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
-elif [ -e "$HOME/.nix-profile/etc/profile.d/nix.sh" ]; then
-  . "$HOME/.nix-profile/etc/profile.d/nix.sh"
+# This setup is platform-aware. It checks for standard Nix installation
+# paths, which can differ between multi-user and single-user setups.
+if [[ "$PLATFORM" == 'macOS' ]] || [[ "$PLATFORM" == 'Linux' ]]; then
+  # Standard path for multi-user Nix installations (recommended).
+  if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
+    . '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
+  # Fallback for single-user Nix installations.
+  elif [ -e "$HOME/.nix-profile/etc/profile.d/nix.sh" ]; then
+    . "$HOME/.nix-profile/etc/profile.d/nix.sh"
+  fi
 fi
 
 # ------- Homebrew / Linuxbrew ------ #
-# Search for Homebrew in standard macOS and Linux paths
-if [ -x "/opt/homebrew/bin/brew" ]; then # macOS Apple Silicon
-  eval "$(/opt/homebrew/bin/brew shellenv)"
-elif [ -x "/usr/local/bin/brew" ]; then # macOS Intel
-  eval "$(/usr/local/bin/brew shellenv)"
-elif [ -f "/home/linuxbrew/.linuxbrew/bin/brew" ]; then # Linux
-  eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+# This logic is now strictly separated by platform to avoid incorrect detection.
+if [[ "$PLATFORM" == 'macOS' ]]; then
+  # On macOS, check for the Apple Silicon path first, then the Intel path.
+  if [ -x "/opt/homebrew/bin/brew" ]; then # macOS Apple Silicon
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+  elif [ -x "/usr/local/bin/brew" ]; then # macOS Intel
+    eval "$(/usr/local/bin/brew shellenv)"
+  fi
+elif [[ "$PLATFORM" == 'Linux' ]]; then
+  # On Linux, check for the standard Linuxbrew path.
+  if [ -f "/home/linuxbrew/.linuxbrew/bin/brew" ]; then
+    eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+  fi
 fi
 
 # ------- Haskell (ghcup-env) ------- #
@@ -729,7 +741,7 @@ unset -f __conda_init
 # <<< Conda initialize <<<
 
 # ------------ Perl CPAN ------------ #
-# --- FIX: Only run if the local::lib directory exists ---
+# Only run if the local::lib directory exists
 local_perl_dir="$HOME/00_ENV/perl5"
 if [[ -d "$local_perl_dir" ]]; then
     eval "$(perl -I$local_perl_dir/lib/perl5 -Mlocal::lib=$local_perl_dir)"
