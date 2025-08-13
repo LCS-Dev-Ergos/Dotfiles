@@ -140,10 +140,6 @@ if [[ "$PLATFORM" == "macOS" ]]; then
   if command -v oh-my-posh >/dev/null 2>&1 && [ -f "$omp_config" ]; then
     eval "$(oh-my-posh init zsh --config $omp_config)"
   fi
- # Load scripts for "Competitive Programming"
-  if [ -f ~/.config/cpp-tools/competitive.sh ]; then
-      source ~/.config/cpp-tools/competitive.sh
-  fi 
 elif [[ "$PLATFORM" == "Linux" ]]; then
   # Linux: PowerLevel10k with Oh-My-Posh fallback
   if [[ -f "/usr/share/zsh-theme-powerlevel10k/powerlevel10k.zsh-theme" ]]; then
@@ -160,6 +156,11 @@ elif [[ "$PLATFORM" == "Linux" ]]; then
     fi
   fi
 fi
+
+ # Load scripts for "Competitive Programming"
+  if [ -f ~/.config/cpp-tools/competitive.sh ]; then
+      source ~/.config/cpp-tools/competitive.sh
+  fi 
 
 # -------------------------------- VI-MODE ---------------------------------- #
 # Enable vi mode
