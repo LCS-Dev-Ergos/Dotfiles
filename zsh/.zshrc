@@ -886,6 +886,7 @@ build_final_path() {
             "$HOME/.ada/bin"
             "$GOPATH/bin" "$GOROOT/bin"
             "$ANDROID_HOME/platform-tools" "$ANDROID_HOME/cmdline-tools/latest/bin"
+            "$HOME/.local/share/JetBrains/Toolbox/scripts"
 
             # ------------- Other Paths ------------- #
             "$HOME/.config/emacs/bin"
