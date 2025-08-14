@@ -185,30 +185,30 @@ zle -N zle-keymap-select
 eval "$(fzf --zsh)"
 
 _gen_fzf_default_opts() {
-    # ---------- Setup FZF theme -------- #
-    # Scheme name: Tokyo Night
+# ---------- Setup FZF theme -------- #
+# Scheme name: Tokyo Night
 
-    local color00='#1a1b26'  # background
-    local color01='#16161e'  # darker background
-    local color02='#2f3549'  # selection background
-    local color03='#414868'  # comments
-    local color04='#787c99'  # dark foreground
-    local color05='#a9b1d6'  # foreground
-    local color06='#c0caf5'  # light foreground
-    local color07='#cfc9c2'  # lighter foreground
-    local color08='#f7768e'  # red
-    local color09='#ff9e64'  # orange
-    local color0A='#e0af68'  # yellow
-    local color0B='#9ece6a'  # green
-    local color0C='#2ac3de'  # cyan
-    local color0D='#7aa2f7'  # blue
-    local color0E='#bb9af7'  # purple
-    local color0F='#cfc9c2'  # grey/white
+local color00='#1a1b26'  # background
+local color01='#16161e'  # darker background
+local color02='#2f3549'  # selection background
+local color03='#414868'  # comments
+local color04='#787c99'  # dark foreground
+local color05='#a9b1d6'  # foreground
+local color06='#c0caf5'  # light foreground
+local color07='#cfc9c2'  # lighter foreground
+local color08='#f7768e'  # red
+local color09='#ff9e64'  # orange
+local color0A='#e0af68'  # yellow
+local color0B='#9ece6a'  # green
+local color0C='#2ac3de'  # cyan
+local color0D='#7aa2f7'  # blue
+local color0E='#bb9af7'  # purple
+local color0F='#cfc9c2'  # grey/white
 
-    export FZF_DEFAULT_OPTS="$FZF_DEFAULT_OPTS"\
-        " --color=bg+:$color01,bg:$color00,spinner:$color0C,hl:$color0D"\
-        " --color=fg:$color04,header:$color0D,info:$color0A,pointer:$color0C"\
-        " --color=marker:$color0C,fg+:$color06,prompt:$color0A,hl+:$color0D"
+export FZF_DEFAULT_OPTS="$FZF_DEFAULT_OPTS"\
+" --color=bg+:$color01,bg:$color00,spinner:$color0C,hl:$color0D"\
+" --color=fg:$color04,header:$color0D,info:$color0A,pointer:$color0C"\
+" --color=marker:$color0C,fg+:$color06,prompt:$color0A,hl+:$color0D"
 }
 
 _gen_fzf_default_opts
