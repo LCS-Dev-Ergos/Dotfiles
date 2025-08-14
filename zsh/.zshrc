@@ -890,6 +890,7 @@ build_final_path() {
 
             # ------------- Other Paths ------------- #
             "$HOME/.config/emacs/bin"
+            "$HOME/.wakatime"
             "$HOME/.lcs-bin"
         )
     fi
