@@ -130,7 +130,7 @@ function cppinit() {
     # Create a basic configuration. This will create the build directory.
     cppconf
 
-    echo "${BOLD}${GREEN}✅ Project initialized successfully!${RESET}"
+    echo "${BOLD}${GREEN}󰄭 Project initialized successfully!${RESET}"
     echo "Run '${CYAN}cppnew <problem_name>${RESET}' to create your first solution file."
 }
 
@@ -233,7 +233,7 @@ function cppcontest() {
         cppinit # Run to ensure all components are present.
     fi
 
-    echo "${GREEN}✅ Ready to work in ${BOLD}$(pwd)${RESET}. Use '${CYAN}cppnew <problem_name>${RESET}' to start."
+    echo "${GREEN}󰄭 Ready to work in ${BOLD}$(pwd)${RESET}. Use '${CYAN}cppnew <problem_name>${RESET}' to start."
 }
 
 # ------------------------------- BUILD & RUN ------------------------------- #
@@ -330,9 +330,9 @@ function cppjudge() {
 
         # Use diff with -w (ignore all whitespace) and -B (ignore blank lines).
         if diff -wB "$temp_out" "$test_out" >/dev/null; then
-            echo "${BOLD}${GREEN}✅ PASSED${RESET}"
+            echo "${BOLD}${GREEN}󰄭 PASSED${RESET}"
         else
-            echo "${BOLD}${RED}❌ FAILED${RESET}"
+            echo "${BOLD}${RED} FAILED${RESET}"
             echo "${BOLD}${YELLOW}/===---------- YOUR OUTPUT ---------===/${RESET}"
             cat "$temp_out"
             echo "${BOLD}${YELLOW}/===----------- EXPECTED -----------===/${RESET}"
@@ -407,38 +407,38 @@ function cppdiag() {
     local GXX_PATH
     GXX_PATH=$(command -v g++-15 || command -v g++-14 || command -v g++-13 || command -v g++)
     if [ -n "$GXX_PATH" ]; then
-        echo "${GREEN}✅ g++:${RESET}"
+        echo "${GREEN}󰄭 g++:${RESET}"
         echo "   ${CYAN}Path:${RESET} $GXX_PATH"
         echo "   ${CYAN}Version:${RESET} $($GXX_PATH --version | head -n 1)"
     else
-        echo "${RED}❌ g++: Not found!${RESET}"
+        echo "${RED} g++: Not found!${RESET}"
     fi
 
     # Check for cmake
     local CMAKE_PATH
     CMAKE_PATH=$(command -v cmake)
     if [ -n "$CMAKE_PATH" ]; then
-        echo "${GREEN}✅ cmake:${RESET}"
+        echo "${GREEN}󰄭 cmake:${RESET}"
         echo "   ${CYAN}Path:${RESET} $CMAKE_PATH"
         echo "   ${CYAN}Version:${RESET} $($CMAKE_PATH --version | head -n 1)"
     else
-        echo "${RED}❌ cmake: Not found!${RESET}"
+        echo "${RED} cmake: Not found!${RESET}"
     fi
 
     # Check for clangd
     local CLANGD_PATH
     CLANGD_PATH=$(command -v clangd)
     if [ -n "$CLANGD_PATH" ]; then
-        echo "${GREEN}✅ clangd:${RESET}"
+        echo "${GREEN}󰄭 clangd:${RESET}"
         echo "   ${CYAN}Path:${RESET} $CLANGD_PATH"
         echo "   ${CYAN}Version:${RESET} $($CLANGD_PATH --version | head -n 1)"
     else
-        echo "${RED}❌ clangd: Not found!${RESET}"
+        echo "${RED} clangd: Not found!${RESET}"
     fi
 
     _print_header "PROJECT CONFIGURATION (in $(pwd))"
     if [ -f "CMakeLists.txt" ]; then
-        echo "${GREEN}✅ Found CMakeLists.txt${RESET}"
+        echo "${GREEN}󰄭 Found CMakeLists.txt${RESET}"
         
         # Check CMake Cache for the configured compiler
         if [ -f "build/CMakeCache.txt" ];
@@ -452,7 +452,7 @@ function cppdiag() {
 
         # Display .clangd configuration if it exists
         if [ -f ".clangd" ]; then
-            echo "${GREEN}✅ Found .clangd config:${RESET}"
+            echo "${GREEN}󰄭 Found .clangd config:${RESET}"
             # Indent the content for readability
             sed 's/^/   /' .clangd
         else
@@ -460,7 +460,7 @@ function cppdiag() {
         fi
 
     else
-        echo "${RED}❌ Not inside a project directory (CMakeLists.txt not found).${RESET}"
+        echo "${RED} Not inside a project directory (CMakeLists.txt not found).${RESET}"
     fi
 
     echo ""
@@ -495,4 +495,4 @@ ${BOLD}${CYAN}[ UTILITIES ]${RESET}
 EOF
 }
 
-# echo "✅ Competitive Programming utilities loaded. Type 'cpphelp' for commands."
+# echo "󰄭 Competitive Programming utilities loaded. Type 'cpphelp' for commands."
