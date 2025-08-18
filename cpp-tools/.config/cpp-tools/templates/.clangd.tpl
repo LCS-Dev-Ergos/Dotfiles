@@ -2,6 +2,9 @@
 
 CompileFlags:
   Add:
+    # Target architecture for Apple Silicon
+    - --target=arm64-apple-darwin
+
     # Standard C++23 flags for competitive programming
     - -std=c++23
     - -O2
@@ -38,14 +41,6 @@ Diagnostics:
     - "^/usr/lib/.*"
     - "^/lib/.*"
     - "^/usr/share/.*"
-
-    # Windows/MSYS2/MinGW paths (if using clang on Windows)
-    - "^/mingw64/.*"
-    - "^/msys64/.*"
-    - "^/ucrt64/.*"
-    - "^C:/msys64/.*"
-    - "^C:/MinGW/.*"
-    - "^C:/Program Files/.*"
 
     # Generic system paths
     - "^/opt/.*"
