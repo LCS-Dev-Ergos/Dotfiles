@@ -831,6 +831,7 @@ build_final_path() {
             "/opt/homebrew/bin"
             "/opt/homebrew/sbin"
             "/opt/homebrew/opt/llvm/bin"
+            "/opt/homebrew/opt/ccache/libexec"
 
             # ------------ System Tools ------------- #
             "/usr/local/bin" "/usr/bin" "/bin"
