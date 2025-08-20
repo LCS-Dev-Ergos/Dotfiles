@@ -9,7 +9,14 @@
 //===----------------------------------------------------------------------===//
 /* Included library */
 
-#include <bits/stdc++.h>
+// clang-format off
+// Sanitaze macro:
+#ifdef USE_CLANG_SANITIZE
+  #include "PCH.h"
+#else
+  #include <bits/stdc++.h>
+#endif
+
 using namespace std;
 
 //===----------------------------------------------------------------------===//
@@ -17,10 +24,11 @@ using namespace std;
 
 // Debug macro:
 #ifdef LOCAL
-#include "debug.h"
+  #include "../Algorithms/debug.h"
 #else
-#define debug(...) 42
+  #define debug(...) 42
 #endif
+// clang-format on
 
 // Type aliases
 using ll   = long long;

@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 /* Included library */
 
+// clang-format off
 #include <bits/stdc++.h>
 
 // Headers for Policy-Based Data Structures
@@ -23,11 +24,11 @@ using namespace __gnu_pbds;
 
 // Debug macro: enabled only when LOCAL is defined
 #ifdef LOCAL
-#include "debug.h"
+  #include "../Algorithms/debug.h"
 #else
-#define debug(...) 42
+  #define debug(...) 42
 #endif
-
+// clang-format on
 // Type aliases
 using ll   = long long;
 using vi   = vector<int>;

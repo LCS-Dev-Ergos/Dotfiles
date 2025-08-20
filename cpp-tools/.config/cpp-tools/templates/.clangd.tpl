@@ -30,6 +30,9 @@ CompileFlags:
 Diagnostics:
   # Suppress diagnostics from system and standard library files (Cross-Platform)
   Suppress:
+    # Suppress the specific __float128 error on Apple Silicon
+    - type_unsupported
+
     # macOS specific paths
     - "^/opt/homebrew/.*"
     - "^/usr/local/.*"
