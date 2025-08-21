@@ -24,7 +24,7 @@ using namespace std;
 
 // Debug macro:
 #ifdef LOCAL
-  #include "../Algorithms/debug.h"
+  #include "debug.h"
 #else
   #define debug(...) 42
 #endif

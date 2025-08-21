@@ -24,7 +24,7 @@ using namespace __gnu_pbds;
 
 // Debug macro: enabled only when LOCAL is defined
 #ifdef LOCAL
-  #include "../Algorithms/debug.h"
+  #include "debug.h"
 #else
   #define debug(...) 42
 #endif
