@@ -29,12 +29,29 @@ using namespace __gnu_pbds;
   #define debug(...) 42
 #endif
 // clang-format on
+
 // Type aliases
 using ll   = long long;
-using vi   = vector<int>;
-using pii  = pair<int, int>;
-using vll  = vector<ll>;
-using vpii = vector<pii>;
+using ull  = unsigned long long;
+using ld   = long double;
+using pii  = std::pair<int, int>;
+using pll  = std::pair<long long, long long>;
+using vi   = std::vector<int>;
+using vll  = std::vector<long long>;
+using vvi  = std::vector<std::vector<int>>;
+using vvll = std::vector<std::vector<long long>>;
+using vs   = std::vector<std::string>;
+using vpii = std::vector<std::pair<int, int>>;
+using vpll = std::vector<std::pair<long long, long long>>;
+
+// Mathematical constants
+constexpr long double PI   = 3.141592653589793238462643383279502884L;
+constexpr long double E    = 2.718281828459045235360287471352662498L;
+constexpr long double EPS  = 1e-9L;
+constexpr int         INF  = 0x3f3f3f3f;
+constexpr long long   LINF = 0x3f3f3f3f3f3f3f3fLL;
+constexpr int         MOD  = 1000000007;
+constexpr int         MOD2 = 998244353;
 
 // ----- PBDS Typedefs ----- //
 // Ordered Set (for unique elements)
@@ -45,11 +62,6 @@ using ordered_set = tree<T, null_type, less<T>, rb_tree_tag, tree_order_statisti
 template <typename T>
 using ordered_multiset = tree<T, null_type, less_equal<T>, rb_tree_tag, tree_order_statistics_node_update>;
 
-// Constants
-constexpr int MOD  = 1e9 + 7;
-constexpr int INF  = 1e9;
-constexpr ll  LINF = 1e18;
-
 //===----------------------------------------------------------------------===//
 /* Data Types and Function Definitions */
 
@@ -59,8 +71,7 @@ void solve() {
 }
 
 //===----------------------------------------------------------------------===//
-//  Main Function
-//===----------------------------------------------------------------------===//
+/* Main function */
 
 int main() {
   // Fast I/O
@@ -75,3 +86,5 @@ int main() {
 
   return 0;
 }
+
+//===----------------------------------------------------------------------===//

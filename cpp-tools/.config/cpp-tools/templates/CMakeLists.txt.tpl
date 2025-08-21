@@ -25,39 +25,6 @@ if(UNIX OR APPLE OR CMAKE_HOST_WIN32)
     set(ANSI_COLOR_RESET   "${Esc}[0m")
 endif()
 
-# -------------------------- Compiler Verification -------------------------- #
-# Special case: Allow Clang for Sanitize builds on macOS
-set(USING_CLANG_FOR_SANITIZERS FALSE)
-
-if(CMAKE_BUILD_TYPE STREQUAL "Sanitize" AND APPLE)
-    # On macOS, we prefer Clang for sanitizers due to better library support
-    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang")
-        set(USING_CLANG_FOR_SANITIZERS TRUE)
-        message(STATUS "${ANSI_COLOR_CYAN}Using Clang for Sanitize build on macOS (better sanitizer support)${ANSI_COLOR_RESET}")
-    elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-        # Check if GCC has sanitizer support on this system
-        include(CheckCXXCompilerFlag)
-        set(CMAKE_REQUIRED_FLAGS "-fsanitize=address")
-        check_cxx_compiler_flag("-fsanitize=address" HAS_ASAN)
-        unset(CMAKE_REQUIRED_FLAGS)
-        
-        if(NOT HAS_ASAN)
-            message(WARNING 
-                "${ANSI_COLOR_YELLOW}GCC on this macOS system lacks sanitizer support.\n"
-                "Consider using 'cppconf Sanitize clang' to use Clang for sanitizers.${ANSI_COLOR_RESET}")
-        endif()
-    endif()
-elseif(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
-    message(FATAL_ERROR "This project requires GCC or Clang. Found: ${CMAKE_CXX_COMPILER_ID}")
-elseif(CMAKE_BUILD_TYPE STREQUAL "Sanitize" AND CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang")
-    set(USING_CLANG_FOR_SANITIZERS TRUE)
-    message(STATUS "${ANSI_COLOR_CYAN}Using Clang for Sanitize build${ANSI_COLOR_RESET}")
-elseif(NOT CMAKE_BUILD_TYPE STREQUAL "Sanitize" AND NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-    message(WARNING 
-        "${ANSI_COLOR_YELLOW}Non-GCC compiler detected for non-Sanitize build.\n"
-        "Some features like <bits/stdc++.h> may not be available.${ANSI_COLOR_RESET}")
-endif()
-
 # ------------------ Compiler Include Path Auto-Detection ------------------- #
 # Different logic for GCC vs Clang
 
@@ -214,6 +181,41 @@ endfunction()
 
 detect_compiler_system_includes(COMPILER_SYSTEM_INCLUDE_PATHS)
 
+# -------------------------- Compiler Verification -------------------------- #
+# Special case: Allow Clang for Sanitize builds on macOS
+set(USING_CLANG_FOR_SANITIZERS FALSE)
+
+if(CMAKE_BUILD_TYPE STREQUAL "Sanitize" AND APPLE)
+    # On macOS, we prefer Clang for sanitizers due to better library support
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang")
+        set(USING_CLANG_FOR_SANITIZERS TRUE)
+        message(STATUS "${ANSI_COLOR_CYAN}Using Clang for Sanitize build on macOS (better sanitizer support)${ANSI_COLOR_RESET}")
+    elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+        # Check if GCC has sanitizer support on this system
+        include(CheckCXXCompilerFlag)
+        set(CMAKE_REQUIRED_FLAGS "-fsanitize=address")
+        check_cxx_compiler_flag("-fsanitize=address" HAS_ASAN)
+        unset(CMAKE_REQUIRED_FLAGS)
+        
+        if(NOT HAS_ASAN)
+            message(WARNING 
+                "${ANSI_COLOR_YELLOW}GCC on this macOS system lacks sanitizer support.\n"
+                "Consider using 'cppconf Sanitize clang' to use Clang for sanitizers.${ANSI_COLOR_RESET}")
+        endif()
+    endif()
+elseif(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
+    message(FATAL_ERROR "This project requires GCC or Clang. Found: ${CMAKE_CXX_COMPILER_ID}")
+elseif(CMAKE_BUILD_TYPE STREQUAL "Sanitize" AND CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang")
+    set(USING_CLANG_FOR_SANITIZERS TRUE)
+    message(STATUS "${ANSI_COLOR_CYAN}Using Clang for Sanitize build${ANSI_COLOR_RESET}")
+elseif(NOT CMAKE_BUILD_TYPE STREQUAL "Sanitize" AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND NOT APPLE)
+    # Only show warning for non-Apple systems when using non-GCC for non-Sanitize builds
+    message(WARNING 
+        "${ANSI_COLOR_YELLOW}Non-GCC compiler detected for non-Sanitize build.\n"
+        "Detected compiler: ${CMAKE_CXX_COMPILER_ID}\n"
+        "Some features like <bits/stdc++.h> may not be available.${ANSI_COLOR_RESET}")
+endif()
+
 # ----------------------------- Project Settings ---------------------------- #
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -268,8 +270,8 @@ function(cp_add_problem TARGET_NAME SOURCE_FILE)
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
         # GCC flags
         set(COMMON_FLAGS -Wall -Wextra -Wpedantic -Wshadow)
-        set(DEBUG_FLAGS -g3 -O0 -fstack-protector-strong)
-        set(RELEASE_FLAGS -O3 -funroll-loops -ftree-vectorize -ffast-math)
+        set(DEBUG_FLAGS -g2 -O0 -fstack-protector-strong)
+        set(RELEASE_FLAGS -O2 -funroll-loops -ftree-vectorize -ffast-math)
         
         if(CMAKE_SYSTEM_PROCESSOR MATCHES "(x86_64|AMD64)")
             list(APPEND RELEASE_FLAGS -march=native)
@@ -284,8 +286,8 @@ function(cp_add_problem TARGET_NAME SOURCE_FILE)
     elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang")
         # Clang flags
         set(COMMON_FLAGS -Wall -Wextra -Wpedantic -Wshadow)
-        set(DEBUG_FLAGS -g3 -O0 -fstack-protector-strong)
-        set(RELEASE_FLAGS -O3 -funroll-loops -fvectorize)
+        set(DEBUG_FLAGS -g2 -O0 -fstack-protector-strong)
+        set(RELEASE_FLAGS -O2 -funroll-loops -fvectorize)
         
         # Clang sanitizer flags (work well on all platforms)
         set(SANITIZE_FLAGS -g -O1 
@@ -360,13 +362,19 @@ function(cp_add_problem TARGET_NAME SOURCE_FILE)
         set_property(TARGET ${TARGET_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
     endif()
 
+    if(USE_PCH)
+        set(PCH_STATUS "Yes")
+    else()
+        set(PCH_STATUS "No")
+    endif()
+    
     message(STATUS "Added problem: ${TARGET_NAME} "
                    "(Compiler: ${CMAKE_CXX_COMPILER_ID}, "
-                   "PCH: $<IF:$<BOOL:${USE_PCH}>,Yes,No>)")
+                   "PCH: ${PCH_STATUS})")
 endfunction()
 
 # =========================================================================== #
-# -------------------- Automatic Problem Detection -------------------------- #
+# ----------------------- Automatic Problem Detection ----------------------- #
 # =========================================================================== #
 
 file(GLOB PROBLEM_SOURCES LIST_DIRECTORIES false "*.cpp" "*.cc" "*.cxx")
@@ -449,13 +457,13 @@ if(PROBLEM_SOURCES)
     list(LENGTH PROBLEM_SOURCES PROBLEM_COUNT)
     message(STATUS "| ${ANSI_COLOR_CYAN}Problems Found${ANSI_COLOR_RESET}      : ${PROBLEM_COUNT} C++ source files")
     
-    if(PROBLEM_COUNT GREATER 5)
-        list(SUBLIST PROBLEM_SOURCES 0 5 SHOWN_SOURCES)
+    if(PROBLEM_COUNT GREATER 10)
+        list(SUBLIST PROBLEM_SOURCES 0 10 SHOWN_SOURCES)
         foreach(source ${SHOWN_SOURCES})
             get_filename_component(name ${source} NAME)
             message(STATUS "|   - ${name}")
         endforeach()
-        math(EXPR REMAINING "${PROBLEM_COUNT} - 5")
+        math(EXPR REMAINING "${PROBLEM_COUNT} - 10")
         message(STATUS "|   ... and ${REMAINING} more.")
     else()
         foreach(source ${PROBLEM_SOURCES})
@@ -482,3 +490,5 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Sanitize")
 endif()
 
 message(STATUS "${ANSI_COLOR_BLUE}/===------------------------------------------------------------------------===/${ANSI_COLOR_RESET}")
+
+# ============================================================================ #

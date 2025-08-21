@@ -342,7 +342,7 @@ function cppconf() {
     fi
 
     # Log the configuration step.
-    echo "${BLUE}/===------------------------------------------------------------------------===/${RESET}"
+    echo "${BLUE}/===---------------------------------------------------------------------------===/${RESET}"
     echo "${BLUE}Configuring project with build type: ${YELLOW}${build_type}${BLUE} (using ${toolchain_name} toolchain)${RESET}"
     
     # Run CMake with the appropriate toolchain file
@@ -921,3 +921,6 @@ export CP_QUIET_LOAD=${1:-0}
 if [ -z "$CP_QUIET_LOAD" ]; then
     echo "${GREEN}Competitive Programming utilities loaded. Type 'cpphelp' for commands.${RESET}"
 fi
+
+# =========================================================================== #
+# End of script
