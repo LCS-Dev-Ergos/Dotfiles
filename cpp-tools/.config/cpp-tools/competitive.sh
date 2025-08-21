@@ -173,17 +173,20 @@ function cppinit() {
 build/
 bin/
 lib/
-compile_commands.json
-*.DS_Store
+.vscode/
+.idea/
+.cache/
+CMakeLists.txt
 gcc-toolchain.cmake
 clang-toolchain.cmake
+compile_commands.json
+.clangd
 .contest_metadata
 .problem_times
 *.out
 *.exe
 *.dSYM/
-.vscode/
-.idea/
+*.DS_Store
 EOF
     fi
     
@@ -284,7 +287,7 @@ function cppbatch() {
     echo "${CYAN}Creating $count problems with template '$template'...${RESET}"
     
     for i in $(seq 65 $((64 + count))); do
-        local problem_name=$(printf "\\$(printf '%03o' $i)")
+        local problem_name="problem_$(printf "\\$(printf '%03o' $i)")"
         if [ ! -f "${problem_name}.cpp" ]; then
             cppnew "$problem_name" "$template"
         else

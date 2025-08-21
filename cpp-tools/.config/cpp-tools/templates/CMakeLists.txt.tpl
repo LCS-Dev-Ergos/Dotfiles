@@ -359,7 +359,13 @@ function(cp_add_problem TARGET_NAME SOURCE_FILE)
 
     # Enable Link Time Optimization in Release mode
     if(CMAKE_BUILD_TYPE STREQUAL "Release")
-        set_property(TARGET ${TARGET_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+        include(CheckIPOSupported)
+        check_ipo_supported(RESULT ipo_supported OUTPUT ipo_error)
+        if(ipo_supported)
+            set_property(TARGET ${TARGET_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+        else()
+            message(STATUS "IPO is not supported for ${TARGET_NAME}: ${ipo_error}")
+        endif()
     endif()
 
     if(USE_PCH)
