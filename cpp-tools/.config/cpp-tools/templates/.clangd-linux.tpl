@@ -2,9 +2,6 @@
 
 CompileFlags:
   Add:
-    # Target architecture for Apple Silicon
-    - --target=arm64-apple-darwin
-
     # Standard C++23 flags for competitive programming
     - -std=c++23
     - -O2
@@ -33,11 +30,11 @@ Diagnostics:
     # Suppress unsupported types warning
     - type_unsupported
 
-    # macOS specific paths
-    - "^/opt/homebrew/.*"
-    - "^/usr/local/.*"
-    - "^/System/.*"
-    - "^/Applications/Xcode.app/.*"
+    # Linux specific paths
+    - "^/usr/include/.*"
+    - "^/usr/lib/.*"
+    - "^/lib/.*"
+    - "^/usr/share/.*"
 
     # Generic system paths
     - "^/opt/.*"

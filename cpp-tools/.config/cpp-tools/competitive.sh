@@ -163,7 +163,16 @@ function cppinit() {
     # Create .clangd configuration if it doesn't exist.
     if [ ! -f ".clangd" ]; then
         echo "Creating .clangd configuration from template..."
-        cp "$SCRIPT_DIR/templates/.clangd.tpl" ./.clangd
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            # macOS template
+            cp "$SCRIPT_DIR/templates/.clangd.tpl" ./.clangd
+        elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+            # Linux template
+            cp "$SCRIPT_DIR/templates/.clangd-linux.tpl" ./.clangd
+        else
+            # Fallback to macOS template for other platforms
+            cp "$SCRIPT_DIR/templates/.clangd.tpl" ./.clangd
+        fi
     fi
 
     # Create .gitignore if it doesn't exist.
@@ -173,6 +182,7 @@ function cppinit() {
 build/
 bin/
 lib/
+algorithms/
 .vscode/
 .idea/
 .cache/
