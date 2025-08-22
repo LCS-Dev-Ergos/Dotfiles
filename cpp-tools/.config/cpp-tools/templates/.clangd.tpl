@@ -5,21 +5,20 @@ CompileFlags:
     # Target architecture for Apple Silicon
     - --target=arm64-apple-darwin
 
-    # Standard C++23 flags for competitive programming
+    # C++23 with optimization and local debug flag
     - -std=c++23
     - -O2
     - -DLOCAL=1
 
-    # Competitive programming optimizations
+    # Enable debug mode, disable debug info for faster compilation
     - -DDEBUG
-    # No debug info for faster compilation
     - -g0
 
     # Cross-platform GCC compatibility
     - -D__GNUC__=15
 
   Remove:
-    # Remove problematic clang flags that vary by platform
+    # Remove problematic Clang flags that vary by platform
     - -stdlib=*
     - -fcolor-diagnostics
     # Remove platform-specific toolchain flags
@@ -67,7 +66,8 @@ Diagnostics:
     - ".*gcc/.*"
     - ".*gnu/.*"
 
-    # Common warnings to suppress for competitive programming
+    # Common warnings to suppress for fast development
+    - unknown-pragmas
     - unused-includes
     - unused-const-variable
     - unused-parameter
@@ -76,12 +76,12 @@ Diagnostics:
     - implicit-int-conversion
     - shorten-64-to-32
 
-  # Disable clang-tidy completely for competitive programming
+  # Disable clang-tidy completely
   ClangTidy:
     Remove: ["*"]
     Add: []
 
-  # Disable other checks that can be noisy in competitive programming
+  # Disable other checks that can be noisy
   UnusedIncludes: None
   MissingIncludes: None
 
@@ -90,11 +90,11 @@ Index:
   Background: Build
   StandardLibrary: Yes
 
-# Completion settings optimized for competitive programming
+# Completion settings optimized for productivity
 Completion:
   AllScopes: Yes
 
-# InlayHints can be useful for debugging but might be distracting
+# Disable InlayHints to avoid visual clutter
 InlayHints:
   Enabled: No
 
