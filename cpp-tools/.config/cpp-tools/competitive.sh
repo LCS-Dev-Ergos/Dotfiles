@@ -138,7 +138,7 @@ function cppinit() {
     # Create .contest_metadata if it doesn't exist (for tracking)
     if [ ! -f ".contest_metadata" ]; then
         echo "# Contest Metadata" > .contest_metadata
-        echo "CREATED=$(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> .contest_metadata
+        echo "CREATED=$(date +"%Y-%m-%d %H:%M:%S")" >> .contest_metadata
         echo "CONTEST_NAME=$(basename "$(pwd)")" >> .contest_metadata
     fi
 
@@ -282,8 +282,8 @@ function cppnew() {
     echo "Created empty input file: input_cases/${problem_name}.in"
     echo "Created empty output file: output_cases/${problem_name}.out"
 
-    # Track problem creation time
-    echo "${problem_name}:START:$(date +%s)" >> .problem_times
+    # Track problem creation time with human-readable format
+    echo "${problem_name}:START:$(date +%s):$(date '+%Y-%m-%d %H:%M:%S')" >> .problem_times
 
     echo "New problem '$problem_name' created. Re-running CMake configuration..."
     cppconf # Re-run configuration to add the new file to the build system.
