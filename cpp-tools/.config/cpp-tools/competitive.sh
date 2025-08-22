@@ -448,8 +448,8 @@ function cppgo() {
     if cppbuild "$target_name"; then
         echo "${BLUE}${BOLD}/===------ RUNNING: $target_name ------===/${RESET}"
         
-        # Track execution time
-        local start_time=$(date +%s)
+        # Track execution time in nanoseconds for better precision
+        local start_time=$(date +%s%N)
         
         if [ -f "$input_path" ]; then
             echo "(input from ${YELLOW}$input_path${RESET})"
@@ -461,11 +461,11 @@ function cppgo() {
             "$exec_path"
         fi
         
-        local end_time=$(date +%s)
-        local elapsed=$((end_time - start_time))
+        local end_time=$(date +%s%N)
+        local elapsed_ms=$(( (end_time - start_time) / 1000000 ))
         
         echo "${BLUE}${BOLD}/===----------- FINISHED -----------===/${RESET}"
-        echo "${MAGENTA}Execution time: $(_format_duration $elapsed)${RESET}"
+        echo "${MAGENTA}Execution time: ${elapsed_ms}ms${RESET}"
     else
         echo "${RED}Build failed!${RESET}" >&2
         return 1
