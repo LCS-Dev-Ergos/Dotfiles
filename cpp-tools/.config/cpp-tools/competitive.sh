@@ -38,6 +38,10 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
     # Default path for Linux.
     CP_ALGORITHMS_DIR="/LCS.Data/CP-Problems/CodeForces/Algorithms"
+    # Alternative path if the primary one doesn't exist
+    if [ ! -d "$CP_ALGORITHMS_DIR" ]; then
+        CP_ALGORITHMS_DIR="/home/$(whoami)/LCS.Data/CP-Problems/CodeForces/Algorithms"
+    fi
 else
     # Fallback for other platforms
     CP_ALGORITHMS_DIR="${CP_ALGORITHMS_DIR:-$HOME/CP/Algorithms}"
