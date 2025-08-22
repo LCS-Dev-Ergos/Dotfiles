@@ -12,9 +12,6 @@ CompileFlags:
     # No debug info for faster compilation
     - -g0
 
-    # Cross-platform GCC compatibility
-    - -D__GNUC__=15
-
   Remove:
     # Remove problematic clang flags that vary by platform
     - -stdlib=*
