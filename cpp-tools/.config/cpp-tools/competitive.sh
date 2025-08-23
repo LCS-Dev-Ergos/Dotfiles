@@ -201,6 +201,7 @@ CMakeLists.txt
 gcc-toolchain.cmake
 clang-toolchain.cmake
 compile_commands.json
+.clangd
 *.out
 *.exe
 *.dSYM/
@@ -251,16 +252,20 @@ EOF
     local vscode_dest_dir=".vscode"
 
     if [ -d "$vscode_tpl_dir" ]; then
-        echo "Found VS Code templates. Setting up '.vscode' directory..."
-        mkdir -p "$vscode_dest_dir"
-
-        # Loop through all available templates and copy them
-        for template in "$vscode_tpl_dir"/*.json; do
-            if [ -f "$template" ]; then
-                cp "$template" "$vscode_dest_dir/"
-                echo "  -> Copied template: $(basename "$template")"
-            fi
-        done
+        if [ ! -d "$vscode_dest_dir" ]; then
+            echo "Setting up VS Code configurations..."
+            mkdir -p "$vscode_dest_dir"
+            
+            # Loop through all available templates and copy them
+            for template in "$vscode_tpl_dir"/*.json; do
+                if [ -f "$template" ]; then
+                    cp "$template" "$vscode_dest_dir/"
+                    echo "  -> Copied template: $(basename "$template")"
+                fi
+            done
+        else
+            echo "VS Code directory already exists. Skipping VS Code setup."
+        fi
     fi
 
     # Create a basic configuration. This will create the build directory.
@@ -522,6 +527,14 @@ function cppbuild() {
     local target_name=${1:-$(_get_default_target)}
     echo "${CYAN}Building target: ${BOLD}$target_name${RESET}..."
 
+    # Check if timing is enabled in CMake cache.
+    local timing_enabled=false
+    if [ -f "build/CMakeCache.txt" ]; then
+        if grep -q "CP_ENABLE_TIMING:BOOL=ON" build/CMakeCache.txt 2>/dev/null; then
+            timing_enabled=true
+        fi
+    fi
+
     # Capture both stdout and stderr to analyze build output.
     local build_output
     build_output=$(cmake --build build --target "$target_name" -j 2>&1)
@@ -544,23 +557,26 @@ function cppbuild() {
         
         # 2. Print the compilation line itself.
         echo "$build_output" | grep "Building CXX object"
-        echo ""
-        echo "${BOLD}${CYAN}/===---------------- Compilation Time Statistics -----------------===/${RESET}"
-        echo ""
+        
+        # 3. Print timing statistics only if timing is enabled
+        if [ "$timing_enabled" = true ]; then
+            echo ""
+            echo "${BOLD}${CYAN}/===---------------- Compilation Time Statistics -----------------===/${RESET}"
+            echo ""
 
-        # 3. Print the compiler timing report (-ftime-report) if available.
-        local timing_report
-        timing_report=$(echo "$build_output" | sed -n '/Time variable/,/TOTAL/p')
-        if [ -n "$timing_report" ]; then
-            echo "$timing_report"
+            # Print the compiler timing report (-ftime-report) if available.
+            local timing_report
+            timing_report=$(echo "$build_output" | sed -n '/Time variable/,/TOTAL/p')
+            if [ -n "$timing_report" ]; then
+                echo "$timing_report"
+            fi
+
+            echo ""
+            echo "${BOLD}${CYAN}/===---------- Compilation Finished, Proceeding to Link ----------===/${RESET}"
+            echo ""
         fi
 
-        # 4. Custom progress message with consistent styling.
-        echo ""
-        echo "${BOLD}${CYAN}/===---------- Compilation Finished, Proceeding to Link ----------===/${RESET}"
-        echo ""
-
-        # 5. Print the linking line and anything after it.
+        # 4. Print the linking line and anything after it.
         echo "$build_output" | sed -n '/Linking CXX executable/,$p'
     else
         # Target up-to-date - show only the summary line.
