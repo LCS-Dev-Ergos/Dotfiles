@@ -12,31 +12,23 @@
 cmake_minimum_required(VERSION 3.20)
 project(competitive_programming LANGUAGES CXX)
 
-# ----------------------- Compilation Timing Setup ------------------------- #
-# Enable detailed compilation timing
-if(CMAKE_GENERATOR STREQUAL "Unix Makefiles" OR CMAKE_GENERATOR STREQUAL "Ninja")
-  set(CMAKE_VERBOSE_MAKEFILE ON CACHE BOOL "Enable verbose output" FORCE)
-  
-  # Add timing information to compile commands
-  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-    add_compile_options(-ftime-report)
-  elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang")
-    add_compile_options(-ftime-trace)
-  endif()
-  
-  message(STATUS "${ANSI_COLOR_CYAN}Compilation timing enabled${ANSI_COLOR_RESET}")
-endif()
+# ------------------------ Compilation Timing Setup ------------------------- #
+# Create a user-configurable option to enable/disable timing reports.
+# This can be controlled from the command line with -DCP_ENABLE_TIMING=ON
+option(CP_ENABLE_TIMING "Enable detailed GCC/Clang compilation timing reports" OFF)
 
-# Custom target for timed build
-add_custom_target(timed_build
-  COMMAND ${CMAKE_COMMAND} -E echo "Starting timed build..."
-  COMMAND ${CMAKE_COMMAND} -E echo "Build started at: $$(date)"
-  COMMAND time ${CMAKE_COMMAND} --build . --parallel
-  COMMAND ${CMAKE_COMMAND} -E echo "Build completed at: $$(date)"
-  COMMENT "Building all targets with timing information"
-  WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-  USES_TERMINAL
-)
+if(CP_ENABLE_TIMING)
+    message(STATUS "${ANSI_COLOR_CYAN}Compilation timing enabled.${ANSI_COLOR_RESET}")
+    
+    set(CACHE BOOL "Enable verbose output for timing" FORCE)
+    
+    # Add timing information to compile commands based on the compiler
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+        add_compile_options(-ftime-report)
+    elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang")
+        add_compile_options(-ftime-trace)
+    endif()
+endif()
 
 # ----------------------------- ANSI Color Codes ---------------------------- #
 # Define variables for ANSI color codes to make message() output more readable.

@@ -313,10 +313,43 @@ function cppbatch() {
 }
 
 # Configures the CMake project.
-# Enhanced to support Clang for Sanitize builds on macOS.
+# Enhanced to support Clang for Sanitize builds on macOS and timing reports.
 function cppconf() {
     local build_type=${1:-Debug}
     local compiler_override=${2:-""}
+    local timing_cmake_arg="-DCP_ENABLE_TIMING=OFF" # Timing is OFF by default.
+    
+    # Parse all arguments
+    for arg in "$@"; do
+        case $arg in
+            # Case-insensitive matching for build types
+            [Dd]ebug|[Rr]elease|[Ss]anitize)
+                build_type=$(echo "$arg" | awk '{print toupper(substr($0,1,1)) tolower(substr($0,2))}')
+                ;;
+            
+            # Compiler override arguments
+            gcc|clang)
+                compiler_override="$arg"
+                ;;
+            
+            # Check for timing argument
+            timing=*)
+                local value=${arg#*=}
+                if [[ "$value" == "on" || "$value" == "true" ]]; then
+                    timing_cmake_arg="-DCP_ENABLE_TIMING=ON"
+                elif [[ "$value" == "off" || "$value" == "false" ]]; then
+                    timing_cmake_arg="-DCP_ENABLE_TIMING=OFF"
+                else
+                    echo "${YELLOW}Warning: Unknown value for 'timing': '$value'. Ignoring.${RESET}"
+                fi
+                ;;
+            
+            # Handle unknown arguments
+            *)
+                echo "${YELLOW}Warning: Unknown argument '$arg'. Ignoring.${RESET}"
+                ;;
+        esac
+    done
     
     # Determine which toolchain to use.
     local toolchain_file="gcc-toolchain.cmake"
@@ -361,9 +394,10 @@ function cppconf() {
     # Log the configuration step.
     echo "${BLUE}/===---------------------------------------------------------------------------===/${RESET}"
     echo "${BLUE}Configuring project with build type: ${YELLOW}${build_type}${BLUE} (using ${toolchain_name} toolchain)${RESET}"
+    echo "${BLUE}Timing Report: ${YELLOW}${timing_cmake_arg##*=}${RESET}"
     
-    # Run CMake with the appropriate toolchain file.
-    if cmake -S . -B build -DCMAKE_BUILD_TYPE=${build_type} -DCMAKE_TOOLCHAIN_FILE=${toolchain_file}; then
+    # Run CMake with the appropriate toolchain file and timing setting.
+    if cmake -S . -B build -DCMAKE_BUILD_TYPE=${build_type} -DCMAKE_TOOLCHAIN_FILE=${toolchain_file} ${timing_cmake_arg}; then
         echo "${GREEN}CMake configuration successful.${RESET}"
         # Create the symlink for clangd.
         cmake --build build --target symlink_clangd 2>/dev/null || true
@@ -411,7 +445,7 @@ function cppcontest() {
 
 # ------------------------------- BUILD & RUN ------------------------------- #
 
-# Builds a specific target with intelligent, conditional output.
+# Builds a specific target with intelligent, conditional, and formatted output.
 function cppbuild() {
     _check_initialized || return 1
     local target_name=${1:-$(_get_default_target)}
@@ -432,8 +466,31 @@ function cppbuild() {
 
     # Show detailed output only if actual compilation occurred.
     if [[ "$build_output" == *"Building CXX object"* ]]; then
-        # Real compilation happened - show full output including timing info.
-        echo "$build_output"
+        # Real compilation happened - format the output for better readability.
+        
+        # 1. Print everything up to the compilation line.
+        echo "$build_output" | sed -n '/Building CXX object/q;p'
+        
+        # 2. Print the compilation line itself.
+        echo "$build_output" | grep "Building CXX object"
+        echo ""
+        echo "${BOLD}${CYAN}/===---------------- Compilation Time Statistics -----------------===/${RESET}"
+        echo ""
+
+        # 3. Print the compiler timing report (-ftime-report) if available.
+        local timing_report
+        timing_report=$(echo "$build_output" | sed -n '/Time variable/,/TOTAL/p')
+        if [ -n "$timing_report" ]; then
+            echo "$timing_report"
+        fi
+
+        # 4. Custom progress message with consistent styling.
+        echo ""
+        echo "${BOLD}${CYAN}/===---------- Compilation Finished, Proceeding to Link ----------===/${RESET}"
+        echo ""
+
+        # 5. Print the linking line and anything after it.
+        echo "$build_output" | sed -n '/Linking CXX executable/,$p'
     else
         # Target up-to-date - show only the summary line.
         echo "$build_output" | tail -n 1
@@ -472,6 +529,7 @@ function cppgo() {
 
     echo "${CYAN}Building target '${BOLD}$target_name${CYAN}'...${RESET}"
     if cppbuild "$target_name"; then
+        echo ""
         echo "${BLUE}${BOLD}/===------ RUNNING: $target_name ------===/${RESET}"
         
         # Track execution time in nanoseconds for better precision.
@@ -492,6 +550,7 @@ function cppgo() {
         
         echo "${BLUE}${BOLD}/===----------- FINISHED -----------===/${RESET}"
         echo "${MAGENTA}Execution time: ${elapsed_ms}ms${RESET}"
+        echo ""
     else
         echo "${RED}Build failed!${RESET}" >&2
         return 1
@@ -942,6 +1001,37 @@ EOF
 
     echo ""
 }
+
+# --------------------------- SOME USEFUL ALIASES --------------------------- #
+# Shorter aliases for convenience.
+alias cppc='cppconf'
+alias cppb='cppbuild'
+alias cppr='cpprun'
+alias cppg='cppgo'
+alias cppi='cppi'
+alias cppj='cppjudge'
+alias cpps='cppstats'
+alias cppcl='cppclean'
+alias cppdc='cppdeepclean'
+alias cppw='cppwatch'
+alias cppn='cppnew'
+alias cppf='cppforcego'
+alias cppct='cppcontest'
+alias cppar='cpparchive'
+alias cppst='cppstress'
+alias cppd='cppdiag'
+alias cppin='cppinit'
+alias cpph='cpphelp'        
+
+# Short alias for problem run with input redirection.
+alias cppgo_A='cppgo problem_A problem_A.in'
+alias cppgo_B='cppgo problem_B problem_B.in'
+alias cppgo_C='cppgo problem_C problem_C.in'
+alias cppgo_D='cppgo problem_D problem_D.in'
+alias cppgo_E='cppgo problem_E problem_E.in'
+alias cppgo_F='cppgo problem_F problem_F.in'
+alias cppgo_G='cppgo problem_G problem_G.in'
+alias cppgo_H='cppgo problem_H problem_H.in'
 
 # ------------------------------- HELP & USAGE ------------------------------ #
 
