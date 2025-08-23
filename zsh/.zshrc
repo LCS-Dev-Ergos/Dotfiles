@@ -35,13 +35,13 @@ fi
 # This is the crucial synchronization mechanism.
 export ZPROFILE_HAS_RUN=true
 
-# Detect operating system to load specific configurations
+# Detect operating system to load specific configurations.
 if [[ "$(uname)" == "Darwin" ]]; then
     PLATFORM="macOS"
     ARCH_LINUX=false
 elif [[ "$(uname)" == "Linux" ]]; then
     PLATFORM="Linux"
-    # Check if we're on Arch Linux
+    # Check if we're on Arch Linux.
     if [[ -f "/etc/arch-release" ]]; then
         ARCH_LINUX=true
     else
@@ -53,14 +53,14 @@ else
 fi
 
 # --------------------------- Startup Commands ------------------------------ #
-# Conditional startup commands based on platform
+# Conditional startup commands based on platform.
 if [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" == true ]]; then
-    # Arch Linux specific startup commands
+    # Arch Linux specific startup commands.
     command -v fastfetch >/dev/null 2>&1 && fastfetch
 elif [[ "$PLATFORM" == "macOS" ]]; then
-    # macOS specific startup command
+    # macOS specific startup command.
     # command -v fastfetch >/dev/null 2>&1 && fastfetch
-    true # placeholder
+    true # placeholder.
 fi
 
 # --------------------------- Terminal Variables ---------------------------- #
@@ -72,7 +72,7 @@ fi
 
 # +++++++++++++++++++++++++++++++ OH-MY-ZSH +++++++++++++++++++++++++++++++++ #
 
-# Path to Oh-My-Zsh installation (platform specific)
+# Path to Oh-My-Zsh installation (platform specific).
 if [[ "$PLATFORM" == "macOS" ]]; then
     export ZSH="$HOME/.oh-my-zsh"
 elif [[ "$PLATFORM" == "Linux" ]]; then
@@ -83,20 +83,20 @@ elif [[ "$PLATFORM" == "Linux" ]]; then
     fi
 fi
 
-# Set custom directory if needed
+# Set custom directory if needed.
 ZSH_CUSTOM=${ZSH_CUSTOM:-$HOME/.config/zsh}
 
-# Set name of the theme to load
+# Set name of the theme to load.
 ZSH_THEME=""
 
-# Check for plugin availability on Arch Linux
+# Check for plugin availability on Arch Linux.
 if [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" == true ]]; then
-    # Make sure the ZSH_CUSTOM path is set correctly for Arch Linux
+    # Make sure the ZSH_CUSTOM path is set correctly for Arch Linux.
     ZSH_CUSTOM="/usr/share/oh-my-zsh/custom"
 fi
 
-# Common plugins for all platforms
-# Note: zsh-syntax-highlighting must be the last plugin to work correctly
+# Common plugins for all platforms.
+# Note: zsh-syntax-highlighting must be the last plugin to work correctly.
 plugins=(
     git
     sudo
@@ -104,15 +104,15 @@ plugins=(
     colored-man-pages
 )
 
-# Platform-specific plugins
+# Platform-specific plugins.
 if [[ "$PLATFORM" == "macOS" ]]; then
-    # macOS specific plugins
+    # macOS specific plugins.
     plugins+=(
         zsh-autosuggestions
         zsh-syntax-highlighting
     )
 elif [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" == true ]]; then
-    # Arch Linux specific plugins
+    # Arch Linux specific plugins.
     plugins+=(
         fzf
         zsh-256color
@@ -122,7 +122,7 @@ elif [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" == true ]]; then
     )
 fi
 
-# ZSH Cache
+# ZSH Cache.
 export ZSH_COMPDUMP="$ZSH/cache/.zcompdump-$HOST"
 
 source $ZSH/oh-my-zsh.sh
@@ -133,7 +133,7 @@ source $ZSH/oh-my-zsh.sh
 
 # +++++++++++++++++++++++++++ PROMPT CONFIGURATION ++++++++++++++++++++++++++ #
 
-# Platform-specific prompt configuration
+# Platform-specific prompt configuration.
 if [[ "$PLATFORM" == "macOS" ]]; then
     # macOS: Oh-My-Posh
     local omp_config="$XDG_CONFIG_HOME/oh-my-posh/lcs-dev.omp.json"
@@ -141,7 +141,7 @@ if [[ "$PLATFORM" == "macOS" ]]; then
         eval "$(oh-my-posh init zsh --config $omp_config)"
     fi
 elif [[ "$PLATFORM" == "Linux" ]]; then
-    # Linux: PowerLevel10k with Oh-My-Posh fallback
+    # Linux: PowerLevel10k with Oh-My-Posh fallback.
     if [[ -f "/usr/share/zsh-theme-powerlevel10k/powerlevel10k.zsh-theme" ]]; then
         source /usr/share/zsh-theme-powerlevel10k/powerlevel10k.zsh-theme
         [[ -f ~/.p10k.zsh ]] && source ~/.p10k.zsh
@@ -149,7 +149,7 @@ elif [[ "$PLATFORM" == "Linux" ]]; then
         source "$HOME/.oh-my-zsh/custom/themes/powerlevel10k/powerlevel10k.zsh-theme"
         [[ -f ~/.p10k.zsh ]] && source ~/.p10k.zsh
     else
-        # Fallback to Oh-My-Posh only if available and configured
+        # Fallback to Oh-My-Posh only if available and configured.
         local omp_config="$XDG_CONFIG_HOME/oh-my-posh/lcs-dev.omp.json"
         if command -v oh-my-posh >/dev/null 2>&1 && [ -f "$omp_config" ]; then
             eval "$(oh-my-posh init zsh --config $omp_config)"
@@ -157,19 +157,19 @@ elif [[ "$PLATFORM" == "Linux" ]]; then
     fi
 fi
 
-# Load scripts for "Competitive Programming"
+# Load scripts for "Competitive Programming".
 if [ -f ~/.config/cpp-tools/competitive.sh ]; then
     source ~/.config/cpp-tools/competitive.sh
 fi
 
 # -------------------------------- VI-MODE ---------------------------------- #
-# Enable vi mode
+# Enable vi mode.
 bindkey -v
 
-# Reduce mode change delay (0.1 seconds)
+# Reduce mode change delay (0.1 seconds).
 export KEYTIMEOUT=1
 
-# Simplified and more efficient logic to update prompt based on mode
+# Simplified and more efficient logic to update prompt based on mode.
 function zle-line-init() { zle -K viins }
 function zle-keymap-select() {
     case $KEYMAP in
@@ -181,7 +181,7 @@ zle -N zle-line-init
 zle -N zle-keymap-select
 
 # ------------------------------ COLORS & FZF ------------------------------- #
-# Set up fzf key bindings and fuzzy completion
+# Set up fzf key bindings and fuzzy completion.
 eval "$(fzf --zsh)"
 
 _gen_fzf_default_opts() {
@@ -223,16 +223,16 @@ _fzf_compgen_path() {
     fd --hidden --exclude .git . "$1"
 }
 
-# Use fd to generate the list for directory completion
+# Use fd to generate the list for directory completion.
 _fzf_compgen_dir() {
     fd --type=d --hidden --exclude .git . "$1"
 }
 
-# Source fzf-git.sh only if it exists
+# Source fzf-git.sh only if it exists.
 if [[ -f "$HOME/.config/fzf-git/fzf-git.sh" ]]; then
     source ~/.config/fzf-git/fzf-git.sh
 else
-    # Check common Arch path as a fallback
+    # Check common Arch path as a fallback.
     if [[ "$PLATFORM" == "Linux" && -f "/usr/share/fzf/fzf-git.sh" ]]; then
         source /usr/share/fzf/fzf-git.sh
     fi
@@ -241,7 +241,7 @@ fi
 export FZF_CTRL_T_OPTS="--preview 'bat -n --color=always --line-range :500 {}'"
 export FZF_ALT_C_OPTS="--preview 'eza --tree --color=always {} | head -200'"
 
-# Advanced customization of fzf options via _fzf_comprun function
+# Advanced customization of fzf options via _fzf_comprun function.
 _fzf_comprun() {
     local command=$1
     shift
@@ -276,7 +276,7 @@ alias clang-format="clang-format -style=file:$CLANG_FORMAT_CONFIG"
 alias fnm-clean='echo "${CYAN}Cleaning up orphaned fnm sessions...${RESET}" &&
 rm -rf ~/.local/state/fnm_multishells/* && echo "${GREEN}Cleanup completed.${RESET}"'
 
-# thefuck alias (corrects mistyped commands)
+# thefuck alias (corrects mistyped commands).
 if command -v thefuck >/dev/null 2>&1; then
     eval $(thefuck --alias)
     eval $(thefuck --alias fk)
@@ -298,7 +298,7 @@ if [[ "$PLATFORM" == 'macOS' ]]; then
   function brew() {
     command brew "$@"
     if [[ $* =~ "upgrade" ]] || [[ $* =~ "update" ]] || [[ $* =~ "outdated" ]]; then
-      # Ensure sketchybar is available before calling it
+      # Ensure sketchybar is available before calling it.
       command -v sketchybar >/dev/null 2>&1 && sketchybar --trigger brew_update
     fi
   }
@@ -326,7 +326,7 @@ elif [[ "$PLATFORM" == 'Linux' ]]; then
   alias compile="g++ -std=c++20 -O3 -march=native -flto -ffast-math"
 
   # -------- Linux utilities -------- #
-  # Detect package manager and set aliases accordingly
+  # Detect package manager and set aliases accordingly.
   if command -v pacman >/dev/null 2>&1; then
     # Arch Linux
     alias update="sudo pacman -Syu"
@@ -362,7 +362,7 @@ elif [[ "$PLATFORM" == 'Linux' ]]; then
 
   # ----- Arch Linux Specific ------- #
   if [[ "$ARCH_LINUX" == true ]]; then
-    # Command not found handler for pacman
+    # Command not found handler for pacman.
     function command_not_found_handler {
       local purple='\e[1;35m' bright='\e[0;1m' green='\e[1;32m' reset='\e[0m'
       printf 'zsh: command not found: %s\n' "$1"
@@ -382,14 +382,14 @@ elif [[ "$PLATFORM" == 'Linux' ]]; then
       return 127
     }
 
-    # Automatic detection of AUR helper
+    # Automatic detection of AUR helper.
     if pacman -Qi yay &>/dev/null; then
       aurhelper="yay"
     elif pacman -Qi paru &>/dev/null; then
       aurhelper="paru"
     fi
 
-    # 'in' function for intelligent installation from official repos and AUR
+    # 'in' function for intelligent installation from official repos and AUR.
     function in {
       local -a inPkg=("$@")
       local -a arch=()
@@ -412,7 +412,7 @@ elif [[ "$PLATFORM" == 'Linux' ]]; then
       fi
     }
 
-    # Aliases for package management on Arch
+    # Aliases for package management on Arch.
     if [[ -n "$aurhelper" ]]; then
       alias un='$aurhelper -Rns'
       alias up='$aurhelper -Syu'
@@ -422,7 +422,7 @@ elif [[ "$PLATFORM" == 'Linux' ]]; then
       alias po='pacman -Qtdq | $aurhelper -Rns -'
     fi
 
-    # Aliases for 'eza' on Arch (overrides generic Linux ones)
+    # Aliases for 'eza' on Arch (overrides generic Linux ones).
     command -v eza >/dev/null 2>&1 && {
       alias l='eza -lh --icons=auto'
       alias ls='eza -1 --icons=auto'
@@ -431,7 +431,7 @@ elif [[ "$PLATFORM" == 'Linux' ]]; then
       alias lt='eza --icons=auto --tree'
     }
 
-    # Other aliases for Arch
+    # Other aliases for Arch.
     command -v kitten >/dev/null 2>&1 && alias ssh='kitten ssh'
     command -v code >/dev/null 2>&1 && alias vc='code'
   fi
@@ -474,7 +474,7 @@ if [[ "$PLATFORM" == 'macOS' ]]; then
     # Force the use of system binaries to avoid conflicts.
     export LD=/usr/bin/ld
     export AR=/usr/bin/ar
-    # Activate these flags if you intend to use Homebrew's LLVM
+    # Activate these flags if you intend to use Homebrew's LLVM.
     export CPATH="/opt/homebrew/include"
     export LDFLAGS="-L/opt/homebrew/opt/llvm/lib"
     export CPPFLAGS="-I/opt/homebrew/opt/llvm/include"
@@ -492,9 +492,9 @@ fi
 
 # --------------------------- Weather Forecast ------------------------------ #
 # Get weather information for a specified location.
-# Usage: weather <city> (e.g., weather Rome)
+# Usage: weather <city> (e.g., weather Rome).
 function weather() {
-    local location="${1:-Bari}" # Default to Bari if no location is provided
+    local location="${1:-Bari}" # Default to Bari if no location is provided.
     curl "https://wttr.in/${location}?lang=it"
 }
 
@@ -517,11 +517,11 @@ function bak() {
 # Usage: fkill
 function fkill() {
     local pid
-    # Use ps to get processes, pipe to fzf for selection, and awk to get the PID
+    # Use ps to get processes, pipe to fzf for selection, and awk to get the PID.
     pid=$(ps -ef | sed 1d | fzf -m --tac --header='Press CTRL-C to cancel' | awk '{print $2}')
 
     if [ "x$pid" != "x" ]; then
-        # Kill the selected process(es) with SIGKILL (9) by default
+        # Kill the selected process(es) with SIGKILL (9) by default.
         echo "$pid" | xargs kill -${1:-9}
         echo "${C_GREEN}Process(es) with PID(s): $pid killed.${C_RESET}"
     else
@@ -550,7 +550,7 @@ function serve() {
 # Interactively preview files in the current directory using fzf and bat/eza.
 # Usage: preview
 function preview() {
-    # Use eza for directory listings, bat for file previews
+    # Use eza for directory listings, bat for file previews.
     fzf --preview '
     if [ -d {} ]; then
       eza --tree --color=always {}
@@ -581,17 +581,17 @@ function gbr() {
 # ++++++++++++++++++++++++++++ GLOBAL VARIABLES +++++++++++++++++++++++++++++ #
 # =========================================================================== #
 
-# GO Language
+# GO Language.
 export GOROOT="/usr/local/go"
 export GOPATH=$HOME/00_ENV/go
 
-# Android Home for Platform Tools
+# Android Home for Platform Tools.
 export ANDROID_HOME="$HOME/Library/Android/Sdk"
 
-# Clang-Format Configuration
+# Clang-Format Configuration.
 export CLANG_FORMAT_CONFIG="$HOME/.config/clang-format/.clang-format"
 
-# OpenSSL for some Python packages (specific to environments that require it)
+# OpenSSL for some Python packages (specific to environments that require it).
 if [[ "$PLATFORM" == "Linux" ]]; then
     export CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1
 fi
@@ -671,32 +671,32 @@ else
     # SDKMAN! not found. Use the fallback logic to auto-detect Java.
     setup_java_home_fallback() {
         if [[ "$PLATFORM" == 'macOS' ]]; then
-            # On macOS, use the system-provided utility
+            # On macOS, use the system-provided utility.
             if [ -x "/usr/libexec/java_home" ]; then
                 export JAVA_HOME=$(/usr/libexec/java_home)
                 export PATH="$JAVA_HOME/bin:$PATH"
             fi
         elif [[ "$PLATFORM" == 'Linux' ]]; then
             local found_java_home=""
-            # Method 1: For Debian/Ubuntu/Fedora based systems (uses update-alternatives)
+            # Method 1: For Debian/Ubuntu/Fedora based systems (uses update-alternatives).
             if command -v update-alternatives &>/dev/null && command -v java &>/dev/null; then
                 local java_path=$(readlink -f $(which java))
                 if [[ -n "$java_path" ]]; then
                     found_java_home="${java_path%/bin/java}"
                 fi
             fi
-            # Method 2: For Arch Linux systems (uses archlinux-java)
+            # Method 2: For Arch Linux systems (uses archlinux-java).
             if [[ -z "$found_java_home" ]] && command -v archlinux-java &>/dev/null; then
                 local java_env=$(archlinux-java get)
                 if [[ -n "$java_env" ]]; then
                     found_java_home="/usr/lib/jvm/$java_env"
                 fi
             fi
-            # Method 3: Generic fallback by searching in /usr/lib/jvm
+            # Method 3: Generic fallback by searching in "/usr/lib/jvm".
             if [[ -z "$found_java_home" ]] && [[ -d "/usr/lib/jvm" ]]; then
                 found_java_home=$(find /usr/lib/jvm -maxdepth 1 -type d -name "java-*-openjdk*" | sort -V | tail -n 1)
             fi
-            # Export variables only if we found a valid path
+            # Export variables only if we found a valid path.
             if [[ -n "$found_java_home" && -d "$found_java_home" ]]; then
                 export JAVA_HOME="$found_java_home"
                 export PATH="$JAVA_HOME/bin:$PATH"
@@ -706,7 +706,7 @@ else
             fi
         fi
     }
-    # Execute the fallback function
+    # Execute the fallback function.
     setup_java_home_fallback
 fi
 
@@ -720,10 +720,10 @@ eval "$(pyenv virtualenv-init -)"
 # >>> Conda initialize >>>
 __conda_init() {
     local conda_path=""
-    # Arch specific path
+    # Arch specific path.
     if [[ "$PLATFORM" == 'Linux' && -f "/opt/miniconda3/bin/conda" ]]; then
         conda_path="/opt/miniconda3/bin/conda"
-        # User path (macOS or other Linux)
+        # User path (macOS or other Linux).
     elif [[ -f "$HOME/00_ENV/miniforge3/bin/conda" ]]; then
         conda_path="$HOME/00_ENV/miniforge3/bin/conda"
     fi
@@ -748,7 +748,7 @@ unset -f __conda_init
 # <<< Conda initialize <<<
 
 # ------------ Perl CPAN ------------ #
-# Only run if the local::lib directory exists
+# Only run if the local::lib directory exists.
 local_perl_dir="$HOME/00_ENV/perl5"
 if [[ -d "$local_perl_dir" ]]; then
     eval "$(perl -I$local_perl_dir/lib/perl5 -Mlocal::lib=$local_perl_dir)"
@@ -809,10 +809,10 @@ command -v ng &>/dev/null && source <(ng completion script)
 # This guarantees that shims have top priority and the order is consistent.
 
 build_final_path() {
-    # Store original PATH for debugging
+    # Store original PATH for debugging.
     local original_path="$PATH"
 
-    # Define the desired final order of directories in the PATH
+    # Define the desired final order of directories in the PATH.
     local -a path_template
     if [[ "$PLATFORM" == 'macOS' ]]; then
         path_template=(
@@ -896,7 +896,7 @@ build_final_path() {
         )
     fi
 
-    # Create new PATH with only existing directories
+    # Create new PATH with only existing directories.
     local -a new_path_array=()
     for dir in "${path_template[@]}"; do
         if [[ -n "$dir" && -d "$dir" ]]; then
@@ -905,11 +905,11 @@ build_final_path() {
     done
 
     # Add any directories from original PATH that weren't in template
-    # (like VS Code extensions, etc.)
+    # (like VS Code extensions, etc.).
     local -a original_path_array=("${(@s/:/)original_path}")
     for dir in "${original_path_array[@]}"; do
         if [[ -n "$dir" && -d "$dir" ]]; then
-            # Check if this directory is already in our new path
+            # Check if this directory is already in our new path.
             local found=false
             for existing in "${new_path_array[@]}"; do
                 if [[ "$dir" == "$existing" ]]; then
@@ -918,7 +918,7 @@ build_final_path() {
                 fi
             done
 
-            # Skip FNM orphan directories
+            # Skip FNM orphan directories.
             if [[ "$dir" == *"fnm_multishells"* && "$dir" != "$FNM_MULTISHELL_PATH/bin" ]]; then
                 continue
             fi
@@ -929,15 +929,15 @@ build_final_path() {
         fi
     done
 
-    # Convert array to PATH string
+    # Convert array to PATH string.
     local IFS=':'
     export PATH="${new_path_array[*]}"
 
-    # Remove duplicates using typeset -U
+    # Remove duplicates using typeset -U.
     typeset -U PATH
 }
 
-# Run the PATH rebuilding function
+# Run the PATH rebuilding function.
 build_final_path
 unset -f build_final_path
 

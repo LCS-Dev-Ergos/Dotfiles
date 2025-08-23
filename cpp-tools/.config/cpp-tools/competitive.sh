@@ -18,15 +18,15 @@
 
 # ------------------------------ CONFIGURATION ------------------------------ #
 
-# Define the allowed workspace root directories for competitive programming
+# Define the allowed workspace root directories for competitive programming.
 if [[ "$OSTYPE" == "darwin"* ]]; then
-    # macOS path
+    # macOS path.
     CP_WORKSPACE_ROOT="/Volumes/LCS.Data/CP-Problems"
 elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    # Linux path
+    # Linux path.
     CP_WORKSPACE_ROOT="/LCS.Data/CP-Problems"
 else
-    # Fallback - user must set this
+    # Fallback - user must set this.
     CP_WORKSPACE_ROOT="${CP_WORKSPACE_ROOT:-$HOME/CP-Problems}"
 fi
 
@@ -38,16 +38,16 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
     # Default path for Linux.
     CP_ALGORITHMS_DIR="/LCS.Data/CP-Problems/CodeForces/Algorithms"
-    # Alternative path if the primary one doesn't exist
+    # Alternative path if the primary one doesn't exist.
     if [ ! -d "$CP_ALGORITHMS_DIR" ]; then
         CP_ALGORITHMS_DIR="/home/$(whoami)/LCS.Data/CP-Problems/CodeForces/Algorithms"
     fi
 else
-    # Fallback for other platforms
+    # Fallback for other platforms.
     CP_ALGORITHMS_DIR="${CP_ALGORITHMS_DIR:-$HOME/CP/Algorithms}"
 fi
 
-# Check if terminal supports colors
+# Check if terminal supports colors.
 if test -t 1; then
     N_COLORS=$(tput colors)
     if test -n "$N_COLORS" && test $N_COLORS -ge 8; then
@@ -70,7 +70,7 @@ elif [ -n "$ZSH_VERSION" ]; then
     SCRIPT_DIR="$( cd "$( dirname "${(%):-%x}" )" &> /dev/null && pwd )"
 else
     echo "${RED}Unsupported shell for script directory detection.${RESET}" >&2
-    # Fallback to current directory, though this may be unreliable
+    # Fallback to current directory, though this may be unreliable.
     SCRIPT_DIR="."
 fi
 
@@ -104,7 +104,7 @@ _check_workspace() {
     return 0
 }
 
-# Utility to format elapsed time nicely
+# Utility to format elapsed time nicely.
 _format_duration() {
     local seconds=$1
     local hours=$((seconds / 3600))
@@ -125,7 +125,7 @@ _format_duration() {
 # Initializes or verifies a competitive programming directory.
 # This function is now idempotent and workspace-protected.
 function cppinit() {
-    # Check workspace restriction
+    # Check workspace restriction.
     if ! _check_workspace; then
         echo "${RED}Initialization aborted. Navigate to your CP workspace first.${RESET}" >&2
         return 1
@@ -139,7 +139,7 @@ function cppinit() {
         return 1
     fi
 
-    # Create .contest_metadata if it doesn't exist (for tracking)
+    # Create .contest_metadata if it doesn't exist (for tracking).
     if [ ! -f ".contest_metadata" ]; then
         echo "# Contest Metadata" > .contest_metadata
         echo "CREATED=$(date +"%Y-%m-%d %H:%M:%S")" >> .contest_metadata
@@ -158,7 +158,7 @@ function cppinit() {
         cp "$SCRIPT_DIR/templates/gcc-toolchain.cmake.tpl" ./gcc-toolchain.cmake
     fi
     
-    # Create clang-toolchain.cmake if template exists (for potential sanitizer builds)
+    # Create clang-toolchain.cmake if template exists (for potential sanitizer builds).
     if [ ! -f "clang-toolchain.cmake" ] && [ -f "$SCRIPT_DIR/templates/clang-toolchain.cmake.tpl" ]; then
         echo "Creating clang-toolchain.cmake for potential sanitizer usage..."
         cp "$SCRIPT_DIR/templates/clang-toolchain.cmake.tpl" ./clang-toolchain.cmake
@@ -168,13 +168,13 @@ function cppinit() {
     if [ ! -f ".clangd" ]; then
         echo "Creating .clangd configuration from template..."
         if [[ "$OSTYPE" == "darwin"* ]]; then
-            # macOS template
+            # macOS template.
             cp "$SCRIPT_DIR/templates/.clangd.tpl" ./.clangd
         elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-            # Linux template
+            # Linux template.
             cp "$SCRIPT_DIR/templates/.clangd-linux.tpl" ./.clangd
         else
-            # Fallback to macOS template for other platforms
+            # Fallback to macOS template for other platforms.
             cp "$SCRIPT_DIR/templates/.clangd.tpl" ./.clangd
         fi
     fi
@@ -222,7 +222,7 @@ EOF
         fi
     fi
     
-    # Copy or link PCH.h for Clang sanitizer builds
+    # Copy or link PCH.h for Clang sanitizer builds.
     local master_pch_header="$CP_ALGORITHMS_DIR/PCH.h"
     if [ ! -e "algorithms/PCH.h" ]; then
         if [ -n "$CP_ALGORITHMS_DIR" ] && [ -f "$master_pch_header" ]; then
@@ -293,7 +293,7 @@ function cppnew() {
     cppconf # Re-run configuration to add the new file to the build system.
 }
 
-# Batch creation of multiple problems at once
+# Batch creation of multiple problems at once.
 function cppbatch() {
     local count=${1:-5}
     local template=${2:-"default"}
@@ -318,18 +318,18 @@ function cppconf() {
     local build_type=${1:-Debug}
     local compiler_override=${2:-""}
     
-    # Determine which toolchain to use
+    # Determine which toolchain to use.
     local toolchain_file="gcc-toolchain.cmake"
     local toolchain_name="GCC"
     
-    # Special handling for Sanitize builds
+    # Special handling for Sanitize builds.
     if [ "$build_type" = "Sanitize" ]; then
         if [[ "$OSTYPE" == "darwin"* ]] || [ "$compiler_override" = "clang" ]; then
-            # On macOS or when explicitly requested, use Clang for sanitizers
+            # On macOS or when explicitly requested, use Clang for sanitizers.
             toolchain_file="clang-toolchain.cmake"
             toolchain_name="Clang (for sanitizers)"
             
-            # Create clang-toolchain.cmake if it doesn't exist
+            # Create clang-toolchain.cmake if it doesn't exist.
             if [ ! -f "$toolchain_file" ]; then
                 echo "Creating clang-toolchain.cmake for sanitizer build..."
                 if [ -f "$SCRIPT_DIR/templates/clang-toolchain.cmake.tpl" ]; then
@@ -342,7 +342,7 @@ function cppconf() {
                 fi
             fi
         elif [ "$compiler_override" = "gcc" ]; then
-            # Explicitly use GCC even for sanitizers
+            # Explicitly use GCC even for sanitizers.
             echo "${YELLOW}Warning: GCC sanitizers may not work properly on macOS${RESET}"
         fi
     fi
@@ -362,7 +362,7 @@ function cppconf() {
     echo "${BLUE}/===---------------------------------------------------------------------------===/${RESET}"
     echo "${BLUE}Configuring project with build type: ${YELLOW}${build_type}${BLUE} (using ${toolchain_name} toolchain)${RESET}"
     
-    # Run CMake with the appropriate toolchain file
+    # Run CMake with the appropriate toolchain file.
     if cmake -S . -B build -DCMAKE_BUILD_TYPE=${build_type} -DCMAKE_TOOLCHAIN_FILE=${toolchain_file}; then
         echo "${GREEN}CMake configuration successful.${RESET}"
         # Create the symlink for clangd.
@@ -381,7 +381,7 @@ function cppcontest() {
         return 1
     fi
 
-    # Ensure we're in the workspace before creating a contest
+    # Ensure we're in the workspace before creating a contest.
     if ! _check_workspace; then
         echo "${RED}Contest creation aborted. Navigate to your CP workspace first.${RESET}" >&2
         return 1
@@ -452,7 +452,7 @@ function cppgo() {
     if cppbuild "$target_name"; then
         echo "${BLUE}${BOLD}/===------ RUNNING: $target_name ------===/${RESET}"
         
-        # Track execution time in nanoseconds for better precision
+        # Track execution time in nanoseconds for better precision.
         local start_time=$(date +%s%N)
         
         if [ -f "$input_path" ]; then
@@ -476,7 +476,35 @@ function cppgo() {
     fi
 }
 
-# Interactive input mode - builds and runs with manual input
+# Force a rebuild and run, useful for re-triggering compilation analysis.
+function cppforcego() {
+    local target=$(_get_default_target)
+    local exec_name=$(echo "${1:-$target}" | sed -E 's/\.(cpp|cc|cxx)$//')
+    
+    # Find the source file corresponding to the target.
+    local source_file
+    for ext in cpp cc cxx; do
+        if [ -f "${exec_name}.${ext}" ]; then
+            source_file="${exec_name}.${ext}"
+            break
+        fi
+    done
+
+    if [ -z "$source_file" ]; then
+        echo "Error: Source file for target '$exec_name' not found."
+        return 1
+    fi
+
+    echo "Forcing rebuild for '$source_file' by updating its timestamp..."
+    # 'touch' updates the file's modification time, making the build system
+    # think it's new and needs to be recompiled.
+    touch "$source_file"
+
+    # Now, run the regular cppgo command.
+    cppgo "$@"
+}
+
+# Interactive input mode - builds and runs with manual input.
 function cppi() {
     _check_initialized || return 1
     local target_name=${1:-$(_get_default_target)}
@@ -526,7 +554,7 @@ function cppjudge() {
         ((total++))
         echo -n "Testing $(basename "$test_in")... "
         
-        # Measure execution time
+        # Measure execution time.
         local start_time=$(date +%s%N)
         "$exec_path" < "$test_in" > "$temp_out"
         local end_time=$(date +%s%N)
@@ -554,7 +582,7 @@ function cppjudge() {
         rm "$temp_out"
     done
 
-    # Summary
+    # Summary.
     echo ""
     echo "${BOLD}${BLUE}/===---------- TEST SUMMARY ----------===/${RESET}"
     echo "${GREEN}Passed: $passed/$total${RESET}"
@@ -564,7 +592,7 @@ function cppjudge() {
     echo "${BOLD}${BLUE}/===----------------------------------===/${RESET}"
 }
 
-# Quick stress testing function
+# Quick stress testing function.
 function cppstress() {
     _check_initialized || return 1
     local target_name=${1:-$(_get_default_target)}
@@ -582,7 +610,7 @@ function cppstress() {
     for i in $(seq 1 $iterations); do
         printf "\rIteration %d/%d... " $i $iterations
         
-        # Run with empty input and check for crashes
+        # Run with empty input and check for crashes.
         if ! timeout 2 "$exec_path" < /dev/null > /dev/null 2>&1; then
             ((failed++))
             echo "${RED}Failed at iteration $i${RESET}"
@@ -610,7 +638,7 @@ function cppclean() {
     echo "Project cleaned."
 }
 
-# Deep clean - removes everything except source files and input cases
+# Deep clean - removes everything except source files and input cases.
 function cppdeepclean() {
     echo "${YELLOW}This will remove all generated files except source code and test cases.${RESET}"
     echo -n "Are you sure? (y/N): "
@@ -652,7 +680,7 @@ function cppwatch() {
     fswatch -o "$source_file" | while read -r; do cppbuild "$target_name"; done
 }
 
-# Show time statistics for problems in the current contest
+# Show time statistics for problems in the current contest.
 function cppstats() {
     if [ ! -f ".problem_times" ]; then
         echo "${YELLOW}No timing data available for this contest.${RESET}"
@@ -672,14 +700,14 @@ function cppstats() {
     echo "${BOLD}${BLUE}/===----------------------------------------===/${RESET}"
 }
 
-# Archive the current contest with all solutions
+# Archive the current contest with all solutions.
 function cpparchive() {
     local contest_name=$(basename "$(pwd)")
     local archive_name="${contest_name}_$(date +%Y%m%d_%H%M%S).tar.gz"
     
     echo "${CYAN}Archiving contest to '$archive_name'...${RESET}"
     
-    # Create archive excluding build artifacts
+    # Create archive excluding build artifacts.
     tar -czf "../$archive_name" \
         --exclude="build" \
         --exclude="bin" \
@@ -693,7 +721,7 @@ function cpparchive() {
 
 # Displays detailed diagnostic information about the toolchain and environment.
 function cppdiag() {
-    # Helper function to print formatted headers
+    # Helper function to print formatted headers.
     _print_header() {
         echo ""
         echo "${BOLD}${BLUE}/===----------- $1 -----------===/${RESET}"
@@ -702,7 +730,7 @@ function cppdiag() {
     echo "${BOLD}Running Competitive Programming Environment Diagnostics...${RESET}"
 
     _print_header "SYSTEM & SHELL"
-    # Display OS and shell information
+    # Display OS and shell information.
     uname -a
     echo "Shell: $SHELL"
     [ -n "$BASH_VERSION" ] && echo "Bash Version: $BASH_VERSION"
@@ -713,7 +741,7 @@ function cppdiag() {
     echo "CP Workspace Root: ${CYAN}$CP_WORKSPACE_ROOT${RESET}"
     echo "Algorithms Directory: ${CYAN}$CP_ALGORITHMS_DIR${RESET}"
     
-    # Check if we're in the workspace
+    # Check if we're in the workspace.
     local current_dir="$(pwd)"
     if [[ "$current_dir" == "$CP_WORKSPACE_ROOT"* ]]; then
         echo "Current Location: ${GREEN}Inside workspace${RESET}"
@@ -742,7 +770,7 @@ function cppdiag() {
         echo "   ${CYAN}Path:${RESET} $CLANGXX_PATH"
         echo "   ${CYAN}Version:${RESET} $($CLANGXX_PATH --version | head -n 1)"
         
-        # Check if it's Apple Clang or LLVM Clang
+        # Check if it's Apple Clang or LLVM Clang.
         if $CLANGXX_PATH --version | grep -q "Apple"; then
             echo "   ${CYAN}Type:${RESET} Apple Clang (Xcode)"
         else
@@ -752,7 +780,7 @@ function cppdiag() {
         echo "${YELLOW}clang++: Not found (optional, needed for sanitizers on macOS)${RESET}"
     fi
 
-    # Check for cmake
+    # Check for cmake.
     local CMAKE_PATH
     CMAKE_PATH=$(command -v cmake)
     if [ -n "$CMAKE_PATH" ]; then
@@ -763,7 +791,7 @@ function cppdiag() {
         echo "${RED}cmake: Not found!${RESET}"
     fi
 
-    # Check for clangd
+    # Check for clangd.
     local CLANGD_PATH
     CLANGD_PATH=$(command -v clangd)
     if [ -n "$CLANGD_PATH" ]; then
@@ -774,7 +802,7 @@ function cppdiag() {
         echo "${RED}clangd: Not found!${RESET}"
     fi
 
-    # Check for fswatch (optional)
+    # Check for fswatch (optional).
     local FSWATCH_PATH
     FSWATCH_PATH=$(command -v fswatch)
     if [ -n "$FSWATCH_PATH" ]; then
@@ -788,7 +816,7 @@ function cppdiag() {
     if [ -f "CMakeLists.txt" ]; then
         echo "${GREEN}Found CMakeLists.txt${RESET}"
         
-        # Check CMake Cache for the configured compiler
+        # Check CMake Cache for the configured compiler.
         if [ -f "build/CMakeCache.txt" ]; then
             local cached_compiler
             cached_compiler=$(grep "CMAKE_CXX_COMPILER:FILEPATH=" build/CMakeCache.txt | cut -d'=' -f2)
@@ -797,21 +825,21 @@ function cppdiag() {
             echo "   ${YELLOW}Info: No CMake cache found. Run 'cppconf' to generate it.${RESET}"
         fi
 
-        # Display .clangd configuration if it exists
+        # Display .clangd configuration if it exists.
         if [ -f ".clangd" ]; then
             echo "${GREEN}Found .clangd config${RESET}"
         else
             echo "   ${YELLOW}Info: No .clangd config file found in this project.${RESET}"
         fi
 
-        # Check for metadata files
+        # Check for metadata files.
         if [ -f ".contest_metadata" ]; then
             echo "${GREEN}Found contest metadata${RESET}"
             grep "CONTEST_NAME" .contest_metadata | sed 's/^/   /'
             grep "CREATED" .contest_metadata | sed 's/^/   /'
         fi
 
-        # Count problems
+        # Count problems.
         local cpp_count=$(ls -1 *.cpp 2>/dev/null | wc -l)
         echo "   ${CYAN}C++ files:${RESET} $cpp_count"
 
@@ -821,7 +849,7 @@ function cppdiag() {
 
     _print_header "COMPILER FEATURES CHECK"
     
-    # Test with GCC if available
+    # Test with GCC if available.
     if [ -n "$GXX_PATH" ]; then
         echo "${CYAN}Testing GCC features:${RESET}"
         local test_file="/tmp/cp_gcc_test_$.cpp"
@@ -844,12 +872,12 @@ EOF
         rm -f "$test_file"
     fi
     
-    # Test with Clang if available
+    # Test with Clang if available.
     if [ -n "$CLANGXX_PATH" ]; then
         echo ""
         echo "${CYAN}Testing Clang features:${RESET}"
         
-        # Test PCH.h compatibility
+        # Test PCH.h compatibility.
         local test_pch="/tmp/cp_clang_test_$.cpp"
         cat > "$test_pch" << 'EOF'
 #define USE_CLANG_SANITIZE
@@ -858,7 +886,7 @@ using namespace std;
 int main() { cout << "OK" << endl; return 0; }
 EOF
         
-        # Check if PCH.h exists in algorithms directory
+        # Check if PCH.h exists in algorithms directory.
         if [ -f "algorithms/PCH.h" ]; then
             if $CLANGXX_PATH -std=c++23 -I./algorithms "$test_pch" -o /tmp/cp_clang_test_$ 2>/dev/null; then
                 echo "  ${GREEN}PCH.h: Compatible${RESET}"
@@ -871,7 +899,7 @@ EOF
             echo "  ${YELLOW}PCH.h: Not found in algorithms/ directory${RESET}"
         fi
         
-        # Test sanitizer support
+        # Test sanitizer support.
         echo "#include <iostream>\nint main(){return 0;}" > "$test_pch"
         if $CLANGXX_PATH -fsanitize=address "$test_pch" -o /tmp/cp_clang_san_$ 2>/dev/null; then
             echo "  ${GREEN}AddressSanitizer: Available${RESET}"
@@ -933,7 +961,7 @@ ${BOLD}${MAGENTA}[ WORKSPACE INFO ]${RESET}
 EOF
 }
 
-# Display load message only if not in quiet mode
+# Display load message only if not in quiet mode.
 export CP_QUIET_LOAD=${1:-0}
 if [ -z "$CP_QUIET_LOAD" ]; then
     echo "${GREEN}Competitive Programming utilities loaded. Type 'cpphelp' for commands.${RESET}"
