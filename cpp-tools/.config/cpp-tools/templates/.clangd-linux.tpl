@@ -66,9 +66,8 @@ Diagnostics:
     - unused-const-variable
     - unused-parameter
     - unused-variable
-    - sign-conversion
-    - implicit-int-conversion
     - shorten-64-to-32
+    - builtin_definition
 
   # Disable clang-tidy completely
   ClangTidy:

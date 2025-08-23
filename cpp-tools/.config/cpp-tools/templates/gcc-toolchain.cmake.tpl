@@ -177,7 +177,7 @@ if(NOT GCC_EXECUTABLE)
             "  Please install GCC using your system's package manager.\n"
             "\n"
             "  Common commands:\n"
-            "    pkg install gcc       # FreeBSD\n"
+            "    pkg install gcc      # FreeBSD\n"
             "    pkg_add gcc          # OpenBSD\n"
             "    pkgin install gcc    # NetBSD\n"
             "\n"

@@ -1,0 +1,154 @@
+{
+  "version": "2.0.0",
+  "options": {
+    "env": {
+      "CPP_TOOLS_CONFIG": "${env:HOME}/.config/cpp-tools/competitive.sh"
+    }
+  },
+  "tasks": [
+    //===------------------------ CORE BUILD TASKS ------------------------===//
+    {
+      "label": "Build: Build Active File (Debug)",
+      "type": "shell",
+      "command": "zsh",
+      "args": [
+        "-c",
+        "source ${CPP_TOOLS_CONFIG} && cppbuild ${fileBasenameNoExtension}"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": ["$gcc"],
+      "detail": "Builds the currently open file in Debug mode."
+    },
+    {
+      "label": "Build: Build Active File (Release)",
+      "type": "shell",
+      "command": "cmake",
+      "args": [
+        "--build",
+        "build",
+        "--config",
+        "Release",
+        "--target",
+        "${fileBasenameNoExtension}"
+      ],
+      "group": "build",
+      "problemMatcher": ["$gcc"],
+      "detail": "Builds the currently open file in optimized Release mode for contests."
+    },
+    //===------------------------ RUN & TEST TASKS ------------------------===//
+    {
+      "label": "Run: Build & Run Active File",
+      "type": "shell",
+      "command": "zsh",
+      "args": [
+        "-c",
+        "source ${CPP_TOOLS_CONFIG} && cppgo ${fileBasenameNoExtension}"
+      ],
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "focus": true,
+        "panel": "shared",
+        "clear": true
+      },
+      "detail": "Builds and runs the active file. Looks for 'input.txt' or '{problem_name}.in' in 'input_cases/'."
+    },
+    {
+      "label": "Run: Build & Run (Prompt for Input)",
+      "type": "shell",
+      "command": "zsh",
+      "args": [
+        "-c",
+        "source ${CPP_TOOLS_CONFIG} && cppgo ${fileBasenameNoExtension} ${input:inputFile}"
+      ],
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "focus": true,
+        "panel": "shared",
+        "clear": true
+      },
+      "detail": "Builds and runs the active file, prompting you to enter the input filename."
+    },
+    {
+      "label": "Test: Judge Active File",
+      "type": "shell",
+      "command": "zsh",
+      "args": [
+        "-c",
+        "source ${CPP_TOOLS_CONFIG} && cppjudge ${fileBasenameNoExtension}"
+      ],
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "focus": true,
+        "panel": "shared",
+        "clear": true
+      },
+      "detail": "Tests the active file against all corresponding '.in'/'.out' sample files in 'input_cases/'."
+    },
+    //===-------------------- CONFIGURATION & CLEANUP ---------------------===//
+    {
+      "label": "Configure: Reconfigure Project (Debug)",
+      "type": "shell",
+      "command": "zsh",
+      "args": ["-c", "source ${CPP_TOOLS_CONFIG} && cppconf Debug"],
+      "detail": "Cleans and re-runs CMake configuration for Debug. Updates compile_commands.json."
+    },
+    {
+      "label": "Configure: Reconfigure Project (Release)",
+      "type": "shell",
+      "command": "zsh",
+      "args": ["-c", "source ${CPP_TOOLS_CONFIG} && cppconf Release"],
+      "detail": "Re-runs CMake configuration for Release."
+    },
+    {
+      "label": "Configure: Reconfigure Project (Sanitize)",
+      "type": "shell",
+      "command": "zsh",
+      "args": ["-c", "source ${CPP_TOOLS_CONFIG} && cppconf Sanitize"],
+      "detail": "Re-runs CMake configuration for memory sanitization."
+    },
+    {
+      "label": "Clean: Clean Project",
+      "type": "shell",
+      "command": "cppclean",
+      "detail": "Removes the build directory entirely."
+    },
+    //===----------------------- ADVANCED DEBUGGING -----------------------===//
+    {
+      "label": "Debug: Memory Check Active File (Sanitize)",
+      "type": "shell",
+      "command": "zsh",
+      "args": [
+        "-c",
+        "source ${CPP_TOOLS_CONFIG}",
+        "cppconf Sanitize && cppgo ${fileBasenameNoExtension}"
+      ],
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "focus": true,
+        "panel": "shared",
+        "clear": true
+      },
+      "problemMatcher": ["$gcc"],
+      "detail": "Reconfigures for Sanitize mode, then builds and runs the active file for memory debugging."
+    }
+  ],
+  // Input prompt used by the "Run (Prompt for Input)" task
+  "inputs": [
+    {
+      "id": "inputFile",
+      "type": "promptString",
+      "description": "Enter the input file name (e.g., sample.in)",
+      "default": "${fileBasenameNoExtension}.in"
+    }
+  ]
+}

@@ -139,11 +139,15 @@ function cppinit() {
         return 1
     fi
 
-    # Create .contest_metadata if it doesn't exist (for tracking).
-    if [ ! -f ".contest_metadata" ]; then
-        echo "# Contest Metadata" > .contest_metadata
-        echo "CREATED=$(date +"%Y-%m-%d %H:%M:%S")" >> .contest_metadata
-        echo "CONTEST_NAME=$(basename "$(pwd)")" >> .contest_metadata
+    # Create .statistics and .ide-configs directories if they don't exist.
+    mkdir -p .ide-configs
+    mkdir -p .statistics
+
+    # Create .contest_metadata in .statistics directory f it doesn't exist (for tracking).
+    if [ ! -f ".statistics/contest_metadata" ]; then
+        echo "# Contest Metadata" > .statistics/contest_metadata
+        echo "CREATED=$(date +"%Y-%m-%d %H:%M:%S")" >> .statistics/contest_metadata
+        echo "CONTEST_NAME=$(basename "$(pwd)")" >> .statistics/contest_metadata
     fi
 
     # Create CMakeLists.txt if it doesn't exist.
@@ -164,18 +168,18 @@ function cppinit() {
         cp "$SCRIPT_DIR/templates/clang-toolchain.cmake.tpl" ./clang-toolchain.cmake
     fi
 
-    # Create .clangd configuration if it doesn't exist.
-    if [ ! -f ".clangd" ]; then
+    # Create .clangd configuration in .ide-configs directory if it doesn't exist.
+    if [ ! -f ".ide-configs/clangd" ]; then
         echo "Creating .clangd configuration from template..."
         if [[ "$OSTYPE" == "darwin"* ]]; then
             # macOS template.
-            cp "$SCRIPT_DIR/templates/.clangd.tpl" ./.clangd
+            cp "$SCRIPT_DIR/templates/.clangd.tpl" ./.ide-configs/clangd
         elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
             # Linux template.
-            cp "$SCRIPT_DIR/templates/.clangd-linux.tpl" ./.clangd
+            cp "$SCRIPT_DIR/templates/.clangd-linux.tpl" ./.ide-configs/clangd
         else
             # Fallback to macOS template for other platforms.
-            cp "$SCRIPT_DIR/templates/.clangd.tpl" ./.clangd
+            cp "$SCRIPT_DIR/templates/.clangd.tpl" ./.ide-configs/clangd
         fi
     fi
 
@@ -187,21 +191,27 @@ build/
 bin/
 lib/
 algorithms/
-.vscode/
+not_passed/
+!.vscode/
 .idea/
-.cache/
+.cache/*
+.ide-configs/
+.statistics/
 CMakeLists.txt
 gcc-toolchain.cmake
 clang-toolchain.cmake
 compile_commands.json
-.clangd
-.contest_metadata
-.problem_times
 *.out
 *.exe
 *.dSYM/
 *.DS_Store
 EOF
+    fi
+
+    # Create symlink to .ide-configs/clangd for IDE compatibility.
+    if [ ! -L ".clangd" ]; then
+        ln -sf .ide-configs/clangd .clangd
+        echo "Created .clangd symlink for IDE compatibility"
     fi
     
     # Create directories if they don't exist.
@@ -234,6 +244,23 @@ EOF
         else
             echo "${YELLOW}Warning: PCH.h not found. Clang sanitizer builds may not work properly.${RESET}"
         fi
+    fi
+
+    # Set up VS Code configurations if templates are available.
+    local vscode_tpl_dir="$SCRIPT_DIR/templates/vscode"
+    local vscode_dest_dir=".vscode"
+
+    if [ -d "$vscode_tpl_dir" ]; then
+        echo "Found VS Code templates. Setting up '.vscode' directory..."
+        mkdir -p "$vscode_dest_dir"
+
+        # Loop through all available templates and copy them
+        for template in "$vscode_tpl_dir"/*.json; do
+            if [ -f "$template" ]; then
+                cp "$template" "$vscode_dest_dir/"
+                echo "  -> Copied template: $(basename "$template")"
+            fi
+        done
     fi
 
     # Create a basic configuration. This will create the build directory.
@@ -287,7 +314,7 @@ function cppnew() {
     echo "Created empty output file: output_cases/${problem_name}.out"
 
     # Track problem creation time with human-readable format
-    echo "${problem_name}:START:$(date +%s):$(date '+%Y-%m-%d %H:%M:%S')" >> .problem_times
+    echo "${problem_name}:START:$(date +%s):$(date '+%Y-%m-%d %H:%M:%S')" >> .statistics/problem_times
 
     echo "New problem '$problem_name' created. Re-running CMake configuration..."
     cppconf # Re-run configuration to add the new file to the build system.
@@ -312,27 +339,25 @@ function cppbatch() {
     echo "${GREEN}Batch creation complete!${RESET}"
 }
 
-# Configures the CMake project.
-# Enhanced to support Clang for Sanitize builds on macOS and timing reports.
 function cppconf() {
     local build_type=${1:-Debug}
-    local compiler_override=${2:-""}
+    local compiler_choice=${2:-auto}
     local timing_cmake_arg="-DCP_ENABLE_TIMING=OFF" # Timing is OFF by default.
     
-    # Parse all arguments
+    # Parse all arguments.
     for arg in "$@"; do
         case $arg in
-            # Case-insensitive matching for build types
+            # Case-insensitive matching for build types.
             [Dd]ebug|[Rr]elease|[Ss]anitize)
                 build_type=$(echo "$arg" | awk '{print toupper(substr($0,1,1)) tolower(substr($0,2))}')
                 ;;
             
-            # Compiler override arguments
-            gcc|clang)
-                compiler_override="$arg"
+            # Compiler override arguments.
+            gcc|g++|clang|clang++|auto)
+                compiler_choice=$(echo "$arg" | tr '[:upper:]' '[:lower:]')
                 ;;
             
-            # Check for timing argument
+            # Check for timing argument.
             timing=*)
                 local value=${arg#*=}
                 if [[ "$value" == "on" || "$value" == "true" ]]; then
@@ -344,63 +369,109 @@ function cppconf() {
                 fi
                 ;;
             
-            # Handle unknown arguments
+            # Handle unknown arguments.
             *)
                 echo "${YELLOW}Warning: Unknown argument '$arg'. Ignoring.${RESET}"
                 ;;
         esac
     done
     
+    # Normalize compiler choice to lowercase.
+    compiler_choice=$(echo "$compiler_choice" | tr '[:upper:]' '[:lower:]')
+    
     # Determine which toolchain to use.
-    local toolchain_file="gcc-toolchain.cmake"
-    local toolchain_name="GCC"
+    local toolchain_file=""
+    local toolchain_name=""
     
-    # Special handling for Sanitize builds.
-    if [ "$build_type" = "Sanitize" ]; then
-        if [[ "$OSTYPE" == "darwin"* ]] || [ "$compiler_override" = "clang" ]; then
-            # On macOS or when explicitly requested, use Clang for sanitizers.
+    # Compiler selection logic.
+    case "$compiler_choice" in
+        gcc|g++)
+            toolchain_file="gcc-toolchain.cmake"
+            toolchain_name="GCC (forced)"
+            ;;
+        clang|clang++)
             toolchain_file="clang-toolchain.cmake"
-            toolchain_name="Clang (for sanitizers)"
-            
-            # Create clang-toolchain.cmake if it doesn't exist.
-            if [ ! -f "$toolchain_file" ]; then
-                echo "Creating clang-toolchain.cmake for sanitizer build..."
-                if [ -f "$SCRIPT_DIR/templates/clang-toolchain.cmake.tpl" ]; then
-                    cp "$SCRIPT_DIR/templates/clang-toolchain.cmake.tpl" ./"$toolchain_file"
+            toolchain_name="Clang/LLVM (forced)"
+            ;;
+        auto|"")
+            # Auto-selection based on build type and platform.
+            if [ "$build_type" = "Sanitize" ]; then
+                if [[ "$OSTYPE" == "darwin"* ]]; then
+                    # On macOS, prefer Clang for sanitizers.
+                    toolchain_file="clang-toolchain.cmake"
+                    toolchain_name="Clang/LLVM (auto-selected for sanitizers)"
                 else
-                    echo "${RED}Error: clang-toolchain.cmake template not found!${RESET}" >&2
-                    echo "${YELLOW}Falling back to GCC toolchain...${RESET}"
+                    # On Linux, try GCC first.
                     toolchain_file="gcc-toolchain.cmake"
-                    toolchain_name="GCC"
+                    toolchain_name="GCC (auto-selected)"
                 fi
+            else
+                # Default to GCC for Debug/Release.
+                toolchain_file="gcc-toolchain.cmake"
+                toolchain_name="GCC (default)"
             fi
-        elif [ "$compiler_override" = "gcc" ]; then
-            # Explicitly use GCC even for sanitizers.
-            echo "${YELLOW}Warning: GCC sanitizers may not work properly on macOS${RESET}"
-        fi
-    fi
-
-    # Check if the toolchain file exists, if not, create it.
-    if [ ! -f "$toolchain_file" ]; then
-        if [ "$toolchain_file" = "gcc-toolchain.cmake" ]; then
-            echo "${YELLOW}GCC toolchain file not found. Running cppinit to fix...${RESET}"
-            cppinit
-        else
-            echo "${RED}Toolchain file $toolchain_file not found!${RESET}" >&2
+            ;;
+        *)
+            echo "${RED}Error: Unknown compiler choice '$compiler_choice'${RESET}" >&2
+            echo "Valid options: gcc, clang, auto" >&2
             return 1
+            ;;
+    esac
+
+    # Create toolchain file if it doesn't exist.
+    if [ ! -f "$toolchain_file" ]; then
+        local template_file="$SCRIPT_DIR/templates/${toolchain_file}.tpl"
+        if [ -f "$template_file" ]; then
+            echo "Creating $toolchain_file from template..."
+            cp "$template_file" ./"$toolchain_file"
+        else
+            echo "${RED}Error: Template for $toolchain_file not found!${RESET}" >&2
+            if [ "$toolchain_file" = "gcc-toolchain.cmake" ]; then
+                echo "${YELLOW}Running cppinit to fix missing GCC toolchain...${RESET}"
+                cppinit
+            else
+                return 1
+            fi
         fi
     fi
 
-    # Log the configuration step.
-    echo "${BLUE}/===---------------------------------------------------------------------------===/${RESET}"
-    echo "${BLUE}Configuring project with build type: ${YELLOW}${build_type}${BLUE} (using ${toolchain_name} toolchain)${RESET}"
-    echo "${BLUE}Timing Report: ${YELLOW}${timing_cmake_arg##*=}${RESET}"
+    # Use array for CMake flags to avoid space issues.
+    local cmake_flags=()
     
-    # Run CMake with the appropriate toolchain file and timing setting.
-    if cmake -S . -B build -DCMAKE_BUILD_TYPE=${build_type} -DCMAKE_TOOLCHAIN_FILE=${toolchain_file} ${timing_cmake_arg}; then
+    # Enable timing if requested via environment variable or argument.
+    if [ -n "$CP_TIMING" ]; then
+        timing_cmake_arg="-DCP_ENABLE_TIMING=ON"
+    fi
+    cmake_flags+=("$timing_cmake_arg")
+    
+    # Enable LTO for Release builds with Clang.
+    if [ "$build_type" = "Release" ] && [[ "$toolchain_file" == *"clang"* ]]; then
+        cmake_flags+=("-DCP_ENABLE_LTO=ON")
+    fi
+
+    # Log the configuration step
+    echo "${BLUE}/===---------------------------------------------------------------------------===/${RESET}"
+    echo "${BLUE}Configuring project:${RESET}"
+    echo "  ${CYAN}Build Type:${RESET} ${YELLOW}${build_type}${RESET}"
+    echo "  ${CYAN}Compiler:${RESET} ${YELLOW}${toolchain_name}${RESET}"
+    echo "  ${CYAN}Timing Report:${RESET} ${YELLOW}${timing_cmake_arg##*=}${RESET}"
+    if [[ "${cmake_flags[*]}" == *"LTO"* ]]; then
+        echo "  ${CYAN}LTO:${RESET} ${YELLOW}Enabled${RESET}"
+    fi
+    echo "${BLUE}/===---------------------------------------------------------------------------===/${RESET}"
+    
+    # Run CMake with the selected toolchain - use array expansion
+    if cmake -S . -B build \
+        -DCMAKE_BUILD_TYPE=${build_type} \
+        -DCMAKE_TOOLCHAIN_FILE=${toolchain_file} \
+        -DCMAKE_CXX_FLAGS="-std=c++23" \
+        "${cmake_flags[@]}"; then
         echo "${GREEN}CMake configuration successful.${RESET}"
         # Create the symlink for clangd.
         cmake --build build --target symlink_clangd 2>/dev/null || true
+        
+        # Save configuration for quick reference
+        echo "$build_type:$compiler_choice" > .statistics/last_config
     else
         echo "${RED}CMake configuration failed!${RESET}" >&2
         return 1
@@ -726,8 +797,9 @@ function cppdeepclean() {
     read -r response
     if [[ "$response" =~ ^[Yy]$ ]]; then
         cppclean
-        rm -f CMakeLists.txt gcc-toolchain.cmake .clangd
+        rm -f CMakeLists.txt gcc-toolchain.cmake clang-toolchain.cmake .clangd
         rm -f .contest_metadata .problem_times
+        rm -rf .cache
         echo "${GREEN}Deep clean complete.${RESET}"
     else
         echo "Deep clean cancelled."
@@ -763,7 +835,7 @@ function cppwatch() {
 
 # Show time statistics for problems in the current contest.
 function cppstats() {
-    if [ ! -f ".problem_times" ]; then
+    if [ ! -f ".statistics/problem_times" ]; then
         echo "${YELLOW}No timing data available for this contest.${RESET}"
         return 0
     fi
@@ -776,7 +848,7 @@ function cppstats() {
             local elapsed=$((current_time - timestamp))
             echo "${CYAN}$problem${RESET}: Started $(_format_duration $elapsed) ago"
         fi
-    done < .problem_times
+    done < .statistics/problem_times
     
     echo "${BOLD}${BLUE}/===----------------------------------------===/${RESET}"
 }
@@ -1002,6 +1074,49 @@ EOF
     echo ""
 }
 
+# --------------------------- COMPILER UTILITIES ---------------------------- #
+
+# Quick compiler switch functions
+function cppgcc() {
+    local build_type=${1:-Debug}
+    cppconf "$build_type" gcc
+}
+
+function cppclang() {
+    local build_type=${1:-Debug}
+    cppconf "$build_type" clang
+}
+
+# Quick profiling build
+function cppprof() {
+    echo "${CYAN}Configuring profiling build with Clang...${RESET}"
+    CP_TIMING=1 cppconf Release clang
+}
+
+# Show current configuration
+function cppinfo() {
+    if [ -f ".statistics/last_config" ]; then
+        local config=$(cat .statistics/last_config)
+        local build_type=${config%:*}
+        local compiler=${config#*:}
+        echo "${CYAN}Current configuration:${RESET}"
+        echo "  Build Type: ${YELLOW}$build_type${RESET}"
+        echo "  Compiler: ${YELLOW}$compiler${RESET}"
+    else
+        echo "${YELLOW}No configuration found. Run 'cppconf' first.${RESET}"
+    fi
+    
+    if [ -f "build/CMakeCache.txt" ]; then
+        local actual_compiler=$(grep "CMAKE_CXX_COMPILER:FILEPATH=" build/CMakeCache.txt | cut -d'=' -f2)
+        echo "  Actual Path: ${GREEN}$actual_compiler${RESET}"
+        
+        # Check for LTO support
+        if grep -q "INTERPROCEDURAL_OPTIMIZATION.*TRUE" build/CMakeCache.txt 2>/dev/null; then
+            echo "  ${GREEN}LTO: Enabled${RESET}"
+        fi
+    fi
+}
+
 # --------------------------- SOME USEFUL ALIASES --------------------------- #
 # Shorter aliases for convenience.
 alias cppc='cppconf'
@@ -1041,11 +1156,12 @@ function cpphelp() {
 ${BOLD}Enhanced CMake Utilities for Competitive Programming:${RESET}
 
 ${BOLD}${CYAN}[ SETUP & CONFIGURATION ]${RESET}
-  ${GREEN}cppinit${RESET}                  - Initializes or verifies a project directory (workspace-protected).
-  ${GREEN}cppnew${RESET} ${YELLOW}[name] [template]${RESET} - Creates a new .cpp file from a template ('default', 'pbds').
-  ${GREEN}cppbatch${RESET} ${YELLOW}[count] [tpl]${RESET}   - Creates multiple problems at once (A, B, C, ...).
-  ${GREEN}cppconf${RESET} ${YELLOW}[type]${RESET}           - (Re)configures the project (Debug, Release, Sanitize).
-  ${GREEN}cppcontest${RESET} ${YELLOW}[dir_name]${RESET}    - Creates a new contest directory and initializes it.
+  ${GREEN}cppinit${RESET}                       - Initializes or verifies a project directory (workspace-protected).
+  ${GREEN}cppnew${RESET} ${YELLOW}[name] [template]${RESET}      - Creates a new .cpp file from a template ('default', 'pbds').
+  ${GREEN}cppbatch${RESET} ${YELLOW}[count] [tpl]${RESET}        - Creates multiple problems at once (A, B, C, ...).
+  ${GREEN}cppconf${RESET} ${YELLOW}[type] [compiler] ${RESET}    - (Re)configures the project (Debug/Release/Sanitize, gcc/clang/auto, timing reports).
+          ${YELLOW}[timing=on/off]${RESET}
+  ${GREEN}cppcontest${RESET} ${YELLOW}[dir_name]${RESET}         - Creates a new contest directory and initializes it.
 
 ${BOLD}${CYAN}[ BUILD, RUN, TEST ]${RESET}
   ${GREEN}cppbuild${RESET} ${YELLOW}[name]${RESET}          - Builds a target (defaults to most recent).

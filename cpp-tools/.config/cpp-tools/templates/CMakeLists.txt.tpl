@@ -20,14 +20,45 @@ option(CP_ENABLE_TIMING "Enable detailed GCC/Clang compilation timing reports" O
 if(CP_ENABLE_TIMING)
     message(STATUS "${ANSI_COLOR_CYAN}Compilation timing enabled.${ANSI_COLOR_RESET}")
     
-    set(CACHE BOOL "Enable verbose output for timing" FORCE)
+    set(CMAKE_VERBOSE_MAKEFILE OFF CACHE BOOL "Enable verbose output for timing" FORCE)
     
     # Add timing information to compile commands based on the compiler
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+        # GCC: Use -ftime-report for console output
         add_compile_options(-ftime-report)
+        message(STATUS "${ANSI_COLOR_CYAN}Using GCC timing: (-ftime-report).${ANSI_COLOR_RESET}")
     elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang")
-        add_compile_options(-ftime-trace)
+        # Clang: Use -ftime-trace to generate detailed JSON trace files.
+        # add_compile_options(-ftime-trace -ftime-trace-granularity=1)
+        message(STATUS "${ANSI_COLOR_CYAN}Using Clang timing: (-ftime-trace).${ANSI_COLOR_RESET}")
+        # Alternative: -Xclang -ftime-report for console output (like GCC)
+        add_compile_options(-v -Xclang -ftime-report)
     endif()
+endif()
+
+# ---------------------------- LTO Configuration ---------------------------- #
+option(CP_ENABLE_LTO "Enable Link Time Optimization (if supported)" OFF)
+
+if(CP_ENABLE_LTO AND CMAKE_BUILD_TYPE STREQUAL "Release")
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT ipo_supported OUTPUT ipo_output)
+    
+    if(ipo_supported)
+        message(STATUS "${ANSI_COLOR_GREEN}Link Time Optimization (LTO) enabled${ANSI_COLOR_RESET}")
+        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+    else()
+        message(WARNING "${ANSI_COLOR_YELLOW}LTO not supported: ${ipo_output}${ANSI_COLOR_RESET}")
+    endif()
+endif()
+
+# ---------------------- macOS RPATH Handling Cleanup ----------------------- #
+# Modern RPATH handling for macOS to avoid duplicate -rpath warnings
+if(APPLE)
+    set(CMAKE_MACOSX_RPATH ON)
+    set(CMAKE_SKIP_BUILD_RPATH FALSE)
+    set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
+    set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+    list(REMOVE_DUPLICATES CMAKE_INSTALL_RPATH)
 endif()
 
 # ----------------------------- ANSI Color Codes ---------------------------- #
@@ -292,7 +323,8 @@ function(cp_add_problem TARGET_NAME SOURCE_FILE)
       # Enable C++23 specific features
       $<$<CXX_COMPILER_ID:GNU>:_GLIBCXX_ASSERTIONS>
       $<$<AND:$<CXX_COMPILER_ID:GNU>,$<VERSION_GREATER_EQUAL:${CMAKE_CXX_COMPILER_VERSION},13>>:_GLIBCXX_USE_CXX23_ABI>
-      $<$<CXX_COMPILER_ID:Clang,AppleClang>:_LIBCPP_ENABLE_ASSERTIONS>
+      # Use modern libc++ hardening mode for Clang/AppleClang
+      $<$<CXX_COMPILER_ID:Clang,AppleClang>:_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE>
     )
 
     # ----- Compiler-specific flags ----- #
@@ -387,18 +419,7 @@ function(cp_add_problem TARGET_NAME SOURCE_FILE)
         # Strip symbols in release
         $<$<CONFIG:Release>:-s>
     )
-
-    # Enable Link Time Optimization in Release mode
-    if(CMAKE_BUILD_TYPE STREQUAL "Release")
-        include(CheckIPOSupported)
-        check_ipo_supported(RESULT ipo_supported OUTPUT ipo_error)
-        if(ipo_supported)
-            set_property(TARGET ${TARGET_NAME} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-        else()
-            message(STATUS "IPO is not supported for ${TARGET_NAME}: ${ipo_error}")
-        endif()
-    endif()
-
+    
     if(USE_PCH)
         set(PCH_STATUS "Yes")
     else()
@@ -434,8 +455,11 @@ endif()
 add_custom_target(symlink_clangd
     COMMAND ${CMAKE_COMMAND} -E create_symlink 
             "${CMAKE_BINARY_DIR}/compile_commands.json"
+            "${CMAKE_SOURCE_DIR}/.ide-config/compile_commands.json"
+    COMMAND ${CMAKE_COMMAND} -E create_symlink 
+            "${CMAKE_BINARY_DIR}/compile_commands.json"
             "${CMAKE_SOURCE_DIR}/compile_commands.json"
-    COMMENT "Creating symlink in root for compile_commands.json"
+    COMMENT "Creating symlinks for compile_commands.json"
     VERBATIM
 )
 
