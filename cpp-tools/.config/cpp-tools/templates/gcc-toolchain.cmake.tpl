@@ -358,6 +358,9 @@ set(CMAKE_CXX_COMPILER_ID "GNU" CACHE STRING "C++ compiler ID" FORCE)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Set C++23 standard
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++23" CACHE STRING "" FORCE)
+
 # Enable compiler-specific features
 if(GCC_MAJOR_VERSION AND GCC_MAJOR_VERSION GREATER_EQUAL 10)
     # Enable coroutines for GCC 10+

@@ -12,6 +12,32 @@
 cmake_minimum_required(VERSION 3.20)
 project(competitive_programming LANGUAGES CXX)
 
+# ----------------------- Compilation Timing Setup ------------------------- #
+# Enable detailed compilation timing
+if(CMAKE_GENERATOR STREQUAL "Unix Makefiles" OR CMAKE_GENERATOR STREQUAL "Ninja")
+  set(CMAKE_VERBOSE_MAKEFILE ON CACHE BOOL "Enable verbose output" FORCE)
+  
+  # Add timing information to compile commands
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    add_compile_options(-ftime-report)
+  elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang")
+    add_compile_options(-ftime-trace)
+  endif()
+  
+  message(STATUS "${ANSI_COLOR_CYAN}Compilation timing enabled${ANSI_COLOR_RESET}")
+endif()
+
+# Custom target for timed build
+add_custom_target(timed_build
+  COMMAND ${CMAKE_COMMAND} -E echo "Starting timed build..."
+  COMMAND ${CMAKE_COMMAND} -E echo "Build started at: $$(date)"
+  COMMAND time ${CMAKE_COMMAND} --build . --parallel
+  COMMAND ${CMAKE_COMMAND} -E echo "Build completed at: $$(date)"
+  COMMENT "Building all targets with timing information"
+  WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+  USES_TERMINAL
+)
+
 # ----------------------------- ANSI Color Codes ---------------------------- #
 # Define variables for ANSI color codes to make message() output more readable.
 if(UNIX OR APPLE OR CMAKE_HOST_WIN32)
@@ -244,6 +270,13 @@ endif()
 
 function(cp_add_problem TARGET_NAME SOURCE_FILE)
     add_executable(${TARGET_NAME} ${SOURCE_FILE})
+    
+    # Set C++23 standard for the target
+    set_target_properties(${TARGET_NAME} PROPERTIES
+        CXX_STANDARD 23
+        CXX_STANDARD_REQUIRED ON
+        CXX_EXTENSIONS OFF
+    )
 
     # Determine if we should use PCH.h instead of bits/stdc++.h
     set(USE_PCH FALSE)
@@ -256,14 +289,18 @@ function(cp_add_problem TARGET_NAME SOURCE_FILE)
 
     # ----- Target-specific compiler definitions ----- #
     target_compile_definitions(${TARGET_NAME} PRIVATE
-        # Define LOCAL for debug builds
-        $<$<CONFIG:Debug,Sanitize>:LOCAL>
-        # Define NDEBUG for release builds
-        $<$<CONFIG:Release>:NDEBUG>
-        # Add _GLIBCXX_DEBUG for better STL debugging in debug mode (GCC only)
-        $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU>>:_GLIBCXX_DEBUG>
-        # Use PCH instead of bits/stdc++.h when needed
-        $<$<BOOL:${USE_PCH}>:USE_CLANG_SANITIZE>
+      # Define LOCAL for debug builds
+      $<$<CONFIG:Debug,Sanitize>:LOCAL>
+      # Define NDEBUG for release builds
+      $<$<CONFIG:Release>:NDEBUG>
+      # Add _GLIBCXX_DEBUG for better STL debugging in debug mode (GCC only)
+      $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:GNU>>:_GLIBCXX_DEBUG>
+      # Use PCH instead of bits/stdc++.h when needed
+      $<$<BOOL:${USE_PCH}>:USE_CLANG_SANITIZE>
+      # Enable C++23 specific features
+      $<$<CXX_COMPILER_ID:GNU>:_GLIBCXX_ASSERTIONS>
+      $<$<AND:$<CXX_COMPILER_ID:GNU>,$<VERSION_GREATER_EQUAL:${CMAKE_CXX_COMPILER_VERSION},13>>:_GLIBCXX_USE_CXX23_ABI>
+      $<$<CXX_COMPILER_ID:Clang,AppleClang>:_LIBCPP_ENABLE_ASSERTIONS>
     )
 
     # ----- Compiler-specific flags ----- #
@@ -304,6 +341,8 @@ function(cp_add_problem TARGET_NAME SOURCE_FILE)
 
     # Apply compiler flags
     target_compile_options(${TARGET_NAME} PRIVATE
+        # Use C++23 standard
+        -std=c++23
         ${COMMON_FLAGS}
         # Suppress common warnings
         -Wno-unused-const-variable

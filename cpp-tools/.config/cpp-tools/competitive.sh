@@ -411,13 +411,35 @@ function cppcontest() {
 
 # ------------------------------- BUILD & RUN ------------------------------- #
 
-# Builds a specific target.
+# Builds a specific target with intelligent, conditional output.
 function cppbuild() {
     _check_initialized || return 1
     local target_name=${1:-$(_get_default_target)}
     echo "${CYAN}Building target: ${BOLD}$target_name${RESET}..."
-    # Use -j to build in parallel.
-    cmake --build build --target "$target_name" -j
+
+    # Capture both stdout and stderr to analyze build output.
+    local build_output
+    build_output=$(cmake --build build --target "$target_name" -j 2>&1)
+    local build_status=$?
+
+    # Handle build failures with full error output.
+    if [ $build_status -ne 0 ]; then
+        echo ""
+        echo "${BOLD}${RED}/===----- BUILD FAILED -----===/${RESET}"
+        echo "$build_output"
+        return 1
+    fi
+
+    # Show detailed output only if actual compilation occurred.
+    if [[ "$build_output" == *"Building CXX object"* ]]; then
+        # Real compilation happened - show full output including timing info.
+        echo "$build_output"
+    else
+        # Target up-to-date - show only the summary line.
+        echo "$build_output" | tail -n 1
+    fi
+
+    return 0
 }
 
 # Runs a specific executable.

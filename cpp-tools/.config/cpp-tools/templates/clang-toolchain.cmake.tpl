@@ -186,6 +186,9 @@ set(CMAKE_CXX_COMPILER_ID "Clang" CACHE STRING "C++ compiler ID" FORCE)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Set C++23 standard
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++23" CACHE STRING "" FORCE)
+
 # Set default build type to Sanitize
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Sanitize CACHE STRING "Default build type for sanitizers" FORCE)
