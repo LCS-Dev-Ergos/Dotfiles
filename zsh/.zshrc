@@ -802,6 +802,11 @@ command -v ngrok &>/dev/null && eval "$(ngrok completion)"
 # ----------- Angular CLI ----------- #
 command -v ng &>/dev/null && source <(ng completion script)
 
+# ----------- Docker CLI  ----------- #
+fpath=(/Users/lcs-dev/.docker/completions $fpath)
+autoload -Uz compinit
+compinit
+
 # =========================================================================== #
 # +++++++++++++++++ FINAL PATH REORDERING AND CLEANUP +++++++++++++++++++++++ #
 # =========================================================================== #
