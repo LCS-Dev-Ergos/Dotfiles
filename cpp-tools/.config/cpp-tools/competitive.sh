@@ -30,7 +30,7 @@ else
     CP_WORKSPACE_ROOT="${CP_WORKSPACE_ROOT:-$HOME/CP-Problems}"
 fi
 
-# Path to your global directory containing reusable headers like debug.h.
+# Path to global directory containing reusable headers like debug.h.
 # The script will create a symlink to this file in new projects.
 if [[ "$OSTYPE" == "darwin"* ]]; then
     # Default path for macOS.
@@ -46,6 +46,9 @@ else
     # Fallback for other platforms.
     CP_ALGORITHMS_DIR="${CP_ALGORITHMS_DIR:-$HOME/CP/Algorithms}"
 fi
+
+# Path to Perfetto UI directory for trace analysis.
+PERFETTO_UI_DIR="$HOME/Dev/Tools/perfetto"
 
 # Check if terminal supports colors.
 if test -t 1; then
@@ -314,9 +317,9 @@ function cppnew() {
     
     # Create corresponding empty input/output files.
     touch "input_cases/${problem_name}.in"
-    touch "output_cases/${problem_name}.out"
+    touch "output_cases/${problem_name}.exp"
     echo "Created empty input file: input_cases/${problem_name}.in"
-    echo "Created empty output file: output_cases/${problem_name}.out"
+    echo "Created empty output file: output_cases/${problem_name}.exp"
 
     # Track problem creation time with human-readable format
     echo "${problem_name}:START:$(date +%s):$(date '+%Y-%m-%d %H:%M:%S')" >> .statistics/problem_times
@@ -561,27 +564,39 @@ function cppbuild() {
         # 3. Print timing statistics only if timing is enabled
         if [ "$timing_enabled" = true ]; then
             echo ""
-            echo "${BOLD}${CYAN}/===---------------- Compilation Time Statistics -----------------===/${RESET}"
+            echo "${BOLD}${CYAN}/===--------------------- Compilation Time Statistics ----------------------===/${RESET}"
             echo ""
 
-            # Print the compiler timing report (-ftime-report) if available.
+            # Universal timing report finder for both GCC and Clang
             local timing_report
-            timing_report=$(echo "$build_output" | sed -n '/Time variable/,/TOTAL/p')
+            timing_report=$(echo "$build_output" | sed -n '/Time variable/,/TOTAL/p; /Pass execution timing report/,$p')
+
             if [ -n "$timing_report" ]; then
-                echo "$timing_report"
+            # Extract only the relevant parts, stopping before the linking phase
+            echo "$timing_report" | sed '/Linking CXX executable/q'
+            else
+            echo " Compilation finished. (Timing report not found in output)."
+            fi
+
+            # Check if this is a Clang build and add trace analysis note
+            if [ -f "build/CMakeCache.txt" ] && grep -q "clang" build/CMakeCache.txt; then
+            echo ""
+            echo -e " Clang compilation finished."
+            echo -e " ${CYAN}Note: To analyze the detailed trace with Perfetto UI, run:${RESET}"
+            echo -e "   ${BOLD}${GREEN}cpptrace $target_name${RESET}"
             fi
 
             echo ""
-            echo "${BOLD}${CYAN}/===---------- Compilation Finished, Proceeding to Link ----------===/${RESET}"
+            echo "${BOLD}${CYAN}/===--------------- Compilation Finished, Proceeding to Link ---------------===/${RESET}"
             echo ""
         fi
 
         # 4. Print the linking line and anything after it.
         echo "$build_output" | sed -n '/Linking CXX executable/,$p'
-    else
+        else
         # Target up-to-date - show only the summary line.
         echo "$build_output" | tail -n 1
-    fi
+        fi
 
     return 0
 }
@@ -696,15 +711,28 @@ function cppjudge() {
     local target_name=${1:-$(_get_default_target)}
     local exec_path="./bin/$target_name"
     local input_dir="input_cases"
+    local output_dir="output_cases"
 
     if ! cppbuild "$target_name"; then
         echo "${RED}Build failed!${RESET}" >&2
         return 1
     fi
     
-    # Check for test cases.
-    if ! ls "$input_dir/${target_name}".*.in &>/dev/null; then
-        echo "${YELLOW}No test cases found in '$input_dir/' for pattern '${target_name}.*.in'${RESET}"
+    # Check for test cases - first try the specific pattern, then fall back to simple .in file
+    local test_files=()
+    
+    # Use find to avoid "no matches found" error in zsh.
+    while IFS= read -r -d '' file; do
+        test_files+=("$file")
+    done < <(find "$input_dir" -name "${target_name}.*.in" -print0 2>/dev/null)
+    
+    # If no numbered test cases found, check for single test case
+    if [ ${#test_files[@]} -eq 0 ] && [ -f "$input_dir/${target_name}.in" ]; then
+        test_files+=("$input_dir/${target_name}.in")
+    fi
+    
+    if [ ${#test_files[@]} -eq 0 ]; then
+        echo "${YELLOW}No test cases found for '$target_name' (looked for '${target_name}.*.in' and '${target_name}.in')${RESET}"
         return 0
     fi
 
@@ -712,10 +740,10 @@ function cppjudge() {
     local failed=0
     local total=0
 
-    for test_in in "$input_dir/${target_name}".*.in; do
+    for test_in in "${test_files[@]}"; do
         local test_case_base
         test_case_base=$(basename "$test_in" .in)
-        local test_out="$input_dir/${test_case_base}.out"
+        local output_case="$output_dir/${test_case_base}.exp"
         local temp_out
         temp_out=$(mktemp)
 
@@ -728,14 +756,15 @@ function cppjudge() {
         local end_time=$(date +%s%N)
         local elapsed_ms=$(( (end_time - start_time) / 1000000 ))
 
-        if [ ! -f "$test_out" ]; then
-            echo "${BOLD}${YELLOW}WARNING: Output file '$(basename "$test_out")' not found.${RESET}"
+        # Check if expected output file exists.
+        if [ ! -f "$output_case" ]; then
+            echo "${BOLD}${YELLOW}WARNING: Expected output file '$(basename "$output_case")' not found.${RESET}"
             rm "$temp_out"
             continue
         fi
 
         # Use diff with -w (ignore all whitespace) and -B (ignore blank lines).
-        if diff -wB "$temp_out" "$test_out" >/dev/null; then
+        if diff -wB "$temp_out" "$output_case" >/dev/null; then
             echo "${BOLD}${GREEN}PASSED${RESET} (${elapsed_ms}ms)"
             ((passed++))
         else
@@ -744,7 +773,7 @@ function cppjudge() {
             echo "${BOLD}${YELLOW}/===---------- YOUR OUTPUT ---------===/${RESET}"
             cat "$temp_out"
             echo "${BOLD}${YELLOW}/===----------- EXPECTED -----------===/${RESET}"
-            cat "$test_out"
+            cat "$output_case"
             echo "${BOLD}${YELLOW}/===--------------------------------===/${RESET}"
         fi
         rm "$temp_out"
@@ -791,6 +820,146 @@ function cppstress() {
     else
         echo "${RED}$failed iterations failed out of $iterations${RESET}"
     fi
+}
+
+# --------------------------- COMPILER UTILITIES ---------------------------- #
+
+# Quick compiler switch functions
+function cppgcc() {
+    local build_type=${1:-Debug}
+    cppconf "$build_type" gcc
+}
+
+function cppclang() {
+    local build_type=${1:-Debug}
+    cppconf "$build_type" clang
+}
+
+# Quick profiling build
+function cppprof() {
+    echo "${CYAN}Configuring profiling build with Clang...${RESET}"
+    CP_TIMING=1 cppconf Release clang
+}
+
+# Show current configuration
+function cppinfo() {
+    if [ -f ".statistics/last_config" ]; then
+        local config=$(cat .statistics/last_config)
+        local build_type=${config%:*}
+        local compiler=${config#*:}
+        echo "${CYAN}Current configuration:${RESET}"
+        echo "  Build Type: ${YELLOW}$build_type${RESET}"
+        echo "  Compiler: ${YELLOW}$compiler${RESET}"
+    else
+        echo "${YELLOW}No configuration found. Run 'cppconf' first.${RESET}"
+    fi
+    
+    if [ -f "build/CMakeCache.txt" ]; then
+        local actual_compiler=$(grep "CMAKE_CXX_COMPILER:FILEPATH=" build/CMakeCache.txt | cut -d'=' -f2)
+        echo "  Actual Path: ${GREEN}$actual_compiler${RESET}"
+        
+        # Check for LTO support
+        if grep -q "INTERPROCEDURAL_OPTIMIZATION.*TRUE" build/CMakeCache.txt 2>/dev/null; then
+            echo "  ${GREEN}LTO: Enabled${RESET}"
+        fi
+    fi
+}
+
+# Analyze a Clang trace file using the official Perfetto UI Docker image.
+function cpptrace() {
+    # 1. Dependency Check.
+    if ! command -v docker &> /dev/null; then
+        echo "${RED}Error: 'docker' command not found.${RESET}" >&2
+        echo "This feature requires Docker Desktop to run the Perfetto UI container." >&2
+        echo "Please install and start Docker Desktop." >&2
+        return 1
+    fi
+    
+    if ! docker info > /dev/null 2>&1; then
+        echo "${RED}Error: Docker daemon is not running.${RESET}" >&2
+        echo "Please start Docker Desktop and try again." >&2
+        return 1
+    fi
+
+    # 2. Find the Trace File.
+    local target=$(_get_default_target)
+    local target_name=$(echo "${1:-$target}" | sed -E 's/\.(cpp|cc|cxx)$//')
+    local trace_file_path_host="$(pwd)/build/CMakeFiles/${target_name}.dir/${target_name}.cpp.json"
+
+    if [ ! -f "$trace_file_path_host" ]; then
+        echo "${RED}Error: Trace file not found for target '$target_name'.${RESET}" >&2
+        echo "Expected at: ${CYAN}$trace_file_path_host${RESET}" >&2
+        echo "Please build with ${YELLOW}'cppconf timing=on'${RESET} first, then rebuild the target." >&2
+        return 1
+    fi
+
+    # 3. Start the Perfetto UI Container.
+    local container_name="perfetto-ui-server"
+    echo "${CYAN}Checking for existing Perfetto container...${RESET}"
+    
+    # Stop and remove any old container with the same name.
+    if [ "$(docker ps -a -q -f name=$container_name)" ]; then
+        echo "Stopping and removing existing container..."
+        docker stop $container_name > /dev/null 2>&1
+        docker rm $container_name > /dev/null 2>&1
+    fi
+
+    echo "${CYAN}Starting a new Perfetto UI container...${RESET}"
+    # Run the official, pre-built Perfetto image.
+    # -d: detached mode (runs in background).
+    # -p: maps port 10000 on host to port 80 in the container.
+    # -v: mounts current project directory into /share inside the container (read-only for security).
+    # --rm: automatically removes the container when it's stopped.
+    # --name: gives the container a predictable name.
+    # --user: run as current user to avoid permission issues.
+    if ! docker run \
+        -d \
+        -p 10000:80 \
+        -v "$(pwd)":/share:ro \
+        --user "$(id -u):$(id -g)" \
+        --name "$container_name" \
+        --rm \
+        europe-west0-docker.pkg.dev/perfetto-ui/deploys/ui:latest > /dev/null 2>&1; then
+        echo "${RED}Error: Failed to start Perfetto UI container.${RESET}" >&2
+        echo "Please check your Docker installation and network connectivity." >&2
+        return 1
+    fi
+
+    # Give the container a moment to initialize.
+    echo "Waiting for container to initialize..."
+    sleep 3
+
+    # Verify the container is running.
+    if ! docker ps --format "table {{.Names}}" | grep -q "^$container_name\$"; then
+        echo "${RED}Error: Container failed to start properly.${RESET}" >&2
+        return 1
+    fi
+
+    # 4. Open the Trace in the Browser.
+    # The path to the file "inside the container".
+    local trace_file_path_container="/share/build/CMakeFiles/${target_name}.dir/${target_name}.cpp.json"
+    local url="http://localhost:10000/?url=file://${trace_file_path_container}"
+    
+    echo "${BLUE}Opening trace report in your default browser...${RESET}"
+    echo "Trace file: ${CYAN}$(basename "$trace_file_path_host")${RESET}"
+    
+    # Cross-platform browser opening.
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        open "$url"
+    elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        if command -v xdg-open > /dev/null; then
+            xdg-open "$url"
+        else
+            echo "${YELLOW}Please open this URL manually: $url${RESET}"
+        fi
+    else
+        echo "${YELLOW}Please open this URL manually: $url${RESET}"
+    fi
+
+    echo ""
+    echo "${BOLD}${GREEN}[*] Perfetto UI is running in a Docker container.${RESET}"
+    echo "${YELLOW}To stop the server later, run:${RESET}"
+    echo "  ${CYAN}docker stop $container_name${RESET}"
 }
 
 # -------------------------------- UTILITIES -------------------------------- #
@@ -1090,49 +1259,6 @@ EOF
     echo ""
 }
 
-# --------------------------- COMPILER UTILITIES ---------------------------- #
-
-# Quick compiler switch functions
-function cppgcc() {
-    local build_type=${1:-Debug}
-    cppconf "$build_type" gcc
-}
-
-function cppclang() {
-    local build_type=${1:-Debug}
-    cppconf "$build_type" clang
-}
-
-# Quick profiling build
-function cppprof() {
-    echo "${CYAN}Configuring profiling build with Clang...${RESET}"
-    CP_TIMING=1 cppconf Release clang
-}
-
-# Show current configuration
-function cppinfo() {
-    if [ -f ".statistics/last_config" ]; then
-        local config=$(cat .statistics/last_config)
-        local build_type=${config%:*}
-        local compiler=${config#*:}
-        echo "${CYAN}Current configuration:${RESET}"
-        echo "  Build Type: ${YELLOW}$build_type${RESET}"
-        echo "  Compiler: ${YELLOW}$compiler${RESET}"
-    else
-        echo "${YELLOW}No configuration found. Run 'cppconf' first.${RESET}"
-    fi
-    
-    if [ -f "build/CMakeCache.txt" ]; then
-        local actual_compiler=$(grep "CMAKE_CXX_COMPILER:FILEPATH=" build/CMakeCache.txt | cut -d'=' -f2)
-        echo "  Actual Path: ${GREEN}$actual_compiler${RESET}"
-        
-        # Check for LTO support
-        if grep -q "INTERPROCEDURAL_OPTIMIZATION.*TRUE" build/CMakeCache.txt 2>/dev/null; then
-            echo "  ${GREEN}LTO: Enabled${RESET}"
-        fi
-    fi
-}
-
 # --------------------------- SOME USEFUL ALIASES --------------------------- #
 # Shorter aliases for convenience.
 alias cppc='cppconf'
@@ -1152,17 +1278,43 @@ alias cppar='cpparchive'
 alias cppst='cppstress'
 alias cppd='cppdiag'
 alias cppin='cppinit'
-alias cpph='cpphelp'        
+alias cpph='cpphelp'
 
 # Short alias for problem run with input redirection.
-alias cppgo_A='cppgo problem_A problem_A.in'
-alias cppgo_B='cppgo problem_B problem_B.in'
-alias cppgo_C='cppgo problem_C problem_C.in'
-alias cppgo_D='cppgo problem_D problem_D.in'
-alias cppgo_E='cppgo problem_E problem_E.in'
-alias cppgo_F='cppgo problem_F problem_F.in'
-alias cppgo_G='cppgo problem_G problem_G.in'
-alias cppgo_H='cppgo problem_H problem_H.in'
+# Dynamic problem runner function that handles both problem_X and problem_X1 patterns.
+function cppgo_() {
+    local problem_id="$1"
+    local target_name="problem_${problem_id}"
+    local input_file="${target_name}.in"
+    
+    # Check if the target file exists, if not try with numeric suffix.
+    if [ ! -f "${target_name}.cpp" ] && [ ! -f "${target_name}.cc" ] && [ ! -f "${target_name}.cxx" ]; then
+        # Try with numeric suffix (problem_A1, problem_A2, etc.).
+        local found_file=""
+        for ext in cpp cc cxx; do
+            for num in {1..9}; do
+                if [ -f "${target_name}${num}.${ext}" ]; then
+                    target_name="${target_name}${num}"
+                    input_file="${target_name}.in"
+                    found_file="${target_name}.${ext}"
+                    break 2
+                fi
+            done
+        done
+        
+        if [ -z "$found_file" ]; then
+            echo "${RED}Error: No file found for problem '${problem_id}' (tried ${target_name}.* and ${target_name}[1-9].*).${RESET}" >&2
+            return 1
+        fi
+    fi
+    
+    cppgo "$target_name" "$input_file"
+}
+
+# Create aliases for common problem letters
+for letter in {A..H}; do
+    alias "cppgo_${letter}"="cppgo_ ${letter}"
+done
 
 # ------------------------------- HELP & USAGE ------------------------------ #
 
@@ -1195,6 +1347,7 @@ ${BOLD}${CYAN}[ UTILITIES ]${RESET}
   ${GREEN}cpparchive${RESET}               - Creates a compressed archive of the contest.
   ${GREEN}cppdiag${RESET}                  - Displays detailed diagnostic info about the toolchain.
   ${GREEN}cpphelp${RESET}                  - Shows this help message.
+  ${GREEN}cpptrace${RESET} ${YELLOW}[name]${RESET}          - Analyzes Clang trace file with local Perfetto UI.
 
 ${BOLD}${MAGENTA}[ WORKSPACE INFO ]${RESET}
   Workspace Root: ${CYAN}${CP_WORKSPACE_ROOT}${RESET}

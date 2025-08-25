@@ -12,28 +12,76 @@
 cmake_minimum_required(VERSION 3.20)
 project(competitive_programming LANGUAGES CXX)
 
+# ----------------------------- ANSI Color Codes ---------------------------- #
+# Define variables for ANSI color codes to make message() output more readable.
+if(UNIX OR APPLE OR CMAKE_HOST_WIN32)
+    string(ASCII 27 Esc)
+    set(ANSI_COLOR_RED     "${Esc}[31m")
+    set(ANSI_COLOR_GREEN   "${Esc}[32m")
+    set(ANSI_COLOR_YELLOW  "${Esc}[33m")
+    set(ANSI_COLOR_BLUE    "${Esc}[34m")
+    set(ANSI_COLOR_CYAN    "${Esc}[36m")
+    set(ANSI_COLOR_BOLD    "${Esc}[1m")
+    set(ANSI_COLOR_RESET   "${Esc}[0m")
+endif()
+
+# ---------------------- macOS RPATH Handling Cleanup ----------------------- #
+# Modern RPATH handling for macOS to avoid duplicate -rpath warnings
+if(APPLE)
+    set(CMAKE_MACOSX_RPATH ON)
+    set(CMAKE_SKIP_BUILD_RPATH FALSE)
+    set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
+    set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+    list(REMOVE_DUPLICATES CMAKE_INSTALL_RPATH)
+endif()
+
 # ------------------------ Compilation Timing Setup ------------------------- #
-# Create a user-configurable option to enable/disable timing reports.
-# This can be controlled from the command line with -DCP_ENABLE_TIMING=ON
+# Enable per-config compilation timing without affecting Release by default.
 option(CP_ENABLE_TIMING "Enable detailed GCC/Clang compilation timing reports" OFF)
+set(CP_TIMING_CONFIGS "Debug;Sanitize" CACHE STRING "Configs that receive timing flags")
 
 if(CP_ENABLE_TIMING)
-    message(STATUS "${ANSI_COLOR_CYAN}Compilation timing enabled.${ANSI_COLOR_RESET}")
-    
-    set(CMAKE_VERBOSE_MAKEFILE OFF CACHE BOOL "Enable verbose output for timing" FORCE)
-    
-    # Add timing information to compile commands based on the compiler
-    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-        # GCC: Use -ftime-report for console output
-        add_compile_options(-ftime-report)
-        message(STATUS "${ANSI_COLOR_CYAN}Using GCC timing: (-ftime-report).${ANSI_COLOR_RESET}")
-    elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang")
-        # Clang: Use -ftime-trace to generate detailed JSON trace files.
-        # add_compile_options(-ftime-trace -ftime-trace-granularity=1)
-        message(STATUS "${ANSI_COLOR_CYAN}Using Clang timing: (-ftime-trace).${ANSI_COLOR_RESET}")
-        # Alternative: -Xclang -ftime-report for console output (like GCC)
-        add_compile_options(-v -Xclang -ftime-report)
+  message(STATUS "${ANSI_COLOR_CYAN}Compilation timing enabled.${ANSI_COLOR_RESET}")
+
+  include(CheckCXXCompilerFlag)
+  set(TIMING_FLAGS "")
+
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    check_cxx_compiler_flag("-ftime-report" HAS_FTIME_REPORT)
+    if(HAS_FTIME_REPORT)
+      list(APPEND TIMING_FLAGS "-ftime-report")
     endif()
+    string(REPLACE ";" "; " TIMING_FLAGS_DISPLAY "${TIMING_FLAGS}")
+    message(STATUS "${ANSI_COLOR_CYAN}GCC timing flags detected: ${TIMING_FLAGS_DISPLAY}${ANSI_COLOR_RESET}")
+
+  elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang")
+    check_cxx_compiler_flag("-ftime-trace" HAS_FTIME_TRACE)
+    if(HAS_FTIME_TRACE)
+      list(APPEND TIMING_FLAGS "-ftime-trace")
+      check_cxx_compiler_flag("-ftime-trace-granularity=1" HAS_FTIME_TRACE_GRAN)
+      if(HAS_FTIME_TRACE_GRAN)
+        list(APPEND TIMING_FLAGS "-ftime-trace-granularity=1")
+      endif()
+    endif()
+    check_cxx_compiler_flag("-ftime-report" HAS_CLANG_FTIME_REPORT)
+    if(HAS_CLANG_FTIME_REPORT)
+      list(APPEND TIMING_FLAGS "-ftime-report")
+    endif()
+    string(REPLACE ";" "; " TIMING_FLAGS_DISPLAY "${TIMING_FLAGS}")
+    message(STATUS "${ANSI_COLOR_CYAN}Clang timing flags detected: ${TIMING_FLAGS_DISPLAY}${ANSI_COLOR_RESET}")
+  endif()
+
+  if(TIMING_FLAGS)
+    foreach(cfg ${CP_TIMING_CONFIGS})
+      foreach(f ${TIMING_FLAGS})
+        add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CONFIG:${cfg}>>:${f}>")
+      endforeach()
+    endforeach()
+    string(REPLACE ";" "; " TIMING_CONFIGS_DISPLAY "${CP_TIMING_CONFIGS}")
+    message(STATUS "${ANSI_COLOR_CYAN}Timing applied to configs: ${TIMING_CONFIGS_DISPLAY}${ANSI_COLOR_RESET}")
+  else()
+    message(WARNING "${ANSI_COLOR_YELLOW}Timing requested, but no supported flags were found for this compiler.${ANSI_COLOR_RESET}")
+  endif()
 endif()
 
 # ---------------------------- LTO Configuration ---------------------------- #
@@ -49,29 +97,6 @@ if(CP_ENABLE_LTO AND CMAKE_BUILD_TYPE STREQUAL "Release")
     else()
         message(WARNING "${ANSI_COLOR_YELLOW}LTO not supported: ${ipo_output}${ANSI_COLOR_RESET}")
     endif()
-endif()
-
-# ---------------------- macOS RPATH Handling Cleanup ----------------------- #
-# Modern RPATH handling for macOS to avoid duplicate -rpath warnings
-if(APPLE)
-    set(CMAKE_MACOSX_RPATH ON)
-    set(CMAKE_SKIP_BUILD_RPATH FALSE)
-    set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
-    set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-    list(REMOVE_DUPLICATES CMAKE_INSTALL_RPATH)
-endif()
-
-# ----------------------------- ANSI Color Codes ---------------------------- #
-# Define variables for ANSI color codes to make message() output more readable.
-if(UNIX OR APPLE OR CMAKE_HOST_WIN32)
-    string(ASCII 27 Esc)
-    set(ANSI_COLOR_RED     "${Esc}[31m")
-    set(ANSI_COLOR_GREEN   "${Esc}[32m")
-    set(ANSI_COLOR_YELLOW  "${Esc}[33m")
-    set(ANSI_COLOR_BLUE    "${Esc}[34m")
-    set(ANSI_COLOR_CYAN    "${Esc}[36m")
-    set(ANSI_COLOR_BOLD    "${Esc}[1m")
-    set(ANSI_COLOR_RESET   "${Esc}[0m")
 endif()
 
 # ------------------ Compiler Include Path Auto-Detection ------------------- #
