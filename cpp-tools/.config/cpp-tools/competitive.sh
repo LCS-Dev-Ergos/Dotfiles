@@ -1281,7 +1281,7 @@ alias cppin='cppinit'
 alias cpph='cpphelp'
 
 # Short alias for problem run with input redirection.
-# Dynamic problem runner function that handles both problem_X and problem_X1 patterns.
+# Dynamic problem runner function that handles both problem_X and problem_X[0..9] patterns.
 function cppgo_() {
     local problem_id="$1"
     local target_name="problem_${problem_id}"
@@ -1311,9 +1311,13 @@ function cppgo_() {
     cppgo "$target_name" "$input_file"
 }
 
-# Create aliases for common problem letters
+# Create aliases for common problem letters and numbered variants
 for letter in {A..H}; do
     alias "cppgo_${letter}"="cppgo_ ${letter}"
+    # Create numbered variants (e.g., cppgo_A1, cppgo_A2, etc.)
+    for num in {1..9}; do
+        alias "cppgo_${letter}${num}"="cppgo_ ${letter}${num}"
+    done
 done
 
 # ------------------------------- HELP & USAGE ------------------------------ #

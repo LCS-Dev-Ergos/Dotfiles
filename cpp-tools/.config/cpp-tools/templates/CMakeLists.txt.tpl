@@ -26,13 +26,29 @@ if(UNIX OR APPLE OR CMAKE_HOST_WIN32)
 endif()
 
 # ---------------------- macOS RPATH Handling Cleanup ----------------------- #
-# Modern RPATH handling for macOS to avoid duplicate -rpath warnings
 if(APPLE)
+    # Modern RPATH handling for macOS
     set(CMAKE_MACOSX_RPATH ON)
     set(CMAKE_SKIP_BUILD_RPATH FALSE)
     set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
     set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-    list(REMOVE_DUPLICATES CMAKE_INSTALL_RPATH)
+    
+    # Disable automatic RPATH generation to avoid duplicates
+    set(CMAKE_SKIP_RPATH FALSE)
+    set(CMAKE_SKIP_INSTALL_RPATH TRUE)
+    
+    # Get the LLVM/Clang library path if using Homebrew LLVM
+    if(CMAKE_CXX_COMPILER MATCHES "llvm")
+        get_filename_component(LLVM_BIN_DIR ${CMAKE_CXX_COMPILER} DIRECTORY)
+        get_filename_component(LLVM_ROOT_DIR ${LLVM_BIN_DIR} DIRECTORY)
+        set(LLVM_LIB_DIR "${LLVM_ROOT_DIR}/lib")
+        
+        if(EXISTS "${LLVM_LIB_DIR}")
+            # Set a clean, single RPATH for LLVM
+            set(CMAKE_INSTALL_RPATH "${LLVM_LIB_DIR}")
+            message(STATUS "RPATH Fix: Set single LLVM RPATH: ${LLVM_LIB_DIR}")
+        endif()
+    endif()
 endif()
 
 # ------------------------ Compilation Timing Setup ------------------------- #
@@ -429,11 +445,19 @@ function(cp_add_problem TARGET_NAME SOURCE_FILE)
             foreach(dir IN LISTS COMPILER_SYSTEM_INCLUDE_PATHS)
                 target_compile_options(${TARGET_NAME} PRIVATE "-isystem${dir}")
             endforeach()
-        else()
+        elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang")
             # For Clang, just add as system includes without nostdinc++
             foreach(dir IN LISTS COMPILER_SYSTEM_INCLUDE_PATHS)
                 target_include_directories(${TARGET_NAME} SYSTEM PRIVATE ${dir})
             endforeach()
+            # RPATH fix for this specific target
+            if(LLVM_LIB_DIR AND EXISTS "${LLVM_LIB_DIR}")
+                set_target_properties(${TARGET_NAME} PROPERTIES
+                    INSTALL_RPATH "${LLVM_LIB_DIR}"
+                    BUILD_WITH_INSTALL_RPATH TRUE
+                    SKIP_BUILD_RPATH FALSE
+                )
+            endif()
         endif()
     endif()
 

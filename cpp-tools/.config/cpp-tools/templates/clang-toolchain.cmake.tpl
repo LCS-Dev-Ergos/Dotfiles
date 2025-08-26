@@ -11,7 +11,7 @@
 #   Used automatically by 'cppconf Sanitize clang' via:
 #   cmake -DCMAKE_TOOLCHAIN_FILE=clang-toolchain.cmake -DCMAKE_BUILD_TYPE=Sanitize
 #
-# ============================================================================ #
+# =========================================================================== #
 
 # Prevent duplicate execution of this toolchain file
 if(DEFINED _CLANG_TOOLCHAIN_LOADED)

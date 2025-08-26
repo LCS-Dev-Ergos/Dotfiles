@@ -19,7 +19,7 @@
 #   - Comprehensive error messages with installation instructions
 #   - Caching for faster reconfiguration
 #
-# ============================================================================ #
+# =========================================================================== #
 
 # Prevent duplicate execution of this toolchain file
 if(DEFINED _GCC_TOOLCHAIN_LOADED)
