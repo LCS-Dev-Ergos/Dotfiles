@@ -200,9 +200,6 @@ not_passed/
 .cache/*
 .ide-configs/
 .statistics/
-CMakeLists.txt
-gcc-toolchain.cmake
-clang-toolchain.cmake
 compile_commands.json
 .clangd
 *.out
