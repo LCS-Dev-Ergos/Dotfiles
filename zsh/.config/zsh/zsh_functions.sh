@@ -4,7 +4,7 @@
 # ++++++++++++++++++++++++++++ USEFUL FUNCTIONS +++++++++++++++++++++++++++++ #
 # =========================================================================== #
 
-# --------------------------- Weather Forecast ------------------------------ #
+# ---------------------------- Weather Forecast ----------------------------- #
 # Get weather information for a specified location.
 # Usage: weather <city> (e.g., weather Rome).
 function weather() {
@@ -16,7 +16,7 @@ function weather() {
     fi
 }
 
-# --------------------------- Quick Backup ---------------------------------- #
+# ------------------------------ Quick Backup ------------------------------- #
 # Create a timestamped backup of a file.
 # Usage: bak <file>
 function bak() {
@@ -39,7 +39,7 @@ function bak() {
     fi
 }
 
-# ------------------------- Interactive Process Killer ---------------------- #
+# ----------------------- Interactive Process Killer ------------------------ #
 # Interactively find and kill processes using fzf.
 # Usage: fkill [signal]
 function fkill() {
@@ -67,7 +67,7 @@ function fkill() {
     fi
 }
 
-# --------------------------- Quick HTTP Server ----------------------------- #
+# ---------------------------- Quick HTTP Server ---------------------------- #
 # Start a simple HTTP server in the current directory.
 # Requires Python to be installed.
 # Usage: serve [port]
@@ -109,7 +109,34 @@ function serve() {
     return 1
 }
 
-# ------------------------- fzf File Previewer ------------------------------ #
+# -------------------------- Network Port Scanner --------------------------- #
+# Simple port scanner for a host.
+# Usage: portscan <host> [start_port] [end_port]
+function portscan() {
+    if [[ $# -lt 1 ]]; then
+        echo "${C_YELLOW}Usage: portscan <host> [start_port] [end_port]${C_RESET}" >&2
+        echo "Default range: 1-1000" >&2
+        return 1
+    fi
+
+    local host="$1"
+    local start_port="${2:-1}"
+    local end_port="${3:-1000}"
+
+    # Validate port numbers.
+    if ! [[ "$start_port" =~ ^[0-9]+$ ]] || ! [[ "$end_port" =~ ^[0-9]+$ ]]; then
+        echo "${C_RED}Error: Port numbers must be positive integers.${C_RESET}" >&2
+        return 1
+    fi
+
+    echo "${C_CYAN}Scanning ports $start_port-$end_port on $host...${C_RESET}"
+
+    for port in $(seq $start_port $end_port); do
+        (echo >/dev/tcp/$host/$port) &>/dev/null && echo "${C_GREEN}Port $port: OPEN${C_RESET}"
+    done
+}
+
+# --------------------------- fzf File Previewer ---------------------------- #
 # Interactively preview files in the current directory using fzf and bat/eza.
 # Usage: preview
 function preview() {
@@ -162,7 +189,47 @@ mkzip() {
     zip -r "${1%%/}.zip" "${1%%/}/"
 }
 
-# ------------------------ PDF Page Extraction ---------------------------- #
+# --------------------------- Extract Any Archive --------------------------- #
+# Universal extraction function for various archive formats.
+# Usage: extract <archive>
+function extract() {
+    if [[ $# -eq 0 ]]; then
+        echo "${C_YELLOW}Usage: extract <archive>${C_RESET}" >&2
+        return 1
+    fi
+
+    if [[ ! -f "$1" ]]; then
+        echo "${C_RED}Error: File '$1' not found.${C_RESET}" >&2
+        return 1
+    fi
+
+    case "$1" in
+    *.tar.bz2 | *.tbz2) tar xjf "$1" ;;
+    *.tar.gz | *.tgz) tar xzf "$1" ;;
+    *.tar.xz | *.txz) tar xJf "$1" ;;
+    *.tar) tar xf "$1" ;;
+    *.bz2) bunzip2 "$1" ;;
+    *.rar) unrar x "$1" ;;
+    *.gz) gunzip "$1" ;;
+    *.zip) unzip "$1" ;;
+    *.Z) uncompress "$1" ;;
+    *.7z) 7z x "$1" ;;
+    *.xz) unxz "$1" ;;
+    *)
+        echo "${C_RED}Error: Unsupported archive format for '$1'${C_RESET}" >&2
+        return 1
+        ;;
+    esac
+
+    if [[ $? -eq 0 ]]; then
+        echo "${C_GREEN}Successfully extracted '$1'${C_RESET}"
+    else
+        echo "${C_RED}Error: Extraction failed for '$1'${C_RESET}" >&2
+        return 1
+    fi
+}
+
+# -------------------------- PDF Page Extraction ---------------------------- #
 # Extract specific pages from a PDF document using qpdf.
 # Usage: pdfextract <input.pdf> <start_page> <end_page> [output.pdf]
 function pdfextract() {
@@ -269,7 +336,7 @@ function pdfextract() {
     fi
 }
 
-# ------------------------- Find Large Files -------------------------------- #
+# ---------------------------- Find Large Files ----------------------------- #
 # Find files larger than specified size (default 100MB).
 # Usage: findlarge [size_in_MB] [directory]
 function findlarge() {
@@ -285,7 +352,7 @@ function findlarge() {
     find "$dir" -type f -size +${size}M -exec du -h {} + 2>/dev/null | sort -rh
 }
 
-# ------------------------- Recent Git Branches ----------------------------- #
+# --------------------------- Recent Git Branches --------------------------- #
 # Show local git branches, sorted by most recent commit date.
 # Usage: gbr
 function gbr() {
@@ -301,7 +368,7 @@ function gbr() {
         %(authorname) (%(color:green)%(committerdate:relative)%(color:reset))'
 }
 
-# ------------------------- Git Stash Manager ------------------------------- #
+# ---------------------------- Git Stash Manager ---------------------------- #
 # Interactive git stash management with fzf.
 # Usage: gstash
 function gstash() {
@@ -326,7 +393,7 @@ function gstash() {
     fi
 }
 
-# ------------------------- Quick Note Taking ------------------------------- #
+# ---------------------------- Quick Note Taking ---------------------------- #
 # Quick note-taking function that appends timestamped notes to a file.
 # Usage: note [text] or just 'note' for interactive mode
 function note() {
@@ -379,7 +446,7 @@ function dshell() {
     fi
 }
 
-# ------------------------- URL Shortener ----------------------------------- #
+# ------------------------------ URL Shortener ------------------------------ #
 # Shorten URL using is.gd service.
 # Usage: shorten <url>
 function shorten() {
@@ -415,78 +482,11 @@ function shorten() {
     fi
 }
 
-# ------------------------- Extract Any Archive ----------------------------- #
-# Universal extraction function for various archive formats.
-# Usage: extract <archive>
-function extract() {
-    if [[ $# -eq 0 ]]; then
-        echo "${C_YELLOW}Usage: extract <archive>${C_RESET}" >&2
-        return 1
-    fi
-
-    if [[ ! -f "$1" ]]; then
-        echo "${C_RED}Error: File '$1' not found.${C_RESET}" >&2
-        return 1
-    fi
-
-    case "$1" in
-    *.tar.bz2 | *.tbz2) tar xjf "$1" ;;
-    *.tar.gz | *.tgz) tar xzf "$1" ;;
-    *.tar.xz | *.txz) tar xJf "$1" ;;
-    *.tar) tar xf "$1" ;;
-    *.bz2) bunzip2 "$1" ;;
-    *.rar) unrar x "$1" ;;
-    *.gz) gunzip "$1" ;;
-    *.zip) unzip "$1" ;;
-    *.Z) uncompress "$1" ;;
-    *.7z) 7z x "$1" ;;
-    *.xz) unxz "$1" ;;
-    *)
-        echo "${C_RED}Error: Unsupported archive format for '$1'${C_RESET}" >&2
-        return 1
-        ;;
-    esac
-
-    if [[ $? -eq 0 ]]; then
-        echo "${C_GREEN}Successfully extracted '$1'${C_RESET}"
-    else
-        echo "${C_RED}Error: Extraction failed for '$1'${C_RESET}" >&2
-        return 1
-    fi
-}
-
-# ------------------------- Network Port Scanner ---------------------------- #
-# Simple port scanner for a host.
-# Usage: portscan <host> [start_port] [end_port]
-function portscan() {
-    if [[ $# -lt 1 ]]; then
-        echo "${C_YELLOW}Usage: portscan <host> [start_port] [end_port]${C_RESET}" >&2
-        echo "Default range: 1-1000" >&2
-        return 1
-    fi
-
-    local host="$1"
-    local start_port="${2:-1}"
-    local end_port="${3:-1000}"
-
-    # Validate port numbers.
-    if ! [[ "$start_port" =~ ^[0-9]+$ ]] || ! [[ "$end_port" =~ ^[0-9]+$ ]]; then
-        echo "${C_RED}Error: Port numbers must be positive integers.${C_RESET}" >&2
-        return 1
-    fi
-
-    echo "${C_CYAN}Scanning ports $start_port-$end_port on $host...${C_RESET}"
-
-    for port in $(seq $start_port $end_port); do
-        (echo >/dev/tcp/$host/$port) &>/dev/null && echo "${C_GREEN}Port $port: OPEN${C_RESET}"
-    done
-}
-
-# ------------------------- System Information ------------------------------ #
+# --------------------------- System Information ---------------------------- #
 # Display comprehensive system information.
 # Usage: sysinfo
 function sysinfo() {
-    echo "${C_CYAN}=== System Information ===${C_RESET}"
+    echo "${C_CYAN}/===----------- System Information ----------===/${C_RESET}"
 
     # OS Information.
     echo "${C_YELLOW}OS:${C_RESET}"
@@ -536,7 +536,7 @@ function sysinfo() {
     uptime
 }
 
-# ------------------------- Directory Bookmarks ----------------------------- #
+# --------------------------- Directory Bookmarks --------------------------- #
 # Simple bookmark system for directories.
 # Usage: bm [add|del|list] [name]
 function bm() {
@@ -597,7 +597,7 @@ function bm() {
     esac
 }
 
-# ------------------------- Cleanup Temp Files ------------------------------ #
+# --------------------------- Cleanup Temp Files ---------------------------- #
 # Clean various temporary and cache files.
 # Usage: cleanup [--dry-run]
 function cleanup() {
