@@ -2,6 +2,13 @@
 # +++++++++++++++++++++++++++ BASE CONFIGURATION ++++++++++++++++++++++++++++ #
 # =========================================================================== #
 
+# Fail on pipe errors.
+set -o pipefail
+
+# Protect against unset variables in functions.
+setopt LOCAL_OPTIONS
+setopt LOCAL_TRAPS
+
 # If ZPROFILE_HAS_RUN variable doesn't exist, we're in a non-login shell
 # (e.g., VS Code). Load our base configuration to ensure clean PATH setup.
 if [[ -z "$ZPROFILE_HAS_RUN" ]]; then
@@ -125,7 +132,7 @@ fi
 # ZSH Cache.
 export ZSH_COMPDUMP="$ZSH/cache/.zcompdump-$HOST"
 
-source $ZSH/oh-my-zsh.sh
+source "$ZSH/oh-my-zsh.sh"
 
 # =========================================================================== #
 # ++++++++++++++++++++++ PERSONAL CONFIGURATION - THEMES ++++++++++++++++++++ #
@@ -138,28 +145,33 @@ if [[ "$PLATFORM" == "macOS" ]]; then
     # macOS: Oh-My-Posh
     local omp_config="$XDG_CONFIG_HOME/oh-my-posh/lcs-dev.omp.json"
     if command -v oh-my-posh >/dev/null 2>&1 && [ -f "$omp_config" ]; then
-        eval "$(oh-my-posh init zsh --config $omp_config)"
+        eval "$(oh-my-posh init zsh --config "$omp_config")"
     fi
 elif [[ "$PLATFORM" == "Linux" ]]; then
     # Linux: PowerLevel10k with Oh-My-Posh fallback.
     if [[ -f "/usr/share/zsh-theme-powerlevel10k/powerlevel10k.zsh-theme" ]]; then
-        source /usr/share/zsh-theme-powerlevel10k/powerlevel10k.zsh-theme
-        [[ -f ~/.p10k.zsh ]] && source ~/.p10k.zsh
+        source "/usr/share/zsh-theme-powerlevel10k/powerlevel10k.zsh-theme"
+        [[ -f "$HOME/.p10k.zsh" ]] && source "$HOME/.p10k.zsh"
     elif [[ -f "$HOME/.oh-my-zsh/custom/themes/powerlevel10k/powerlevel10k.zsh-theme" ]]; then
         source "$HOME/.oh-my-zsh/custom/themes/powerlevel10k/powerlevel10k.zsh-theme"
-        [[ -f ~/.p10k.zsh ]] && source ~/.p10k.zsh
+        [[ -f "$HOME/.p10k.zsh" ]] && source "$HOME/.p10k.zsh"
     else
         # Fallback to Oh-My-Posh only if available and configured.
         local omp_config="$XDG_CONFIG_HOME/oh-my-posh/lcs-dev.omp.json"
         if command -v oh-my-posh >/dev/null 2>&1 && [ -f "$omp_config" ]; then
-            eval "$(oh-my-posh init zsh --config $omp_config)"
+            eval "$(oh-my-posh init zsh --config "$omp_config")"
         fi
     fi
 fi
 
 # Load scripts for "Competitive Programming".
-if [ -f ~/.config/cpp-tools/competitive.sh ]; then
-    source ~/.config/cpp-tools/competitive.sh
+if [[ -f "$HOME/.config/cpp-tools/competitive.sh" ]]; then
+    source "$HOME/.config/cpp-tools/competitive.sh"
+fi
+
+# Load scripts for custom "ZSH Functions".
+if [[ -f "$HOME/.config/zsh/zsh_functions.sh" ]]; then
+    source "$HOME/.config/zsh/zsh_functions.sh"
 fi
 
 # -------------------------------- VI-MODE ---------------------------------- #
@@ -230,11 +242,11 @@ _fzf_compgen_dir() {
 
 # Source fzf-git.sh only if it exists.
 if [[ -f "$HOME/.config/fzf-git/fzf-git.sh" ]]; then
-    source ~/.config/fzf-git/fzf-git.sh
+    source "$HOME/.config/fzf-git/fzf-git.sh"
 else
     # Check common Arch path as a fallback.
     if [[ "$PLATFORM" == "Linux" && -f "/usr/share/fzf/fzf-git.sh" ]]; then
-        source /usr/share/fzf/fzf-git.sh
+        source "/usr/share/fzf/fzf-git.sh"
     fi
 fi
 
@@ -278,14 +290,14 @@ rm -rf ~/.local/state/fnm_multishells/* && echo "${GREEN}Cleanup completed.${RES
 
 # thefuck alias (corrects mistyped commands).
 if command -v thefuck >/dev/null 2>&1; then
-    eval $(thefuck --alias)
-    eval $(thefuck --alias fk)
+    eval "$(thefuck --alias 2>/dev/null)" || true
+    eval "$(thefuck --alias fk 2>/dev/null)" || true
 fi
 
 # ------- Zoxide (smarter cd) ------- #
 if command -v zoxide >/dev/null 2>&1; then
-    eval "$(zoxide init zsh)"
-    alias cd="z"
+    eval "$(zoxide init zsh 2>/dev/null)" || echo "${C_YELLOW}Warning: zoxide init failed.${C_RESET}"
+    alias cd="zoxide"
 fi
 
 # ---------- OS-Specific Functions and Aliases ---------- #
@@ -480,102 +492,11 @@ if [[ "$PLATFORM" == 'macOS' ]]; then
     export CPPFLAGS="-I/opt/homebrew/opt/llvm/include"
 fi
 
-if [[ "$PLATFORM == 'Linux" && "$ARCH_LINUX" == true ]] then
+if [[ "$PLATFORM" == 'Linux' && "$ARCH_LINUX" == true ]]; then
     # Set Electron flags.
     export ELECTRON_OZONE_PLATFORM_HINT="wayland"
     export NATIVE_WAYLAND="1"
 fi
-
-# =========================================================================== #
-# ++++++++++++++++++++++++++++ USEFUL FUNCTIONS +++++++++++++++++++++++++++++ #
-# =========================================================================== #
-
-# --------------------------- Weather Forecast ------------------------------ #
-# Get weather information for a specified location.
-# Usage: weather <city> (e.g., weather Rome).
-function weather() {
-    local location="${1:-Bari}" # Default to Bari if no location is provided.
-    curl "https://wttr.in/${location}?lang=it"
-}
-
-# --------------------------- Quick Backup ---------------------------------- #
-# Create a timestamped backup of a file.
-# Usage: bak <file>
-function bak() {
-    if [ -f "$1" ]; then
-        local backup_file="${1}.$(date +'%Y-%m-%d_%H-%M-%S').bak"
-        cp "$1" "$backup_file"
-        echo "${C_GREEN}Backup created: ${backup_file}${C_RESET}"
-    else
-        echo "${C_RED}Error: File '$1' not found.${C_RESET}" >&2
-        return 1
-    fi
-}
-
-# ------------------------- Interactive Process Killer ---------------------- #
-# Interactively find and kill processes using fzf.
-# Usage: fkill
-function fkill() {
-    local pid
-    # Use ps to get processes, pipe to fzf for selection, and awk to get the PID.
-    pid=$(ps -ef | sed 1d | fzf -m --tac --header='Press CTRL-C to cancel' | awk '{print $2}')
-
-    if [ "x$pid" != "x" ]; then
-        # Kill the selected process(es) with SIGKILL (9) by default.
-        echo "$pid" | xargs kill -${1:-9}
-        echo "${C_GREEN}Process(es) with PID(s): $pid killed.${C_RESET}"
-    else
-        echo "${C_YELLOW}No process selected.${C_RESET}"
-    fi
-}
-
-# --------------------------- Quick HTTP Server ----------------------------- #
-# Start a simple HTTP server in the current directory.
-# Requires Python to be installed.
-# Usage: serve [port]
-function serve() {
-    local port="${1:-8000}"
-    local ip=$(ipconfig getifaddr en0 2>/dev/null || hostname -I | awk '{print $1}' 2>/dev/null || echo "127.0.0.1")
-    echo "${C_CYAN}Serving current directory on http://${ip}:${port}${C_RESET}"
-    # Python 3
-    command -v python3 &>/dev/null && python3 -m http.server "$port" && return
-    # Python 2 (fallback)
-    command -v python &>/dev/null && python -m SimpleHTTPServer "$port" && return
-
-    echo "${C_RED}Error: Python not found. Cannot start server.${C_RESET}" >&2
-    return 1
-}
-
-# ------------------------- fzf File Previewer ------------------------------ #
-# Interactively preview files in the current directory using fzf and bat/eza.
-# Usage: preview
-function preview() {
-    # Use eza for directory listings, bat for file previews.
-    fzf --preview '
-    if [ -d {} ]; then
-      eza --tree --color=always {}
-    else
-      bat --color=always --style=numbers --line-range=:200 {}
-    fi'
-}
-
-# ------------------------- Create Archives Quickly ------------------------- #
-# Quick helpers to create different types of archives.
-# Usage: mktar <dir>, mkgz <dir>, etc.
-mktar() { tar -cvf "${1%%/}.tar" "${1%%/}/"; }
-mkgz()  { tar -czvf "${1%%/}.tar.gz" "${1%%/}/"; }
-mktbz() { tar -cjvf "${1%%/}.tar.bz2" "${1%%/}/"; }
-
-# ------------------------- Recent Git Branches ----------------------------- #
-# Show local git branches, sorted by most recent commit date.
-# Usage: gbr
-function gbr() {
-    git for-each-ref \
-        --sort=-committerdate refs/heads/ \
-        --format='%(HEAD) %(color:yellow)%(refname:short)%(color:reset) - \
-        %(color:red)%(objectname:short)%(color:reset) - %(contents:subject) - \
-        %(authorname) (%(color:green)%(committerdate:relative)%(color:reset))'
-}
 
 # =========================================================================== #
 # ++++++++++++++++++++++++++++ GLOBAL VARIABLES +++++++++++++++++++++++++++++ #
@@ -637,15 +558,30 @@ fi
 # This logic is now strictly separated by platform to avoid incorrect detection.
 if [[ "$PLATFORM" == 'macOS' ]]; then
     # On macOS, check for the Apple Silicon path first, then the Intel path.
-    if [ -x "/opt/homebrew/bin/brew" ]; then # macOS Apple Silicon
-        eval "$(/opt/homebrew/bin/brew shellenv)"
-    elif [ -x "/usr/local/bin/brew" ]; then # macOS Intel
-        eval "$(/usr/local/bin/brew shellenv)"
+    if [[ -x "/opt/homebrew/bin/brew" ]]; then # macOS Apple Silicon
+        export HOMEBREW_PREFIX="/opt/homebrew"
+        export HOMEBREW_CELLAR="/opt/homebrew/Cellar"
+        export HOMEBREW_REPOSITORY="/opt/homebrew"
+        export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$PATH"
+        export MANPATH="/opt/homebrew/share/man${MANPATH:+:$MANPATH}"
+        export INFOPATH="/opt/homebrew/share/info${INFOPATH:+:$INFOPATH}"
+    elif [[ -x "/usr/local/bin/brew" ]]; then # macOS Intel
+        export HOMEBREW_PREFIX="/usr/local"
+        export HOMEBREW_CELLAR="/usr/local/Cellar"
+        export HOMEBREW_REPOSITORY="/usr/local/Homebrew"
+        export PATH="/usr/local/bin:/usr/local/sbin:$PATH"
+        export MANPATH="/usr/local/share/man${MANPATH:+:$MANPATH}"
+        export INFOPATH="/usr/local/share/info${INFOPATH:+:$INFOPATH}"
     fi
 elif [[ "$PLATFORM" == 'Linux' ]]; then
     # On Linux, check for the standard Linuxbrew path.
-    if [ -f "/home/linuxbrew/.linuxbrew/bin/brew" ]; then
-        eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+    if [[ -x "/home/linuxbrew/.linuxbrew/bin/brew" ]]; then
+        export HOMEBREW_PREFIX="/home/linuxbrew/.linuxbrew"
+        export HOMEBREW_CELLAR="/home/linuxbrew/.linuxbrew/Cellar"
+        export HOMEBREW_REPOSITORY="/home/linuxbrew/.linuxbrew/Homebrew"
+        export PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:$PATH"
+        export MANPATH="/home/linuxbrew/.linuxbrew/share/man${MANPATH:+:$MANPATH}"
+        export INFOPATH="/home/linuxbrew/.linuxbrew/share/info${INFOPATH:+:$INFOPATH}"
     fi
 fi
 
@@ -666,21 +602,32 @@ fi
 if [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]]; then
     # SDKMAN! found. Let it manage everything.
     export SDKMAN_DIR="$HOME/.sdkman"
-    source "$HOME/.sdkman/bin/sdkman-init.sh"
+    if [[ -f "$HOME/.sdkman/bin/sdkman-init.sh" ]]; then
+        source "$HOME/.sdkman/bin/sdkman-init.sh"
+    else
+        echo "${C_YELLOW}Warning: SDKMAN init script not found.${C_RESET}"
+    fi
 else
     # SDKMAN! not found. Use the fallback logic to auto-detect Java.
     setup_java_home_fallback() {
         if [[ "$PLATFORM" == 'macOS' ]]; then
             # On macOS, use the system-provided utility.
             if [ -x "/usr/libexec/java_home" ]; then
-                export JAVA_HOME=$(/usr/libexec/java_home)
+                if [[ -x "/usr/libexec/java_home" ]]; then
+                    local java_home_result
+                    java_home_result=$(/usr/libexec/java_home 2>/dev/null)
+                    if [[ $? -eq 0 && -n "$java_home_result" ]]; then
+                        export JAVA_HOME="$java_home_result"
+                        export PATH="$JAVA_HOME/bin:$PATH"
+                    fi
+                fi
                 export PATH="$JAVA_HOME/bin:$PATH"
             fi
         elif [[ "$PLATFORM" == 'Linux' ]]; then
             local found_java_home=""
             # Method 1: For Debian/Ubuntu/Fedora based systems (uses update-alternatives).
             if command -v update-alternatives &>/dev/null && command -v java &>/dev/null; then
-                local java_path=$(readlink -f $(which java))
+                local java_path=$(readlink -f "$(which java)" 2>/dev/null)
                 if [[ -n "$java_path" ]]; then
                     found_java_home="${java_path%/bin/java}"
                 fi
@@ -711,10 +658,12 @@ else
 fi
 
 # -------------- PyENV -------------- #
-export PYENV_ROOT="$HOME/.pyenv"
-[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
-eval "$(pyenv init -)"
-eval "$(pyenv virtualenv-init -)"
+if command -v pyenv >/dev/null 2>&1; then
+    export PYENV_ROOT="$HOME/.pyenv"
+    [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
+    eval "$(pyenv init -)" 2>/dev/null || echo "${C_YELLOW}Warning: pyenv init failed.${C_RESET}"
+    eval "$(pyenv virtualenv-init -)" 2>/dev/null || echo "${C_YELLOW}Warning: pyenv virtualenv-init failed.${C_RESET}"
+fi
 
 # -------------- CONDA -------------- #
 # >>> Conda initialize >>>
@@ -751,7 +700,9 @@ unset -f __conda_init
 # Only run if the local::lib directory exists.
 local_perl_dir="$HOME/00_ENV/perl5"
 if [[ -d "$local_perl_dir" ]]; then
-    eval "$(perl -I$local_perl_dir/lib/perl5 -Mlocal::lib=$local_perl_dir)"
+    if command -v perl >/dev/null 2>&1; then
+        eval "$(perl -I"$local_perl_dir/lib/perl5" -Mlocal::lib="$local_perl_dir")" 2>/dev/null
+    fi
 fi
 
 # ----- FNM (Fast Node Manager) ----- #
@@ -785,7 +736,10 @@ if command -v fnm &>/dev/null; then
     fi
 
     # Initialize fnm.
-    eval "$(fnm env --use-on-cd --shell zsh)"
+    if command -v fnm >/dev/null 2>&1; then
+        eval "$(fnm env --use-on-cd --shell zsh)" 2>/dev/null || echo "${C_YELLOW}Warning: fnm env failed.${C_RESET}"
+    fi
+
 
     # Register the zsh hook to keep the session link fresh.
     autoload -U add-zsh-hook
@@ -797,15 +751,21 @@ fi
 # =========================================================================== #
 
 # ------------ ngrok ---------------- #
-command -v ngrok &>/dev/null && eval "$(ngrok completion)"
+if command -v ngrok >/dev/null 2>&1; then
+    eval "$(ngrok completion 2>/dev/null)" || true
+fi
 
 # ----------- Angular CLI ----------- #
-command -v ng &>/dev/null && source <(ng completion script)
+if command -v ng >/dev/null 2>&1; then
+    source <(ng completion script 2>/dev/null) || true
+fi
 
 # ----------- Docker CLI  ----------- #
-fpath=(/Users/lcs-dev/.docker/completions $fpath)
+if [[ -d "$HOME/.docker/completions" ]]; then
+    fpath=("$HOME/.docker/completions" $fpath)
+fi
 autoload -Uz compinit
-compinit
+compinit -C  # -C skips security check for faster loading.
 
 # =========================================================================== #
 # +++++++++++++++++ FINAL PATH REORDERING AND CLEANUP +++++++++++++++++++++++ #
@@ -924,7 +884,7 @@ build_final_path() {
             done
 
             # Skip FNM orphan directories.
-            if [[ "$dir" == *"fnm_multishells"* && "$dir" != "$FNM_MULTISHELL_PATH/bin" ]]; then
+            if [[ "$dir" == *"fnm_multishells"* && "${dir}" != "${FNM_MULTISHELL_PATH}/bin" ]]; then
                 continue
             fi
 
