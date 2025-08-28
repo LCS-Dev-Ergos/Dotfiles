@@ -169,9 +169,13 @@ if [[ -f "$HOME/.config/cpp-tools/competitive.sh" ]]; then
     source "$HOME/.config/cpp-tools/competitive.sh"
 fi
 
-# Load scripts for custom "ZSH Functions".
-if [[ -f "$HOME/.config/zsh/zsh_functions.sh" ]]; then
-    source "$HOME/.config/zsh/zsh_functions.sh"
+# Load all scripts from the custom ZSH scripts directory.
+if [[ -d "$HOME/.config/zsh/scripts" ]]; then
+    for script in "$HOME/.config/zsh/scripts"/*.sh; do
+        if [[ -r "$script" ]]; then
+            source "$script"
+        fi
+    done
 fi
 
 # -------------------------------- VI-MODE ---------------------------------- #

@@ -486,7 +486,7 @@ function shorten() {
 # Display comprehensive system information.
 # Usage: sysinfo
 function sysinfo() {
-    echo "${C_CYAN}/===----------- System Information ----------===/${C_RESET}"
+    echo "${C_CYAN}/===----------- System Information -----------===/${C_RESET}"
 
     # OS Information.
     echo "${C_YELLOW}OS:${C_RESET}"
