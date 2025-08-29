@@ -5,7 +5,10 @@ CompileFlags:
     # Target architecture for Apple Silicon
     - --target=arm64-apple-darwin
 
-    # C++23 with optimization and local debug flag
+    # Force C++ compilation
+    - -xc++
+
+    # C++23 standard with optimization and debug flags
     - -std=c++23
     - -O2
     - -DLOCAL=1
@@ -24,7 +27,7 @@ CompileFlags:
     # Remove platform-specific toolchain flags
     - --gcc-toolchain=*
 
-  Compiler: clang
+  Compiler: clang++
 
 Diagnostics:
   # Suppress diagnostics from system and standard library files

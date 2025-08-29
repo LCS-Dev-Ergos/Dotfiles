@@ -1,10 +1,10 @@
 #!/bin/zsh
 
-# =========================================================================== #
-# ++++++++++++++++++++++++++++ USEFUL FUNCTIONS +++++++++++++++++++++++++++++ #
-# =========================================================================== #
+# ============================================================================ #
+# +++++++++++++++++++++++++++++ USEFUL FUNCTIONS +++++++++++++++++++++++++++++ #
+# ============================================================================ #
 
-# ---------------------------- Weather Forecast ----------------------------- #
+# ----------------------------- Weather Forecast ----------------------------- #
 # Get weather information for a specified location.
 # Usage: weather <city> (e.g., weather Rome).
 function weather() {
@@ -16,7 +16,7 @@ function weather() {
     fi
 }
 
-# ------------------------------ Quick Backup ------------------------------- #
+# ------------------------------- Quick Backup ------------------------------- #
 # Create a timestamped backup of a file.
 # Usage: bak <file>
 function bak() {
@@ -39,7 +39,7 @@ function bak() {
     fi
 }
 
-# ----------------------- Interactive Process Killer ------------------------ #
+# ------------------------ Interactive Process Killer ------------------------ #
 # Interactively find and kill processes using fzf.
 # Usage: fkill [signal]
 function fkill() {
@@ -67,7 +67,7 @@ function fkill() {
     fi
 }
 
-# ---------------------------- Quick HTTP Server ---------------------------- #
+# ---------------------------- Quick HTTP Server ----------------------------- #
 # Start a simple HTTP server in the current directory.
 # Requires Python to be installed.
 # Usage: serve [port]
@@ -109,7 +109,7 @@ function serve() {
     return 1
 }
 
-# -------------------------- Network Port Scanner --------------------------- #
+# --------------------------- Network Port Scanner --------------------------- #
 # Simple port scanner for a host.
 # Usage: portscan <host> [start_port] [end_port]
 function portscan() {
@@ -136,7 +136,7 @@ function portscan() {
     done
 }
 
-# --------------------------- fzf File Previewer ---------------------------- #
+# ---------------------------- fzf File Previewer ---------------------------- #
 # Interactively preview files in the current directory using fzf and bat/eza.
 # Usage: preview
 function preview() {
@@ -154,7 +154,7 @@ function preview() {
     fi'
 }
 
-# ------------------------- Create Archives Quickly ------------------------- #
+# ------------------------- Create Archives Quickly -------------------------- #
 # Quick helpers to create different types of archives.
 # Usage: mktar <dir>, mkgz <dir>, etc.
 mktar() {
@@ -189,7 +189,7 @@ mkzip() {
     zip -r "${1%%/}.zip" "${1%%/}/"
 }
 
-# --------------------------- Extract Any Archive --------------------------- #
+# --------------------------- Extract Any Archive ---------------------------- #
 # Universal extraction function for various archive formats.
 # Usage: extract <archive>
 function extract() {
@@ -229,7 +229,7 @@ function extract() {
     fi
 }
 
-# -------------------------- PDF Page Extraction ---------------------------- #
+# --------------------------- PDF Page Extraction ---------------------------- #
 # Extract specific pages from a PDF document using qpdf.
 # Usage: pdfextract <input.pdf> <start_page> <end_page> [output.pdf]
 function pdfextract() {
@@ -352,7 +352,7 @@ function findlarge() {
     find "$dir" -type f -size +${size}M -exec du -h {} + 2>/dev/null | sort -rh
 }
 
-# --------------------------- Recent Git Branches --------------------------- #
+# --------------------------- Recent Git Branches ---------------------------- #
 # Show local git branches, sorted by most recent commit date.
 # Usage: gbr
 function gbr() {
@@ -368,7 +368,7 @@ function gbr() {
         %(authorname) (%(color:green)%(committerdate:relative)%(color:reset))'
 }
 
-# ---------------------------- Git Stash Manager ---------------------------- #
+# ---------------------------- Git Stash Manager ----------------------------- #
 # Interactive git stash management with fzf.
 # Usage: gstash
 function gstash() {
@@ -393,7 +393,7 @@ function gstash() {
     fi
 }
 
-# ---------------------------- Quick Note Taking ---------------------------- #
+# ---------------------------- Quick Note Taking ----------------------------- #
 # Quick note-taking function that appends timestamped notes to a file.
 # Usage: note [text] or just 'note' for interactive mode
 function note() {
@@ -421,7 +421,7 @@ function note() {
     fi
 }
 
-# ------------------------- Docker Container Shell -------------------------- #
+# -------------------------- Docker Container Shell -------------------------- #
 # Quickly access shell in a Docker container using fzf.
 # Usage: dshell
 function dshell() {
@@ -446,7 +446,7 @@ function dshell() {
     fi
 }
 
-# ------------------------------ URL Shortener ------------------------------ #
+# ------------------------------ URL Shortener ------------------------------- #
 # Shorten URL using is.gd service.
 # Usage: shorten <url>
 function shorten() {
@@ -482,7 +482,7 @@ function shorten() {
     fi
 }
 
-# --------------------------- System Information ---------------------------- #
+# ---------------------------- System Information ---------------------------- #
 # Display comprehensive system information.
 # Usage: sysinfo
 function sysinfo() {
@@ -536,7 +536,7 @@ function sysinfo() {
     uptime
 }
 
-# --------------------------- Directory Bookmarks --------------------------- #
+# --------------------------- Directory Bookmarks ---------------------------- #
 # Simple bookmark system for directories.
 # Usage: bm [add|del|list] [name]
 function bm() {
@@ -597,7 +597,7 @@ function bm() {
     esac
 }
 
-# --------------------------- Cleanup Temp Files ---------------------------- #
+# ---------------------------- Cleanup Temp Files ---------------------------- #
 # Clean various temporary and cache files.
 # Usage: cleanup [--dry-run]
 function cleanup() {
@@ -645,4 +645,4 @@ function cleanup() {
     fi
 }
 
-# ++++++++++++++++++++++++++++++ END OF FILE ++++++++++++++++++++++++++++++++ #
+# +++++++++++++++++++++++++++++++ END OF FILE ++++++++++++++++++++++++++++++++ #

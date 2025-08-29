@@ -1,5 +1,5 @@
 #!/bin/bash
-# =========================================================================== #
+# ============================================================================ #
 # ------ Enhanced CMake & Shell Utilities for Competitive Programming ------- #
 #
 # A collection of shell functions to streamline the C++ competitive programming
@@ -14,7 +14,7 @@
 # - Workspace protection to prevent accidental initialization outside 
 #   CP-Problems directory.
 #
-# =========================================================================== #
+# ============================================================================ #
 
 # ------------------------------ CONFIGURATION ------------------------------ #
 
@@ -645,10 +645,12 @@ function cppgo() {
         fi
         
         local end_time=$(date +%s%N)
-        local elapsed_ms=$(( (end_time - start_time) / 1000000 ))
+        local elapsed_ns=$(( end_time - start_time ))
+        local elapsed_ms=$(( elapsed_ns / 1000000 ))
+        local decimal_part=$(( (elapsed_ns % 1000000) / 10000 ))
         
         echo "${BLUE}${BOLD}/===----------- FINISHED -----------===/${RESET}"
-        echo "${MAGENTA}Execution time: ${elapsed_ms}ms${RESET}"
+        printf "${MAGENTA}Execution time: %d.%02dms${RESET}\n" $elapsed_ms $decimal_part
         echo ""
     else
         echo "${RED}Build failed!${RESET}" >&2
@@ -1365,5 +1367,5 @@ if [ -z "$CP_QUIET_LOAD" ]; then
     echo "${GREEN}Competitive Programming utilities loaded. Type 'cpphelp' for commands.${RESET}"
 fi
 
-# =========================================================================== #
+# ============================================================================ #
 # End of script

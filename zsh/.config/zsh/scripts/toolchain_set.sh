@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# =========================================================================== #
+# ============================================================================ #
 # Functions to dynamically switch the C/C++ toolchain for the current
 # terminal session.
 #
@@ -9,7 +9,7 @@
 #   use_gnu     # Activate the GNU GCC toolchain installed via Homebrew
 #   use_system  # Restore the default system toolchain (e.g., Apple Clang)
 #
-# =========================================================================== #
+# ============================================================================ #
 
 # Define color codes if not already defined.
 local C_BOLD="${C_BOLD:-\e[1m}"
@@ -27,7 +27,7 @@ if [[ -z "${ORIGINAL_PATH}" ]]; then
     export ORIGINAL_PATH="${PATH}"
 fi
 
-# ---------------------------- Helper Functions ----------------------------- #
+# ----------------------------- Helper Functions ----------------------------- #
 
 # Validate and get Homebrew prefix.
 _get_homebrew_prefix() {
@@ -103,7 +103,7 @@ _verify_compiler() {
     return 1
 }
 
-# ------------------------ Main Toolchain Functions ------------------------- #
+# ------------------------- Main Toolchain Functions ------------------------- #
 
 # Function to activate the LLVM toolchain.
 use_llvm() {
@@ -234,5 +234,5 @@ use_system() {
     echo -e "${C_GREEN}[OK] System toolchain restored.${C_RESET}"
 }
 
-# =========================================================================== #
+# ============================================================================ #
 # End of script.

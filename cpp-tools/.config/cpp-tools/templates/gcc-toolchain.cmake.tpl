@@ -1,6 +1,6 @@
-# =========================================================================== #
-# ----- CMake Toolchain File to Enforce GCC for Competitive Programming ----- #
-# =========================================================================== #
+# ============================================================================ #
+# ----- CMake Toolchain File to Enforce GCC for Competitive Programming ------ #
+# ============================================================================ #
 #
 # Description:
 #   This file forces CMake to use a modern GCC compiler, which is crucial
@@ -13,15 +13,15 @@
 #   cmake -DCMAKE_TOOLCHAIN_FILE=gcc-toolchain.cmake
 #
 # Features:
-#   - Intelligent GCC version detection and validation
-#   - Cross-platform support (macOS, Linux, BSD)
-#   - Automatic fallback to best available GCC version
-#   - Comprehensive error messages with installation instructions
-#   - Caching for faster reconfiguration
+#   - Intelligent GCC version detection and validation.
+#   - Cross-platform support (macOS, Linux, BSD).
+#   - Automatic fallback to best available GCC version.
+#   - Comprehensive error messages with installation instructions.
+#   - Caching for faster reconfiguration.
 #
-# =========================================================================== #
+# ============================================================================ #
 
-# Prevent duplicate execution of this toolchain file
+# Prevent duplicate execution of this toolchain file.
 if(DEFINED _GCC_TOOLCHAIN_LOADED)
     return()
 endif()
@@ -29,12 +29,12 @@ set(_GCC_TOOLCHAIN_LOADED TRUE)
 
 message(STATUS "Using GCC Toolchain File to find and set a GCC compiler.")
 
-# Check if we have a cached GCC path from a previous run
+# Check if we have a cached GCC path from a previous run.
 if(DEFINED CACHE{CACHED_GCC_EXECUTABLE} AND EXISTS "${CACHED_GCC_EXECUTABLE}")
     set(GCC_EXECUTABLE "${CACHED_GCC_EXECUTABLE}")
     message(STATUS "Using cached GCC compiler: ${GCC_EXECUTABLE}")
 else()
-    # Platform detection for appropriate compiler search strategy
+    # Platform detection for appropriate compiler search strategy.
     if(APPLE)
         set(PLATFORM_NAME "macOS")
     elseif(CMAKE_SYSTEM_NAME MATCHES "Linux")
@@ -47,27 +47,27 @@ else()
 
     message(STATUS "Detected platform: ${PLATFORM_NAME}")
 
-    # Platform-specific compiler search paths and version preferences
-    # Prefer newer versions for better C++23 support and optimizations
+    # Platform-specific compiler search paths and version preferences.
+    # Prefer newer versions for better C++23 support and optimizations.
     if(APPLE)
-        # macOS with Homebrew - prioritize newer versions and Homebrew paths
+        # macOS with Homebrew - prioritize newer versions and Homebrew paths.
         set(COMPILER_SEARCH_NAMES 
             g++-15 g++-14 g++-13 g++-12 g++-11 g++-10 g++
         )
         set(COMPILER_SEARCH_PATHS 
-            /opt/homebrew/bin           # Apple Silicon Homebrew
-            /usr/local/bin              # Intel Mac Homebrew
-            /opt/local/bin              # MacPorts
-            /sw/bin                     # Fink
-            /usr/bin                    # System (usually old/clang)
+            /opt/homebrew/bin           # Apple Silicon Homebrew.
+            /usr/local/bin              # Intel Mac Homebrew.
+            /opt/local/bin              # MacPorts.
+            /sw/bin                     # Fink.
+            /usr/bin                    # System (usually old/clang).
         )
     elseif(CMAKE_SYSTEM_NAME MATCHES "Linux")
-        # Linux - check both versioned and unversioned, prefer newer versions
+        # Linux - check both versioned and unversioned, prefer newer versions.
         set(COMPILER_SEARCH_NAMES 
             g++-15 g++-14 g++-13 g++-12 g++-11 g++-10 g++-9 g++
         )
         
-        # Detect Linux distribution for better path handling
+        # Detect Linux distribution for better path handling.
         if(EXISTS "/etc/os-release")
             file(READ "/etc/os-release" OS_RELEASE)
             if(OS_RELEASE MATCHES "ID=ubuntu" OR OS_RELEASE MATCHES "ID=debian")
@@ -86,10 +86,10 @@ else()
         set(COMPILER_SEARCH_PATHS 
             /usr/bin
             /usr/local/bin
-            /opt/gcc/bin                # Custom installations
-            /opt/rh/devtoolset-*/root/usr/bin  # Red Hat Developer Toolset
-            /snap/bin                   # Snap packages
-            $ENV{HOME}/.local/bin       # User installations
+            /opt/gcc/bin                       # Custom installations.
+            /opt/rh/devtoolset-*/root/usr/bin  # Red Hat Developer Toolset.
+            /snap/bin                          # Snap packages.
+            $ENV{HOME}/.local/bin              # User installations.
         )
     else()
         # BSD and other Unix systems
@@ -103,15 +103,15 @@ else()
         )
     endif()
 
-    # Find the latest available GCC/G++ executable
+    # Find the latest available GCC/G++ executable.
     find_program(GCC_EXECUTABLE
         NAMES ${COMPILER_SEARCH_NAMES}
         PATHS ${COMPILER_SEARCH_PATHS}
         DOC "Path to the g++ executable"
-        NO_DEFAULT_PATH  # Force using our paths first
+        NO_DEFAULT_PATH  # Force using our paths first.
     )
 
-    # Fallback to system PATH if not found in specific locations
+    # Fallback to system PATH if not found in specific locations.
     if(NOT GCC_EXECUTABLE)
         find_program(GCC_EXECUTABLE
             NAMES ${COMPILER_SEARCH_NAMES}
@@ -119,7 +119,7 @@ else()
         )
     endif()
 
-    # Cache the found compiler for future runs
+    # Cache the found compiler for future runs.
     if(GCC_EXECUTABLE)
         set(CACHED_GCC_EXECUTABLE "${GCC_EXECUTABLE}" CACHE INTERNAL "Cached GCC executable path")
     endif()
@@ -186,7 +186,7 @@ if(NOT GCC_EXECUTABLE)
     endif()
 endif()
 
-# Verify the found compiler is actually GCC and get version info
+# Verify the found compiler is actually GCC and get version info.
 execute_process(
     COMMAND ${GCC_EXECUTABLE} --version
     OUTPUT_VARIABLE GCC_VERSION_OUTPUT
@@ -203,19 +203,19 @@ if(NOT GCC_VERSION_RESULT EQUAL 0)
         "Error: ${GCC_VERSION_ERROR}")
 endif()
 
-# Robust version extraction with multiple patterns
+# Robust version extraction with multiple patterns.
 string(REGEX MATCH "gcc.*([0-9]+\\.[0-9]+\\.[0-9]+)" GCC_VERSION_MATCH "${GCC_VERSION_OUTPUT}")
 if(GCC_VERSION_MATCH)
     string(REGEX MATCH "([0-9]+\\.[0-9]+\\.[0-9]+)" GCC_VERSION "${GCC_VERSION_MATCH}")
     string(REGEX MATCH "^([0-9]+)" GCC_MAJOR_VERSION "${GCC_VERSION}")
 else()
-    # Try alternative patterns
+    # Try alternative patterns.
     string(REGEX MATCH "\\(GCC\\) ([0-9]+\\.[0-9]+)" GCC_VERSION_MATCH "${GCC_VERSION_OUTPUT}")
     if(GCC_VERSION_MATCH)
         string(REGEX MATCH "([0-9]+\\.[0-9]+)" GCC_VERSION "${GCC_VERSION_MATCH}")
         string(REGEX MATCH "^([0-9]+)" GCC_MAJOR_VERSION "${GCC_VERSION}")
     else()
-        # Final fallback using dumpversion
+        # Final fallback using dumpversion.
         execute_process(
             COMMAND ${GCC_EXECUTABLE} -dumpversion
             OUTPUT_VARIABLE GCC_VERSION
@@ -226,7 +226,7 @@ else()
     endif()
 endif()
 
-# Verify it's actually GCC and not a disguised Clang
+# Verify it's actually GCC and not a disguised Clang.
 if(GCC_VERSION_OUTPUT MATCHES "clang" OR GCC_VERSION_OUTPUT MATCHES "Apple")
     message(WARNING 
         "\n"
@@ -239,7 +239,7 @@ if(GCC_VERSION_OUTPUT MATCHES "clang" OR GCC_VERSION_OUTPUT MATCHES "Apple")
         "\n"
         "Searching for real GCC installation...\n")
     
-    # Try to find real GCC by excluding the fake one
+    # Try to find real GCC by excluding the fake one.
     list(REMOVE_ITEM COMPILER_SEARCH_PATHS "/usr/bin")
     
     find_program(REAL_GCC_EXECUTABLE
@@ -254,7 +254,7 @@ if(GCC_VERSION_OUTPUT MATCHES "clang" OR GCC_VERSION_OUTPUT MATCHES "Apple")
         set(CACHED_GCC_EXECUTABLE "${GCC_EXECUTABLE}" CACHE INTERNAL "Cached GCC executable path" FORCE)
         message(STATUS "Found real GCC at: ${GCC_EXECUTABLE}")
         
-        # Re-verify version
+        # Re-verify version.
         execute_process(
             COMMAND ${GCC_EXECUTABLE} -dumpversion
             OUTPUT_VARIABLE GCC_VERSION
@@ -269,7 +269,7 @@ if(GCC_VERSION_OUTPUT MATCHES "clang" OR GCC_VERSION_OUTPUT MATCHES "Apple")
     endif()
 endif()
 
-# Verify GCC version meets minimum requirements for competitive programming
+# Verify GCC version meets minimum requirements for competitive programming.
 if(GCC_MAJOR_VERSION)
     if(GCC_MAJOR_VERSION LESS 9)
         message(WARNING 
@@ -290,20 +290,20 @@ endif()
 get_filename_component(GCC_DIR ${GCC_EXECUTABLE} DIRECTORY)
 get_filename_component(GCC_NAME ${GCC_EXECUTABLE} NAME)
 
-# Create C compiler name by replacing g++ with gcc
+# Create C compiler name by replacing g++ with gcc.
 string(REPLACE "g++" "gcc" C_COMPILER_NAME ${GCC_NAME})
 string(REPLACE "c++" "cc" CPP_COMPILER_NAME ${GCC_NAME})
 
-# Try to find gcc in the same directory as g++
+# Try to find gcc in the same directory as g++.
 find_program(C_COMPILER_PATH
     NAMES ${C_COMPILER_NAME} ${CPP_COMPILER_NAME}
     HINTS ${GCC_DIR}
     NO_DEFAULT_PATH
 )
 
-# If not found, try broader search
+# If not found, try broader search.
 if(NOT C_COMPILER_PATH)
-    # Create list of C compiler candidates
+    # Create list of C compiler candidates.
     set(C_COMPILER_CANDIDATES)
     foreach(cpp_name IN LISTS COMPILER_SEARCH_NAMES)
         string(REPLACE "g++" "gcc" c_name ${cpp_name})
@@ -319,7 +319,7 @@ if(NOT C_COMPILER_PATH)
     )
 endif()
 
-# Verify we found a matching C compiler
+# Verify we found a matching C compiler.
 if(NOT C_COMPILER_PATH)
     message(WARNING 
         "Could not find matching GCC C compiler for ${GCC_EXECUTABLE}.\n"
@@ -327,7 +327,7 @@ if(NOT C_COMPILER_PATH)
         "This may cause issues with C files.")
     set(C_COMPILER_PATH ${GCC_EXECUTABLE})
 else()
-    # Verify version compatibility
+    # Verify version compatibility.
     execute_process(
         COMMAND ${C_COMPILER_PATH} -dumpversion
         OUTPUT_VARIABLE C_COMPILER_VERSION
@@ -350,24 +350,24 @@ endif()
 set(CMAKE_C_COMPILER   ${C_COMPILER_PATH} CACHE PATH "C compiler"   FORCE)
 set(CMAKE_CXX_COMPILER ${GCC_EXECUTABLE}  CACHE PATH "C++ compiler" FORCE)
 
-# Set compiler-specific flags that may be needed for toolchain setup
+# Set compiler-specific flags that may be needed for toolchain setup.
 set(CMAKE_C_COMPILER_ID "GNU" CACHE STRING "C compiler ID" FORCE)
 set(CMAKE_CXX_COMPILER_ID "GNU" CACHE STRING "C++ compiler ID" FORCE)
 
-# Ensure the compilers support the required standards
+# Ensure the compilers support the required standards.
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Set C++23 standard
+# Set C++23 standard.
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++23" CACHE STRING "" FORCE)
 
-# Enable compiler-specific features
+# Enable compiler-specific features.
 if(GCC_MAJOR_VERSION AND GCC_MAJOR_VERSION GREATER_EQUAL 10)
-    # Enable coroutines for GCC 10+
+    # Enable coroutines for GCC 10+.
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcoroutines" CACHE STRING "" FORCE)
 endif()
 
-# Success message with summary
+# Success message with summary.
 message(STATUS "")
 message(STATUS "//===----------------------------------------------------------------------===//")
 message(STATUS "                     GCC Toolchain Successfully Configured                      ")
@@ -399,5 +399,5 @@ endif()
 message(STATUS "//===----------------------------------------------------------------------===//")
 message(STATUS "")
 
-# =========================================================================== #
-# End of GCC Toolchain File
+# ============================================================================ #
+# End of GCC Toolchain File.

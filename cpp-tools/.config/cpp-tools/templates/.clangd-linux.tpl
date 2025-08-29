@@ -2,6 +2,9 @@
 
 CompileFlags:
   Add:
+    # Force C++ compilation
+    - -xc++
+
     # C++23 with optimization and local debug flag
     - -std=c++23
     - -O2
@@ -18,7 +21,7 @@ CompileFlags:
     # Remove platform-specific toolchain flags
     - --gcc-toolchain=*
 
-  Compiler: clang
+  Compiler: clang++
 
 Diagnostics:
   # Suppress diagnostics from system and standard library files

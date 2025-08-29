@@ -1,6 +1,6 @@
-# =========================================================================== #
-# --------------------- CMake Toolchain File for Clang ---------------------- #
-# =========================================================================== #
+# ============================================================================ #
+# ---------------------- CMake Toolchain File for Clang ---------------------- #
+# ============================================================================ #
 #
 # Description:
 #   This file configures CMake to use Clang for sanitizer builds, particularly
@@ -11,9 +11,9 @@
 #   Used automatically by 'cppconf Sanitize clang' via:
 #   cmake -DCMAKE_TOOLCHAIN_FILE=clang-toolchain.cmake -DCMAKE_BUILD_TYPE=Sanitize
 #
-# =========================================================================== #
+# ============================================================================ #
 
-# Prevent duplicate execution of this toolchain file
+# Prevent duplicate execution of this toolchain file.
 if(DEFINED _CLANG_TOOLCHAIN_LOADED)
     return()
 endif()
@@ -21,7 +21,7 @@ set(_CLANG_TOOLCHAIN_LOADED TRUE)
 
 message(STATUS "Using Clang Toolchain File for Sanitizer builds")
 
-# Platform detection
+# Platform detection.
 if(APPLE)
     set(PLATFORM_NAME "macOS")
 elseif(CMAKE_SYSTEM_NAME MATCHES "Linux")
@@ -32,26 +32,26 @@ endif()
 
 message(STATUS "Detected platform: ${PLATFORM_NAME}")
 
-# Check for cached Clang path
+# Check for cached Clang path.
 if(DEFINED CACHE{CACHED_CLANG_EXECUTABLE} AND EXISTS "${CACHED_CLANG_EXECUTABLE}")
     set(CLANG_EXECUTABLE "${CACHED_CLANG_EXECUTABLE}")
     message(STATUS "Using cached Clang compiler: ${CLANG_EXECUTABLE}")
 else()
-    # Search for Clang compiler
+    # Search for Clang compiler.
     if(APPLE)
-        # On macOS, prefer LLVM clang (has best sanitizer support)
+        # On macOS, prefer LLVM clang (has best sanitizer support).
         set(COMPILER_SEARCH_NAMES 
-            clang++                    # LLVM clang (preferred)
+            clang++                    # LLVM clang (preferred).
             clang++-20 clang++-19 clang++-18 clang++-17 clang++-16
         )
         set(COMPILER_SEARCH_PATHS 
-            /opt/homebrew/opt/llvm/bin  # Homebrew LLVM
-            /usr/local/opt/llvm/bin     # Homebrew LLVM (Intel)
-            /opt/local/bin              # MacPorts
-            /usr/bin                    # System (AppleClang)
+            /opt/homebrew/opt/llvm/bin  # Homebrew LLVM.
+            /usr/local/opt/llvm/bin     # Homebrew LLVM (Intel).
+            /opt/local/bin              # MacPorts.
+            /usr/bin                    # System (AppleClang).
         )
     else()
-        # Linux
+        # Linux.
         set(COMPILER_SEARCH_NAMES 
             clang++-20 clang++-19 clang++-18 clang++-17 clang++-16 clang++-15 clang++
         )
@@ -63,7 +63,7 @@ else()
         )
     endif()
 
-    # Find Clang executable
+    # Find Clang executable.
     find_program(CLANG_EXECUTABLE
         NAMES ${COMPILER_SEARCH_NAMES}
         PATHS ${COMPILER_SEARCH_PATHS}
@@ -71,7 +71,7 @@ else()
         NO_DEFAULT_PATH
     )
 
-    # Fallback to system PATH
+    # Fallback to system PATH.
     if(NOT CLANG_EXECUTABLE)
         find_program(CLANG_EXECUTABLE
             NAMES ${COMPILER_SEARCH_NAMES}
@@ -79,13 +79,13 @@ else()
         )
     endif()
 
-    # Cache the result
+    # Cache the result.
     if(CLANG_EXECUTABLE)
         set(CACHED_CLANG_EXECUTABLE "${CLANG_EXECUTABLE}" CACHE INTERNAL "Cached Clang executable path")
     endif()
 endif()
 
-# Error if Clang not found
+# Error if Clang not found.
 if(NOT CLANG_EXECUTABLE)
     message(FATAL_ERROR 
         "\n"
@@ -117,7 +117,7 @@ if(NOT CLANG_EXECUTABLE)
     endif()
 endif()
 
-# Verify it's actually Clang
+# Verify it's actually Clang.
 execute_process(
     COMMAND ${CLANG_EXECUTABLE} --version
     OUTPUT_VARIABLE CLANG_VERSION_OUTPUT
@@ -133,7 +133,7 @@ if(NOT CLANG_VERSION_RESULT EQUAL 0)
         "Error: ${CLANG_VERSION_ERROR}")
 endif()
 
-# Extract version information
+# Extract version information.
 if(CLANG_VERSION_OUTPUT MATCHES "Apple clang version ([0-9]+\\.[0-9]+)")
     set(CLANG_VERSION "${CMAKE_MATCH_1}")
     set(IS_APPLE_CLANG TRUE)
@@ -147,11 +147,11 @@ else()
     set(CLANG_VERSION "unknown")
 endif()
 
-# Find corresponding C compiler
+# Find corresponding C compiler.
 get_filename_component(CLANG_DIR ${CLANG_EXECUTABLE} DIRECTORY)
 get_filename_component(CLANG_NAME ${CLANG_EXECUTABLE} NAME)
 
-# Create C compiler name
+# Create C compiler name.
 string(REPLACE "clang++" "clang" C_COMPILER_NAME ${CLANG_NAME})
 string(REPLACE "++" "" CPP_COMPILER_NAME ${CLANG_NAME})
 
@@ -162,7 +162,7 @@ find_program(C_COMPILER_PATH
 )
 
 if(NOT C_COMPILER_PATH)
-    # Try broader search
+    # Try broader search.
     find_program(C_COMPILER_PATH
         NAMES clang++-20 clang++-19 clang++-18 clang++-17 clang++-16 clang
         PATHS ${COMPILER_SEARCH_PATHS}
@@ -174,44 +174,44 @@ if(NOT C_COMPILER_PATH)
     set(C_COMPILER_PATH ${CLANG_EXECUTABLE})
 endif()
 
-# Set the compilers
+# Set the compilers.
 set(CMAKE_C_COMPILER   ${C_COMPILER_PATH} CACHE PATH "C compiler"   FORCE)
 set(CMAKE_CXX_COMPILER ${CLANG_EXECUTABLE} CACHE PATH "C++ compiler" FORCE)
 
-# Force LLVM's libc++ headers and libraries when using LLVM Clang
+# Force LLVM's libc++ headers and libraries when using LLVM Clang.
 if(NOT IS_APPLE_CLANG AND APPLE)
-    # Get LLVM installation directory
+    # Get LLVM installation directory.
     get_filename_component(LLVM_BIN_DIR ${CLANG_EXECUTABLE} DIRECTORY)
     get_filename_component(LLVM_ROOT ${LLVM_BIN_DIR} DIRECTORY)
     
-    # Set paths to LLVM's libc++
+    # Set paths to LLVM's libc++.
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -nostdinc++" CACHE STRING "" FORCE)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -I${LLVM_ROOT}/include/c++/v1" CACHE STRING "" FORCE)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L${LLVM_ROOT}/lib -Wl,-rpath,${LLVM_ROOT}/lib" CACHE STRING "" FORCE)
     
-    # Use LLVM's libc++ instead of system's
+    # Use LLVM's libc++ instead of system's.
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++" CACHE STRING "" FORCE)
     
     message(STATUS "Using LLVM libc++ from: ${LLVM_ROOT}")
 endif()
 
-# Set compiler IDs
+# Set compiler IDs.
 set(CMAKE_C_COMPILER_ID "Clang" CACHE STRING "C compiler ID" FORCE)
 set(CMAKE_CXX_COMPILER_ID "Clang" CACHE STRING "C++ compiler ID" FORCE)
 
-# Ensure standard support
+# Ensure standard support.
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Set C++23 standard
+# Set C++23 standard.
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++23" CACHE STRING "" FORCE)
 
-# Set default build type to Sanitize
+# Set default build type to Sanitize.
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Sanitize CACHE STRING "Default build type for sanitizers" FORCE)
 endif()
 
-# Success message
+# Success message.
 message(STATUS "")
 message(STATUS "//===----------------------------------------------------------------------===//")
 message(STATUS "                   Clang Toolchain Successfully Configured                      ")
@@ -230,5 +230,5 @@ message(STATUS "  Note: Using PCH.h instead of bits/stdc++.h for sanitizer build
 message(STATUS "//===----------------------------------------------------------------------===//")
 message(STATUS "")
 
-# =========================================================================== #
-# End of Clang Toolchain File
+# ============================================================================ #
+# End of Clang Toolchain File.
