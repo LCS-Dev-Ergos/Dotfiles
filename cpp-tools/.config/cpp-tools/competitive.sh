@@ -527,6 +527,9 @@ function cppbuild() {
     local target_name=${1:-$(_get_default_target)}
     echo "${CYAN}Building target: ${BOLD}$target_name${RESET}..."
 
+    # Record start time for total build duration.
+    local start_time=$(date +%s%N)
+
     # Check if timing is enabled in CMake cache.
     local timing_enabled=false
     if [ -f "build/CMakeCache.txt" ]; then
@@ -540,11 +543,18 @@ function cppbuild() {
     build_output=$(cmake --build build --target "$target_name" -j 2>&1)
     local build_status=$?
 
+    # Calculate total build time.
+    local end_time=$(date +%s%N)
+    local elapsed_ns=$(( end_time - start_time ))
+    local elapsed_ms=$(( elapsed_ns / 1000000 ))
+    local decimal_part=$(( (elapsed_ns % 1000000) / 10000 ))
+
     # Handle build failures with full error output.
     if [ $build_status -ne 0 ]; then
         echo ""
         echo "${BOLD}${RED}/===----- BUILD FAILED -----===/${RESET}"
         echo "$build_output"
+        printf "${RED}Build failed after %d.%02dms${RESET}\n" $elapsed_ms $decimal_part
         return 1
     fi
 
@@ -558,7 +568,7 @@ function cppbuild() {
         # 2. Print the compilation line itself.
         echo "$build_output" | grep "Building CXX object"
         
-        # 3. Print timing statistics only if timing is enabled
+        # 3. Print timing statistics only if timing is enabled.
         if [ "$timing_enabled" = true ]; then
             echo ""
             echo "${BOLD}${CYAN}/===--------------------- Compilation Time Statistics ----------------------===/${RESET}"
@@ -594,6 +604,9 @@ function cppbuild() {
         # Target up-to-date - show only the summary line.
         echo "$build_output" | tail -n 1
         fi
+
+    # Display total build time.
+    printf "${MAGENTA}Total build time: %d.%02dms${RESET}\n" $elapsed_ms $decimal_part
 
     return 0
 }
@@ -780,12 +793,12 @@ function cppjudge() {
 
     # Summary.
     echo ""
-    echo "${BOLD}${BLUE}/===---------- TEST SUMMARY ----------===/${RESET}"
+    echo "${BOLD}${BLUE}/===--------- TEST SUMMARY ---------===/${RESET}"
     echo "${GREEN}Passed: $passed/$total${RESET}"
     if [ $failed -gt 0 ]; then
         echo "${RED}Failed: $failed/$total${RESET}"
     fi
-    echo "${BOLD}${BLUE}/===----------------------------------===/${RESET}"
+    echo "${BOLD}${BLUE}/===--------------------------------===/${RESET}"
 }
 
 # Quick stress testing function.
