@@ -7,7 +7,7 @@
  * @status: In Progress
  */
 //===----------------------------------------------------------------------===//
-/* Included library and Compiler optimizations */
+/* Included library */
 
 // clang-format off
 // Compiler optimizations:
@@ -41,23 +41,28 @@
 //===----------------------------------------------------------------------===//
 /* Type Aliases and Constants */
 
-// Type aliases
-using ll     = long long;
-using ull    = unsigned long long;
-using ld     = long double;
-using pii    = std::pair<int, int>;
-using pll    = std::pair<long long, long long>;
-using vi     = std::vector<int>;
-using vui    = std::vector<unsigned int>;
-using vll    = std::vector<long long>;
-using vvi    = std::vector<std::vector<int>>;
-using vvll   = std::vector<std::vector<long long>>;
-using vs     = std::vector<std::string>;
-using vpii   = std::vector<std::pair<int, int>>;
-using vpll   = std::vector<std::pair<long long, long long>>;
-using map_ll = std::map<long long, long long>;
+// Type aliases:
+using ll       = long long;
+using ull      = unsigned long long;
+using ld       = long double;
+using P_ii     = std::pair<int, int>;
+using P_ll     = std::pair<long long, long long>;
+using V_b      = std::vector<bool>;
+using V_i      = std::vector<int>;
+using V_ui     = std::vector<unsigned int>;
+using V_ll     = std::vector<long long>;
+using VV_i     = std::vector<std::vector<int>>;
+using VV_ll    = std::vector<std::vector<long long>>;
+using V_s      = std::vector<std::string>;
+using VV_s     = std::vector<std::vector<std::string>>;
+using VP_ii    = std::vector<std::pair<int, int>>;
+using VVP_ii   = std::vector<std::vector<std::pair<int, int>>>;
+using VP_ll    = std::vector<std::pair<long long, long long>>;
+using VT_iii   = std::vector<std::tuple<int, int, int>>;
+using Map_ll   = std::map<long long, long long>;
+using VUMap_il = std::vector<std::unordered_map<int, ll>>;
 
-// Mathematical constants
+// Mathematical constants:
 constexpr long double PI   = 3.141592653589793238462643383279502884L;
 constexpr long double E    = 2.718281828459045235360287471352662498L;
 constexpr long double EPS  = 1e-9L;
@@ -72,7 +77,7 @@ using namespace std;
 //===----------------------------------------------------------------------===//
 /* Data Types and Function Definitions */
 
-// Function to solve a single test case
+// Function to solve a single test case.
 void solve() {
   // Your solution here
 }

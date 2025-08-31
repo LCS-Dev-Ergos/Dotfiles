@@ -304,8 +304,14 @@ function cppnew() {
         "pbds")
             template_file="$SCRIPT_DIR/templates/cpp/pbds.cpp"
             ;;
-        *) # Default template
-            template_file="$SCRIPT_DIR/templates/cpp/default.cpp"
+        "default")
+            template_file="$SCRIPT_DIR/tempaltes/cpp/default.cpp"
+            ;;
+        "advanced")
+            template_file="$SCRIPT_DIR/templates/cpp/advanced.cpp"
+            ;;
+        *) # Base template
+            template_file="$SCRIPT_DIR/templates/cpp/base.cpp"
             ;;
     esac
 
@@ -901,7 +907,7 @@ function cppsubmit() {
  * @brief: Codeforces Round #XXX (Div. X) - Problem Y
  */
 //===----------------------------------------------------------------------===//
-
+/* Included library and Compiler Optimizations */
 EOF
     
     # Run the Python flattener with proper path context.
