@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================================ #
-# ------ Enhanced CMake & Shell Utilities for Competitive Programming ------- #
+# ------- Enhanced CMake & Shell Utilities for Competitive Programming ------- #
 #
 # A collection of shell functions to streamline the C++ competitive programming
 # workflow. It uses a CMake-based build system designed to be fast, robust,
@@ -16,7 +16,7 @@
 #
 # ============================================================================ #
 
-# ------------------------------ CONFIGURATION ------------------------------ #
+# ------------------------------ CONFIGURATION ------------------------------- #
 
 # Define the allowed workspace root directories for competitive programming.
 if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -46,6 +46,12 @@ else
     # Fallback for other platforms.
     CP_ALGORITHMS_DIR="${CP_ALGORITHMS_DIR:-$HOME/CP/Algorithms}"
 fi
+
+# Derived paths for the modular template system.
+TEMPLATES_DIR="$CP_ALGORITHMS_DIR/templates"
+SCRIPTS_DIR="$CP_ALGORITHMS_DIR/scripts"
+MODULES_DIR="$CP_ALGORITHMS_DIR/modules"
+SUBMISSIONS_DIR="submissions"
 
 # Path to Perfetto UI directory for trace analysis.
 PERFETTO_UI_DIR="$HOME/Dev/Tools/perfetto"
@@ -123,7 +129,7 @@ _format_duration() {
     fi
 }
 
-# ------------------------- PROJECT SETUP & CONFIG -------------------------- #
+# -------------------------- PROJECT SETUP & CONFIG -------------------------- #
 
 # Initializes or verifies a competitive programming directory.
 # This function is now idempotent and workspace-protected.
@@ -222,7 +228,7 @@ EOF
     mkdir -p expected_output
 
     # Link to the global debug.h if configured and not already linked.
-    local master_debug_header="$CP_ALGORITHMS_DIR/debug.h"
+    local master_debug_header="$CP_ALGORITHMS_DIR/libs/debug.h"
     if [ ! -e "algorithms/debug.h" ]; then
         if [ -n "$CP_ALGORITHMS_DIR" ] && [ -f "$master_debug_header" ]; then
             ln -s "$master_debug_header" "algorithms/debug.h"
@@ -234,7 +240,7 @@ EOF
     fi
     
     # Copy or link PCH.h for Clang sanitizer builds.
-    local master_pch_header="$CP_ALGORITHMS_DIR/PCH.h"
+    local master_pch_header="$CP_ALGORITHMS_DIR/libs/PCH.h"
     if [ ! -e "algorithms/PCH.h" ]; then
         if [ -n "$CP_ALGORITHMS_DIR" ] && [ -f "$master_pch_header" ]; then
             ln -s "$master_pch_header" "algorithms/PCH.h"
@@ -256,7 +262,7 @@ EOF
             echo "Setting up VS Code configurations..."
             mkdir -p "$vscode_dest_dir"
             
-            # Loop through all available templates and copy them
+            # Loop through all available templates and copy them.
             for template in "$vscode_tpl_dir"/*.json; do
                 if [ -f "$template" ]; then
                     cp "$template" "$vscode_dest_dir/"
@@ -318,7 +324,7 @@ function cppnew() {
     echo "Created empty input file: input_cases/${problem_name}.in"
     echo "Created empty output file: output_cases/${problem_name}.exp"
 
-    # Track problem creation time with human-readable format
+    # Track problem creation time with human-readable format.
     echo "${problem_name}:START:$(date +%s):$(date '+%Y-%m-%d %H:%M:%S')" >> .statistics/problem_times
 
     echo "New problem '$problem_name' created. Re-running CMake configuration..."
@@ -454,7 +460,7 @@ function cppconf() {
         cmake_flags+=("-DCP_ENABLE_LTO=ON")
     fi
 
-    # Log the configuration step
+    # Log the configuration step.
     echo "${BLUE}/===---------------------------------------------------------------------------===/${RESET}"
     echo "${BLUE}Configuring project:${RESET}"
     echo "  ${CYAN}Build Type:${RESET} ${YELLOW}${build_type}${RESET}"
@@ -465,7 +471,7 @@ function cppconf() {
     fi
     echo "${BLUE}/===---------------------------------------------------------------------------===/${RESET}"
     
-    # Run CMake with the selected toolchain - use array expansion
+    # Run CMake with the selected toolchain - use array expansion.
     if cmake -S . -B build \
         -DCMAKE_BUILD_TYPE=${build_type} \
         -DCMAKE_TOOLCHAIN_FILE=${toolchain_file} \
@@ -475,7 +481,7 @@ function cppconf() {
         # Create the symlink for clangd.
         cmake --build build --target symlink_clangd 2>/dev/null || true
         
-        # Save configuration for quick reference
+        # Save configuration for quick reference.
         echo "$build_type:$compiler_choice" > .statistics/last_config
     else
         echo "${RED}CMake configuration failed!${RESET}" >&2
@@ -519,7 +525,7 @@ function cppcontest() {
     echo "${GREEN}Ready to work in ${BOLD}$(pwd)${RESET}. Use '${CYAN}cppnew <problem_name>${RESET}' to start."
 }
 
-# ------------------------------- BUILD & RUN ------------------------------- #
+# ------------------------------- BUILD & RUN -------------------------------- #
 
 # Builds a specific target with intelligent, conditional, and formatted output.
 function cppbuild() {
@@ -574,18 +580,18 @@ function cppbuild() {
             echo "${BOLD}${CYAN}/===--------------------- Compilation Time Statistics ----------------------===/${RESET}"
             echo ""
 
-            # Universal timing report finder for both GCC and Clang
+            # Universal timing report finder for both GCC and Clang.
             local timing_report
             timing_report=$(echo "$build_output" | sed -n '/Time variable/,/TOTAL/p; /Pass execution timing report/,$p')
 
             if [ -n "$timing_report" ]; then
-            # Extract only the relevant parts, stopping before the linking phase
+            # Extract only the relevant parts, stopping before the linking phase.
             echo "$timing_report" | sed '/Linking CXX executable/q'
             else
             echo " Compilation finished. (Timing report not found in output)."
             fi
 
-            # Check if this is a Clang build and add trace analysis note
+            # Check if this is a Clang build and add trace analysis note.
             if [ -f "build/CMakeCache.txt" ] && grep -q "clang" build/CMakeCache.txt; then
             echo ""
             echo -e " Clang compilation finished."
@@ -642,19 +648,22 @@ function cppgo() {
     echo "${CYAN}Building target '${BOLD}$target_name${CYAN}'...${RESET}"
     if cppbuild "$target_name"; then
         echo ""
-        echo "${BLUE}${BOLD}/===------ RUNNING: $target_name ------===/${RESET}"
+        echo "${BLUE}/===-------------------------------------===/${RESET}"
+        echo "${BLUE}${BOLD}RUNNING: $target_name${RESET}"
         
         # Track execution time in nanoseconds for better precision.
         local start_time=$(date +%s%N)
         
         if [ -f "$input_path" ]; then
             echo "(input from ${YELLOW}$input_path${RESET})"
-            "$exec_path" < "$input_path"
+            timeout 5s "$exec_path" < "$input_path"
+            local exit_code=$?
         else
             if [ -n "$2" ]; then # Warn if a specific file was requested but not found.
                  echo "${YELLOW}Warning: Input file '$input_path' not found.${RESET}" >&2
             fi
-            "$exec_path"
+            timeout 5s "$exec_path"
+            local exit_code=$?
         fi
         
         local end_time=$(date +%s%N)
@@ -662,7 +671,14 @@ function cppgo() {
         local elapsed_ms=$(( elapsed_ns / 1000000 ))
         local decimal_part=$(( (elapsed_ns % 1000000) / 10000 ))
         
-        echo "${BLUE}${BOLD}/===----------- FINISHED -----------===/${RESET}"
+        # Check if the program was terminated due to timeout
+        if [ $exit_code -eq 124 ]; then
+            echo "${YELLOW}⚠ Program terminated after 5-second timeout${RESET}"
+        elif [ $exit_code -ne 0 ] && [ $exit_code -ne 124 ]; then
+            echo "${RED}Program exited with code $exit_code${RESET}"
+        fi
+        
+        echo "${BLUE}/===------------- FINISHED --------------===/${RESET}"
         printf "${MAGENTA}Execution time: %d.%02dms${RESET}\n" $elapsed_ms $decimal_part
         echo ""
     else
@@ -707,10 +723,12 @@ function cppi() {
     
     echo "${CYAN}Building target '${BOLD}$target_name${CYAN}'...${RESET}"
     if cppbuild "$target_name"; then
-        echo "${BLUE}${BOLD}/===------ INTERACTIVE MODE: $target_name ------===/${RESET}"
+        echo ""
+        echo "${BLUE}/===-------------------------------------===/${RESET}"
+        echo "${BLUE}${BOLD}INTERACTIVE MODE: $target_name${RESET}"
         echo "${YELLOW}Enter input (Ctrl+D when done):${RESET}"
         "$exec_path"
-        echo "${BLUE}${BOLD}/===----------- FINISHED -----------===/${RESET}"
+        echo "${BLUE}/===------------- FINISHED --------------===/${RESET}"
     else
         echo "${RED}Build failed!${RESET}" >&2
         return 1
@@ -730,7 +748,7 @@ function cppjudge() {
         return 1
     fi
     
-    # Check for test cases - first try the specific pattern, then fall back to simple .in file
+    # Check for test cases - first try the specific pattern, then fall back to simple .in file.
     local test_files=()
     
     # Use find to avoid "no matches found" error in zsh.
@@ -738,7 +756,7 @@ function cppjudge() {
         test_files+=("$file")
     done < <(find "$input_dir" -name "${target_name}.*.in" -print0 2>/dev/null)
     
-    # If no numbered test cases found, check for single test case
+    # If no numbered test cases found, check for single test case.
     if [ ${#test_files[@]} -eq 0 ] && [ -f "$input_dir/${target_name}.in" ]; then
         test_files+=("$input_dir/${target_name}.in")
     fi
@@ -834,9 +852,392 @@ function cppstress() {
     fi
 }
 
-# --------------------------- COMPILER UTILITIES ---------------------------- #
+# ---------------------------- SUBMISSION HELPERS ---------------------------- #
 
-# Quick compiler switch functions
+# Enhanced submission generation using the new modular flattener system.
+function cppsubmit() {
+    _check_initialized || return 1
+    local target_name=${1:-$(_get_default_target)}
+    local solution_file="${target_name}.cpp"
+    local submission_dir="$SUBMISSIONS_DIR"
+    local submission_file="$submission_dir/${target_name}_sub.cpp"
+    local flattener_script="$SCRIPTS_DIR/flattener.py"
+    
+    # Validate that we are in a valid workspace.
+    if [[ ! "$PWD" == "$CP_WORKSPACE_ROOT"* ]]; then
+        echo -e "${RED}Error: Not in a valid CP workspace directory${RESET}" >&2
+        echo -e "${YELLOW}Current directory: $PWD${RESET}" >&2
+        echo -e "${YELLOW}Expected workspace: $CP_WORKSPACE_ROOT${RESET}" >&2
+        return 1
+    fi
+    
+    # Check that the solution file exists.
+    if [ ! -f "$solution_file" ]; then
+        echo -e "${RED}Error: Solution file '$solution_file' not found${RESET}" >&2
+        return 1
+    fi
+    
+    # Check if the new flattener system is available.
+    if [ ! -f "$flattener_script" ]; then
+        echo -e "${YELLOW}Warning: New flattener not found at '$flattener_script'${RESET}"
+        return $?
+    fi
+    
+    # Create submissions directory if needed.
+    mkdir -p "$submission_dir"
+    
+    echo -e "${CYAN}Generating submission for '${BOLD}$target_name${RESET}${CYAN}' using modular template system...${RESET}"
+    
+    # Generate submission header with metadata.
+    local header_file="/tmp/${target_name}_header.txt"
+    cat > "$header_file" << EOF
+//===----------------------------------------------------------------------===//
+/**
+ * @file: ${target_name}_sub.cpp
+ * @generated: $(date '+%Y-%m-%d %H:%M:%S')
+ * @source: $solution_file
+ * @author: Costantino Lombardi
+ *
+ * @brief: Codeforces Round #XXX (Div. X) - Problem Y
+ */
+//===----------------------------------------------------------------------===//
+
+EOF
+    
+    # Run the Python flattener with proper path context.
+    echo -e "${BLUE}Running template flattener...${RESET}"
+    
+    # Set PYTHONPATH to include the scripts directory for module imports.
+    export PYTHONPATH="$SCRIPTS_DIR:$PYTHONPATH"
+    
+    if python3 "$flattener_script" "$solution_file" > "$submission_file.tmp" 2>/tmp/flattener_error.log; then
+        # Combine header with flattened content.
+        cat "$header_file" "$submission_file.tmp" > "$submission_file"
+        rm -f "$submission_file.tmp" "$header_file"
+        
+        # Calculate and display statistics.
+        local file_size=$(wc -c < "$submission_file")
+        local line_count=$(wc -l < "$submission_file")
+        local template_lines=$(grep -c "^//" "$submission_file" 2>/dev/null || echo 0)
+        local code_lines=$((line_count - template_lines))
+        
+        echo -e "${GREEN}✓ Submission generated successfully${RESET}"
+        printf "${YELLOW}  %-6s %s${RESET}\n" "File:" "${BOLD}$submission_file${RESET}"
+        printf "${YELLOW}  %-6s %s${RESET}\n" "Size:" "$(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "$file_size bytes")"
+        printf "${YELLOW}  %-6s %s${RESET}\n" "Lines:" "$line_count total ($code_lines code, $template_lines comments)"
+        
+        # Verify compilation with the generated file.
+        if _verify_submission_compilation "$submission_file"; then
+            echo -e "${GREEN}✓ Compilation verification passed${RESET}"
+        else
+            echo -e "${RED}⚠ Warning: Compilation verification failed${RESET}"
+            echo -e "${YELLOW}  Review the generated file for potential issues${RESET}"
+        fi
+        
+        # Offer clipboard integration.
+        _offer_clipboard_copy "$submission_file"
+        
+        return 0
+    else
+        echo -e "${RED}Error: Flattener failed to process the file${RESET}" >&2
+        if [ -f /tmp/flattener_error.log ]; then
+            echo -e "${RED}Error details:${RESET}"
+            cat /tmp/flattener_error.log >&2
+        fi
+        rm -f "$header_file" "$submission_file.tmp" /tmp/flattener_error.log
+        return 1
+    fi
+}
+
+
+# Verify that the generated submission compiles correctly.
+function _verify_submission_compilation() {
+    local submission_file="$1"
+    local test_binary="/tmp/test_submission_$(basename "$submission_file" .cpp)"
+    
+    # Attempt syntax-only compilation with competition flags.
+    if g++-15 -std=c++23 -O2 -DNDEBUG -fsyntax-only "$submission_file" 2>/dev/null; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Offer to copy submission to clipboard with multi-platform support.
+function _offer_clipboard_copy() {
+    local file="$1"
+    
+    # Detect available clipboard command.
+    local clipboard_cmd=""
+    local clipboard_name=""
+    
+    if command -v pbcopy &> /dev/null; then
+        clipboard_cmd="pbcopy"
+        clipboard_name="macOS clipboard"
+    elif command -v xclip &> /dev/null; then
+        clipboard_cmd="xclip -selection clipboard"
+        clipboard_name="X11 clipboard"
+    elif command -v wl-copy &> /dev/null; then
+        clipboard_cmd="wl-copy"
+        clipboard_name="Wayland clipboard"
+    else
+        return 0
+    fi
+    
+    echo ""
+    printf "Copy to $clipboard_name? [y/N]: "
+    read -r REPLY < /dev/tty
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        if cat "$file" | eval $clipboard_cmd; then
+            echo -e "${GREEN}✓ Copied to $clipboard_name${RESET}"
+        else
+            echo -e "${RED}Failed to copy to clipboard${RESET}"
+        fi
+    fi
+}
+
+# Enhanced test submission with better error handling and timing.
+function cpptestsubmit() {
+    _check_initialized || return 1
+    local target_name=${1:-$(_get_default_target)}
+    
+    # Generate submission first.
+    if ! cppsubmit "$target_name"; then
+        return 1
+    fi
+    
+    local submission_file="$SUBMISSIONS_DIR/${target_name}_sub.cpp"
+    local test_binary="./bin/${target_name}_submission"
+    local input_file=${2:-"${target_name}.in"}
+    local input_path="input_cases/$input_file"
+    
+    echo ""
+    echo -e "${CYAN}Testing submission file...${RESET}"
+    
+    # Ensure bin directory exists.
+    mkdir -p "$(dirname "$test_binary")"
+    
+    # Compile with timing information.
+    echo -e "${BLUE}Compiling submission...${RESET}"
+    local start_time=$(date +%s%N 2>/dev/null || date +%s)
+    
+    if g++-15 -std=c++23 -O2 -DNDEBUG -march=native \
+           -I"$CP_ALGORITHMS_DIR" \
+           "$submission_file" -o "$test_binary" 2>/tmp/compile_error.log; then
+        
+        local end_time=$(date +%s%N 2>/dev/null || date +%s)
+        if [[ "$start_time" == *"N" ]]; then
+            local compile_time=$(( (end_time - start_time) / 1000000 ))
+            echo -e "${GREEN}✓ Submission compiled successfully in ${compile_time}ms${RESET}"
+        else
+            echo -e "${GREEN}✓ Submission compiled successfully${RESET}"
+        fi
+        
+        # Test execution with input.
+        if [ -f "$input_path" ]; then
+            echo -e "${BLUE}Testing with input from $input_path:${RESET}"
+            echo -e "${CYAN}/===-------------------------------------===/${RESET}"
+            
+            # Run with timeout and capture output.
+            timeout 2s "$test_binary" < "$input_path" 2>&1 | head -n 50
+            local exit_code=${PIPESTATUS[0]}
+            
+            echo -e "${CYAN}/===-------------------------------------===/${RESET}"
+            
+            if [ $exit_code -eq 124 ]; then
+                echo -e "${YELLOW}⚠ Execution timeout (2s limit exceeded)${RESET}"
+            elif [ $exit_code -ne 0 ]; then
+                echo -e "${RED}⚠ Program exited with code $exit_code${RESET}"
+            else
+                echo -e "${GREEN}✓ Execution completed successfully${RESET}"
+            fi
+        else
+            echo -e "${YELLOW}No input file found at '$input_path'${RESET}"
+            echo -e "${YELLOW}Running without input (5s timeout)...${RESET}"
+            timeout 5s "$test_binary"
+        fi
+        
+        # Cleanup binary.
+        rm -f "$test_binary"
+    else
+        echo -e "${RED}✗ Submission compilation failed${RESET}" >&2
+        echo -e "${RED}Compilation errors:${RESET}"
+        cat /tmp/compile_error.log >&2
+        rm -f /tmp/compile_error.log
+        return 1
+    fi
+}
+
+# Complete workflow with enhanced progress tracking.
+function cppfull() {
+    _check_initialized || return 1
+    local target_name=${1:-$(_get_default_target)}
+    local input_name=${2:-"${target_name}.in"}
+    
+    echo -e "${BLUE}/===-------------------------------------===/${RESET}"
+    echo -e "${BLUE}${BOLD} FULL WORKFLOW: $(printf "%-20s" "$target_name")${RESET}"
+    echo -e "${BLUE}/===-------------------------------------===/${RESET}"
+    
+    # Step 1: Development version test.
+    echo ""
+    echo -e "${CYAN}[1/3] Testing development version...${RESET}"
+    if ! cppgo "$target_name" "$input_name"; then
+        echo -e "${RED}✗ Development version failed${RESET}" >&2
+        return 1
+    fi
+    echo -e "${GREEN}✓ Development test passed${RESET}"
+    
+    # Step 2: Generate submission.
+    echo ""
+    echo -e "${CYAN}[2/3] Generating submission...${RESET}"
+    if ! cppsubmit "$target_name"; then
+        echo -e "${RED}✗ Submission generation failed${RESET}" >&2
+        return 1
+    fi
+    
+    # Step 3: Test submission.
+    echo ""
+    echo -e "${CYAN}[3/3] Testing submission...${RESET}"
+    if ! cpptestsubmit "$target_name" "$input_name"; then
+        echo -e "${RED}✗ Submission test failed${RESET}" >&2
+        return 1
+    fi
+    
+    # Summary with file information.
+    local submission_file="$SUBMISSIONS_DIR/${target_name}_sub.cpp"
+    local file_size=$(wc -c < "$submission_file" 2>/dev/null || echo "0")
+    
+    echo ""
+    echo -e "${GREEN}${BOLD}/===-------------------------------------===/${RESET}"
+    echo -e "${GREEN}${BOLD}  ✓ Full workflow completed successfully${RESET}"
+    echo -e "${GREEN}${BOLD}/===-------------------------------------===/${RESET}"
+    echo -e "${YELLOW}📁 Submission: $submission_file${RESET}"
+    echo -e "${YELLOW}📊 Size: $(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "$file_size bytes")${RESET}"
+    echo -e "${YELLOW}📋 Ready for contest submission${RESET}"
+    
+    # Final clipboard offer.
+    _offer_clipboard_copy "$submission_file"
+}
+
+# Comprehensive system health check.
+function cppcheck() {
+    echo -e "${CYAN}${BOLD}Checking template system health...${RESET}"
+    echo -e "${CYAN}/===-------------------------------------===/${RESET}"
+    
+    local all_good=true
+    local warnings=0
+    
+    # Check workspace configuration
+    echo -e "${BLUE}Workspace Configuration:${RESET}"
+    if [ -n "$CP_WORKSPACE_ROOT" ] && [ -d "$CP_WORKSPACE_ROOT" ]; then
+        echo -e "${GREEN}  ✓ Workspace root: $CP_WORKSPACE_ROOT${RESET}"
+    else
+        echo -e "${RED}  ✗ Workspace root not configured or missing${RESET}"
+        all_good=false
+    fi
+    
+    if [ -n "$CP_ALGORITHMS_DIR" ] && [ -d "$CP_ALGORITHMS_DIR" ]; then
+        echo -e "${GREEN}  ✓ Algorithms directory: $CP_ALGORITHMS_DIR${RESET}"
+    else
+        echo -e "${RED}  ✗ Algorithms directory not configured or missing${RESET}"
+        all_good=false
+    fi
+    
+    # Check template system components.
+    echo -e "\n${BLUE}Template System Components:${RESET}"
+    
+    # Check for new modular system.
+    if [ -f "$SCRIPTS_DIR/flattener.py" ]; then
+        echo -e "${GREEN}  ✓ Flattener script found${RESET}"
+        if python3 -c "import sys; sys.exit(0)" 2>/dev/null; then
+            echo -e "${GREEN}  ✓ Python 3 available${RESET}"
+        else
+            echo -e "${RED}  ✗ Python 3 not available${RESET}"
+            all_good=false
+        fi
+    else
+        echo -e "${YELLOW}  ⚠ Flattener script not found (using legacy system)${RESET}"
+        warnings=$((warnings + 1))
+    fi
+    
+    # Check templates directory.
+    if [ -d "$TEMPLATES_DIR" ]; then
+        local template_count=$(ls -1 "$TEMPLATES_DIR"/*.hpp 2>/dev/null | wc -l)
+        echo -e "${GREEN}  ✓ Templates directory: $template_count files${RESET}"
+    else
+        echo -e "${YELLOW}  ⚠ Templates directory not found (optional)${RESET}"
+        warnings=$((warnings + 1))
+    fi
+    
+    # Check modules directory.
+    if [ -d "$MODULES_DIR" ]; then
+        local module_count=$(ls -1 "$MODULES_DIR"/*.hpp 2>/dev/null | wc -l)
+        echo -e "${GREEN}  ✓ Modules directory: $module_count files${RESET}"
+    else
+        echo -e "${YELLOW}  ⚠ Modules directory not found (optional)${RESET}"
+        warnings=$((warnings + 1))
+    fi
+    
+    # Check legacy system fallback.
+    local legacy_build="$CP_ALGORITHMS_DIR/build_template.sh"
+    if [ -f "$legacy_build" ]; then
+        echo -e "${GREEN}  ✓ Legacy build script available (fallback)${RESET}"
+    else
+        echo -e "${YELLOW}  ⚠ Legacy build script not found${RESET}"
+        warnings=$((warnings + 1))
+    fi
+    
+    # Check compiler and tools.
+    echo -e "\n${BLUE}Development Tools:${RESET}"
+    
+    if command -v g++ &> /dev/null; then
+        local gcc_version=$(g++ --version | head -n1)
+        echo -e "${GREEN}  ✓ Compiler: $gcc_version${RESET}"
+        
+        # Check C++ standard support.
+        if echo | g++ -std=c++23 -x c++ - -fsyntax-only &>/dev/null; then
+            echo -e "${GREEN}  ✓ C++23 support available${RESET}"
+        elif echo | g++ -std=c++20 -x c++ - -fsyntax-only &>/dev/null; then
+            echo -e "${YELLOW}  ⚠ C++20 available (C++23 not supported)${RESET}"
+            warnings=$((warnings + 1))
+        else
+            echo -e "${RED}  ✗ Modern C++ standards not supported${RESET}"
+            all_good=false
+        fi
+    else
+        echo -e "${RED}  ✗ g++ compiler not found${RESET}"
+        all_good=false
+    fi
+    
+    if command -v python3 &> /dev/null; then
+        local python_version=$(python3 --version 2>&1)
+        echo -e "${GREEN}  ✓ Python: $python_version${RESET}"
+    else
+        echo -e "${YELLOW}  ⚠ Python 3 not found (required for new features)${RESET}"
+        warnings=$((warnings + 1))
+    fi
+    
+    # Summary.
+    echo -e "\n${CYAN}/===-------------------------------------===/${RESET}"
+    if $all_good; then
+        if [ $warnings -eq 0 ]; then
+            echo -e "${GREEN}${BOLD}✓ All systems fully operational${RESET}"
+        else
+            echo -e "${GREEN}${BOLD}✓ Core systems operational${RESET}"
+            echo -e "${YELLOW}  $warnings warning(s) for optional features${RESET}"
+        fi
+        return 0
+    else
+        echo -e "${RED}${BOLD}✗ Critical issues detected${RESET}"
+        echo -e "${YELLOW}  Please resolve the issues marked with ✗${RESET}"
+        return 1
+    fi
+}
+
+# ---------------------------- COMPILER UTILITIES ---------------------------- #
+
+# Quick compiler switch functions.
 function cppgcc() {
     local build_type=${1:-Debug}
     cppconf "$build_type" gcc
@@ -853,7 +1254,7 @@ function cppprof() {
     CP_TIMING=1 cppconf Release clang
 }
 
-# Show current configuration
+# Show current configuration.
 function cppinfo() {
     if [ -f ".statistics/last_config" ]; then
         local config=$(cat .statistics/last_config)
@@ -870,111 +1271,14 @@ function cppinfo() {
         local actual_compiler=$(grep "CMAKE_CXX_COMPILER:FILEPATH=" build/CMakeCache.txt | cut -d'=' -f2)
         echo "  Actual Path: ${GREEN}$actual_compiler${RESET}"
         
-        # Check for LTO support
+        # Check for LTO support.
         if grep -q "INTERPROCEDURAL_OPTIMIZATION.*TRUE" build/CMakeCache.txt 2>/dev/null; then
             echo "  ${GREEN}LTO: Enabled${RESET}"
         fi
     fi
 }
 
-# Analyze a Clang trace file using the official Perfetto UI Docker image.
-function cpptrace() {
-    # 1. Dependency Check.
-    if ! command -v docker &> /dev/null; then
-        echo "${RED}Error: 'docker' command not found.${RESET}" >&2
-        echo "This feature requires Docker Desktop to run the Perfetto UI container." >&2
-        echo "Please install and start Docker Desktop." >&2
-        return 1
-    fi
-    
-    if ! docker info > /dev/null 2>&1; then
-        echo "${RED}Error: Docker daemon is not running.${RESET}" >&2
-        echo "Please start Docker Desktop and try again." >&2
-        return 1
-    fi
-
-    # 2. Find the Trace File.
-    local target=$(_get_default_target)
-    local target_name=$(echo "${1:-$target}" | sed -E 's/\.(cpp|cc|cxx)$//')
-    local trace_file_path_host="$(pwd)/build/CMakeFiles/${target_name}.dir/${target_name}.cpp.json"
-
-    if [ ! -f "$trace_file_path_host" ]; then
-        echo "${RED}Error: Trace file not found for target '$target_name'.${RESET}" >&2
-        echo "Expected at: ${CYAN}$trace_file_path_host${RESET}" >&2
-        echo "Please build with ${YELLOW}'cppconf timing=on'${RESET} first, then rebuild the target." >&2
-        return 1
-    fi
-
-    # 3. Start the Perfetto UI Container.
-    local container_name="perfetto-ui-server"
-    echo "${CYAN}Checking for existing Perfetto container...${RESET}"
-    
-    # Stop and remove any old container with the same name.
-    if [ "$(docker ps -a -q -f name=$container_name)" ]; then
-        echo "Stopping and removing existing container..."
-        docker stop $container_name > /dev/null 2>&1
-        docker rm $container_name > /dev/null 2>&1
-    fi
-
-    echo "${CYAN}Starting a new Perfetto UI container...${RESET}"
-    # Run the official, pre-built Perfetto image.
-    # -d: detached mode (runs in background).
-    # -p: maps port 10000 on host to port 80 in the container.
-    # -v: mounts current project directory into /share inside the container (read-only for security).
-    # --rm: automatically removes the container when it's stopped.
-    # --name: gives the container a predictable name.
-    # --user: run as current user to avoid permission issues.
-    if ! docker run \
-        -d \
-        -p 10000:80 \
-        -v "$(pwd)":/share:ro \
-        --user "$(id -u):$(id -g)" \
-        --name "$container_name" \
-        --rm \
-        europe-west0-docker.pkg.dev/perfetto-ui/deploys/ui:latest > /dev/null 2>&1; then
-        echo "${RED}Error: Failed to start Perfetto UI container.${RESET}" >&2
-        echo "Please check your Docker installation and network connectivity." >&2
-        return 1
-    fi
-
-    # Give the container a moment to initialize.
-    echo "Waiting for container to initialize..."
-    sleep 3
-
-    # Verify the container is running.
-    if ! docker ps --format "table {{.Names}}" | grep -q "^$container_name\$"; then
-        echo "${RED}Error: Container failed to start properly.${RESET}" >&2
-        return 1
-    fi
-
-    # 4. Open the Trace in the Browser.
-    # The path to the file "inside the container".
-    local trace_file_path_container="/share/build/CMakeFiles/${target_name}.dir/${target_name}.cpp.json"
-    local url="http://localhost:10000/?url=file://${trace_file_path_container}"
-    
-    echo "${BLUE}Opening trace report in your default browser...${RESET}"
-    echo "Trace file: ${CYAN}$(basename "$trace_file_path_host")${RESET}"
-    
-    # Cross-platform browser opening.
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        open "$url"
-    elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        if command -v xdg-open > /dev/null; then
-            xdg-open "$url"
-        else
-            echo "${YELLOW}Please open this URL manually: $url${RESET}"
-        fi
-    else
-        echo "${YELLOW}Please open this URL manually: $url${RESET}"
-    fi
-
-    echo ""
-    echo "${BOLD}${GREEN}[*] Perfetto UI is running in a Docker container.${RESET}"
-    echo "${YELLOW}To stop the server later, run:${RESET}"
-    echo "  ${CYAN}docker stop $container_name${RESET}"
-}
-
-# -------------------------------- UTILITIES -------------------------------- #
+# -------------------------------- UTILITIES --------------------------------- #
 
 # Cleans the project by removing the build directory.
 function cppclean() {
@@ -1271,7 +1575,7 @@ EOF
     echo ""
 }
 
-# --------------------------- SOME USEFUL ALIASES --------------------------- #
+# --------------------------- SOME USEFUL ALIASES ---------------------------- #
 # Shorter aliases for convenience.
 alias cppc='cppconf'
 alias cppb='cppbuild'
@@ -1332,7 +1636,7 @@ for letter in {A..H}; do
     done
 done
 
-# ------------------------------- HELP & USAGE ------------------------------ #
+# ------------------------------- HELP & USAGE ------------------------------- #
 
 # Displays the help message.
 function cpphelp() {
@@ -1364,6 +1668,12 @@ ${BOLD}${CYAN}[ UTILITIES ]${RESET}
   ${GREEN}cppdiag${RESET}                  - Displays detailed diagnostic info about the toolchain.
   ${GREEN}cpphelp${RESET}                  - Shows this help message.
   ${GREEN}cpptrace${RESET} ${YELLOW}[name]${RESET}          - Analyzes Clang trace file with local Perfetto UI.
+
+${BOLD}${CYAN}[ SUBMISSION PREPARATION ]${RESET}
+  ${GREEN}cppsubmit${RESET} ${YELLOW}[name]${RESET}             - Generates a single-file submission (flattener-based).
+  ${GREEN}cpptestsubmit${RESET} ${YELLOW}[name] [input]${RESET} - Tests the generated submission file.
+  ${GREEN}cppfull${RESET} ${YELLOW}[name] [input]${RESET}       - Full workflow: test dev version, generate submission, test submission.
+  ${GREEN}cppcheck${RESET}                     - Checks the health of the template system and environment.
 
 ${BOLD}${MAGENTA}[ WORKSPACE INFO ]${RESET}
   Workspace Root: ${CYAN}${CP_WORKSPACE_ROOT}${RESET}
