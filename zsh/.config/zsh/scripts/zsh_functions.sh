@@ -336,6 +336,86 @@ function pdfextract() {
     fi
 }
 
+# -------------------------- DjVu to PDF Conversion -------------------------- #
+# Convert DjVu documents to PDF format using ddjvu.
+# Usage: djvu_to_pdf <input.djvu> [output.pdf]
+function djvu_to_pdf() {
+    # Check if ddjvu is installed (part of djvulibre)
+    if ! command -v ddjvu >/dev/null 2>&1; then
+        echo "${C_RED}Error: ddjvu is not installed.${C_RESET}" >&2
+        echo "Please install djvulibre first:" >&2
+        if [[ "$PLATFORM" == "macOS" ]]; then
+            echo "  brew install djvulibre" >&2
+        elif [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" == true ]]; then
+            echo "  sudo pacman -S djvulibre" >&2
+        elif [[ "$PLATFORM" == "Linux" ]]; then
+            echo "  sudo apt install djvulibre-bin (Debian/Ubuntu)" >&2
+            echo "  sudo dnf install djvulibre (Fedora)" >&2
+        fi
+        return 1
+    fi
+
+    # Check if correct number of arguments is provided.
+    if [[ $# -lt 1 || $# -gt 2 ]]; then
+        echo "${C_YELLOW}Usage: djvu_to_pdf <input.djvu> [output.pdf]${C_RESET}" >&2
+        echo "Example: djvu_to_pdf document.djvu" >&2
+        echo "         djvu_to_pdf document.djvu converted.pdf" >&2
+        return 1
+    fi
+
+    local input_file="$1"
+    local output_file="${2:-}"
+
+    # Check if input file exists and is a DjVu file.
+    if [[ ! -f "$input_file" ]]; then
+        echo "${C_RED}Error: Input file '$input_file' not found.${C_RESET}" >&2
+        return 1
+    fi
+
+    if [[ ! "$input_file" =~ \.(djvu|djv|DJVU|DJV)$ ]]; then
+        echo "${C_RED}Error: Input file must be a DjVu document.${C_RESET}" >&2
+        return 1
+    fi
+
+    # Generate output filename if not provided.
+    if [[ -z "$output_file" ]]; then
+        local base_name="${input_file%.*}"
+        output_file="${base_name}.pdf"
+    fi
+
+    # Ensure output file has .pdf extension.
+    if [[ ! "$output_file" =~ \.(pdf|PDF)$ ]]; then
+        output_file="${output_file}.pdf"
+    fi
+
+    # Check if output file already exists and ask for confirmation.
+    if [[ -f "$output_file" ]]; then
+        echo -n "${C_YELLOW}Output file '$output_file' already exists. Overwrite? (y/N): ${C_RESET}"
+        read -r response
+        if [[ ! "$response" =~ ^[Yy]$ ]]; then
+            echo "${C_CYAN}Operation cancelled.${C_RESET}"
+            return 0
+        fi
+    fi
+
+    # Perform the conversion.
+    echo "${C_CYAN}Converting '$input_file' to PDF format...${C_RESET}"
+
+    if ddjvu -format=pdf "$input_file" "$output_file" 2>/dev/null; then
+        echo "${C_GREEN}✓ Successfully converted to '$output_file'${C_RESET}"
+
+        # Show file size information.
+        if command -v du >/dev/null 2>&1; then
+            local input_size=$(du -h "$input_file" | cut -f1)
+            local output_size=$(du -h "$output_file" | cut -f1)
+            echo "${C_BLUE}Original: $input_size → Converted: $output_size${C_RESET}"
+        fi
+    else
+        echo "${C_RED}Error: Failed to convert DjVu file. Please check the file and try again.${C_RESET}" >&2
+        return 1
+    fi
+}
+
 # ---------------------------- Find Large Files ----------------------------- #
 # Find files larger than specified size (default 100MB).
 # Usage: findlarge [size_in_MB] [directory]

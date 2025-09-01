@@ -785,28 +785,31 @@ build_final_path() {
     local -a path_template
     if [[ "$PLATFORM" == 'macOS' ]]; then
         path_template=(
-            # ----- DYNAMIC SHIMS (TOP PRIORITY) ---- #
+            # ----- DYNAMIC SHIMS (TOP PRIORITY) ------ #
             "$HOME/.pyenv/shims"
 
-            # ----- STATIC SHIMS & LANGUAGE BINS ---- #
+            # ----- STATIC SHIMS & LANGUAGE BINS ------ #
             "$PYENV_ROOT/bin"
             "$HOME/.opam/ocaml-compiler/bin"
             "$HOME/.sdkman/candidates/java/current/bin"
 
-            # ----- FNM (Current session only) ------ #
+            # ------ FNM (Current session only) ------- #
             "$FNM_MULTISHELL_PATH/bin"
 
-            # -------------- Homebrew --------------- #
+            # --------------- Homebrew ---------------- #
             "/opt/homebrew/bin"
             "/opt/homebrew/sbin"
             "/opt/homebrew/opt/llvm/bin"
             "/opt/homebrew/opt/ccache/libexec"
 
-            # ------------ System Tools ------------- #
+            # ---------------- Podman ----------------- #
+            "/opt/podman/bin"
+
+            # ------------- System Tools -------------- #
             "/usr/local/bin" "/usr/bin" "/bin"
             "/usr/sbin" "/sbin"
 
-            # ----- User and App-Specific Paths ----- #
+            # ------ User and App-Specific Paths ------ #
             "$HOME/.local/bin"
             "$HOME/.nix-profile/bin" "/nix/var/nix/profiles/default/bin"
             "$HOME/.ghcup/bin" "$HOME/.cabal/bin"
@@ -818,7 +821,7 @@ build_final_path() {
             "$GOPATH/bin" "$GOROOT/bin"
             "$ANDROID_HOME/platform-tools" "$ANDROID_HOME/cmdline-tools/latest/bin"
 
-            # ------------- Other Paths ------------- #
+            # -------------- Other Paths -------------- #
             "$HOME/.config/emacs/bin"
             "$HOME/.wakatime"
             "/usr/local/mysql/bin"
@@ -830,25 +833,25 @@ build_final_path() {
         )
     elif [[ "$PLATFORM" == 'Linux' ]]; then
         path_template=(
-            # ----- DYNAMIC SHIMS (TOP PRIORITY) ---- #
+            # ----- DYNAMIC SHIMS (TOP PRIORITY) ------ #
             "$HOME/.pyenv/shims"
 
-            # ----- STATIC SHIMS & LANGUAGE BINS ---- #
+            # ----- STATIC SHIMS & LANGUAGE BINS ------ #
             "$PYENV_ROOT/bin"
             "$HOME/.sdkman/candidates/java/current/bin"
             "$HOME/.opam/ocaml-compiler/bin"
 
-            # ----- FNM (Current session only) ------ #
+            # ------ FNM (Current session only) ------- #
             "$FNM_MULTISHELL_PATH/bin"
 
-            # ------------ System Tools ------------- #
+            # ------------- System Tools -------------- #
             "/usr/local/bin" "/usr/bin" "/bin"
             "/usr/local/sbin" "/usr/sbin" "/sbin"
 
-            # -------------- Linuxbrew -------------- #
+            # --------------- Linuxbrew --------------- #
             "/home/linuxbrew/.linuxbrew/bin" "/home/linuxbrew/.linuxbrew/sbin"
 
-            # ----- User and App-Specific Paths ----- #
+            # ------ User and App-Specific Paths ------ #
             "$HOME/.local/bin"
             "$HOME/.nix-profile/bin" "/nix/var/nix/profiles/default/bin"
             "$HOME/.ghcup/bin" "$HOME/.cabal/bin"
@@ -858,7 +861,7 @@ build_final_path() {
             "$ANDROID_HOME/platform-tools" "$ANDROID_HOME/cmdline-tools/latest/bin"
             "$HOME/.local/share/JetBrains/Toolbox/scripts"
 
-            # ------------- Other Paths ------------- #
+            # -------------- Other Paths -------------- #
             "$HOME/.config/emacs/bin"
             "$HOME/.wakatime"
             "$HOME/.lcs-bin"

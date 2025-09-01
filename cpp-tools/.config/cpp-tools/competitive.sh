@@ -226,6 +226,7 @@ EOF
     mkdir -p input_cases
     mkdir -p output_cases
     mkdir -p expected_output
+    mkdir -p submissions
 
     # Link to the global debug.h if configured and not already linked.
     local master_debug_header="$CP_ALGORITHMS_DIR/libs/debug.h"
@@ -236,6 +237,30 @@ EOF
         else
             touch "algorithms/debug.h"
             echo "${YELLOW}Warning: Global debug.h not found. Created a local placeholder.${RESET}"
+        fi
+    fi
+
+    # Link to the global templates directory if configured and not already linked.
+    local master_templates_dir="$CP_ALGORITHMS_DIR/templates"
+    if [ ! -e "algorithms/templates" ]; then
+        if [ -n "$CP_ALGORITHMS_DIR" ] && [ -d "$master_templates_dir" ]; then
+            ln -s "$master_templates_dir" "algorithms/templates"
+            echo "Created symlink to global templates directory."
+        else
+            mkdir -p "algorithms/templates"
+            echo "${YELLOW}Warning: Global templates directory not found. Created a local placeholder.${RESET}"
+        fi
+    fi
+
+    # Link to the global modules directory if configured and not already linked.
+    local master_modules_dir="$CP_ALGORITHMS_DIR/modules"
+    if [ ! -e "algorithms/modules" ]; then
+        if [ -n "$CP_ALGORITHMS_DIR" ] && [ -d "$master_modules_dir" ]; then
+            ln -s "$master_modules_dir" "algorithms/modules"
+            echo "Created symlink to global modules directory."
+        else
+            mkdir -p "algorithms/modules"
+            echo "${YELLOW}Warning: Global modules directory not found. Created a local placeholder.${RESET}"
         fi
     fi
     
@@ -290,7 +315,7 @@ function cppnew() {
     fi
 
     local problem_name=${1:-"main"}
-    local template_type=${2:-"default"}
+    local template_type=${2:-"base"}
     local file_name="${problem_name}.cpp"
     local template_file
 
@@ -305,7 +330,7 @@ function cppnew() {
             template_file="$SCRIPT_DIR/templates/cpp/pbds.cpp"
             ;;
         "default")
-            template_file="$SCRIPT_DIR/tempaltes/cpp/default.cpp"
+            template_file="$SCRIPT_DIR/templates/cpp/default.cpp"
             ;;
         "advanced")
             template_file="$SCRIPT_DIR/templates/cpp/advanced.cpp"
@@ -335,6 +360,106 @@ function cppnew() {
 
     echo "New problem '$problem_name' created. Re-running CMake configuration..."
     cppconf # Re-run configuration to add the new file to the build system.
+}
+
+# Deletes a problem and all its associated files.
+function cppdelete() {
+    local problem_name=${1}
+    
+    if [ -z "$problem_name" ]; then
+        echo "${RED}Usage: cppdelete <problem_name>${RESET}" >&2
+        return 1
+    fi
+
+    # Check if any source file exists for this problem.
+    local source_file=""
+    for ext in cpp cc cxx; do
+        if [ -f "${problem_name}.${ext}" ]; then
+            source_file="${problem_name}.${ext}"
+            break
+        fi
+    done
+
+    if [ -z "$source_file" ]; then
+        echo "${RED}Error: No source file found for problem '$problem_name'${RESET}" >&2
+        return 1
+    fi
+
+    # List all files that will be deleted.
+    echo "${YELLOW}The following files will be deleted:${RESET}"
+    echo "  - Source file: ${CYAN}$source_file${RESET}"
+    
+    # Check for input/output files.
+    local files_to_delete=("$source_file")
+    
+    if [ -f "input_cases/${problem_name}.in" ]; then
+        echo "  - Input file: ${CYAN}input_cases/${problem_name}.in${RESET}"
+        files_to_delete+=("input_cases/${problem_name}.in")
+    fi
+    
+    # Check for multiple input files (numbered pattern).
+    while IFS= read -r -d '' input_file; do
+        echo "  - Input file: ${CYAN}$input_file${RESET}"
+        files_to_delete+=("$input_file")
+    done < <(find input_cases -name "${problem_name}.*.in" -print0 2>/dev/null)
+    
+    if [ -f "output_cases/${problem_name}.exp" ]; then
+        echo "  - Output file: ${CYAN}output_cases/${problem_name}.exp${RESET}"
+        files_to_delete+=("output_cases/${problem_name}.exp")
+    fi
+    
+    # Check for multiple output files (numbered pattern).
+    while IFS= read -r -d '' output_file; do
+        echo "  - Output file: ${CYAN}$output_file${RESET}"
+        files_to_delete+=("$output_file")
+    done < <(find output_cases -name "${problem_name}.*.exp" -print0 2>/dev/null)
+    
+    # Check for submission file.
+    if [ -f "$SUBMISSIONS_DIR/${problem_name}_sub.cpp" ]; then
+        echo "  - Submission file: ${CYAN}$SUBMISSIONS_DIR/${problem_name}_sub.cpp${RESET}"
+        files_to_delete+=("$SUBMISSIONS_DIR/${problem_name}_sub.cpp")
+    fi
+    
+    # Check for executable in bin directory.
+    if [ -f "bin/${problem_name}" ]; then
+        echo "  - Executable: ${CYAN}bin/${problem_name}${RESET}"
+        files_to_delete+=("bin/${problem_name}")
+    fi
+    
+    # Confirmation prompt.
+    echo ""
+    echo -n "${YELLOW}Are you sure you want to delete these files? (y/N): ${RESET}"
+    read -r response
+    
+    if [[ ! "$response" =~ ^[Yy]$ ]]; then
+        echo "Deletion cancelled."
+        return 0
+    fi
+    
+    # Delete the files.
+    local deleted_count=0
+    for file in "${files_to_delete[@]}"; do
+        if [ -f "$file" ]; then
+            rm "$file"
+            echo "${GREEN}Deleted: $file${RESET}"
+            ((deleted_count++))
+        fi
+    done
+    
+    # Remove problem timing data from statistics.
+    if [ -f ".statistics/problem_times" ]; then
+        grep -v "^${problem_name}:" .statistics/problem_times > .statistics/problem_times.tmp 2>/dev/null || true
+        mv .statistics/problem_times.tmp .statistics/problem_times 2>/dev/null || true
+    fi
+    
+    echo ""
+    echo "${GREEN}Successfully deleted problem '$problem_name' ($deleted_count files removed)${RESET}"
+    
+    # Re-run CMake configuration to update the build system.
+    if [ -f "CMakeLists.txt" ]; then
+        echo "Re-running CMake configuration to update build system..."
+        cppconf
+    fi
 }
 
 # Batch creation of multiple problems at once.
@@ -1594,6 +1719,7 @@ alias cppcl='cppclean'
 alias cppdc='cppdeepclean'
 alias cppw='cppwatch'
 alias cppn='cppnew'
+alias cppdel='cppdelete'
 alias cppf='cppforcego'
 alias cppct='cppcontest'
 alias cppar='cpparchive'
@@ -1651,7 +1777,8 @@ ${BOLD}Enhanced CMake Utilities for Competitive Programming:${RESET}
 
 ${BOLD}${CYAN}[ SETUP & CONFIGURATION ]${RESET}
   ${GREEN}cppinit${RESET}                       - Initializes or verifies a project directory (workspace-protected).
-  ${GREEN}cppnew${RESET} ${YELLOW}[name] [template]${RESET}      - Creates a new .cpp file from a template ('default', 'pbds').
+  ${GREEN}cppnew${RESET} ${YELLOW}[name] [template]${RESET}      - Creates a new .cpp file from a template ('default', 'pbds', 'advanced', 'base').
+  ${GREEN}cppdelete${RESET} ${YELLOW}[name]${RESET}              - Deletes a problem file and associated data (interactive).
   ${GREEN}cppbatch${RESET} ${YELLOW}[count] [tpl]${RESET}        - Creates multiple problems at once (A, B, C, ...).
   ${GREEN}cppconf${RESET} ${YELLOW}[type] [compiler] ${RESET}    - (Re)configures the project (Debug/Release/Sanitize, gcc/clang/auto, timing reports).
           ${YELLOW}[timing=on/off]${RESET}
@@ -1661,25 +1788,38 @@ ${BOLD}${CYAN}[ BUILD, RUN, TEST ]${RESET}
   ${GREEN}cppbuild${RESET} ${YELLOW}[name]${RESET}          - Builds a target (defaults to most recent).
   ${GREEN}cpprun${RESET} ${YELLOW}[name]${RESET}            - Runs a target's executable.
   ${GREEN}cppgo${RESET} ${YELLOW}[name] [input]${RESET}     - Builds and runs. Uses '<name>.in' by default.
+  ${GREEN}cppforcego${RESET} ${YELLOW}[name]${RESET}        - Force rebuild and run (updates timestamp).
   ${GREEN}cppi${RESET} ${YELLOW}[name]${RESET}              - Interactive mode: builds and runs with manual input.
   ${GREEN}cppjudge${RESET} ${YELLOW}[name]${RESET}          - Tests against all sample cases with timing info.
   ${GREEN}cppstress${RESET} ${YELLOW}[name] [n]${RESET}     - Stress tests a solution for n iterations (default: 100).
 
+${BOLD}${CYAN}[ COMPILER SELECTION ]${RESET}
+  ${GREEN}cppgcc${RESET} ${YELLOW}[type]${RESET}            - Configure with GCC compiler (defaults to Debug).
+  ${GREEN}cppclang${RESET} ${YELLOW}[type]${RESET}          - Configure with Clang compiler (defaults to Debug).
+  ${GREEN}cppprof${RESET}                  - Configure profiling build with Clang and timing enabled.
+  ${GREEN}cppinfo${RESET}                  - Shows current compiler and build configuration.
+
 ${BOLD}${CYAN}[ UTILITIES ]${RESET}
-  ${GREEN}cppwatch${RESET} ${YELLOW}[name]${RESET}          - Auto-rebuilds a target on file change.
+  ${GREEN}cppwatch${RESET} ${YELLOW}[name]${RESET}          - Auto-rebuilds a target on file change (requires fswatch).
   ${GREEN}cppclean${RESET}                 - Removes build artifacts.
   ${GREEN}cppdeepclean${RESET}             - Removes all generated files (interactive).
   ${GREEN}cppstats${RESET}                 - Shows timing statistics for problems.
   ${GREEN}cpparchive${RESET}               - Creates a compressed archive of the contest.
   ${GREEN}cppdiag${RESET}                  - Displays detailed diagnostic info about the toolchain.
   ${GREEN}cpphelp${RESET}                  - Shows this help message.
-  ${GREEN}cpptrace${RESET} ${YELLOW}[name]${RESET}          - Analyzes Clang trace file with local Perfetto UI.
 
 ${BOLD}${CYAN}[ SUBMISSION PREPARATION ]${RESET}
   ${GREEN}cppsubmit${RESET} ${YELLOW}[name]${RESET}             - Generates a single-file submission (flattener-based).
   ${GREEN}cpptestsubmit${RESET} ${YELLOW}[name] [input]${RESET} - Tests the generated submission file.
   ${GREEN}cppfull${RESET} ${YELLOW}[name] [input]${RESET}       - Full workflow: test dev version, generate submission, test submission.
   ${GREEN}cppcheck${RESET}                     - Checks the health of the template system and environment.
+
+${BOLD}${CYAN}[ QUICK ACCESS ALIASES ]${RESET}
+  ${GREEN}cppgo_A${RESET}, ${GREEN}cppgo_B${RESET}, etc.       - Quick run for problem_A, problem_B, etc.
+  ${GREEN}cppgo_A1${RESET}, ${GREEN}cppgo_A2${RESET}, etc.     - Quick run for numbered variants (problem_A1, problem_A2, etc.).
+  
+  Short aliases: 
+    ${GREEN}cppc${RESET}=cppconf, ${GREEN}cppb${RESET}=cppbuild, ${GREEN}cppr${RESET}=cpprun, ${GREEN}cppg${RESET}=cppgo, and more.
 
 ${BOLD}${MAGENTA}[ WORKSPACE INFO ]${RESET}
   Workspace Root: ${CYAN}${CP_WORKSPACE_ROOT}${RESET}

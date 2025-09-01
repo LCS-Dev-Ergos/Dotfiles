@@ -1,6 +1,6 @@
 # .zprofile - Executed only for login shells. Sets up basic environment.
 
-# ------- Export Fundamental Variables -------- #
+# -------- Export Fundamental Variables -------- #
 # Lets .zshrc know this file has already been executed.
 export ZPROFILE_HAS_RUN=true
 
@@ -45,17 +45,17 @@ export HISTORY_IGNORE='ls:l:ll:bg:fg:history:clear:c'
 # Less pager options.
 export LESS="-R"
 
-# --------- XDG Base Directory Setup ---------- #
+# ---------- XDG Base Directory Setup ---------- #
 export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
 export XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
 export XDG_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"
 
-# ------------ Initial PATH Setup ------------- #
+# ------------- Initial PATH Setup ------------- #
 # Adds standard user paths. Final PATH order handled by ".zshrc".
 export PATH="$HOME/.local/bin:$PATH"
 
-# --------------- Coursier PATH --------------- #
+# --------------- Coursier PATH ---------------- #
 # Add Coursier bin to PATH, handling platform-specific paths.
 if [[ "$OSTYPE" == "darwin"* ]]; then
     export PATH="$PATH:$HOME/Library/Application Support/Coursier/bin"
@@ -63,4 +63,6 @@ elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
     export PATH="$PATH:$HOME/.local/share/coursier/bin"
 fi
 
-# NOTE: No need to source ~/.zshrc from here.
+# ----------------- Toolchains ----------------- #
+# Added by OrbStack: command-line tools and integration
+source ~/.orbstack/shell/init.zsh 2>/dev/null || :
