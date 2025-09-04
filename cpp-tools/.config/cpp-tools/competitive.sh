@@ -335,7 +335,7 @@ function cppnew() {
         "advanced")
             template_file="$SCRIPT_DIR/templates/cpp/advanced.cpp"
             ;;
-        *) # Base template
+        *) # Base template.
             template_file="$SCRIPT_DIR/templates/cpp/base.cpp"
             ;;
     esac
