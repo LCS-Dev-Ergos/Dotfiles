@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 
+# ============================================================================ #
 """
-Enhanced Frontmatter Update Script
-Handles YAML frontmatter updates for Hugo blog posts with improved error handling,
-atomic operations, and integration with Git-based change detection.
+Frontmatter Update Script:
+Handles YAML frontmatter updates for Hugo blog posts with improved error
+handling, atomic operations, and integration with Git-based change detection.
 
 Author: XtremeXSPC
 Version: 2.1.0
 """
+# ============================================================================ #
 
 import sys
 import os

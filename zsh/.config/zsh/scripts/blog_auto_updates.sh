@@ -73,9 +73,9 @@ fi
 # ============================================================================ #
 
 # Logging configuration.
-BLOG_LOG_DIR="${ALLOWED_BLOG_ROOT}/logs"
 BLOG_DRY_RUN=${BLOG_DRY_RUN:-false}
 BLOG_VERBOSE=${BLOG_VERBOSE:-false}
+BLOG_LOG_DIR="${BLOG_LOG_DIR:-$ALLOWED_BLOG_ROOT/logs}"
 
 # Initialize log directory only when needed.
 _blog_init_logging() {
@@ -202,7 +202,7 @@ blog_set_defaults() {
     BLOG_DEST_PATH="${BLOG_DEST_PATH:-$ALLOWED_BLOG_ROOT/CS-Topics/content/posts}"
     
     # Python scripts.
-    BLOG_SCRIPTS_DIR="${BLOG_SCRIPTS_DIR:-$SCRIPT_DIR/python}"
+    BLOG_SCRIPTS_DIR="${SCRIPT_DIR/python}"
     BLOG_IMAGES_SCRIPT="${BLOG_IMAGES_SCRIPT:-$BLOG_SCRIPTS_DIR/images.py}"
     BLOG_HASH_GENERATOR="${BLOG_HASH_GENERATOR:-$BLOG_SCRIPTS_DIR/generate_hashes.py}"
     BLOG_FRONTMATTER_SCRIPT="${BLOG_FRONTMATTER_SCRIPT:-$BLOG_SCRIPTS_DIR/update_frontmatter.py}"
@@ -429,7 +429,7 @@ blog_run_with_timeout() {
 }
 
 # ============================================================================ #
-# +++++++++++++++++++++++* Git-based change detection ++++++++++++++++++++++++ #
+# ++++++++++++++++++++++++ Git-based change detection ++++++++++++++++++++++++ #
 # ============================================================================ #
 
 # Detects changed files using Git status.
@@ -580,13 +580,13 @@ blog_sync_posts() {
     blog_check_dir "$BLOG_DEST_PATH" "Destination" true || return 1
     
     # Create backup before synchronization.
-    local backup_path=""
-    if [[ -d "$BLOG_DEST_PATH" ]] && [[ "$(ls -A "$BLOG_DEST_PATH" 2>/dev/null)" ]]; then
-        backup_path=$(blog_create_backup "$BLOG_DEST_PATH" "posts_sync")
-        if [[ -z "$backup_path" ]]; then
-            blog_warn "Backup failed, continuing anyway"
-        fi
-    fi
+    # local backup_path=""
+    # if [[ -d "$BLOG_DEST_PATH" ]] && [[ "$(ls -A "$BLOG_DEST_PATH" 2>/dev/null)" ]]; then
+    #     backup_path=$(blog_create_backup "$BLOG_DEST_PATH" "posts_sync")
+    #     if [[ -z "$backup_path" ]]; then
+    #         blog_warn "Backup failed, continuing anyway"
+    #     fi
+    # fi
     
     blog_info "Synchronizing: $BLOG_SOURCE_PATH -> $BLOG_DEST_PATH"
     
@@ -934,7 +934,7 @@ blog_run_all() {
         "blog_init_git"
         "blog_sync_posts"
         "blog_detect_changes"
-        "blog_update_frontmatter"
+        # "blog_update_frontmatter"
         "blog_process_images"
         "blog_build_hugo"
         "blog_commit_changes"
@@ -1064,9 +1064,9 @@ ${BOLD}USAGE:${RESET}
         ${YELLOW}blog_help${RESET}                  - Show this help
         
 ${BOLD}ENVIRONMENT VARIABLES:${RESET}
-    ${CYAN}BLOG_DRY_RUN=true${RESET}             - Dry-run mode (default: false)
-    ${CYAN}BLOG_VERBOSE=true${RESET}             - Verbose output (default: false)
-    ${CYAN}BLOG_CHANGE_DETECTION=git${RESET}     - Change detection method (git/hash)
+    ${CYAN}BLOG_DRY_RUN=true${RESET}              - Dry-run mode (default: false)
+    ${CYAN}BLOG_VERBOSE=true${RESET}              - Verbose output (default: false)
+    ${CYAN}BLOG_CHANGE_DETECTION=git${RESET}      - Change detection method (git/hash)
     
 ${BOLD}RESTRICTIONS:${RESET}
     This script only works in: ${YELLOW}$ALLOWED_BLOG_ROOT${RESET}

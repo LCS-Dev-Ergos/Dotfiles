@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 
+# ============================================================================ #
 """
-Enhanced Images Processing Script
-Processes Obsidian-style image links in markdown files and converts them to Hugo-compatible
-format with improved error handling, atomic operations, and comprehensive validation.
+Images Processing Script:
+Processes Obsidian-style image links in markdown files and converts them to
+Hugo-compatible format with improved error handling, atomic operations,
+and comprehensive validation.
 
 Author: XtremeXSPC
 Version: 2.1.0
 """
+# ============================================================================ #
 
 import os
 import re

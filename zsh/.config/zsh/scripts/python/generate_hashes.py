@@ -1,10 +1,23 @@
 #!/usr/bin/env python3
 
+# ============================================================================ #
+"""
+Hash Generator and Updater:
+This script calculates and updates SHA-256 hash values for all markdown (.md)
+files in a specified directory. It maintains a record of these hashes in a
+hash file, allowing for easy detection of changes to the files over time.
+
+Author: XtremeXSPC
+Version: 1.0.0
+"""
+# ============================================================================ #
+
 import sys
 import os
 import hashlib
 
 HASH_FILE = ".file_hashes"
+
 
 def calculate_hash(file_path):
     """
@@ -19,6 +32,7 @@ def calculate_hash(file_path):
         for block in iter(lambda: f.read(65536), b""):
             sha256.update(block)
     return sha256.hexdigest()
+
 
 def load_existing_hashes(hash_file):
     """
@@ -41,6 +55,7 @@ def load_existing_hashes(hash_file):
             hashes[file_path] = file_hash
     return hashes
 
+
 def save_hashes(hash_file, hashes):
     """
     Save file paths and their corresponding hashes to a file.
@@ -51,6 +66,7 @@ def save_hashes(hash_file, hashes):
     with open(hash_file, "w", encoding="utf-8") as f:
         for file_path, file_hash in hashes.items():
             f.write(f"{file_path}\t{file_hash}\n")
+
 
 def update_hashes(directory):
     """
@@ -83,6 +99,7 @@ def update_hashes(directory):
     # Save updated hashes
     save_hashes(HASH_FILE, updated_hashes)
     return updated_hashes
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
