@@ -21,7 +21,7 @@ else
     SCRIPT_PATH="$0"
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd 2>/dev/null)"
+BLOG_SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd 2>/dev/null)"
 SCRIPT_NAME="$(basename "$SCRIPT_PATH")"
 VERSION="2.1.0"
 
@@ -202,7 +202,7 @@ blog_set_defaults() {
     BLOG_DEST_PATH="${BLOG_DEST_PATH:-$ALLOWED_BLOG_ROOT/CS-Topics/content/posts}"
     
     # Python scripts.
-    BLOG_SCRIPTS_DIR="${SCRIPT_DIR/python}"
+    BLOG_SCRIPTS_DIR="${BLOG_SCRIPT_DIR/python}"
     BLOG_IMAGES_SCRIPT="${BLOG_IMAGES_SCRIPT:-$BLOG_SCRIPTS_DIR/images.py}"
     BLOG_HASH_GENERATOR="${BLOG_HASH_GENERATOR:-$BLOG_SCRIPTS_DIR/generate_hashes.py}"
     BLOG_FRONTMATTER_SCRIPT="${BLOG_FRONTMATTER_SCRIPT:-$BLOG_SCRIPTS_DIR/update_frontmatter.py}"

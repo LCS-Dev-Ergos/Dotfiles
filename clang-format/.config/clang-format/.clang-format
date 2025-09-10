@@ -1,11 +1,11 @@
 # Based on LLVM style with customizations
-BasedOnStyle: LLVM
+BasedOnStyle: Google
 
 # Keep the * operator close to the type
 PointerAlignment: Left
 
 # Limit for the length of each line
-ColumnLimit: 140
+ColumnLimit: 100
 
 # Indentation size (2 spaces for consistency with C/C++)
 IndentWidth: 2
@@ -61,11 +61,6 @@ MacroBlockEnd: AlwaysBreak
 
 # Configure preprocessing directives indentation
 IndentPPDirectives: None
-
-# Keep preprocessor directives at column 1 or indent them
-# AfterHash: indent after the hash
-# BeforeHash: indent before the hash
-# None: don't indent (default)
 
 # Indent width for preprocessing directives
 PPIndentWidth: 2

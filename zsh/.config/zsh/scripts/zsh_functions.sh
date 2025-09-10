@@ -725,4 +725,57 @@ function cleanup() {
     fi
 }
 
+# ---------------------------- Clang Format Link ----------------------------- #
+# Create a symbolic link to the global .clang-format configuration file.
+# Usage: clanglink
+function clang_format_link() {
+    local config_file="$HOME/.config/clang-format/.clang-format"
+    local target_file="./.clang-format"
+
+    # Check if global config file exists.
+    if [[ ! -f "$config_file" ]]; then
+        echo "${C_RED}Error: Global .clang-format file not found at '$config_file'${C_RESET}" >&2
+        return 1
+    fi
+
+    # Check if target already exists.
+    if [[ -e "$target_file" ]]; then
+        if [[ -L "$target_file" ]]; then
+            local current_target=$(readlink "$target_file")
+            if [[ "$current_target" == "$config_file" ]]; then
+                echo "${C_YELLOW}Symbolic link already exists and points to the correct file.${C_RESET}"
+                return 0
+            else
+                echo "${C_YELLOW}Symbolic link exists but points to: $current_target${C_RESET}"
+            fi
+        else
+            echo "${C_YELLOW}File '.clang-format' already exists in current directory.${C_RESET}"
+        fi
+
+        echo -n "${C_YELLOW}Replace existing file/link? (y/N): ${C_RESET}"
+        read -r response
+        if [[ ! "$response" =~ ^[Yy]$ ]]; then
+            echo "${C_CYAN}Operation cancelled.${C_RESET}"
+            return 0
+        fi
+
+        rm -f "$target_file"
+    fi
+
+    # Create the symbolic link.
+    echo "${C_CYAN}Creating symbolic link to .clang-format configuration...${C_RESET}"
+
+    if ln -s "$config_file" "$target_file" 2>/dev/null; then
+        echo "${C_GREEN}✓ Successfully created symbolic link: .clang-format → $config_file${C_RESET}"
+
+        # Show the link details.
+        if command -v ls >/dev/null 2>&1; then
+            ls -la "$target_file"
+        fi
+    else
+        echo "${C_RED}Error: Failed to create symbolic link.${C_RESET}" >&2
+        return 1
+    fi
+}
+
 # +++++++++++++++++++++++++++++++ END OF FILE ++++++++++++++++++++++++++++++++ #
