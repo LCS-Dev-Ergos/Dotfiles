@@ -779,7 +779,7 @@ function cppgo() {
     echo "${CYAN}Building target '${BOLD}$target_name${CYAN}'...${RESET}"
     if cppbuild "$target_name"; then
         echo ""
-        echo "${BLUE}╔═══-------------------------------------═══╗${RESET}"
+        echo "${BLUE}════-------------------------------------════${RESET}"
         echo "${BLUE}${BOLD}RUNNING: $target_name${RESET}"
         
         # Track execution time in nanoseconds for better precision.
@@ -809,7 +809,7 @@ function cppgo() {
             echo "${RED}Program exited with code $exit_code${RESET}"
         fi
         
-        echo "${BLUE}╚═══------------- FINISHED --------------═══╝${RESET}"
+        echo "${BLUE}════------------- FINISHED --------------════${RESET}"
         printf "${MAGENTA}Execution time: %d.%02dms${RESET}\n" $elapsed_ms $decimal_part
         echo ""
     else
@@ -855,11 +855,11 @@ function cppi() {
     echo "${CYAN}Building target '${BOLD}$target_name${CYAN}'...${RESET}"
     if cppbuild "$target_name"; then
         echo ""
-        echo "${BLUE}╔═══-------------------------------------═══╗${RESET}"
+        echo "${BLUE}════-------------------------------------════${RESET}"
         echo "${BLUE}${BOLD}INTERACTIVE MODE: $target_name${RESET}"
         echo "${YELLOW}Enter input (Ctrl+D when done):${RESET}"
         "$exec_path"
-        echo "${BLUE}╚═══------------- FINISHED --------------═══╝${RESET}"
+        echo "${BLUE}════------------- FINISHED --------------════${RESET}"
     else
         echo "${RED}Build failed!${RESET}" >&2
         return 1
@@ -931,23 +931,23 @@ function cppjudge() {
         else
             echo "${BOLD}${RED}FAILED${RESET} (${elapsed_ms}ms)"
             ((failed++))
-            echo "${BOLD}${YELLOW}╔═══---------- YOUR OUTPUT ---------═══╗${RESET}"
+            echo "${BOLD}${YELLOW}════------------ YOUR OUTPUT ------------════${RESET}"
             cat "$temp_out"
-            echo "${BOLD}${YELLOW}╠═══----------- EXPECTED -----------═══╣${RESET}"
+            echo "${BOLD}${YELLOW}╠═══------------- EXPECTED --------------═══╣${RESET}"
             cat "$output_case"
-            echo "${BOLD}${YELLOW}╚═══--------------------------------═══╝${RESET}"
+            echo "${BOLD}${YELLOW}════-------------------------------------════${RESET}"
         fi
         rm "$temp_out"
     done
 
     # Summary.
     echo ""
-    echo "${BOLD}${BLUE}╔═══--------- TEST SUMMARY ---------═══╗${RESET}"
+    echo "${BOLD}${BLUE}════----------- TEST SUMMARY ------------════${RESET}"
     echo "${GREEN}Passed: $passed/$total${RESET}"
     if [ $failed -gt 0 ]; then
         echo "${RED}Failed: $failed/$total${RESET}"
     fi
-    echo "${BOLD}${BLUE}╚═══--------------------------------═══╝${RESET}"
+    echo "${BOLD}${BLUE}════-------------------------------------════${RESET}"
 }
 
 # Quick stress testing function.
@@ -1482,7 +1482,8 @@ function cppstats() {
     fi
     
     echo "${BOLD}${BLUE}╔═══----------- PROBLEM STATISTICS -----------═══╗${RESET}"
-    
+    echo ""
+
     local current_time=$(date +%s)
     while IFS=: read -r problem action timestamp; do
         if [ "$action" = "START" ]; then
@@ -1491,6 +1492,7 @@ function cppstats() {
         fi
     done < .statistics/problem_times
     
+    echo ""
     echo "${BOLD}${BLUE}╚═══------------------------------------------═══╝${RESET}"
 }
 
