@@ -592,15 +592,15 @@ function cppconf() {
     fi
 
     # Log the configuration step.
-    echo "${BLUE}/===---------------------------------------------------------------------------===/${RESET}"
-    echo "${BLUE}Configuring project:${RESET}"
-    echo "  ${CYAN}Build Type:${RESET} ${YELLOW}${build_type}${RESET}"
-    echo "  ${CYAN}Compiler:${RESET} ${YELLOW}${toolchain_name}${RESET}"
-    echo "  ${CYAN}Timing Report:${RESET} ${YELLOW}${timing_cmake_arg##*=}${RESET}"
+    echo "${BLUE}╔═══---------------------------------------------------------------------------═══╗${RESET}"
+    echo "  ${BLUE}Configuring project:${RESET}"
+    echo "    ${CYAN}Build Type:${RESET} ${YELLOW}${build_type}${RESET}"
+    echo "    ${CYAN}Compiler:${RESET} ${YELLOW}${toolchain_name}${RESET}"
+    echo "    ${CYAN}Timing Report:${RESET} ${YELLOW}${timing_cmake_arg##*=}${RESET}"
     if [[ "${cmake_flags[*]}" == *"LTO"* ]]; then
         echo "  ${CYAN}LTO:${RESET} ${YELLOW}Enabled${RESET}"
     fi
-    echo "${BLUE}/===---------------------------------------------------------------------------===/${RESET}"
+    echo "${BLUE}╚═══---------------------------------------------------------------------------═══╝${RESET}"
     
     # Run CMake with the selected toolchain - use array expansion.
     if cmake -S . -B build \
@@ -689,7 +689,7 @@ function cppbuild() {
     # Handle build failures with full error output.
     if [ $build_status -ne 0 ]; then
         echo ""
-        echo "${BOLD}${RED}/===----- BUILD FAILED -----===/${RESET}"
+        echo "${BOLD}${RED}╔═══--------- BUILD FAILED ---------═══╗${RESET}"
         echo "$build_output"
         printf "${RED}Build failed after %d.%02dms${RESET}\n" $elapsed_ms $decimal_part
         return 1
@@ -708,7 +708,7 @@ function cppbuild() {
         # 3. Print timing statistics only if timing is enabled.
         if [ "$timing_enabled" = true ]; then
             echo ""
-            echo "${BOLD}${CYAN}/===--------------------- Compilation Time Statistics ----------------------===/${RESET}"
+            echo "${BOLD}${CYAN}╔═══--------------------- Compilation Time Statistics ----------------------═══╗${RESET}"
             echo ""
 
             # Universal timing report finder for both GCC and Clang.
@@ -731,7 +731,7 @@ function cppbuild() {
             fi
 
             echo ""
-            echo "${BOLD}${CYAN}/===--------------- Compilation Finished, Proceeding to Link ---------------===/${RESET}"
+            echo "${BOLD}${CYAN}╚═══--------------- Compilation Finished, Proceeding to Link ---------------═══╝${RESET}"
             echo ""
         fi
 
@@ -779,7 +779,7 @@ function cppgo() {
     echo "${CYAN}Building target '${BOLD}$target_name${CYAN}'...${RESET}"
     if cppbuild "$target_name"; then
         echo ""
-        echo "${BLUE}/===-------------------------------------===/${RESET}"
+        echo "${BLUE}╔═══-------------------------------------═══╗${RESET}"
         echo "${BLUE}${BOLD}RUNNING: $target_name${RESET}"
         
         # Track execution time in nanoseconds for better precision.
@@ -809,7 +809,7 @@ function cppgo() {
             echo "${RED}Program exited with code $exit_code${RESET}"
         fi
         
-        echo "${BLUE}/===------------- FINISHED --------------===/${RESET}"
+        echo "${BLUE}╚═══------------- FINISHED --------------═══╝${RESET}"
         printf "${MAGENTA}Execution time: %d.%02dms${RESET}\n" $elapsed_ms $decimal_part
         echo ""
     else
@@ -855,11 +855,11 @@ function cppi() {
     echo "${CYAN}Building target '${BOLD}$target_name${CYAN}'...${RESET}"
     if cppbuild "$target_name"; then
         echo ""
-        echo "${BLUE}/===-------------------------------------===/${RESET}"
+        echo "${BLUE}╔═══-------------------------------------═══╗${RESET}"
         echo "${BLUE}${BOLD}INTERACTIVE MODE: $target_name${RESET}"
         echo "${YELLOW}Enter input (Ctrl+D when done):${RESET}"
         "$exec_path"
-        echo "${BLUE}/===------------- FINISHED --------------===/${RESET}"
+        echo "${BLUE}╚═══------------- FINISHED --------------═══╝${RESET}"
     else
         echo "${RED}Build failed!${RESET}" >&2
         return 1
@@ -931,23 +931,23 @@ function cppjudge() {
         else
             echo "${BOLD}${RED}FAILED${RESET} (${elapsed_ms}ms)"
             ((failed++))
-            echo "${BOLD}${YELLOW}/===---------- YOUR OUTPUT ---------===/${RESET}"
+            echo "${BOLD}${YELLOW}╔═══---------- YOUR OUTPUT ---------═══╗${RESET}"
             cat "$temp_out"
-            echo "${BOLD}${YELLOW}/===----------- EXPECTED -----------===/${RESET}"
+            echo "${BOLD}${YELLOW}╠═══----------- EXPECTED -----------═══╣${RESET}"
             cat "$output_case"
-            echo "${BOLD}${YELLOW}/===--------------------------------===/${RESET}"
+            echo "${BOLD}${YELLOW}╚═══--------------------------------═══╝${RESET}"
         fi
         rm "$temp_out"
     done
 
     # Summary.
     echo ""
-    echo "${BOLD}${BLUE}/===--------- TEST SUMMARY ---------===/${RESET}"
+    echo "${BOLD}${BLUE}╔═══--------- TEST SUMMARY ---------═══╗${RESET}"
     echo "${GREEN}Passed: $passed/$total${RESET}"
     if [ $failed -gt 0 ]; then
         echo "${RED}Failed: $failed/$total${RESET}"
     fi
-    echo "${BOLD}${BLUE}/===--------------------------------===/${RESET}"
+    echo "${BOLD}${BLUE}╚═══--------------------------------═══╝${RESET}"
 }
 
 # Quick stress testing function.
@@ -1168,13 +1168,13 @@ function cpptestsubmit() {
         # Test execution with input.
         if [ -f "$input_path" ]; then
             echo -e "${BLUE}Testing with input from $input_path:${RESET}"
-            echo -e "${CYAN}/===-------------------------------------===/${RESET}"
+            echo -e "${CYAN}╔═══------------------------------------------═══╗${RESET}"
             
             # Run with timeout and capture output.
             timeout 2s "$test_binary" < "$input_path" 2>&1 | head -n 50
             local exit_code=${PIPESTATUS[0]}
             
-            echo -e "${CYAN}/===-------------------------------------===/${RESET}"
+            echo -e "${CYAN}╚═══------------------------------------------═══╝${RESET}"
             
             if [ $exit_code -eq 124 ]; then
                 echo -e "${YELLOW}⚠ Execution timeout (2s limit exceeded)${RESET}"
@@ -1206,9 +1206,9 @@ function cppfull() {
     local target_name=${1:-$(_get_default_target)}
     local input_name=${2:-"${target_name}.in"}
     
-    echo -e "${BLUE}/===-------------------------------------===/${RESET}"
+    echo -e "${BLUE}╔═══------------------------------------------═══╗${RESET}"
     echo -e "${BLUE}${BOLD} FULL WORKFLOW: $(printf "%-20s" "$target_name")${RESET}"
-    echo -e "${BLUE}/===-------------------------------------===/${RESET}"
+    echo -e "${BLUE}╚═══------------------------------------------═══╝${RESET}"
     
     # Step 1: Development version test.
     echo ""
@@ -1240,9 +1240,9 @@ function cppfull() {
     local file_size=$(wc -c < "$submission_file" 2>/dev/null || echo "0")
     
     echo ""
-    echo -e "${GREEN}${BOLD}/===-------------------------------------===/${RESET}"
+    echo -e "${GREEN}${BOLD}╔═══------------------------------------------═══╗${RESET}"
     echo -e "${GREEN}${BOLD}  ✓ Full workflow completed successfully${RESET}"
-    echo -e "${GREEN}${BOLD}/===-------------------------------------===/${RESET}"
+    echo -e "${GREEN}${BOLD}╚═══------------------------------------------═══╝${RESET}"
     echo -e "${YELLOW}📁 Submission: $submission_file${RESET}"
     echo -e "${YELLOW}📊 Size: $(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "$file_size bytes")${RESET}"
     echo -e "${YELLOW}📋 Ready for contest submission${RESET}"
@@ -1254,7 +1254,7 @@ function cppfull() {
 # Comprehensive system health check.
 function cppcheck() {
     echo -e "${CYAN}${BOLD}Checking template system health...${RESET}"
-    echo -e "${CYAN}/===-------------------------------------===/${RESET}"
+    echo -e "${CYAN}╔═══------------------------------------------═══╗${RESET}"
     
     local all_good=true
     local warnings=0
@@ -1350,7 +1350,7 @@ function cppcheck() {
     fi
     
     # Summary.
-    echo -e "\n${CYAN}/===-------------------------------------===/${RESET}"
+    echo -e "\n${CYAN}╚═══------------------------------------------═══╝${RESET}"
     if $all_good; then
         if [ $warnings -eq 0 ]; then
             echo -e "${GREEN}${BOLD}✓ All systems fully operational${RESET}"
@@ -1481,7 +1481,7 @@ function cppstats() {
         return 0
     fi
     
-    echo "${BOLD}${BLUE}/===---------- PROBLEM STATISTICS ----------===/${RESET}"
+    echo "${BOLD}${BLUE}╔═══----------- PROBLEM STATISTICS -----------═══╗${RESET}"
     
     local current_time=$(date +%s)
     while IFS=: read -r problem action timestamp; do
@@ -1491,7 +1491,7 @@ function cppstats() {
         fi
     done < .statistics/problem_times
     
-    echo "${BOLD}${BLUE}/===----------------------------------------===/${RESET}"
+    echo "${BOLD}${BLUE}╚═══------------------------------------------═══╝${RESET}"
 }
 
 # Archive the current contest with all solutions.
@@ -1518,7 +1518,7 @@ function cppdiag() {
     # Helper function to print formatted headers.
     _print_header() {
         echo ""
-        echo "${BOLD}${BLUE}/===----------- $1 -----------===/${RESET}"
+        echo "${BOLD}${BLUE}╔═══---------------- $1 ----------------═══╗${RESET}"
     }
 
     echo "${BOLD}Running Competitive Programming Environment Diagnostics...${RESET}"

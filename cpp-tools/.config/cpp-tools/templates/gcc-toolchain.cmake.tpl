@@ -129,9 +129,9 @@ endif()
 if(NOT GCC_EXECUTABLE)
     message(FATAL_ERROR 
         "\n"
-        "//===----------------------------------------------------------------------===//\n"
+        "╔═══------------------------------------------------------------------------═══╗/\n"
         "                            GCC COMPILER NOT FOUND!                             \n"
-        "//===----------------------------------------------------------------------===//\n"
+        "╚═══------------------------------------------------------------------------═══╝\n"
         "\n"
         "This project requires GCC for competitive programming features:\n"
         "  - <bits/stdc++.h> header\n"
@@ -150,7 +150,7 @@ if(NOT GCC_EXECUTABLE)
             "    sudo port install gcc13 +universal\n"
             "\n"
             "After installation, re-run 'cppconf' to configure the project.\n"
-            "//===----------------------------------------------------------------------===//\n")
+            "╬═══------------------------------------------------------------------------═══╬\n")
     elseif(CMAKE_SYSTEM_NAME MATCHES "Linux")
         if(DISTRO MATCHES "Debian")
             set(INSTALL_CMD "sudo apt update && sudo apt install g++")
@@ -171,7 +171,7 @@ if(NOT GCC_EXECUTABLE)
             "    RHEL/CentOS: sudo yum install devtoolset-11\n"
             "\n"
             "After installation, re-run 'cppconf' to configure the project.\n"
-            "//===----------------------------------------------------------------------===//\n")
+            "╬═══------------------------------------------------------------------------═══╬\n")
     else()
         message(FATAL_ERROR
             "  Please install GCC using your system's package manager.\n"
@@ -182,7 +182,7 @@ if(NOT GCC_EXECUTABLE)
             "    pkgin install gcc    # NetBSD\n"
             "\n"
             "After installation, re-run 'cppconf' to configure the project.\n"
-            "//===----------------------------------------------------------------------===//\n")
+            "╬═══------------------------------------------------------------------------═══╬\n")
     endif()
 endif()
 
@@ -230,9 +230,9 @@ endif()
 if(GCC_VERSION_OUTPUT MATCHES "clang" OR GCC_VERSION_OUTPUT MATCHES "Apple")
     message(WARNING 
         "\n"
-        "//===----------------------------------------------------------------------===//\n"
+        "╔═══------------------------------------------------------------------------═══╗\n"
         "                         WARNING: CLANG DETECTED AS G++                         \n"
-        "//===----------------------------------------------------------------------===//\n"
+        "╚═══------------------------------------------------------------------------═══╝\n"
         "\n"
         "The 'g++' command at ${GCC_EXECUTABLE} is actually Clang, not GCC.\n"
         "This is common on macOS where 'g++' is aliased to Clang.\n"
@@ -265,7 +265,7 @@ if(GCC_VERSION_OUTPUT MATCHES "clang" OR GCC_VERSION_OUTPUT MATCHES "Apple")
     else()
         message(FATAL_ERROR 
             "Could not find real GCC. Please install it using the instructions above.\n"
-            "//===----------------------------------------------------------------------===//\n")
+            "╚═══------------------------------------------------------------------------═══╝\n")
     endif()
 endif()
 
@@ -369,9 +369,9 @@ endif()
 
 # Success message with summary.
 message(STATUS "")
-message(STATUS "//===----------------------------------------------------------------------===//")
-message(STATUS "                     GCC Toolchain Successfully Configured                      ")
-message(STATUS "//===----------------------------------------------------------------------===//")
+message(STATUS "╔═══------------------------------------------------------------------------═══╗")
+message(STATUS "                    GCC Toolchain Successfully Configured                    ")
+message(STATUS "╚═══------------------------------------------------------------------------═══╝")
 message(STATUS "  C++ compiler : ${CMAKE_CXX_COMPILER}")
 if(GCC_VERSION)
     message(STATUS "  GCC version  : ${GCC_VERSION}")
@@ -396,7 +396,7 @@ else()
     message(STATUS "  Build type   : ${CMAKE_BUILD_TYPE}")
 endif()
 
-message(STATUS "//===----------------------------------------------------------------------===//")
+message(STATUS "╚═══------------------------------------------------------------------------═══╝")
 message(STATUS "")
 
 # ============================================================================ #
