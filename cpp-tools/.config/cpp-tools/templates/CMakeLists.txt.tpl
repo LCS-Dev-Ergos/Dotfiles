@@ -100,6 +100,15 @@ if(CP_ENABLE_TIMING)
   endif()
 endif()
 
+# ------------------- TBB for Parallel Algorithms Support -------------------- #
+# Find TBB to enable support for C++ parallel algorithms (std::execution::par).
+find_package(TBB QUIET)
+if(TBB_FOUND)
+    message(STATUS "${ANSI_COLOR_GREEN}Found TBB, parallel algorithms support enabled.${ANSI_COLOR_RESET}")
+else()
+    message(WARNING "${ANSI_COLOR_YELLOW}TBB not found. Linking with parallel execution policies may fail.${ANSI_COLOR_RESET}")
+endif()
+
 # ---------------------------- LTO Configuration ----------------------------- #
 option(CP_ENABLE_LTO "Enable Link Time Optimization (if supported)" OFF)
 
@@ -334,7 +343,6 @@ endif()
 
 function(cp_add_problem TARGET_NAME SOURCE_FILE)
     add_executable(${TARGET_NAME} ${SOURCE_FILE})
-    
     # Set C++23 standard for the target.
     set_target_properties(${TARGET_NAME} PROPERTIES
         CXX_STANDARD 23
@@ -349,6 +357,11 @@ function(cp_add_problem TARGET_NAME SOURCE_FILE)
     elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang" AND NOT CMAKE_BUILD_TYPE STREQUAL "Sanitize")
         # Also use PCH for regular Clang builds.
         set(USE_PCH TRUE)
+    endif()
+
+    # Link with TBB for parallel algorithm support, if found.
+    if(TBB_FOUND)
+        target_link_libraries(${TARGET_NAME} PRIVATE TBB::tbb)
     endif()
 
     # ----- Target-specific compiler definitions ----- #
@@ -440,11 +453,14 @@ function(cp_add_problem TARGET_NAME SOURCE_FILE)
     # Add system include paths for better clangd support.
     if(COMPILER_SYSTEM_INCLUDE_PATHS)
         if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-            # For GCC, use nostdinc++ and add paths manually.
-            target_compile_options(${TARGET_NAME} PRIVATE -nostdinc++)
-            foreach(dir IN LISTS COMPILER_SYSTEM_INCLUDE_PATHS)
-                target_compile_options(${TARGET_NAME} PRIVATE "-isystem${dir}")
-            endforeach()
+            if(APPLE)
+                # For GCC on macOS, use nostdinc++ and add paths manually.
+                # This is reported to be necessary for clangd with Homebrew GCC.
+                target_compile_options(${TARGET_NAME} PRIVATE -nostdinc++)
+                foreach(dir IN LISTS COMPILER_SYSTEM_INCLUDE_PATHS)
+                    target_compile_options(${TARGET_NAME} PRIVATE "-isystem${dir}")
+                endforeach()
+            endif()
         elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang")
             # For Clang, just add as system includes without nostdinc++.
             foreach(dir IN LISTS COMPILER_SYSTEM_INCLUDE_PATHS)
@@ -468,6 +484,47 @@ function(cp_add_problem TARGET_NAME SOURCE_FILE)
         # Strip symbols in release.
         $<$<CONFIG:Release>:-s>
     )
+   
+    # ----- Platform-specific linking for std::stacktrace ----- #
+    # Check for stacktrace support and required libraries.
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND NOT APPLE)
+        # Test if stacktrace libraries are available.
+        include(CheckCXXSourceCompiles)
+        set(CMAKE_REQUIRED_FLAGS "-std=c++22")
+        set(CMAKE_REQUIRED_LIBRARIES "stdc++_libbacktrace")
+        
+        check_cxx_source_compiles(
+            "#include <stacktrace>
+             int main() { 
+                 auto trace = std::stacktrace::current(); 
+                 return trace.size(); 
+             }" 
+            STACKTRACE_WORKS
+        )
+        
+        if(STACKTRACE_WORKS)
+            target_link_libraries(${TARGET_NAME} PRIVATE stdc++_libbacktrace)
+            message(STATUS "Stacktrace support enabled for ${TARGET_NAME}")
+        else()
+            target_compile_definitions(${TARGET_NAME} PRIVATE _GLIBCXX_STACKTRACE_DISABLED)
+            message(STATUS "Stacktrace support disabled for ${TARGET_NAME} (libraries not found)")
+        endif()
+        
+        # Reset CMAKE_REQUIRED_* variables.
+        unset(CMAKE_REQUIRED_FLAGS)
+        unset(CMAKE_REQUIRED_LIBRARIES)
+    endif()
+    
+    # Additional linking for debug builds.
+    if(CMAKE_BUILD_TYPE MATCHES "Debug|Sanitize")
+        if(CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND NOT APPLE)
+            # Try to link additional debug libraries if available.
+            find_library(BACKTRACE_LIB backtrace)
+            if(BACKTRACE_LIB)
+                target_link_libraries(${TARGET_NAME} PRIVATE ${BACKTRACE_LIB})
+            endif()
+        endif()
+    endif()
     
     if(USE_PCH)
         set(PCH_STATUS "Yes")

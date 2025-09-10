@@ -1368,20 +1368,29 @@ function cppcheck() {
 
 # ---------------------------- COMPILER UTILITIES ---------------------------- #
 
-# Quick compiler switch functions.
+# Quick compiler switch function for GCC.
 function cppgcc() {
     local build_type=${1:-Debug}
+    echo "${CYAN}Switching to GCC toolchain (${build_type})...${RESET}"
+    echo "${YELLOW}Cleaning build environment first...${RESET}"
+    cppclean
     cppconf "$build_type" gcc
 }
 
+# Quick compiler switch function for Clang.
 function cppclang() {
     local build_type=${1:-Debug}
+    echo "${CYAN}Switching to Clang toolchain (${build_type})...${RESET}"
+    echo "${YELLOW}Cleaning build environment first...${RESET}"
+    cppclean
     cppconf "$build_type" clang
 }
 
-# Quick profiling build
+# Quick profiling build.
 function cppprof() {
     echo "${CYAN}Configuring profiling build with Clang...${RESET}"
+    echo "${YELLOW}Cleaning build environment first...${RESET}"
+    cppclean
     CP_TIMING=1 cppconf Release clang
 }
 

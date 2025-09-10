@@ -318,10 +318,10 @@ alias clang-c-debug="clang -std=c23 -g -O0 -Wall -Wextra -DDEBUG -I/opt/homebrew
 
 # Ultra Performance Clang C with ThinLTO and PGO.
 alias clang-c-ultra="clang -std=c23 -O3 -march=native -mtune=native \
-  -flto=thin -ffast-math -fprofile-generate -funroll-loops -fvectorize \
+  -flto=thin -ffast-math -fprofile-generate=default.profraw -funroll-loops -fvectorize \
   -I/opt/homebrew/include"
 alias clang-c-ultra-use="clang -std=c23 -O3 -march=native -mtune=native \
-  -flto=thin -ffast-math -fprofile-use -funroll-loops -fvectorize \
+  -flto=thin -ffast-math -fprofile-use=default.profdata -funroll-loops -fvectorize \
   -I/opt/homebrew/include"
 
 # Quick C compilation aliases.
@@ -342,10 +342,10 @@ alias clang-debug="clang++ -std=c++23 -g -O0 -Wall -Wextra -DDEBUG -I/opt/homebr
 
 # Ultra Performance Clang with ThinLTO and PGO.
 alias clang-ultra="clang++ -std=c++23 -O3 -march=native -mtune=native \
-  -flto=thin -ffast-math -fprofile-generate -funroll-loops -fvectorize \
+  -flto=thin -ffast-math -fprofile-generate=default.profraw -funroll-loops -fvectorize \
   -I/opt/homebrew/include"
 alias clang-ultra-use="clang++ -std=c++23 -O3 -march=native -mtune=native \
-  -flto=thin -ffast-math -fprofile-use -funroll-loops -fvectorize \
+  -flto=thin -ffast-math -fprofile-use=default.profdata -funroll-loops -fvectorize \
   -I/opt/homebrew/include"
 
 # Quick compilation aliases.
