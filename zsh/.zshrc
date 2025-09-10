@@ -304,10 +304,59 @@ if command -v zoxide >/dev/null 2>&1; then
     alias cd="zoxide"
 fi
 
+# ---------- C Compilation ---------- #
+# Default C Compilation Alias.
+alias c-compile="clang -std=c23 -O3 -march=native -flto=thin -ffast-math -I/opt/homebrew/include"
+
+# GCC C Compilation.
+alias gcc-c-compile="gcc -std=c23 -O3 -march=native -flto -ffast-math -I/opt/homebrew/include"
+alias gcc-c-debug="gcc -std=c23 -g -O0 -Wall -Wextra -DDEBUG -I/opt/homebrew/include"
+
+# Clang C Compilation.
+alias clang-c-compile="clang -std=c23 -O3 -march=native -flto=thin -ffast-math -I/opt/homebrew/include"
+alias clang-c-debug="clang -std=c23 -g -O0 -Wall -Wextra -DDEBUG -I/opt/homebrew/include"
+
+# Ultra Performance Clang C with ThinLTO and PGO.
+alias clang-c-ultra="clang -std=c23 -O3 -march=native -mtune=native \
+  -flto=thin -ffast-math -fprofile-generate -funroll-loops -fvectorize \
+  -I/opt/homebrew/include"
+alias clang-c-ultra-use="clang -std=c23 -O3 -march=native -mtune=native \
+  -flto=thin -ffast-math -fprofile-use -funroll-loops -fvectorize \
+  -I/opt/homebrew/include"
+
+# Quick C compilation aliases.
+alias qc-compile="clang -std=c23 -O2 -I/opt/homebrew/include"
+alias qc-debug="clang -std=c23 -g -O0 -Wall -I/opt/homebrew/include"
+
+# --------- C++ Compilation --------- #
+# Default C++ Compilation Alias.
+alias compile="clang++ -std=c++23 -O3 -march=native -flto=thin -ffast-math -I/opt/homebrew/include"
+
+# GCC Compilation.
+alias gcc-compile="g++ -std=c++23 -O3 -march=native -flto -ffast-math -I/opt/homebrew/include"
+alias gcc-debug="g++ -std=c++23 -g -O0 -Wall -Wextra -DDEBUG -I/opt/homebrew/include"
+
+# Clang Compilation.
+alias clang-compile="clang++ -std=c++23 -O3 -march=native -flto=thin -ffast-math -I/opt/homebrew/include"
+alias clang-debug="clang++ -std=c++23 -g -O0 -Wall -Wextra -DDEBUG -I/opt/homebrew/include"
+
+# Ultra Performance Clang with ThinLTO and PGO.
+alias clang-ultra="clang++ -std=c++23 -O3 -march=native -mtune=native \
+  -flto=thin -ffast-math -fprofile-generate -funroll-loops -fvectorize \
+  -I/opt/homebrew/include"
+alias clang-ultra-use="clang++ -std=c++23 -O3 -march=native -mtune=native \
+  -flto=thin -ffast-math -fprofile-use -funroll-loops -fvectorize \
+  -I/opt/homebrew/include"
+
+# Quick compilation aliases.
+alias qcompile="clang++ -std=c++23 -O2 -I/opt/homebrew/include"
+alias qdebug="clang++ -std=c++23 -g -O0 -Wall -I/opt/homebrew/include"
+
 # ---------- OS-Specific Functions and Aliases ---------- #
 if [[ "$PLATFORM" == 'macOS' ]]; then
   # -------- macOS Specific --------- #
-  alias compile="clang++ -std=c++20 -O3 -march=native -flto=thin -ffast-math -I/opt/homebrew/include"
+
+  # TailScale alias for easier access.
   alias tailscale="/Applications/Tailscale.app/Contents/MacOS/Tailscale"
   command -v eza >/dev/null 2>&1 && alias ls="eza --color=always --long --git --icons=always"
 
@@ -338,9 +387,6 @@ if [[ "$PLATFORM" == 'macOS' ]]; then
   alias emptytrash="osascript -e 'tell application \"Finder\" to empty trash'"
 
 elif [[ "$PLATFORM" == 'Linux' ]]; then
-  # ------ Dev. Linux Aliases ------- #
-  alias compile="g++ -std=c++20 -O3 -march=native -flto -ffast-math"
-
   # -------- Linux utilities -------- #
   # Detect package manager and set aliases accordingly.
   if command -v pacman >/dev/null 2>&1; then

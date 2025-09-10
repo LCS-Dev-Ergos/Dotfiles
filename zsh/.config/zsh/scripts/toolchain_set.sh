@@ -11,15 +11,20 @@
 #
 # ============================================================================ #
 
-# Define color codes if not already defined.
-local C_BOLD="${C_BOLD:-\e[1m}"
-local C_CYAN="${C_CYAN:-\e[36m}"
-local C_YELLOW="${C_YELLOW:-\e[33m}"
-local C_GREEN="${C_GREEN:-\e[32m}"
-local C_BLUE="${C_BLUE:-\e[34m}"
-local C_RED="${C_RED:-\e[31m}"
-local C_MAGENTA="${C_MAGENTA:-\e[35m}"
-local C_RESET="${C_RESET:-\e[0m}"
+# Check if terminal supports colors.
+if test -t 1; then
+    N_COLORS=$(tput colors)
+    if test -n "$N_COLORS" && test $N_COLORS -ge 8; then
+        BOLD="$(tput bold)"
+        BLUE="$(tput setaf 4)"
+        CYAN="$(tput setaf 6)"
+        GREEN="$(tput setaf 2)"
+        RED="$(tput setaf 1)"
+        YELLOW="$(tput setaf 3)"
+        MAGENTA="$(tput setaf 5)"
+        RESET="$(tput sgr0)"
+    fi
+fi
 
 # Save the original PATH on shell startup if not already saved.
 # This allows us to reliably restore the initial state.
