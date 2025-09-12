@@ -129,7 +129,7 @@ endif()
 if(NOT GCC_EXECUTABLE)
     message(FATAL_ERROR 
         "\n"
-        "╔═══------------------------------------------------------------------------═══╗/\n"
+        "╔═══------------------------------------------------------------------------═══╗\n"
         "                            GCC COMPILER NOT FOUND!                             \n"
         "╚═══------------------------------------------------------------------------═══╝\n"
         "\n"
@@ -370,7 +370,7 @@ endif()
 # Success message with summary.
 message(STATUS "")
 message(STATUS "╔═══------------------------------------------------------------------------═══╗")
-message(STATUS "                    GCC Toolchain Successfully Configured                    ")
+message(STATUS "                     GCC Toolchain Successfully Configured                      ")
 message(STATUS "╚═══------------------------------------------------------------------------═══╝")
 message(STATUS "  C++ compiler : ${CMAKE_CXX_COMPILER}")
 if(GCC_VERSION)

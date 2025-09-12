@@ -318,11 +318,11 @@ alias clang-c-debug="clang -std=c23 -g -O0 -Wall -Wextra -DDEBUG -I/opt/homebrew
 
 # Ultra Performance Clang C with ThinLTO and PGO.
 alias clang-c-ultra="clang -std=c23 -O3 -march=native -mtune=native \
-  -flto=thin -ffast-math -fprofile-generate=default.profraw -funroll-loops -fvectorize \
-  -I/opt/homebrew/include"
+    -flto=thin -ffast-math -fprofile-generate=default.profraw -funroll-loops -fvectorize \
+    -I/opt/homebrew/include"
 alias clang-c-ultra-use="clang -std=c23 -O3 -march=native -mtune=native \
-  -flto=thin -ffast-math -fprofile-use=default.profdata -funroll-loops -fvectorize \
-  -I/opt/homebrew/include"
+    -flto=thin -ffast-math -fprofile-use=default.profdata -funroll-loops -fvectorize \
+    -I/opt/homebrew/include"
 
 # Quick C compilation aliases.
 alias qc-compile="clang -std=c23 -O2 -I/opt/homebrew/include"
@@ -330,27 +330,30 @@ alias qc-debug="clang -std=c23 -g -O0 -Wall -I/opt/homebrew/include"
 
 # --------- C++ Compilation --------- #
 # Default C++ Compilation Alias.
-alias compile="clang++ -std=c++23 -O3 -march=native -flto=thin -ffast-math -I/opt/homebrew/include"
+alias compile="clang++ -std=c++23 -stdlib=libc++ -L/opt/homebrew/Cellar/llvm/21.1.0/lib/c++ -lc++ \
+    -O3 -march=native -flto=thin -ffast-math -I/opt/homebrew/include"
 
 # GCC Compilation.
 alias gcc-compile="g++ -std=c++23 -O3 -march=native -flto -ffast-math -I/opt/homebrew/include"
 alias gcc-debug="g++ -std=c++23 -g -O0 -Wall -Wextra -DDEBUG -I/opt/homebrew/include"
 
 # Clang Compilation.
-alias clang-compile="clang++ -std=c++23 -O3 -march=native -flto=thin -ffast-math -I/opt/homebrew/include"
-alias clang-debug="clang++ -std=c++23 -g -O0 -Wall -Wextra -DDEBUG -I/opt/homebrew/include"
+alias clang-compile="clang++ -std=c++23 -stdlib=libc++ -L/opt/homebrew/Cellar/llvm/21.1.0/lib/c++ -lc++ \
+    -O3 -march=native -flto=thin -ffast-math -I/opt/homebrew/include"
+alias clang-debug="clang++ -std=c++23 -stdlib=libc++ -L/opt/homebrew/Cellar/llvm/21.1.0/lib/c++ -lc++ \
+    -g -O0 -Wall -Wextra -DDEBUG -I/opt/homebrew/include"
 
 # Ultra Performance Clang with ThinLTO and PGO.
-alias clang-ultra="clang++ -std=c++23 -O3 -march=native -mtune=native \
-  -flto=thin -ffast-math -fprofile-generate=default.profraw -funroll-loops -fvectorize \
-  -I/opt/homebrew/include"
-alias clang-ultra-use="clang++ -std=c++23 -O3 -march=native -mtune=native \
-  -flto=thin -ffast-math -fprofile-use=default.profdata -funroll-loops -fvectorize \
-  -I/opt/homebrew/include"
+alias clang-ultra="clang++ -std=c++23 -stdlib=libc++ -L/opt/homebrew/Cellar/llvm/21.1.0/lib/c++ -lc++ -O3 -march=native -mtune=native \
+    -flto=thin -ffast-math -fprofile-generate=default.profraw -funroll-loops -fvectorize \
+    -I/opt/homebrew/include"
+alias clang-ultra-use="clang++ -std=c++23 -stdlib=libc++ -L/opt/homebrew/Cellar/llvm/21.1.0/lib/c++ -lc++ -O3 -march=native -mtune=native \
+    -flto=thin -ffast-math -fprofile-use=default.profdata -funroll-loops -fvectorize \
+    -I/opt/homebrew/include"
 
 # Quick compilation aliases.
-alias qcompile="clang++ -std=c++23 -O2 -I/opt/homebrew/include"
-alias qdebug="clang++ -std=c++23 -g -O0 -Wall -I/opt/homebrew/include"
+alias qcompile="clang++ -std=c++23 -stdlib=libc++ -L/opt/homebrew/Cellar/llvm/21.1.0/lib/c++ -lc++ -O2 -I/opt/homebrew/include"
+alias qdebug="clang++ -std=c++23 -stdlib=libc++ -L/opt/homebrew/Cellar/llvm/21.1.0/lib/c++ -lc++ -g -O0 -Wall -I/opt/homebrew/include"
 
 # ---------- OS-Specific Functions and Aliases ---------- #
 if [[ "$PLATFORM" == 'macOS' ]]; then

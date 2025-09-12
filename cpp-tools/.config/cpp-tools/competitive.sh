@@ -208,6 +208,8 @@ not_passed/
 .statistics/
 compile_commands.json
 .clangd
+.clang-format
+.clang-tidy
 *.out
 *.exe
 *.dSYM/
@@ -264,17 +266,31 @@ EOF
         fi
     fi
     
-    # Copy or link PCH.h for Clang sanitizer builds.
+    # Copy or link PCH.h and PCH_Wrapper.h for Clang builds.
     local master_pch_header="$CP_ALGORITHMS_DIR/libs/PCH.h"
+    local master_pch_wrapper="$CP_ALGORITHMS_DIR/libs/PCH_Wrapper.h"
+    
     if [ ! -e "algorithms/PCH.h" ]; then
         if [ -n "$CP_ALGORITHMS_DIR" ] && [ -f "$master_pch_header" ]; then
             ln -s "$master_pch_header" "algorithms/PCH.h"
-            echo "Created symlink to global PCH.h (for Clang sanitizer builds)."
+            echo "Created symlink to global PCH.h (for Clang builds)."
         elif [ -f "$SCRIPT_DIR/templates/cpp/PCH.h" ]; then
             cp "$SCRIPT_DIR/templates/cpp/PCH.h" "algorithms/PCH.h"
-            echo "Copied PCH.h template for Clang sanitizer builds."
+            echo "Copied PCH.h template for Clang builds."
         else
-            echo "${YELLOW}Warning: PCH.h not found. Clang sanitizer builds may not work properly.${RESET}"
+            echo "${YELLOW}Warning: PCH.h not found. Clang builds may not work properly.${RESET}"
+        fi
+    fi
+    
+    if [ ! -e "algorithms/PCH_Wrapper.h" ]; then
+        if [ -n "$CP_ALGORITHMS_DIR" ] && [ -f "$master_pch_wrapper" ]; then
+            ln -s "$master_pch_wrapper" "algorithms/PCH_Wrapper.h"
+            echo "Created symlink to global PCH_Wrapper.h."
+        elif [ -f "$SCRIPT_DIR/templates/cpp/PCH_Wrapper.h" ]; then
+            cp "$SCRIPT_DIR/templates/cpp/PCH_Wrapper.h" "algorithms/PCH_Wrapper.h"
+            echo "Copied PCH_Wrapper.h template."
+        else
+            echo "${YELLOW}Warning: PCH_Wrapper.h not found. Some builds may not work properly.${RESET}"
         fi
     fi
 
@@ -485,6 +501,8 @@ function cppconf() {
     local build_type=${1:-Debug}
     local compiler_choice=${2:-auto}
     local timing_cmake_arg="-DCP_ENABLE_TIMING=OFF" # Timing is OFF by default.
+    local pch_cmake_arg="-DCP_ENABLE_PCH=AUTO" # PCH auto-selection by default.
+    local force_pch_rebuild_arg=""
     
     # Parse all arguments.
     for arg in "$@"; do
@@ -509,6 +527,33 @@ function cppconf() {
                 else
                     echo "${YELLOW}Warning: Unknown value for 'timing': '$value'. Ignoring.${RESET}"
                 fi
+                ;;
+            
+            # Check for PCH argument.
+            pch=*)
+                local value=${arg#*=}
+                if [[ "$value" == "on" || "$value" == "true" ]]; then
+                    pch_cmake_arg="-DCP_ENABLE_PCH=ON"
+                elif [[ "$value" == "off" || "$value" == "false" ]]; then
+                    pch_cmake_arg="-DCP_ENABLE_PCH=OFF"
+                elif [[ "$value" == "auto" ]]; then
+                    pch_cmake_arg="-DCP_ENABLE_PCH=AUTO"
+                else
+                    echo "${YELLOW}Warning: Unknown value for 'pch': '$value'. Ignoring.${RESET}"
+                fi
+                ;;
+            
+            # Check for PCH rebuild argument.
+            pch-rebuild=*)
+                local value=${arg#*=}
+                if [[ "$value" == "on" || "$value" == "true" ]]; then
+                    force_pch_rebuild_arg="-DCP_FORCE_PCH_REBUILD=ON"
+                fi
+                ;;
+            
+            # Shorthand for PCH rebuild.
+            pch-rebuild|rebuild-pch)
+                force_pch_rebuild_arg="-DCP_FORCE_PCH_REBUILD=ON"
                 ;;
             
             # Handle unknown arguments.
@@ -577,6 +622,15 @@ function cppconf() {
         fi
     fi
 
+    # Auto-configure PCH based on build type if set to AUTO.
+    if [[ "$pch_cmake_arg" == *"AUTO"* ]]; then
+        if [ "$build_type" = "Debug" ]; then
+            pch_cmake_arg="-DCP_ENABLE_PCH=ON"
+        else
+            pch_cmake_arg="-DCP_ENABLE_PCH=OFF"
+        fi
+    fi
+
     # Use array for CMake flags to avoid space issues.
     local cmake_flags=()
     
@@ -585,6 +639,12 @@ function cppconf() {
         timing_cmake_arg="-DCP_ENABLE_TIMING=ON"
     fi
     cmake_flags+=("$timing_cmake_arg")
+    cmake_flags+=("$pch_cmake_arg")
+    
+    # Add PCH rebuild flag if specified.
+    if [ -n "$force_pch_rebuild_arg" ]; then
+        cmake_flags+=("$force_pch_rebuild_arg")
+    fi
     
     # Enable LTO for Release builds with Clang.
     if [ "$build_type" = "Release" ] && [[ "$toolchain_file" == *"clang"* ]]; then
@@ -597,8 +657,12 @@ function cppconf() {
     echo "    ${CYAN}Build Type:${RESET} ${YELLOW}${build_type}${RESET}"
     echo "    ${CYAN}Compiler:${RESET} ${YELLOW}${toolchain_name}${RESET}"
     echo "    ${CYAN}Timing Report:${RESET} ${YELLOW}${timing_cmake_arg##*=}${RESET}"
+    echo "    ${CYAN}PCH Support:${RESET} ${YELLOW}${pch_cmake_arg##*=}${RESET}"
     if [[ "${cmake_flags[*]}" == *"LTO"* ]]; then
-        echo "  ${CYAN}LTO:${RESET} ${YELLOW}Enabled${RESET}"
+        echo "    ${CYAN}LTO:${RESET} ${YELLOW}Enabled${RESET}"
+    fi
+    if [ -n "$force_pch_rebuild_arg" ]; then
+        echo "    ${CYAN}PCH Rebuild:${RESET} ${YELLOW}Forced${RESET}"
     fi
     echo "${BLUE}╚═══---------------------------------------------------------------------------═══╝${RESET}"
     
@@ -609,11 +673,22 @@ function cppconf() {
         -DCMAKE_CXX_FLAGS="-std=c++23" \
         "${cmake_flags[@]}"; then
         echo "${GREEN}CMake configuration successful.${RESET}"
+        
+        # If PCH rebuild was requested, clean PCH first.
+        if [ -n "$force_pch_rebuild_arg" ]; then
+            echo "${CYAN}Cleaning PCH cache...${RESET}"
+            if cmake --build build --target pch_clean 2>/dev/null; then
+                echo "${GREEN}PCH cache cleaned.${RESET}"
+            else
+                echo "${YELLOW}PCH clean target not available (normal for first run).${RESET}"
+            fi
+        fi
+        
         # Create the symlink for clangd.
         cmake --build build --target symlink_clangd 2>/dev/null || true
         
         # Save configuration for quick reference.
-        echo "$build_type:$compiler_choice" > .statistics/last_config
+        echo "$build_type:$compiler_choice:${pch_cmake_arg##*=}" > .statistics/last_config
     else
         echo "${RED}CMake configuration failed!${RESET}" >&2
         return 1
