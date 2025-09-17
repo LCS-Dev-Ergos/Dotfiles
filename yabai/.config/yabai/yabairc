@@ -2,7 +2,6 @@
 # =========================================================================== #
 # ========================= Yabai Configuration file ======================== #
 
-
 # =========================== Scripting Addition ============================ #
 # For this to work you must configure sudo such that
 # it will be able to run the command without password
@@ -18,38 +17,37 @@ yabai -m signal --add event=window_focused action="sketchybar --trigger window_f
 
 # ========================== Aspect Customization =========================== #
 
-yabai -m config external_bar               all:40:0       \
-                mouse_follows_focus        off            \
-                focus_follows_mouse        off            \
-                window_zoom_persist        off            \
-                window_topmost             off            \
-                window_placement           second_child   \
-                window_shadow              float          \
-                window_opacity             on             \
-                active_window_opacity      1.0            \
-                normal_window_opacity      0.975          \
-                window_opacity_duration    0.1            \
-                window_animation_duration  0.2            \
-                window_animation_easing    ease_out_quint \
-                insert_feedback_color      0xff565f89     \
-                auto_balance               off            \
-                split_type                 auto           \
-                split_ratio                0.5            \
-                mouse_modifier             cmd            \
-                mouse_action1              move           \
-                mouse_action2              resize         \
-                mouse_drop_action          swap           \
-                top_padding                12             \
-                bottom_padding             12             \
-                left_padding               12             \
-                right_padding              12             \
-                window_gap                 12
+yabai -m config external_bar all:40:0 \
+    mouse_follows_focus off \
+    focus_follows_mouse off \
+    window_zoom_persist off \
+    window_topmost off \
+    window_placement second_child \
+    window_shadow float \
+    window_opacity on \
+    active_window_opacity 1.0 \
+    normal_window_opacity 0.975 \
+    window_opacity_duration 0.1 \
+    window_animation_duration 0.2 \
+    window_animation_easing ease_out_quint \
+    insert_feedback_color 0xff565f89 \
+    auto_balance off \
+    split_type auto \
+    split_ratio 0.5 \
+    mouse_modifier cmd \
+    mouse_action1 move \
+    mouse_action2 resize \
+    mouse_drop_action swap \
+    top_padding 8 \
+    bottom_padding 12 \
+    left_padding 12 \
+    right_padding 12 \
+    window_gap 12
 
 # ++++++++++++++++++++++++++++++ Custom Rules +++++++++++++++++++++++++++++++ #
 yabai -m rule --add app="kitty" opacity=0.9875
 
 # ======================== End Aspect Customization ========================= #
-
 
 # ============================= Disabling Rules ============================= #
 
@@ -69,7 +67,7 @@ yabai -m rule --add label="Settings" app="^.*$" title=".*Settings?.*" manage=off
 
 # Exclude Safari specific windows from being managed
 yabai -m rule --add label="Safari" app="^Safari$" \
-                    title="^(General|(Tab|Password|Website|Extension)s|AutoFill|Se(arch|curity)|Privacy|Advance)$" manage=off
+    title="^(General|(Tab|Password|Website|Extension)s|AutoFill|Se(arch|curity)|Privacy|Advance)$" manage=off
 
 # Exclude "About This Mac" specific windows from being managed
 yabai -m rule --add label="About This Mac" app="System Information" title="About This Mac" manage=off
@@ -112,12 +110,11 @@ yabai -m rule --add \
 # +++++++++++++++++++++++++++++ Other Exclusions ++++++++++++++++++++++++++++ #
 # Exclude "VNC Viewer" specific windows from being managed
 yabai -m rule --add label="VNC Viewer" \
-                    app="^VNC Viewer$" \
-                    title="^(.*VNC.*|.*Viewer.*|.*RealVNC.*)$" \
-                    manage=off
+    app="^VNC Viewer$" \
+    title="^(.*VNC.*|.*Viewer.*|.*RealVNC.*)$" \
+    manage=off
 
 # =========================== End Disabling Rules =========================== #
-
 
 # =============================== Other Stuff =============================== #
 # - bsp, stack or float
@@ -136,5 +133,5 @@ echo "yabai configuration loaded..."
 #                    PyCharm Professional Edition,GoLand,WebStorm,DataGrip,PhpStorm,
 #                    Rider,RustRover-EAP" \
 #         inactive_color=0xE63c3836       \
- 
+
 # ============================= End Other Stuff ============================= #
