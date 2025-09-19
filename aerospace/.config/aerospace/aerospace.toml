@@ -112,8 +112,12 @@ alt-r = ['layout tiles', 'layout accordion']    # rotate layouts
 alt-x = 'move right'                            # mirror x-axis equivalent
 alt-y = 'move down'                             # mirror y-axis equivalent
 
-# Float toggle with centering (lalt+t)
-alt-t = ['layout floating tiling', 'move-mouse window-force-center']
+# Float toggle with centering (lalt+t) - Smart toggle between floating and tiling
+alt-t = 'layout floating tiling'
+
+# Explicit layout commands for specific windows
+alt-shift-t = 'layout floating'              # Force current window to floating
+ctrl-alt-t = 'layout tiling'                 # Force current window back to tiling
 
 # Fullscreen variations
 alt-d = 'fullscreen'                            # zoom-parent equivalent
@@ -145,6 +149,10 @@ ctrl-alt-cmd-l = 'resize smart -50'
 # Layout switching
 ctrl-alt-a = 'layout tiles'                     # bsp equivalent
 ctrl-alt-d = 'layout floating'                  # float
+
+# Workspace-wide layout operations (closer to Yabai behavior)
+ctrl-alt-shift-a = 'flatten-workspace-tree'   # Reset entire workspace to default tiling
+ctrl-alt-shift-d = 'layout floating'          # Make current window floating (individual)
 
 # Service controls (using service mode)
 ctrl-alt-q = 'mode service'
