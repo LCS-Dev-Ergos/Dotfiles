@@ -116,8 +116,8 @@ alt-y = 'move down'                             # mirror y-axis equivalent
 alt-t = 'layout floating tiling'
 
 # Explicit layout commands for specific windows
-alt-shift-t = 'layout floating'              # Force current window to floating
-ctrl-alt-t = 'layout tiling'                 # Force current window back to tiling
+alt-shift-t = 'layout floating'                 # Force current window to floating
+ctrl-alt-t = 'layout tiling'                    # Force current window back to tiling
 
 # Fullscreen variations
 alt-d = 'fullscreen'                            # zoom-parent equivalent
