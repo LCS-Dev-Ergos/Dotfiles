@@ -30,14 +30,25 @@ outer.right = 12             # right_padding: 12
 7 = 2
 8 = 2
 
-# Sketchybar integration (replaces external_bar all:40:0)
-after-startup-command = ['exec-and-forget sketchybar']
-exec-on-workspace-change = ['/bin/bash', '-c', 
-    'sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE PREV_WORKSPACE=$AEROSPACE_PREV_WORKSPACE'
+# Sketchybar integration (following official AeroSpace documentation)
+after-startup-command = [
+  'exec-and-forget sketchybar',
+  'exec-and-forget sleep 2 && sketchybar --trigger aerospace_app_icons_update'
 ]
 
-# Mouse behavior (equivalent to cmd mouse modifier)
-on-focused-monitor-changed = ['move-mouse monitor-lazy-center']
+# Primary workspace change trigger (required)
+exec-on-workspace-change = ['/bin/bash', '-c',
+  'sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE'
+]
+
+# Optional: Update app icons when windows are moved or closed (advanced)
+on-window-detected = ['exec-and-forget sketchybar --trigger aerospace_app_icons_update']
+
+# Mouse behavior (equivalent to cmd mouse modifier) with sketchybar integration
+on-focused-monitor-changed = [
+  'move-mouse monitor-lazy-center',
+  'exec-and-forget sketchybar --trigger aerospace_app_icons_update'
+]
 on-focus-changed = ['move-mouse window-lazy-center']
 
 # Application exclusion rules (matches your Yabai rules)
@@ -71,6 +82,26 @@ alt-j = 'focus down'
 alt-k = 'focus up'
 alt-l = 'focus right'
 
+# Join windows (to combine windows into a container)
+alt-shift-h = 'join-with left'    # Join with the window on the left  
+alt-shift-j = 'join-with down'    # Join with the window below
+alt-shift-k = 'join-with up'      # Join with the window above
+alt-shift-l = 'join-with right'   # Join with the window on the right
+
+# Window warping (shift + cmd + hjkl)
+shift-cmd-h = 'move left'
+shift-cmd-j = 'move down'
+shift-cmd-k = 'move up'
+shift-cmd-l = 'move right'
+
+# Layout switching (shortcuts for common layouts)
+alt-s = 'layout v_accordion'      # Stack vertical (stacking)
+alt-w = 'layout h_accordion'      # Stack horizontal (tabbed)
+alt-e = 'layout tiles horizontal vertical'      # Toggle split orientation
+
+ctrl-alt-left = 'layout v_accordion'   # Layout BSP for left monitor
+ctrl-alt-right = 'layout tiles'        # Layout BSP for right monitor
+
 # Space navigation (lalt + 1-0, matches focus_space.sh functionality)
 # AeroSpace automatically handles monitor switching when workspace is on different monitor
 alt-1 = 'workspace 1'
@@ -101,16 +132,16 @@ alt-n = 'workspace next'
 alt-p = 'workspace prev'
 
 # Window manipulation
-ctrl-alt-e = 'balance-sizes'                    # balance
-alt-e = 'layout tiles horizontal vertical'      # split toggle
-ctrl-alt-c = 'close'                            # close window
-alt-m = 'layout floating'                       # toggle to floating (AeroSpace equivalent of "hide")
-alt-shift-m = 'move-node-to-workspace 0'        # alternative: move to "scratchpad" workspace
+ctrl-alt-e = 'balance-sizes'                    # Balance
+ctrl-alt-c = 'close'                            # Close window
+
+alt-m = 'layout floating'                       # Toggle to floating (AeroSpace equivalent of "hide")
+alt-shift-m = 'move-node-to-workspace 0'        # Alternative: move to "scratchpad" workspace
 
 # Tree operations
-alt-r = ['layout tiles', 'layout accordion']    # rotate layouts
-alt-x = 'move right'                            # mirror x-axis equivalent
-alt-y = 'move down'                             # mirror y-axis equivalent
+alt-r = ['layout tiles', 'layout accordion']    # Rotate layouts
+alt-x = 'move right'                            # Mirror x-axis equivalent
+alt-y = 'move down'                             # Mirror y-axis equivalent
 
 # Float toggle with centering (lalt+t) - Smart toggle between floating and tiling
 alt-t = 'layout floating tiling'
@@ -120,19 +151,13 @@ alt-shift-t = 'layout floating'                 # Force current window to floati
 ctrl-alt-t = 'layout tiling'                    # Force current window back to tiling
 
 # Fullscreen variations
-alt-d = 'fullscreen'                            # zoom-parent equivalent
-alt-f = 'fullscreen'                            # zoom-fullscreen
-alt-shift-f = 'fullscreen'                      # native-fullscreen
+alt-d = 'fullscreen'                            # Zoom-parent equivalent
+alt-f = 'fullscreen'                            # Zoom-fullscreen
+alt-shift-f = 'fullscreen'                      # Native-fullscreen
 
 # Gap adjustment (simplified - AeroSpace doesn't support runtime gap changes)
-alt-g = 'balance-sizes'                         # closest equivalent
-alt-shift-g = 'balance-sizes'                   # closest equivalent
-
-# Window warping (shift + cmd + hjkl)
-shift-cmd-h = 'move left'
-shift-cmd-j = 'move down'
-shift-cmd-k = 'move up'
-shift-cmd-l = 'move right'
+alt-g = 'balance-sizes'                         # Closest equivalent
+alt-shift-g = 'balance-sizes'                   # Closest equivalent
 
 # Window resizing (ctrl + lalt + hjkl for increase)
 ctrl-alt-h = 'resize smart -50'
@@ -147,12 +172,12 @@ ctrl-alt-cmd-k = 'resize smart -50'
 ctrl-alt-cmd-l = 'resize smart -50'
 
 # Layout switching
-ctrl-alt-a = 'layout tiles'                     # bsp equivalent
-ctrl-alt-d = 'layout floating'                  # float
+ctrl-alt-a = 'layout tiles'                     # BSP equivalent
+ctrl-alt-d = 'layout floating'                  # Float
 
 # Workspace-wide layout operations (closer to Yabai behavior)
-ctrl-alt-shift-a = 'flatten-workspace-tree'   # Reset entire workspace to default tiling
-ctrl-alt-shift-d = 'layout floating'          # Make current window floating (individual)
+ctrl-alt-shift-a = 'flatten-workspace-tree'    # Reset entire workspace to default tiling
+ctrl-alt-shift-d = 'layout floating'           # Make current window floating (individual)
 
 # Service controls (using service mode)
 ctrl-alt-q = 'mode service'
@@ -162,6 +187,6 @@ ctrl-alt-r = 'reload-config'
 # Service mode for advanced operations
 [mode.service.binding]
 esc = ['reload-config', 'mode main']
-r = ['flatten-workspace-tree', 'mode main']     # restart equivalent
-q = ['mode main']                               # quit service mode
-s = ['layout floating tiling', 'mode main']     # stop/start equivalent
+r = ['flatten-workspace-tree', 'mode main']     # Restart equivalent
+q = ['mode main']                               # Quit service mode
+s = ['layout floating tiling', 'mode main']     # Stop/start equivalent
