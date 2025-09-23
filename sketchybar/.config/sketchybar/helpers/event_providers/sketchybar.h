@@ -31,9 +31,9 @@ struct mach_buffer {
 static mach_port_t g_mach_port = 0;
 
 /**
- * Ottiene la porta bootstrap per la comunicazione con sketchybar
+ * Gets the bootstrap port for communication with sketchybar
  *
- * @return La porta mach, 0 se fallisce
+ * @return The mach port, 0 if it fails
  */
 [[nodiscard]] static inline mach_port_t mach_get_bs_port() {
   mach_port_name_t task = mach_task_self();
@@ -44,13 +44,12 @@ static mach_port_t g_mach_port = 0;
   }
 
   const char* name = getenv("BAR_NAME");
-  if (!name)
-    name = "sketchybar";
+  if (!name) name = "sketchybar";
 
   size_t name_len = strlen(name);
-  // Verifica overflow
+  // Check for overflow
   if (name_len > 256) {
-    fprintf(stderr, "Nome della barra troppo lungo\n");
+    fprintf(stderr, "Bar name too long\n");
     return 0;
   }
 
@@ -59,30 +58,29 @@ static mach_port_t g_mach_port = 0;
   int      written = snprintf(buffer, lookup_len, "git.felix.%s", name);
 
   if (written < 0 || written >= (int)lookup_len) {
-    fprintf(stderr, "Errore nella formattazione del nome della barra\n");
+    fprintf(stderr, "Error formatting bar name\n");
     return 0;
   }
 
   mach_port_t port;
-  if (bootstrap_look_up(bs_port, buffer, &port) != KERN_SUCCESS)
-    return 0;
+  if (bootstrap_look_up(bs_port, buffer, &port) != KERN_SUCCESS) return 0;
   return port;
 }
 
 /**
- * Invia un messaggio alla porta specificata
+ * Sends a message to the specified port
  *
- * @param port Porta mach di destinazione
- * @param message Messaggio da inviare
- * @param len Lunghezza del messaggio
- * @return true se l'invio ha avuto successo, false altrimenti
+ * @param port Destination mach port
+ * @param message Message to send
+ * @param len Length of the message
+ * @return true if sending succeeded, false otherwise
  */
 [[nodiscard]] static inline bool mach_send_message(mach_port_t port, char* message, uint32_t len) {
   if (!message || !port || len == 0) {
     return false;
   }
 
-  struct mach_message msg     = {0}; // Zero-inizializzazione usando C23
+  struct mach_message msg     = {0};  // Zero-initialization using C23
   msg.header.msgh_remote_port = port;
   msg.header.msgh_local_port  = 0;
   msg.header.msgh_id          = 0;
@@ -105,19 +103,18 @@ static mach_port_t g_mach_port = 0;
 }
 
 /**
- * Formatta un messaggio per sketchybar, gestendo correttamente le virgolette
+ * Formats a message for sketchybar, correctly handling quotes
  *
- * @param message Messaggio di input
- * @param formatted_message Buffer per il messaggio formattato
- * @param buffer_size Dimensione del buffer
- * @return Lunghezza del messaggio formattato (incluso null terminator)
+ * @param message Input message
+ * @param formatted_message Buffer for the formatted message
+ * @param buffer_size Buffer size
+ * @return Length of the formatted message (including null terminator)
  */
-[[nodiscard]] static inline uint32_t
-format_message(const char* message, char* formatted_message, size_t buffer_size) {
-  if (!message || !formatted_message || buffer_size == 0)
-    return 0;
+[[nodiscard]] static inline uint32_t format_message(
+    const char* message, char* formatted_message, size_t buffer_size) {
+  if (!message || !formatted_message || buffer_size == 0) return 0;
 
-  // Inizializza a zero il buffer di output
+  // Zero-initialize the output buffer
   memset(formatted_message, 0, buffer_size);
 
   char     outer_quote    = 0;
@@ -133,13 +130,11 @@ format_message(const char* message, char* formatted_message, size_t buffer_size)
       continue;
     }
 
-    // Verifica overflow del buffer
-    if (caret >= buffer_size - 1)
-      break;
+    // Check for buffer overflow
+    if (caret >= buffer_size - 1) break;
 
     formatted_message[caret] = message[i];
-    if (message[i] == ' ' && !outer_quote)
-      formatted_message[caret] = '\0';
+    if (message[i] == ' ' && !outer_quote) formatted_message[caret] = '\0';
     caret++;
   }
 
@@ -148,7 +143,7 @@ format_message(const char* message, char* formatted_message, size_t buffer_size)
     caret--;
   }
 
-  // Assicura terminazione con null
+  // Ensure null termination
   if (caret < buffer_size)
     formatted_message[caret] = '\0';
   else
@@ -158,27 +153,24 @@ format_message(const char* message, char* formatted_message, size_t buffer_size)
 }
 
 /**
- * Invia un messaggio a sketchybar
+ * Sends a message to sketchybar
  *
- * @param message Messaggio da inviare
+ * @param message Message to send
  */
 static inline void sketchybar(const char* message) {
-  if (!message)
-    return;
+  if (!message) return;
 
-  // Alloca buffer sufficientemente grande
+  // Allocate a sufficiently large buffer
   size_t buffer_size = strlen(message) + 2;
   char   formatted_message[buffer_size];
 
   uint32_t length = format_message(message, formatted_message, buffer_size);
-  if (!length)
-    return;
+  if (!length) return;
 
-  if (!g_mach_port)
-    g_mach_port = mach_get_bs_port();
+  if (!g_mach_port) g_mach_port = mach_get_bs_port();
 
   if (!mach_send_message(g_mach_port, formatted_message, length)) {
-    g_mach_port = mach_get_bs_port(); // Riprova a ottenere la porta
+    g_mach_port = mach_get_bs_port();  // Try to get the port again
     if (!mach_send_message(g_mach_port, formatted_message, length)) {
       // No sketchybar instance running, exit.
       exit(0);

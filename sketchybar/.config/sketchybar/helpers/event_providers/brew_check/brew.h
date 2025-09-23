@@ -10,10 +10,10 @@
 #include <time.h>
 #include <unistd.h>
 
-// --- Constants ---
+// ----- Constants ----- //
 
-/** @brief Absolute path to the Homebrew executable. Using an absolute path is crucial for robustness when running from environments like
- * Sketchybar, which may have a minimal PATH. */
+/** @brief Absolute path to the Homebrew executable. Using an absolute path is crucial for
+ * robustness when running from environments like Sketchybar, which may have a minimal PATH. */
 static const char* BREW_EXECUTABLE_PATH = "/opt/homebrew/bin/brew";
 
 /** @brief Maximum length for a single package name. */
@@ -22,10 +22,11 @@ static const int BREW_MAX_PACKAGE_NAME = 128;
 /** @brief The initial size of the buffer that stores the concatenated list of outdated packages. */
 static const int BREW_INITIAL_BUFFER_SIZE = 1024;
 
-/** @brief The absolute maximum size for the package list buffer to prevent uncontrolled memory allocation. */
+/** @brief The absolute maximum size for the package list buffer to prevent uncontrolled memory
+ * allocation. */
 static const int BREW_MAX_BUFFER_SIZE = 16384;
 
-// --- Error Codes ---
+// ----- Error Codes ----- //
 
 /**
  * @enum brew_error_t
@@ -38,11 +39,12 @@ typedef enum {
   BREW_ERROR_MEMORY_ALLOCATION,  /**< Failed to allocate memory (malloc, realloc). */
   BREW_ERROR_COMMAND_EXECUTION,  /**< Failed to fork or execute a brew command. */
   BREW_ERROR_PIPE_CREATION,      /**< Failed to create a pipe for IPC. */
-  BREW_ERROR_BUFFER_OVERFLOW,    /**< The list of outdated packages exceeds the maximum buffer size. */
-  BREW_ERROR_INVALID_STATE,      /**< An operation was called on an uninitialized or invalid structure. */
+  BREW_ERROR_BUFFER_OVERFLOW, /**< The list of outdated packages exceeds the maximum buffer size. */
+  BREW_ERROR_INVALID_STATE,   /**< An operation was called on an uninitialized or invalid structure.
+                               */
 } brew_error_t;
 
-// --- Main Data Structure ---
+// ----- Main Data Structure ----- //
 
 /**
  * @struct brew_t
@@ -61,13 +63,14 @@ typedef struct {
   bool         update_in_progress; /**< Flag to prevent concurrent updates. */
 } brew_t;
 
-// --- Private Helper Function Prototypes ---
+// ----- Private Helper Function Prototypes ----- //
 
-[[nodiscard]] static brew_error_t _brew_execute_command(const char* args[], char** output_buffer, size_t* buffer_size);
+[[nodiscard]] static brew_error_t _brew_execute_command(
+    const char* args[], char** output_buffer, size_t* buffer_size);
 [[nodiscard]] static brew_error_t _brew_resize_buffer(brew_t* brew, size_t required_size);
 static int                        _get_cpu_core_count();
 
-// --- Public API ---
+// ----- Public API ----- //
 
 /**
  * @brief Initializes the brew state structure.
@@ -75,11 +78,10 @@ static int                        _get_cpu_core_count();
  * @return BREW_SUCCESS on success, or an error code on failure.
  */
 [[nodiscard]] static inline brew_error_t brew_init(brew_t* brew) {
-  if (!brew)
-    return BREW_ERROR_INVALID_STATE;
+  if (!brew) return BREW_ERROR_INVALID_STATE;
 
   memset(brew, 0, sizeof(brew_t));
-  brew->package_list = malloc(BREW_INITIAL_BUFFER_SIZE);
+  brew->package_list = (char*)malloc(BREW_INITIAL_BUFFER_SIZE);
   if (!brew->package_list) {
     return BREW_ERROR_MEMORY_ALLOCATION;
   }
@@ -113,9 +115,9 @@ static inline void brew_cleanup(brew_t* brew) {
  * @param update_interval_seconds The minimum time in seconds that must pass before a new update.
  * @return True if an update is needed, false otherwise.
  */
-[[nodiscard]] static inline bool brew_needs_update(const brew_t* brew, int update_interval_seconds) {
-  if (!brew)
-    return false;
+[[nodiscard]] static inline bool brew_needs_update(
+    const brew_t* brew, int update_interval_seconds) {
+  if (!brew) return false;
 
   // Time check
   time_t current_time = time(NULL);
@@ -127,12 +129,11 @@ static inline void brew_cleanup(brew_t* brew) {
   double load[1];
   if (getloadavg(load, 1) == 1) {
     static int core_count = 0;
-    if (core_count == 0)
-      core_count = _get_cpu_core_count();
+    if (core_count == 0) core_count = _get_cpu_core_count();
     // The threshold is 75% of the number of cores.
     double high_load_threshold = (double)core_count * 0.75;
     if (load[0] > high_load_threshold) {
-      return false; // Defer update if system is busy
+      return false;  // Defer update if system is busy
     }
   }
   return true;
@@ -144,10 +145,8 @@ static inline void brew_cleanup(brew_t* brew) {
  * @return BREW_SUCCESS on success, or an error code on failure.
  */
 [[nodiscard]] static inline brew_error_t brew_fetch_outdated(brew_t* brew) {
-  if (!brew)
-    return BREW_ERROR_INVALID_STATE;
-  if (brew->update_in_progress)
-    return BREW_ERROR_UPDATE_IN_PROGRESS;
+  if (!brew) return BREW_ERROR_INVALID_STATE;
+  if (brew->update_in_progress) return BREW_ERROR_UPDATE_IN_PROGRESS;
 
   brew->update_in_progress = true;
   brew->last_check         = time(NULL);
@@ -189,8 +188,9 @@ static inline void brew_cleanup(brew_t* brew) {
     }
 
     brew->outdated_count++;
-    size_t line_len       = strlen(line);
-    size_t required_space = package_list_used + line_len + 2; // +1 for comma, +1 for null terminator
+    size_t line_len = strlen(line);
+    size_t required_space =
+        package_list_used + line_len + 2;  // +1 for comma, +1 for null terminator
 
     if (required_space > brew->package_list_size) {
       err = _brew_resize_buffer(brew, required_space);
@@ -225,28 +225,28 @@ static inline void brew_cleanup(brew_t* brew) {
  */
 [[nodiscard]] static inline const char* brew_error_string(brew_error_t error) {
   switch (error) {
-  case BREW_SUCCESS:
-    return "Success";
-  case BREW_ERROR_NOT_INSTALLED:
-    return "Homebrew not found";
-  case BREW_ERROR_UPDATE_IN_PROGRESS:
-    return "Update already in progress";
-  case BREW_ERROR_MEMORY_ALLOCATION:
-    return "Memory allocation failed";
-  case BREW_ERROR_COMMAND_EXECUTION:
-    return "Command execution failed";
-  case BREW_ERROR_PIPE_CREATION:
-    return "IPC pipe creation failed";
-  case BREW_ERROR_BUFFER_OVERFLOW:
-    return "Output buffer overflow";
-  case BREW_ERROR_INVALID_STATE:
-    return "Invalid state";
-  default:
-    return "Unknown error";
+    case BREW_SUCCESS:
+      return "Success";
+    case BREW_ERROR_NOT_INSTALLED:
+      return "Homebrew not found";
+    case BREW_ERROR_UPDATE_IN_PROGRESS:
+      return "Update already in progress";
+    case BREW_ERROR_MEMORY_ALLOCATION:
+      return "Memory allocation failed";
+    case BREW_ERROR_COMMAND_EXECUTION:
+      return "Command execution failed";
+    case BREW_ERROR_PIPE_CREATION:
+      return "IPC pipe creation failed";
+    case BREW_ERROR_BUFFER_OVERFLOW:
+      return "Output buffer overflow";
+    case BREW_ERROR_INVALID_STATE:
+      return "Invalid state";
+    default:
+      return "Unknown error";
   }
 }
 
-// --- Private Helper Function Implementations ---
+// ----- Private Helper Function Implementations ----- //
 
 /**
  * @brief [Private] Executes a command and captures its standard output.
@@ -255,12 +255,14 @@ static inline void brew_cleanup(brew_t* brew) {
  * `fork`, `execv`, and `pipe` for full control over process execution.
  *
  * @param args Null-terminated array of strings representing the command and its arguments.
- * @param output_buffer A pointer to a char pointer that will be allocated to store the output. The caller must free this buffer. If NULL,
+ * @param output_buffer A pointer to a char pointer that will be allocated to store the output. The
+ * caller must free this buffer. If NULL, output is discarded.
+ * @param buffer_size A pointer to a size_t to store the size of the output buffer. Can be NULL if
  * output is discarded.
- * @param buffer_size A pointer to a size_t to store the size of the output buffer. Can be NULL if output is discarded.
  * @return BREW_SUCCESS on success, or an error code on failure.
  */
-[[nodiscard]] static inline brew_error_t _brew_execute_command(const char* args[], char** output_buffer, size_t* buffer_size) {
+[[nodiscard]] static inline brew_error_t _brew_execute_command(
+    const char* args[], char** output_buffer, size_t* buffer_size) {
   int pipefd[2];
   if (output_buffer && pipe(pipefd) == -1) {
     return BREW_ERROR_PIPE_CREATION;
@@ -275,11 +277,11 @@ static inline void brew_cleanup(brew_t* brew) {
     return BREW_ERROR_COMMAND_EXECUTION;
   }
 
-  if (pid == 0) { // Child process
+  if (pid == 0) {  // Child process
     if (output_buffer) {
-      close(pipefd[0]);               // Close unused read end
-      dup2(pipefd[1], STDOUT_FILENO); // Redirect stdout to pipe
-      dup2(pipefd[1], STDERR_FILENO); // Redirect stderr to pipe as well
+      close(pipefd[0]);                // Close unused read end
+      dup2(pipefd[1], STDOUT_FILENO);  // Redirect stdout to pipe
+      dup2(pipefd[1], STDERR_FILENO);  // Redirect stderr to pipe as well
       close(pipefd[1]);
     } else {
       // Discard output if no buffer is provided
@@ -294,11 +296,11 @@ static inline void brew_cleanup(brew_t* brew) {
 
   // Parent process
   if (output_buffer) {
-    close(pipefd[1]); // Close unused write end
+    close(pipefd[1]);  // Close unused write end
 
     size_t capacity = 4096;
     size_t size     = 0;
-    char*  buffer   = malloc(capacity);
+    char*  buffer   = (char*)malloc(capacity);
     if (!buffer) {
       close(pipefd[0]);
       waitpid(pid, NULL, 0);
@@ -310,7 +312,7 @@ static inline void brew_cleanup(brew_t* brew) {
       size += bytes_read;
       if (size >= capacity - 1) {
         capacity *= 2;
-        char* new_buffer = realloc(buffer, capacity);
+        char* new_buffer = (char*)realloc(buffer, capacity);
         if (!new_buffer) {
           free(buffer);
           close(pipefd[0]);
@@ -323,8 +325,7 @@ static inline void brew_cleanup(brew_t* brew) {
     buffer[size] = '\0';
     close(pipefd[0]);
     *output_buffer = buffer;
-    if (buffer_size)
-      *buffer_size = size;
+    if (buffer_size) *buffer_size = size;
   }
 
   int status;
@@ -347,22 +348,18 @@ static inline void brew_cleanup(brew_t* brew) {
  * @brief [Private] Resizes the package_list buffer if needed.
  */
 [[nodiscard]] static inline brew_error_t _brew_resize_buffer(brew_t* brew, size_t needed_size) {
-  if (!brew)
-    return BREW_ERROR_INVALID_STATE;
-  if (needed_size > BREW_MAX_BUFFER_SIZE)
-    return BREW_ERROR_BUFFER_OVERFLOW;
+  if (!brew) return BREW_ERROR_INVALID_STATE;
+  if (needed_size > BREW_MAX_BUFFER_SIZE) return BREW_ERROR_BUFFER_OVERFLOW;
 
   size_t new_size = brew->package_list_size;
   while (new_size < needed_size) {
     new_size *= 2;
   }
-  if (new_size > BREW_MAX_BUFFER_SIZE)
-    new_size = BREW_MAX_BUFFER_SIZE;
+  if (new_size > BREW_MAX_BUFFER_SIZE) new_size = BREW_MAX_BUFFER_SIZE;
 
   if (new_size > brew->package_list_size) {
-    char* new_buffer = realloc(brew->package_list, new_size);
-    if (!new_buffer)
-      return BREW_ERROR_MEMORY_ALLOCATION;
+    char* new_buffer = (char*)realloc(brew->package_list, new_size);
+    if (!new_buffer) return BREW_ERROR_MEMORY_ALLOCATION;
     brew->package_list      = new_buffer;
     brew->package_list_size = new_size;
   }
@@ -378,7 +375,7 @@ static inline int _get_cpu_core_count() {
   if (sysctlbyname("hw.ncpu", &ncpu, &len, NULL, 0) == 0 && ncpu > 0) {
     return ncpu;
   }
-  return 2; // Return a safe default
+  return 2;  // Return a safe default
 }
 
 #endif /* BREW_H */

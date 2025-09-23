@@ -85,18 +85,11 @@ for i = 1, 10, 1 do
       space:set({ popup = { drawing = "toggle" } })
     else
       if env.BUTTON == "right" then
-        -- Gestione del click destro per distruggere lo spazio
-        sbar.exec("yabai -m space --destroy " .. env.SID)
+        -- Handle right click to destroy the space
+        sbar.exec("aerospace workspace --close " .. env.SID)
       else
-        -- Gestione del click sinistro per cambiare spazio
-        -- Prima ci spostiamo sempre allo spazio, indipendentemente dalle finestre
-        sbar.exec(string.format([[
-          yabai -m space --focus %s && 
-          WINDOW_ID=$(yabai -m query --spaces --space %s | jq '.windows[0]') && 
-          if [ "$WINDOW_ID" != "null" ] && [ -n "$WINDOW_ID" ]; then
-            yabai -m window --focus $WINDOW_ID
-          fi
-        ]], env.SID, env.SID))
+        -- Handle left click to switch space
+        sbar.exec("aerospace workspace " .. env.SID)
       end
     end
   end)

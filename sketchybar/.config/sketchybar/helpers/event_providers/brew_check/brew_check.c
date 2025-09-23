@@ -1,23 +1,26 @@
-#include "../sketchybar.h"
-#include "brew.h"
 #include <limits.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <time.h>
 
-// --- Constants ---
-static const int DEFAULT_UPDATE_INTERVAL = 900;
-static const int DEFAULT_CHECK_INTERVAL  = 60;
-static const int MAX_EVENT_NAME_LENGTH   = 64;
-static const int MAX_MESSAGE_LENGTH      = 2048;
+#include "../sketchybar.h"
+#include "brew.h"
 
-// --- Global State ---
-/** @brief Flag to gracefully terminate the daemon, set by a signal handler. Must be volatile sig_atomic_t. */
+// ------- Constants ------- //
+#define DEFAULT_UPDATE_INTERVAL 900
+#define DEFAULT_CHECK_INTERVAL 60
+#define MAX_EVENT_NAME_LENGTH 64
+#define MAX_MESSAGE_LENGTH 2048
+
+// ------- Global State ------- //
+/** @brief Flag to gracefully terminate the daemon, set by a signal handler. Must be volatile
+ * sig_atomic_t. */
 static volatile sig_atomic_t g_terminate_flag = 0;
-/** @brief Flag to force an immediate check, set by a signal handler. Must be volatile sig_atomic_t. */
+/** @brief Flag to force an immediate check, set by a signal handler. Must be volatile sig_atomic_t.
+ */
 static volatile sig_atomic_t g_force_check_flag = 0;
 
-// --- Forward Declarations ---
+// ----- Forward Declarations ----- //
 static void handle_signal(int sig);
 static void check_and_notify(brew_t* brew, const char* event_name, bool force_update, bool verbose);
 static void show_usage(const char* program_name);
@@ -27,7 +30,7 @@ static void log_message(bool verbose, const char* format, ...);
  * @brief Main entry point for the brew_check daemon.
  */
 int main(int argc, char** argv) {
-  // --- Argument Parsing ---
+  // ----- Argument Parsing ----- //
   if (argc < 3) {
     show_usage(argv[0]);
     return 1;
@@ -37,26 +40,24 @@ int main(int argc, char** argv) {
   strncpy(event_name, argv[1], sizeof(event_name) - 1);
 
   long check_interval_secs = strtol(argv[2], NULL, 10);
-  if (check_interval_secs <= 0)
-    check_interval_secs = DEFAULT_CHECK_INTERVAL;
+  if (check_interval_secs <= 0) check_interval_secs = DEFAULT_CHECK_INTERVAL;
 
   long update_interval_secs = (argc > 3) ? strtol(argv[3], NULL, 10) : DEFAULT_UPDATE_INTERVAL;
-  if (update_interval_secs <= 0)
-    update_interval_secs = DEFAULT_UPDATE_INTERVAL;
+  if (update_interval_secs <= 0) update_interval_secs = DEFAULT_UPDATE_INTERVAL;
 
   // This variable is now used by the log_message function.
   bool verbose_mode = (argc > 4 && strcmp(argv[4], "--verbose") == 0);
 
-  // --- Signal Handling Setup ---
+  // ----- Signal Handling Setup ----- //
   struct sigaction sa = {0};
   sa.sa_handler       = handle_signal;
   sigemptyset(&sa.sa_mask);
-  sa.sa_flags = SA_RESTART; // Restart syscalls if possible
+  sa.sa_flags = SA_RESTART;  // Restart syscalls if possible
   sigaction(SIGINT, &sa, NULL);
   sigaction(SIGTERM, &sa, NULL);
   sigaction(SIGUSR1, &sa, NULL);
 
-  // --- Initialization ---
+  // ----- Initialization ----- //
   brew_t       brew_state;
   brew_error_t err = brew_init(&brew_state);
   if (err != BREW_SUCCESS) {
@@ -71,7 +72,7 @@ int main(int argc, char** argv) {
   sketchybar(sketchybar_cmd);
   log_message(verbose_mode, "Daemon started. Event '%s' registered.", event_name);
 
-  // --- Main Loop ---
+  // ----- Main Loop ----- //
   // The first check is triggered immediately to populate the bar on startup.
   g_force_check_flag = 1;
 
@@ -85,13 +86,12 @@ int main(int argc, char** argv) {
 
     // Sleep in chunks to remain responsive to signals
     for (int i = 0; i < check_interval_secs * 2; ++i) {
-      if (g_terminate_flag || g_force_check_flag)
-        break;
-      usleep(500000); // Sleep for 0.5 seconds
+      if (g_terminate_flag || g_force_check_flag) break;
+      usleep(500000);  // Sleep for 0.5 seconds
     }
   }
 
-  // --- Cleanup ---
+  // ----- Cleanup ----- //
   brew_cleanup(&brew_state);
   log_message(verbose_mode, "Terminating gracefully.");
   return 0;
@@ -105,7 +105,8 @@ int main(int argc, char** argv) {
  * @param force_update If true, ignores the time interval and system load checks.
  * @param verbose If true, enables detailed logging for this operation.
  */
-static void check_and_notify(brew_t* brew, const char* event_name, bool force_update, bool verbose) {
+static void check_and_notify(
+    brew_t* brew, const char* event_name, bool force_update, bool verbose) {
   if (force_update || brew_needs_update(brew, DEFAULT_UPDATE_INTERVAL)) {
     log_message(verbose, "Fetching outdated packages (forced: %s)...", force_update ? "yes" : "no");
 
@@ -121,9 +122,10 @@ static void check_and_notify(brew_t* brew, const char* event_name, bool force_up
   // Prepare the message for Sketchybar
   char trigger_message[MAX_MESSAGE_LENGTH];
   snprintf(
-      trigger_message, sizeof(trigger_message), "--trigger %s outdated_count='%d' pending_updates='%s' last_check='%ld' error='%s'",
-      event_name, brew->outdated_count, brew->package_list ? brew->package_list : "", (long)brew->last_check,
-      brew_error_string(brew->last_error));
+      trigger_message, sizeof(trigger_message),
+      "--trigger %s outdated_count='%d' pending_updates='%s' last_check='%ld' error='%s'",
+      event_name, brew->outdated_count, brew->package_list ? brew->package_list : "",
+      (long)brew->last_check, brew_error_string(brew->last_error));
 
   // Send the command to Sketchybar
   sketchybar(trigger_message);
@@ -137,13 +139,13 @@ static void check_and_notify(brew_t* brew, const char* event_name, bool force_up
  */
 static void handle_signal(int sig) {
   switch (sig) {
-  case SIGINT:
-  case SIGTERM:
-    g_terminate_flag = 1;
-    break;
-  case SIGUSR1:
-    g_force_check_flag = 1;
-    break;
+    case SIGINT:
+    case SIGTERM:
+      g_terminate_flag = 1;
+      break;
+    case SIGUSR1:
+      g_force_check_flag = 1;
+      break;
   }
 }
 
@@ -152,7 +154,9 @@ static void handle_signal(int sig) {
  * @param program_name The name of the executable (argv[0]).
  */
 static void show_usage(const char* program_name) {
-  fprintf(stderr, "Usage: %s <event_name> [check_interval_s] [update_interval_s] [--verbose]\n", program_name);
+  fprintf(
+      stderr, "Usage: %s <event_name> [check_interval_s] [update_interval_s] [--verbose]\n",
+      program_name);
 }
 
 /**
@@ -163,8 +167,7 @@ static void show_usage(const char* program_name) {
  * @param ... Variable arguments for the format string.
  */
 static void log_message(bool verbose, const char* format, ...) {
-  if (!verbose)
-    return;
+  if (!verbose) return;
 
   // Add timestamp for better logging
   char       time_buf[26];
