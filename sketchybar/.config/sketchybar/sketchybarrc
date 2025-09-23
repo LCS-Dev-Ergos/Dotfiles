@@ -7,26 +7,33 @@ require("init")
 -- Add AeroSpace workspace support
 sbar.exec("sketchybar --add event aerospace_workspace_change")
 
--- Get workspace list and create indicators
-local handle = io.popen("aerospace list-workspaces --all")
-local workspaces = handle:read("*a")
-handle:close()
+-- Helper to capture the output of a shell command into a Lua table
+local function capture_lines(cmd)
+    local t = {}
+    local fh = io.popen(cmd)
+    if fh then
+        for line in fh:lines() do
+            table.insert(t, line)
+        end
+        fh:close()
+    end
+    return t
+end
 
-for sid in workspaces:gmatch("%S+") do
-    sbar.exec(string.format([[
-        sketchybar --add item space.%s left \
-            --subscribe space.%s aerospace_workspace_change \
-            --set space.%s \
-                background.color=0x44ffffff \
-                background.corner_radius=5 \
-                background.height=20 \
-                background.drawing=off \
-                label="%s" \
-                label.color=0xffffffff \
-                label.highlight_color=0xff9dd274 \
-                label.font="sketchybar-app-font:Bold:14.0" \
-                label.y_offset=-1 \
-                click_script="aerospace workspace %s" \
-                script="$CONFIG_DIR/plugins/aerospace.sh %s"
-    ]], sid, sid, sid, sid, sid, sid))
+-- Create workspace indicators for all workspaces
+for _, sid in ipairs(capture_lines("aerospace list-workspaces --all")) do
+    -- add the item and subscribe to the workspace‐change event
+    sbar.exec(("sketchybar --add item space.%s left"):format(sid))
+    sbar.exec(("sketchybar --subscribe space.%s aerospace_workspace_change"):format(sid))
+
+    -- configure its appearance and behaviour
+    sbar.exec(([[sketchybar --set space.%s
+        background.color=0x44ffffff
+        background.corner_radius=5
+        background.height=20
+        background.drawing=off
+        label="%s"
+        click_script="aerospace workspace %s"
+        script="%s/plugins/aerospace.sh %s"
+    ]]):format(sid, sid, sid, CONFIG_DIR, sid))
 end
