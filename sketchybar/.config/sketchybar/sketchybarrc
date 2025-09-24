@@ -1,5 +1,18 @@
 #!/usr/bin/env lua
 
--- Load the sketchybar-package and prepare the helper binaries
+-- Load the sketchybar-package and prepare the helper binaries.
 require("helpers")
 require("init")
+
+-- Function to check if sketchybar is already running.
+local function is_sketchybar_running()
+    local handle = io.popen("pgrep sketchybar")
+    local result = handle:read("*a")
+    handle:close()
+    return result ~= ""
+end
+
+-- Avoid running multiple instances of sketchybar.
+if is_sketchybar_running() then
+    return
+end
