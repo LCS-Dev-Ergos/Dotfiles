@@ -94,24 +94,8 @@ brew:subscribe("brew_update", function(env)
     label = { string = tostring(count), color = color }
   })
   
-  -- Tooltip logic (unchanged from original version)
-  local tooltip = ""
-  local error_message = env.error or ""
-  if error_message ~= "" and error_message ~= "No error" then tooltip = "ERROR: " .. error_message .. "\n\n" end
-  if count > 0 then
-    tooltip = tooltip .. "Packages to update: " .. (env.pending_updates or "none")
-    local last_check = tonumber(env.last_check) or 0
-    if last_check > 0 then
-      local time_diff = os.time() - last_check
-      if time_diff < 60 then tooltip = tooltip .. string.format("\n\nLast check: %d seconds ago", time_diff)
-      elseif time_diff < 3600 then tooltip = tooltip .. string.format("\n\nLast check: %d minutes ago", math.floor(time_diff / 60))
-      else tooltip = tooltip .. string.format("\n\nLast check: %d hours ago", math.floor(time_diff / 3600)) end
-    end
-    tooltip = tooltip .. "\n\nLeft click: Show details\nRight click: Update all\nMiddle click: Force check"
-  else
-    tooltip = tooltip .. "All packages are up to date"
-  end
-  brew:set({ tooltip = tooltip })
+  -- Note: tooltip property is not supported by sketchybar, removed to fix errors
+  debug_log(string.format("Updated brew widget: %d packages", count))
 end)
 
 -- === NEW INTEGRATED AND ROBUST CLICK SCRIPT ===
