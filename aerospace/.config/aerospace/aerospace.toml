@@ -12,12 +12,12 @@ default-root-container-orientation = 'auto'
 
 # Gaps and padding (matches your Yabai config).
 [gaps]
-inner.horizontal = 12        # window_gap: 12px
+inner.horizontal = 12       # window_gap: 12px
 inner.vertical = 12
-outer.left = 12              # left_padding: 12
-outer.bottom = 12            # bottom_padding: 12
-outer.top = 48               # top_padding: 16 + sketchybar space (32)
-outer.right = 12             # right_padding: 12
+outer.left = 12             # left_padding: 12
+outer.bottom = 12           # bottom_padding: 12
+outer.top = 48              # top_padding: 16 + sketchybar space (32)
+outer.right = 12            # right_padding: 12
 
 # Multi-monitor workspace assignment.
 [workspace-to-monitor-force-assignment]
@@ -160,12 +160,12 @@ ctrl-alt-cmd-k = 'resize smart -50'
 ctrl-alt-cmd-l = 'resize smart -50'
 
 # Layout switching.
-ctrl-alt-a = 'layout tiles'                    # BSP equivalent
-ctrl-alt-d = 'layout floating'                 # Float
+ctrl-alt-a = 'layout tiles'                     # BSP equivalent
+ctrl-alt-d = 'layout floating'                  # Float
 
 # Workspace-wide layout operations (closer to Yabai behavior).
-ctrl-alt-shift-a = 'flatten-workspace-tree'    # Reset entire workspace to default tiling
-ctrl-alt-shift-d = 'layout floating'           # Make current window floating (individual)
+ctrl-alt-shift-a = 'flatten-workspace-tree'     # Reset entire workspace to default tiling
+ctrl-alt-shift-d = 'layout floating'            # Make current window floating (individual)
 
 # Service controls (using service mode).
 ctrl-alt-q = 'mode service'

@@ -86,10 +86,17 @@ for i = 1, 10, 1 do
     else
       if env.BUTTON == "right" then
         -- Handle right click to destroy the space
-        sbar.exec("aerospace workspace --close " .. env.SID)
+        sbar.exec("yabai -m space --destroy " .. env.SID)
       else
         -- Handle left click to switch space
-        sbar.exec("aerospace workspace " .. env.SID)
+        -- Always switch to the space first, regardless of windows
+        sbar.exec(string.format([[
+          yabai -m space --focus %s && 
+          WINDOW_ID=$(yabai -m query --spaces --space %s | jq '.windows[0]') && 
+          if [ "$WINDOW_ID" != "null" ] && [ -n "$WINDOW_ID" ]; then
+            yabai -m window --focus $WINDOW_ID
+          fi
+        ]], env.SID, env.SID))
       end
     end
   end)

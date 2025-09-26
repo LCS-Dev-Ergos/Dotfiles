@@ -179,8 +179,11 @@ end
 
 -- Try to highlight current workspace at startup
 sbar.exec("aerospace list-workspaces --focused", function(current_ws)
-  if current_ws and current_ws:match("^%d+$") then
-    sbar.trigger("aerospace_workspace_change", "FOCUSED_WORKSPACE=" .. current_ws)
+  if current_ws then
+    local trimmed_ws = current_ws:gsub("%s+", "")
+    if trimmed_ws:match("^%d+$") then
+      sbar.trigger("aerospace_workspace_change", "FOCUSED_WORKSPACE=" .. trimmed_ws)
+    end
   end
 end)
 
