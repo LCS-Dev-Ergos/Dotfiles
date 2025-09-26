@@ -121,38 +121,11 @@ for i, workspace in ipairs(workspaces) do
   -- EVENT SUBSCRIPTION (from FelixKratz)
   space:subscribe("aerospace_workspace_change", function(env)
     local selected = (tostring(env.FOCUSED_WORKSPACE) == tostring(workspace))
-    
-    -- Enhanced styling for active workspace
     space:set({
-      icon = { 
-        highlight = selected,
-        color = selected and "#1a1b26" or colors.white,
-      },
-      label = { 
-        highlight = selected,
-        color = selected and "#ffffff" or colors.grey,
-      },
-      background = {
-        color = selected and "#7aa2f7" or colors.bg1,
-        border_color = selected and "#7dcfff" or colors.bg2,
-        border_width = selected and 2 or 1,
+      icon = {
+        color = selected and colors.red or colors.white,
       }
     })
-    
-    -- Update bracket
-    if space.bracket then
-      space.bracket:set({
-        background = {
-          border_color = selected and "#7dcfff" or colors.bg2,
-          border_width = selected and 3 or 2,
-        }
-      })
-    end
-    
-    -- Update icons if this is the active workspace
-    if selected then
-      update_workspace_icons(workspace, space)
-    end
   end)
 
   -- Store reference for icon updates
