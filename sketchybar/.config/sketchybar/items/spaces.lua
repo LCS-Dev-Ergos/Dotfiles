@@ -3,23 +3,27 @@ local icons = require("icons")
 local settings = require("settings")
 local app_icons = require("helpers.app_icons")
 
-local spaces = {}
+-- Parse string into table (from FelixKratz)
+function parse_string_to_table(s)
+  local result = {}
+  for line in s:gmatch("([^\n]+)") do
+    table.insert(result, line)
+  end
+  return result
+end
 
--- Simple app name normalization
+-- Simple app icon lookup
 local function get_icon_for_app(app_name)
   if not app_name then return nil end
-  
-  -- Try exact match first
   if app_icons[app_name] then
     return app_icons[app_name]
   end
-  
   return app_icons["default"] or "?"
 end
 
--- Fast function to update icons for a specific workspace
-local function update_workspace_icons(workspace_num)
-  local cmd = string.format("aerospace list-windows --workspace %d --json", workspace_num)
+-- Update icons for a specific workspace
+local function update_workspace_icons(workspace_name, space_item)
+  local cmd = string.format("aerospace list-windows --workspace %s --json", workspace_name)
   
   sbar.exec(cmd, function(result)
     if type(result) ~= "table" then return end
@@ -42,69 +46,40 @@ local function update_workspace_icons(workspace_num)
       icons_str = " —"
     end
     
-    -- Update only if changed
-    if spaces[workspace_num] then
-      spaces[workspace_num]:set({ label = icons_str })
+    -- Update the workspace label
+    if space_item then
+      space_item:set({ label = { string = icons_str } })
     end
   end)
 end
 
--- DIAGNOSTIC VERSION: Let's see what's happening step by step
-local function highlight_workspace(workspace_num)
-  -- First, let's log that this function is being called
-  sbar.exec("echo 'DEBUG: highlight_workspace called for workspace " .. workspace_num .. "' >> /tmp/sketchybar_debug.log")
-  
-  for i = 1, 10 do
-    local is_active = (i == workspace_num)
-    
-    -- Let's use colors that definitely exist and should work
-    local active_bg = colors.red    -- Using existing color that we know works
-    local active_border = colors.white
-    local inactive_bg = colors.bg1
-    local inactive_border = colors.bg2
-    
-    -- Log what we're trying to do
-    if is_active then
-      sbar.exec("echo 'DEBUG: Setting workspace " .. i .. " as ACTIVE' >> /tmp/sketchybar_debug.log")
-    end
-    
-    if spaces[i] then
-      -- Try the most basic version of highlighting first
-      spaces[i]:set({
-        background = {
-          color = is_active and active_bg or inactive_bg,
-          border_color = is_active and active_border or inactive_border,
-        }
-      })
-      
-      -- Update bracket if it exists
-      if spaces[i].bracket then
-        spaces[i].bracket:set({
-          background = {
-            border_color = is_active and active_border or inactive_border,
-            border_width = is_active and 3 or 2,
-          }
-        })
-      end
-    else
-      sbar.exec("echo 'DEBUG: spaces[" .. i .. "] is nil!' >> /tmp/sketchybar_debug.log")
-    end
+-- Get only numeric workspaces (filter out config items)
+local file = io.popen("aerospace list-workspaces --all")
+local result = file:read("*a")
+file:close()
+local all_workspaces = parse_string_to_table(result)
+
+-- Filter only numeric workspaces
+local workspaces = {}
+for _, workspace in ipairs(all_workspaces) do
+  if workspace:match("^%d+$") then  -- Only numeric workspaces
+    table.insert(workspaces, workspace)
   end
-  
-  -- Update icons for the active workspace
-  update_workspace_icons(workspace_num)
 end
 
--- Create all 10 workspace indicators (keeping your exact original code)
-for i = 1, 10 do
-  local space = sbar.add("item", "space." .. i, {
+-- Store space references for later use
+local space_items = {}
+
+-- Create workspace items dynamically
+for i, workspace in ipairs(workspaces) do
+  local space = sbar.add("item", "space." .. workspace, {
     icon = {
       font = { family = settings.font.numbers },
-      string = i,
+      string = workspace,
       padding_left = 15,
       padding_right = 8,
       color = colors.white,
-      highlight_color = colors.red,
+      highlight_color = "#1a1b26", -- Dark text on light background when active
     },
     label = {
       padding_right = 20,
@@ -124,8 +99,6 @@ for i = 1, 10 do
     },
   })
 
-  spaces[i] = space
-
   -- Bracket for double border effect
   local space_bracket = sbar.add("bracket", { space.name }, {
     background = {
@@ -136,70 +109,83 @@ for i = 1, 10 do
     }
   })
 
-  -- Store bracket reference for later updates
+  -- Store bracket reference
   space.bracket = space_bracket
 
   -- Padding
-  sbar.add("item", "space.padding." .. i, {
+  sbar.add("item", "space.padding." .. workspace, {
     drawing = false,
     width = settings.group_paddings,
   })
 
+  -- EVENT SUBSCRIPTION (from FelixKratz)
+  space:subscribe("aerospace_workspace_change", function(env)
+    local selected = (tostring(env.FOCUSED_WORKSPACE) == tostring(workspace))
+    
+    -- Enhanced styling for active workspace
+    space:set({
+      icon = { 
+        highlight = selected,
+        color = selected and "#1a1b26" or colors.white,
+      },
+      label = { 
+        highlight = selected,
+        color = selected and "#ffffff" or colors.grey,
+      },
+      background = {
+        color = selected and "#7aa2f7" or colors.bg1,
+        border_color = selected and "#7dcfff" or colors.bg2,
+        border_width = selected and 2 or 1,
+      }
+    })
+    
+    -- Update bracket
+    if space.bracket then
+      space.bracket:set({
+        background = {
+          border_color = selected and "#7dcfff" or colors.bg2,
+          border_width = selected and 3 or 2,
+        }
+      })
+    end
+    
+    -- Update icons if this is the active workspace
+    if selected then
+      update_workspace_icons(workspace, space)
+    end
+  end)
+
+  -- Store reference for icon updates
+  space_items[workspace] = space
+
   -- Mouse click to switch workspace
   space:subscribe("mouse.clicked", function()
-    sbar.exec("aerospace workspace " .. i)
+    sbar.exec("aerospace workspace " .. workspace)
   end)
   
-  -- Update icons on hover for freshness
+  -- Update icons on hover
   space:subscribe("mouse.entered", function()
-    update_workspace_icons(i)
+    update_workspace_icons(workspace, space)
   end)
 end
 
--- DIAGNOSTIC EVENT HANDLER - Let's see what's really happening
-sbar.add("item", {
-  drawing = false,
-  updates = true,
-}):subscribe("aerospace_workspace_change", function(env)
-  -- Log everything we receive
-  sbar.exec("echo 'DEBUG: Received trigger event' >> /tmp/sketchybar_debug.log")
-  
-  for key, value in pairs(env or {}) do
-    sbar.exec("echo 'DEBUG: env." .. key .. " = " .. tostring(value) .. "' >> /tmp/sketchybar_debug.log")
-  end
-  
-  -- Get the focused workspace from the event
-  local focused = tonumber(env.FOCUSED_WORKSPACE)
-  sbar.exec("echo 'DEBUG: Parsed workspace number: " .. tostring(focused) .. "' >> /tmp/sketchybar_debug.log")
-  
-  if focused and focused >= 1 and focused <= 10 then
-    highlight_workspace(focused)
-  else
-    sbar.exec("echo 'DEBUG: Invalid or missing workspace number' >> /tmp/sketchybar_debug.log")
-  end
-end)
-
--- Update all workspace icons periodically (simple batch update)
-local function update_all_icons()
-  for i = 1, 10 do
-    update_workspace_icons(i)
+-- Initial update of all workspace icons
+for _, workspace in ipairs(workspaces) do
+  local space_item = space_items[workspace]
+  if space_item then
+    update_workspace_icons(workspace, space_item)
   end
 end
 
--- Initialize: Get current workspace and update everything once
-sbar.exec("aerospace list-workspaces --focused", function(result)
-  sbar.exec("echo 'DEBUG: Initial workspace detection: " .. tostring(result) .. "' >> /tmp/sketchybar_debug.log")
-  local workspace = tonumber(result)
-  if workspace and workspace >= 1 and workspace <= 10 then
-    highlight_workspace(workspace)
+-- Try to highlight current workspace at startup
+sbar.exec("aerospace list-workspaces --focused", function(current_ws)
+  if current_ws and current_ws:match("^%d+$") then
+    sbar.trigger("aerospace_workspace_change", "FOCUSED_WORKSPACE=" .. current_ws)
   end
-  
-  -- Initial icon update for all workspaces
-  update_all_icons()
 end)
 
--- Spaces indicator (keeping your exact original code)
-local spaces_indicator = sbar.add("item", {
+-- Spaces indicator (toggle button)
+local spaces_indicator = sbar.add("item", "spaces_indicator", {
   padding_left = -3,
   padding_right = 0,
   icon = {
@@ -216,8 +202,8 @@ local spaces_indicator = sbar.add("item", {
     color = colors.bg1,
   },
   background = {
-    color = colors.with_alpha(colors.grey, 0.0),
-    border_color = colors.with_alpha(colors.bg1, 0.0),
+    color = colors.transparent,
+    border_color = colors.transparent,
   }
 })
 
@@ -225,8 +211,8 @@ spaces_indicator:subscribe("mouse.entered", function()
   sbar.animate("tanh", 30, function()
     spaces_indicator:set({
       background = {
-        color = { alpha = 1.0 },
-        border_color = { alpha = 1.0 },
+        color = colors.grey,
+        border_color = colors.bg1,
       },
       icon = { color = colors.bg1 },
       label = { width = "dynamic" }
@@ -238,11 +224,11 @@ spaces_indicator:subscribe("mouse.exited", function()
   sbar.animate("tanh", 30, function()
     spaces_indicator:set({
       background = {
-        color = { alpha = 0.0 },
-        border_color = { alpha = 0.0 },
+        color = colors.transparent,
+        border_color = colors.transparent,
       },
       icon = { color = colors.grey },
-      label = { width = 0, }
+      label = { width = 0 }
     })
   end)
 end)

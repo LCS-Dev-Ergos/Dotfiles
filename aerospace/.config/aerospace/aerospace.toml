@@ -1,27 +1,27 @@
-# AeroSpace Configuration - Optimized for Sketchybar Integration
+# AeroSpace Configuration - Equivalent to Yabai + Skhd Setup.
 start-at-login = true
 
-# Normalization settings for stability
+# Normalization (recommended for stability).
 enable-normalization-flatten-containers = true
 enable-normalization-opposite-orientation-for-nested-containers = true
 
-# Layout settings (BSP equivalent)
+# Layout settings (BSP equivalent).
 accordion-padding = 30
 default-root-container-layout = 'tiles'
 default-root-container-orientation = 'auto'
 
-# Gaps and padding (matches your Yabai config)
+# Gaps and padding (matches your Yabai config).
 [gaps]
-inner.horizontal = 12
+inner.horizontal = 12        # window_gap: 12px
 inner.vertical = 12
-outer.left = 12
-outer.bottom = 12
-outer.top = 48    # 16 + sketchybar space (32)
-outer.right = 12
+outer.left = 12              # left_padding: 12
+outer.bottom = 12            # bottom_padding: 12
+outer.top = 48               # top_padding: 16 + sketchybar space (32)
+outer.right = 12             # right_padding: 12
 
-# Multi-monitor workspace assignment
+# Multi-monitor workspace assignment.
 [workspace-to-monitor-force-assignment]
-1 = 1    # Monitor 1 workspaces
+1 = 1                       # Monitor 1 workspaces
 2 = 1
 3 = 1
 4 = 1
@@ -29,34 +29,163 @@ outer.right = 12
 6 = 1
 7 = 1
 8 = 1
-9 = 2    # Monitor 2 workspaces
+9 = 2                       # Monitor 2 workspaces
 10 = 2
 
-# Startup - Initialize Sketchybar
+# Startup - Initialize Sketchybar.
 after-startup-command = [
     'exec-and-forget sketchybar'
 ]
 
+# Trigger Sketchybar updates on workspace change.
 exec-on-workspace-change = [
-    '/bin/bash', '-c', 
-    'echo "Alternative trigger: $AEROSPACE_FOCUSED_WORKSPACE" >> /tmp/aerospace_debug.log && /opt/homebrew/bin/sketchybar --trigger aerospace_workspace_change FOCUSED=$AEROSPACE_FOCUSED_WORKSPACE'
+    '/opt/homebrew/bin/bash', '-c',
+    '/opt/homebrew/bin/sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE'
 ]
 
-# Mouse behavior - simplified without redundant triggers
+# Mouse behavior (move mouse to focused window/monitor).
 on-focus-changed = ['move-mouse window-lazy-center']
 on-focused-monitor-changed = ['move-mouse monitor-lazy-center']
 
-# Application exclusion rules
+# Key bindings (complete skhd translation).
+[mode.main.binding]
+
+# Window navigation (lalt + hjkl with display traversal fallback).
+alt-h = 'focus left'
+alt-j = 'focus down'
+alt-k = 'focus up'
+alt-l = 'focus right'
+
+# Join windows (to combine windows into a container).
+alt-shift-h = 'join-with left'    # Join with the window on the left  
+alt-shift-j = 'join-with down'    # Join with the window below
+alt-shift-k = 'join-with up'      # Join with the window above
+alt-shift-l = 'join-with right'   # Join with the window on the right
+
+# Window warping (shift + cmd + hjkl).
+shift-cmd-h = 'move left'
+shift-cmd-j = 'move down'
+shift-cmd-k = 'move up'
+shift-cmd-l = 'move right'
+
+# Layout switching (shortcuts for common layouts).
+alt-s = 'layout v_accordion'           # Stack vertical (stacking)
+alt-w = 'layout h_accordion'           # Stack horizontal (tabbed)
+alt-e = 'layout tiles horizontal vertical'      # Toggle split orientation
+
+ctrl-alt-left = 'layout v_accordion'   # Layout BSP for left monitor
+ctrl-alt-right = 'layout tiles'        # Layout BSP for right monitor
+
+# Workspace navigation (ctrl + left/right).
+shift-left = 'workspace prev'
+shift-right = 'workspace next'
+
+# Next/Previous workspace navigation (additional convenience).
+alt-n = 'workspace next'
+alt-p = 'workspace prev'
+
+# Moving windows between workspaces.
+ctrl-shift-left = [
+    'move-node-to-workspace prev', 
+    'workspace prev'
+]
+
+ctrl-shift-right = [
+    'move-node-to-workspace next',
+    'workspace next'
+]
+
+# Direct workspace switching.
+alt-1 = 'workspace 1'
+alt-2 = 'workspace 2'
+alt-3 = 'workspace 3'
+alt-4 = 'workspace 4'
+alt-5 = 'workspace 5'
+alt-6 = 'workspace 6'
+alt-7 = 'workspace 7'
+alt-8 = 'workspace 8'
+alt-9 = 'workspace 9'
+alt-0 = 'workspace 10'
+
+# Moving windows to specific workspaces.
+alt-shift-1 = 'move-node-to-workspace 1'
+alt-shift-2 = 'move-node-to-workspace 2'
+alt-shift-3 = 'move-node-to-workspace 3'
+alt-shift-4 = 'move-node-to-workspace 4'
+alt-shift-5 = 'move-node-to-workspace 5'
+alt-shift-6 = 'move-node-to-workspace 6'
+alt-shift-7 = 'move-node-to-workspace 7'
+alt-shift-8 = 'move-node-to-workspace 8'
+alt-shift-9 = 'move-node-to-workspace 9'
+alt-shift-0 = 'move-node-to-workspace 10'
+
+# Window manipulation.
+ctrl-alt-e = 'balance-sizes'                    # Balance
+ctrl-alt-c = 'close'                            # Close window
+
+alt-m = 'layout floating'                       # Toggle to floating (AeroSpace equivalent of "hide")
+alt-shift-m = 'move-node-to-workspace 0'        # Alternative: move to "scratchpad" workspace
+
+# Tree operations.
+alt-r = ['layout tiles', 'layout accordion']    # Rotate layouts
+alt-x = 'move right'                            # Mirror x-axis equivalent
+alt-y = 'move down'                             # Mirror y-axis equivalent
+
+# Float toggle with centering (lalt+t) - Smart toggle between floating and tiling.
+alt-t = 'layout floating tiling'
+
+# Explicit layout commands for specific windows.
+alt-shift-t = 'layout floating'                 # Force current window to floating
+ctrl-alt-t = 'layout tiling'                    # Force current window back to tiling
+
+# Fullscreen variations.
+alt-d = 'fullscreen'                            # Zoom-parent equivalent
+alt-f = 'fullscreen'                            # Zoom-fullscreen
+alt-shift-f = 'fullscreen'                      # Native-fullscreen
+
+# Gap adjustment (AeroSpace doesn't support runtime gap changes).
+alt-g = 'balance-sizes'                         # Closest equivalent
+alt-shift-g = 'balance-sizes'                   # Closest equivalent
+
+# Window resizing (ctrl + lalt + hjkl for increase).
+ctrl-alt-h = 'resize smart -50'
+ctrl-alt-j = 'resize smart -50'
+ctrl-alt-k = 'resize smart +50'
+ctrl-alt-l = 'resize smart +50'
+
+# Window resizing decrease (ctrl + lalt + cmd + hjkl).
+ctrl-alt-cmd-h = 'resize smart +50'
+ctrl-alt-cmd-j = 'resize smart +50'
+ctrl-alt-cmd-k = 'resize smart -50'
+ctrl-alt-cmd-l = 'resize smart -50'
+
+# Layout switching.
+ctrl-alt-a = 'layout tiles'                    # BSP equivalent
+ctrl-alt-d = 'layout floating'                 # Float
+
+# Workspace-wide layout operations (closer to Yabai behavior).
+ctrl-alt-shift-a = 'flatten-workspace-tree'    # Reset entire workspace to default tiling
+ctrl-alt-shift-d = 'layout floating'           # Make current window floating (individual)
+
+# Service controls (using service mode).
+ctrl-alt-q = 'mode service'
+ctrl-alt-s = 'mode service'
+ctrl-alt-r = 'reload-config'
+
+# Service mode for advanced operations.
+[mode.service.binding]
+esc = ['reload-config', 'mode main']
+r = ['flatten-workspace-tree', 'mode main']     # Restart equivalent
+q = ['mode main']                               # Quit service mode
+s = ['layout floating tiling', 'mode main']     # Stop/start equivalent
+
+# Application exclusion rules.
 [[on-window-detected]]
 if.app-id = 'com.apple.finder'
 run = 'layout floating'
 
 [[on-window-detected]]
-if.app-id = 'com.jetbrains.intellij'
-run = 'layout floating'
-
-[[on-window-detected]]
-if.app-id = 'com.google.android.studio'
+if.app-id = 'com.apple.ActivityMonitor'
 run = 'layout floating'
 
 [[on-window-detected]]
@@ -69,7 +198,7 @@ if.app-name-regex-substring = 'JetBrains'
 run = 'layout floating'
 
 [[on-window-detected]]
-if.app-id = 'com.1password.1password'
+if.app-name-regex-substring = '1Password'
 run = 'layout floating'
 
 [[on-window-detected]]
@@ -79,131 +208,3 @@ run = 'layout floating'
 [[on-window-detected]]
 if.app-name-regex-substring = 'System Settings'
 run = 'layout floating'
-
-[[on-window-detected]]
-if.app-id = 'com.apple.ActivityMonitor'
-run = 'layout floating'
-
-# Key bindings - SIMPLIFIED without redundant triggers
-[mode.main.binding]
-
-# Window navigation
-alt-h = 'focus left'
-alt-j = 'focus down'
-alt-k = 'focus up'
-alt-l = 'focus right'
-
-# Join windows
-alt-shift-h = 'join-with left'
-alt-shift-j = 'join-with down'
-alt-shift-k = 'join-with up'
-alt-shift-l = 'join-with right'
-
-# Window movement
-shift-cmd-h = 'move left'
-shift-cmd-j = 'move down'
-shift-cmd-k = 'move up'
-shift-cmd-l = 'move right'
-
-# Layout switching
-alt-s = 'layout v_accordion'
-alt-w = 'layout h_accordion'
-alt-e = 'layout tiles horizontal vertical'
-ctrl-alt-left = 'layout v_accordion'
-ctrl-alt-right = 'layout tiles'
-
-# Workspace navigation
-shift-left = 'workspace prev'
-shift-right = 'workspace next'
-alt-n = 'workspace next'
-alt-p = 'workspace prev'
-
-# Moving windows between workspaces
-# Use a single command to trigger icon update AFTER the move
-ctrl-shift-left = [
-    'move-node-to-workspace prev', 
-    'workspace prev'
-]
-
-ctrl-shift-right = [
-    'move-node-to-workspace next',
-    'workspace next'
-]
-
-# Direct workspace switching
-alt-1 = 'workspace 1'
-alt-2 = 'workspace 2'
-alt-3 = 'workspace 3'
-alt-4 = 'workspace 4'
-alt-5 = 'workspace 5'
-alt-6 = 'workspace 6'
-alt-7 = 'workspace 7'
-alt-8 = 'workspace 8'
-alt-9 = 'workspace 9'
-alt-0 = 'workspace 10'
-
-# Moving windows to specific workspaces - Simplified
-alt-shift-1 = 'move-node-to-workspace 1'
-alt-shift-2 = 'move-node-to-workspace 2'
-alt-shift-3 = 'move-node-to-workspace 3'
-alt-shift-4 = 'move-node-to-workspace 4'
-alt-shift-5 = 'move-node-to-workspace 5'
-alt-shift-6 = 'move-node-to-workspace 6'
-alt-shift-7 = 'move-node-to-workspace 7'
-alt-shift-8 = 'move-node-to-workspace 8'
-alt-shift-9 = 'move-node-to-workspace 9'
-alt-shift-0 = 'move-node-to-workspace 10'
-
-# Window manipulation
-ctrl-alt-e = 'balance-sizes'
-ctrl-alt-c = 'close'
-alt-m = 'layout floating'
-alt-shift-m = 'move-node-to-workspace 0'
-
-# Tree operations
-alt-r = ['layout tiles', 'layout accordion']
-alt-x = 'move right'
-alt-y = 'move down'
-
-# Float/tile toggle
-alt-t = 'layout floating tiling'
-alt-shift-t = 'layout floating'
-ctrl-alt-t = 'layout tiling'
-
-# Fullscreen
-alt-d = 'fullscreen'
-alt-f = 'fullscreen'
-alt-shift-f = 'fullscreen'
-
-# Gap adjustment (placeholder)
-alt-g = 'balance-sizes'
-alt-shift-g = 'balance-sizes'
-
-# Window resizing
-ctrl-alt-h = 'resize smart -50'
-ctrl-alt-j = 'resize smart -50'
-ctrl-alt-k = 'resize smart +50'
-ctrl-alt-l = 'resize smart +50'
-
-ctrl-alt-cmd-h = 'resize smart +50'
-ctrl-alt-cmd-j = 'resize smart +50'
-ctrl-alt-cmd-k = 'resize smart -50'
-ctrl-alt-cmd-l = 'resize smart -50'
-
-# Layout operations
-ctrl-alt-a = 'layout tiles'
-ctrl-alt-d = 'layout floating'
-ctrl-alt-shift-a = 'flatten-workspace-tree'
-ctrl-alt-shift-d = 'layout floating'
-
-# Service controls
-ctrl-alt-q = 'mode service'
-ctrl-alt-s = 'mode service'
-ctrl-alt-r = 'reload-config'
-
-# Service mode
-[mode.service.binding]
-esc = ['reload-config', 'mode main']
-r = ['flatten-workspace-tree', 'mode main']
-q = ['mode main']
-s = ['layout floating tiling', 'mode main']
