@@ -43,6 +43,12 @@ exec-on-workspace-change = [
     '/opt/homebrew/bin/sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE'
 ]
 
+# Trigger Sketchybar updates on window focus change.
+after-window-focus-change = [
+    '/opt/homebrew/bin/bash', '-c',
+    '/opt/homebrew/bin/sketchybar --trigger aerospace_windows_change'
+]
+
 # Mouse behavior (move mouse to focused window/monitor).
 on-focus-changed = ['move-mouse window-lazy-center']
 on-focused-monitor-changed = ['move-mouse monitor-lazy-center']

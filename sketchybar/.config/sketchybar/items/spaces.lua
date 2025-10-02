@@ -70,6 +70,9 @@ end
 -- Store space references for later use
 local space_items = {}
 
+-- Track previous workspace for optimized updates
+local previous_workspace = nil
+
 -- Create workspace items dynamically
 for i, workspace in ipairs(workspaces) do
   local space = sbar.add("item", "space." .. workspace, {
@@ -118,16 +121,6 @@ for i, workspace in ipairs(workspaces) do
     width = settings.group_paddings,
   })
 
-  -- EVENT SUBSCRIPTION (from FelixKratz)
-  space:subscribe("aerospace_workspace_change", function(env)
-    local selected = (tostring(env.FOCUSED_WORKSPACE) == tostring(workspace))
-    space:set({
-      icon = {
-        color = selected and colors.red or colors.white,
-      }
-    })
-  end)
-
   -- Store reference for icon updates
   space_items[workspace] = space
 
@@ -136,13 +129,45 @@ for i, workspace in ipairs(workspaces) do
     sbar.exec("aerospace workspace " .. workspace)
   end)
   
-  -- Update icons on hover
+  -- Update icons on hover (manual fallback)
   space:subscribe("mouse.entered", function()
     update_workspace_icons(workspace, space)
   end)
 end
 
--- Initial update of all workspace icons
+-- Subscribe to workspace change events for automatic updates
+-- This updates only the focused and previous workspace for better performance
+for _, workspace in ipairs(workspaces) do
+  local space_item = space_items[workspace]
+  
+  if space_item then
+    space_item:subscribe("aerospace_workspace_change", function(env)
+      local focused_ws = tostring(env.FOCUSED_WORKSPACE)
+      local current_ws = tostring(workspace)
+      local selected = (focused_ws == current_ws)
+      
+      -- Update icon highlight color
+      space_item:set({
+        icon = {
+          color = selected and colors.red or colors.white,
+        }
+      })
+      
+      -- Update workspace icons for focused and previous workspace only
+      -- This optimization significantly improves performance (suggested by FelixKratz)
+      if focused_ws == current_ws then
+        -- Update current workspace
+        update_workspace_icons(workspace, space_item)
+        previous_workspace = workspace
+      elseif previous_workspace == current_ws then
+        -- Update previous workspace to reflect changes
+        update_workspace_icons(workspace, space_item)
+      end
+    end)
+  end
+end
+
+-- Initial update of all workspace icons at startup
 for _, workspace in ipairs(workspaces) do
   local space_item = space_items[workspace]
   if space_item then
