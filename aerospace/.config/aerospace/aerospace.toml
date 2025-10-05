@@ -16,7 +16,7 @@ inner.horizontal = 12       # window_gap: 12px
 inner.vertical = 12
 outer.left = 12             # left_padding: 12
 outer.bottom = 12           # bottom_padding: 12
-outer.top = 48              # top_padding: 16 + sketchybar space (32)
+ 2              # top_padding: 12 + sketchybar space (40)
 outer.right = 12            # right_padding: 12
 
 # Multi-monitor workspace assignment.
