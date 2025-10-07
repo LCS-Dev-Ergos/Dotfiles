@@ -61,28 +61,14 @@ menu_watcher:subscribe("front_app_switched", update_menus)
 space_menu_swap:subscribe("swap_menus_and_spaces", function(env)
   local drawing = menu_items[1]:query().geometry.drawing == "on"
   if drawing then
-    -- Switch from MENUS to SPACES
     menu_watcher:set( { updates = false })
     sbar.set("/menu\\..*/", { drawing = false })
     sbar.set("/space\\..*/", { drawing = true })
     sbar.set("front_app", { drawing = true })
-    sbar.set("spaces_indicator", { drawing = true })
-
-    -- Re-trigger highlight to reflect current state
-    sbar.exec("aerospace list-workspaces --focused", function(current_ws)
-      if current_ws then
-        local trimmed_ws = current_ws:gsub("%s+", "")
-        if trimmed_ws:match("^%d+$") then
-          sbar.trigger("aerospace_workspace_change", "FOCUSED_WORKSPACE=" .. trimmed_ws)
-        end
-      end
-    end)
   else
-    -- Switch from SPACES to MENUS
     menu_watcher:set( { updates = true })
     sbar.set("/space\\..*/", { drawing = false })
     sbar.set("front_app", { drawing = false })
-    sbar.set("spaces_indicator", { drawing = true }) -- Keep indicator visible
     update_menus()
   end
 end)

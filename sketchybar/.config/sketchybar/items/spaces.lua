@@ -3,86 +3,18 @@ local icons = require("icons")
 local settings = require("settings")
 local app_icons = require("helpers.app_icons")
 
--- Parse string into table (from FelixKratz)
-function parse_string_to_table(s)
-  local result = {}
-  for line in s:gmatch("([^\n]+)") do
-    table.insert(result, line)
-  end
-  return result
-end
+local spaces = {}
 
--- Simple app icon lookup
-local function get_icon_for_app(app_name)
-  if not app_name then return nil end
-  if app_icons[app_name] then
-    return app_icons[app_name]
-  end
-  return app_icons["default"] or "?"
-end
-
--- Update icons for a specific workspace
-local function update_workspace_icons(workspace_name, space_item)
-  local cmd = string.format("aerospace list-windows --workspace %s --json", workspace_name)
-  
-  sbar.exec(cmd, function(result)
-    if type(result) ~= "table" then return end
-    
-    local seen = {}
-    local icons_str = ""
-    
-    -- Collect unique app icons
-    for _, window in ipairs(result) do
-      local app = window["app-name"]
-      if app and not seen[app] then
-        seen[app] = true
-        local icon = get_icon_for_app(app)
-        icons_str = icons_str .. " " .. icon
-      end
-    end
-    
-    -- Default to em dash if empty
-    if icons_str == "" then
-      icons_str = " —"
-    end
-    
-    -- Update the workspace label
-    if space_item then
-      space_item:set({ label = { string = icons_str } })
-    end
-  end)
-end
-
--- Get only numeric workspaces (filter out config items)
-local file = io.popen("aerospace list-workspaces --all")
-local result = file:read("*a")
-file:close()
-local all_workspaces = parse_string_to_table(result)
-
--- Filter only numeric workspaces
-local workspaces = {}
-for _, workspace in ipairs(all_workspaces) do
-  if workspace:match("^%d+$") then  -- Only numeric workspaces
-    table.insert(workspaces, workspace)
-  end
-end
-
--- Store space references for later use
-local space_items = {}
-
--- Track previous workspace for optimized updates
-local previous_workspace = nil
-
--- Create workspace items dynamically
-for i, workspace in ipairs(workspaces) do
-  local space = sbar.add("item", "space." .. workspace, {
+for i = 1, 10, 1 do
+  local space = sbar.add("space", "space." .. i, {
+    space = i,
     icon = {
       font = { family = settings.font.numbers },
-      string = workspace,
+      string = i,
       padding_left = 15,
       padding_right = 8,
       color = colors.white,
-      highlight_color = "#1a1b26", -- Dark text on light background when active
+      highlight_color = colors.red,
     },
     label = {
       padding_right = 20,
@@ -90,7 +22,6 @@ for i, workspace in ipairs(workspaces) do
       highlight_color = colors.white,
       font = "sketchybar-app-font:Regular:16.0",
       y_offset = -1,
-      string = " —",
     },
     padding_right = 1,
     padding_left = 1,
@@ -98,11 +29,14 @@ for i, workspace in ipairs(workspaces) do
       color = colors.bg1,
       border_width = 1,
       height = 26,
-      border_color = colors.bg2,
+      border_color = colors.black,
     },
+    popup = { background = { border_width = 5, border_color = colors.black } }
   })
 
-  -- Bracket for double border effect
+  spaces[i] = space
+
+  -- Single item bracket for space items to achieve double border on highlight
   local space_bracket = sbar.add("bracket", { space.name }, {
     background = {
       color = colors.transparent,
@@ -112,81 +46,72 @@ for i, workspace in ipairs(workspaces) do
     }
   })
 
-  -- Store bracket reference
-  space.bracket = space_bracket
-
-  -- Padding
-  sbar.add("item", "space.padding." .. workspace, {
-    drawing = false,
+  -- Padding space
+  sbar.add("space", "space.padding." .. i, {
+    space = i,
+    script = "",
     width = settings.group_paddings,
   })
 
-  -- Store reference for icon updates
-  space_items[workspace] = space
+  local space_popup = sbar.add("item", {
+    position = "popup." .. space.name,
+    padding_left= 5,
+    padding_right= 0,
+    background = {
+      drawing = true,
+      image = {
+        corner_radius = 9,
+        scale = 0.2
+      }
+    }
+  })
 
-  -- Mouse click to switch workspace
-  space:subscribe("mouse.clicked", function()
-    sbar.exec("aerospace workspace " .. workspace)
+  space:subscribe("space_change", function(env)
+    local selected = env.SELECTED == "true"
+    local color = selected and colors.grey or colors.bg2
+    space:set({
+      icon = { highlight = selected, },
+      label = { highlight = selected },
+      background = { border_color = selected and colors.black or colors.bg2 }
+    })
+    space_bracket:set({
+      background = { border_color = selected and colors.grey or colors.bg2 }
+    })
   end)
-  
-  -- Update icons on hover (manual fallback)
-  space:subscribe("mouse.entered", function()
-    update_workspace_icons(workspace, space)
-  end)
-end
 
--- Subscribe to workspace change events for automatic updates
--- This updates only the focused and previous workspace for better performance
-for _, workspace in ipairs(workspaces) do
-  local space_item = space_items[workspace]
-  
-  if space_item then
-    space_item:subscribe("aerospace_workspace_change", function(env)
-      local focused_ws = tostring(env.FOCUSED_WORKSPACE)
-      local current_ws = tostring(workspace)
-      local selected = (focused_ws == current_ws)
-      
-      -- Update icon highlight color
-      space_item:set({
-        icon = {
-          color = selected and colors.red or colors.white,
-        }
-      })
-      
-      -- Update workspace icons for focused and previous workspace only
-      -- This optimization significantly improves performance (suggested by FelixKratz)
-      if focused_ws == current_ws then
-        -- Update current workspace
-        update_workspace_icons(workspace, space_item)
-        previous_workspace = workspace
-      elseif previous_workspace == current_ws then
-        -- Update previous workspace to reflect changes
-        update_workspace_icons(workspace, space_item)
+  space:subscribe("mouse.clicked", function(env)
+    if env.BUTTON == "other" then
+      space_popup:set({ background = { image = "space." .. env.SID } })
+      space:set({ popup = { drawing = "toggle" } })
+    else
+      if env.BUTTON == "right" then
+        -- Handle right click to destroy the space
+        sbar.exec("yabai -m space --destroy " .. env.SID)
+      else
+        -- Handle left click to switch space
+        -- Always switch to the space first, regardless of windows
+        sbar.exec(string.format([[
+          yabai -m space --focus %s && 
+          WINDOW_ID=$(yabai -m query --spaces --space %s | jq '.windows[0]') && 
+          if [ "$WINDOW_ID" != "null" ] && [ -n "$WINDOW_ID" ]; then
+            yabai -m window --focus $WINDOW_ID
+          fi
+        ]], env.SID, env.SID))
       end
-    end)
-  end
-end
-
--- Initial update of all workspace icons at startup
-for _, workspace in ipairs(workspaces) do
-  local space_item = space_items[workspace]
-  if space_item then
-    update_workspace_icons(workspace, space_item)
-  end
-end
-
--- Try to highlight current workspace at startup
-sbar.exec("aerospace list-workspaces --focused", function(current_ws)
-  if current_ws then
-    local trimmed_ws = current_ws:gsub("%s+", "")
-    if trimmed_ws:match("^%d+$") then
-      sbar.trigger("aerospace_workspace_change", "FOCUSED_WORKSPACE=" .. trimmed_ws)
     end
-  end
-end)
+  end)
 
--- Spaces indicator (toggle button)
-local spaces_indicator = sbar.add("item", "spaces_indicator", {
+  space:subscribe("mouse.exited", function(_)
+    space:set({ popup = { drawing = false } })
+  end)
+end
+
+local space_window_observer = sbar.add("item", {
+  drawing = false,
+  updates = true,
+})
+
+local spaces_indicator = sbar.add("item", {
   padding_left = -3,
   padding_right = 0,
   icon = {
@@ -203,17 +128,42 @@ local spaces_indicator = sbar.add("item", "spaces_indicator", {
     color = colors.bg1,
   },
   background = {
-    color = colors.transparent,
-    border_color = colors.transparent,
+    color = colors.with_alpha(colors.grey, 0.0),
+    border_color = colors.with_alpha(colors.bg1, 0.0),
   }
 })
 
-spaces_indicator:subscribe("mouse.entered", function()
+space_window_observer:subscribe("space_windows_change", function(env)
+  local icon_line = ""
+  local no_app = true
+  for app, count in pairs(env.INFO.apps) do
+    no_app = false
+    local lookup = app_icons[app]
+    local icon = ((lookup == nil) and app_icons["default"] or lookup)
+    icon_line = icon_line .. " " .. icon
+  end
+
+  if (no_app) then
+    icon_line = " —"
+  end
+  sbar.animate("tanh", 10, function()
+    spaces[env.INFO.space]:set({ label = icon_line })
+  end)
+end)
+
+spaces_indicator:subscribe("swap_menus_and_spaces", function(env)
+  local currently_on = spaces_indicator:query().icon.value == icons.switch.on
+  spaces_indicator:set({
+    icon = currently_on and icons.switch.off or icons.switch.on
+  })
+end)
+
+spaces_indicator:subscribe("mouse.entered", function(env)
   sbar.animate("tanh", 30, function()
     spaces_indicator:set({
       background = {
-        color = colors.grey,
-        border_color = colors.bg1,
+        color = { alpha = 1.0 },
+        border_color = { alpha = 1.0 },
       },
       icon = { color = colors.bg1 },
       label = { width = "dynamic" }
@@ -221,26 +171,19 @@ spaces_indicator:subscribe("mouse.entered", function()
   end)
 end)
 
-spaces_indicator:subscribe("mouse.exited", function()
+spaces_indicator:subscribe("mouse.exited", function(env)
   sbar.animate("tanh", 30, function()
     spaces_indicator:set({
       background = {
-        color = colors.transparent,
-        border_color = colors.transparent,
+        color = { alpha = 0.0 },
+        border_color = { alpha = 0.0 },
       },
       icon = { color = colors.grey },
-      label = { width = 0 }
+      label = { width = 0, }
     })
   end)
 end)
 
-spaces_indicator:subscribe("mouse.clicked", function()
+spaces_indicator:subscribe("mouse.clicked", function(env)
   sbar.trigger("swap_menus_and_spaces")
-end)
-
-spaces_indicator:subscribe("swap_menus_and_spaces", function()
-  local currently_on = spaces_indicator:query().icon.value == icons.switch.on
-  spaces_indicator:set({
-    icon = currently_on and icons.switch.off or icons.switch.on
-  })
 end)
