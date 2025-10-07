@@ -1,6 +1,6 @@
 -- File: lua/plugins/lang-lua.lua
 return {
-  -- 1. MASON: Assicura che lua-language-server (per LSP) e stylua (per formattazione) siano installati.
+  -- 1. MASON: Ensures that lua-language-server (for LSP) and stylua (for formatting) are installed.
   {
     "mason-org/mason.nvim",
     opts = function(_, opts)
@@ -9,7 +9,7 @@ return {
     end,
   },
 
-  -- 2. CONFORM.NVIM (Formatter): Usa stylua per i file Lua.
+  -- 2. CONFORM.NVIM (Formatter): Uses stylua for Lua files.
   {
     "stevearc/conform.nvim",
     opts = {
@@ -19,9 +19,9 @@ return {
     },
   },
 
-  -- 3. NVIM-LSPCONFIG: Configura lua-language-server (lua_ls).
-  -- La configurazione qui è molto importante per far capire al LSP
-  -- che stiamo lavorando in un ambiente Neovim e per fargli riconoscere globali come "vim".
+  -- 3. NVIM-LSPCONFIG: Configures lua-language-server (lua_ls).
+  -- The configuration here is very important to make the LSP
+  -- understand that we are working in a Neovim environment and to recognize globals like "vim".
   {
     "neovim/nvim-lspconfig",
     opts = {
@@ -30,15 +30,15 @@ return {
           settings = {
             Lua = {
               runtime = {
-                -- Usa la versione LuaJIT, che è quella usata da Neovim.
+                -- Uses the LuaJIT version, which is used by Neovim.
                 version = "LuaJIT",
               },
               workspace = {
-                -- Rende il server consapevole dei file di runtime di Neovim per l'autocompletamento.
+                -- Makes the server aware of Neovim runtime files for autocompletion.
                 library = vim.api.nvim_get_runtime_file("", true),
                 checkThirdParty = false,
               },
-              -- Disabilita la telemetria per la privacy.
+              -- Disables telemetry for privacy.
               telemetry = {
                 enable = false,
               },
@@ -49,7 +49,7 @@ return {
     },
   },
 
-  -- 4. TREESITTER: Assicura che i parser per Lua e le query (utili per lo sviluppo) siano installati.
+  -- 4. TREESITTER: Ensures that parsers for Lua and queries (useful for development) are installed.
   {
     "nvim-treesitter/nvim-treesitter",
     opts = function(_, opts)

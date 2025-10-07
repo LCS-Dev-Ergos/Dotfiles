@@ -1,14 +1,14 @@
--- File: lua/plugins/snacks.lua (DA MODIFICARE)
+-- File: lua/plugins/snacks.lua (TO MODIFY)
 
 return {
   "folke/snacks.nvim",
   priority = 1000,
   lazy = false,
   opts = {
-    -- Abilita tutti i moduli utili, TRANNE il dashboard
+    -- Enable all useful modules, EXCEPT the dashboard
     dashboard = { enabled = false },
 
-    -- Tutti gli altri snack che vuoi usare
+    -- All other snacks you want to use
     bigfile = { enabled = true },
     explorer = { enabled = true },
     indent = { enabled = true },
@@ -22,7 +22,7 @@ return {
     words = { enabled = true },
     zen = { enabled = true },
   },
-  -- Manteniamo tutte le scorciatoie di Snacks che hai definito
+  -- Keep all Snacks shortcuts you have defined
   keys = {
     {
       "<leader><space>",
@@ -37,5 +37,5 @@ return {
     { "<leader>bd", function() require("snacks").bufdelete() end, desc = "Delete Buffer" },
     { "<leader>gg", function() require("snacks").lazygit() end, desc = "Lazygit" },
   },
-  -- La funzione 'config' non è più necessaria qui
+  -- The 'config' function is no longer needed here
 }

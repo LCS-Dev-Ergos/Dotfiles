@@ -1,6 +1,6 @@
 -- File: lua/plugins/lang-markdown.lua
 return {
-  -- 1. MASON: Installa un linter
+  -- 1. MASON: Install a linter
   {
     "mason-org/mason.nvim",
     opts = function(_, opts)
@@ -19,7 +19,7 @@ return {
     end,
   },
 
-  -- 3. Mantieni la tua configurazione per l'anteprima
+  -- 3. Keep your configuration for preview
   {
     "iamcco/markdown-preview.nvim",
     cmd = { "MarkdownPreviewToggle", "MarkdownPreview", "MarkdownPreviewStop" },

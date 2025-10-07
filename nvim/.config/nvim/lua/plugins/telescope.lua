@@ -9,9 +9,9 @@ return {
         winblend = 0,
       },
     },
-    -- Qui e' possibile aggiungere anche i keymap
+    -- Here you can also add keymaps
     keys = {
-      -- Esempio: keymap per cercare nei file di configurazione di LazyVim
+      -- Example: keymap to search in LazyVim configuration files
       {
         "<leader>fp",
         function()

@@ -14,17 +14,17 @@ return {
     enable_git_status = true,
     enable_diagnostics = true,
 
-    -- Opzioni di default per tutti i comandi
+    -- Default options for all commands
     default_component_configs = {
-      -- Configurazione per il componente git_status
+      -- Configuration for the git_status component
       git_status = {
         symbols = {
-          -- usati da 'git status'
+          -- used by 'git status'
           added = "", -- "", "", ""
           deleted = "", -- "", "", ""
           modified = "", -- "", ""
           renamed = "", -- ""
-          -- usati da 'git diff'
+          -- used by 'git diff'
           unmerged = "",
           untracked = "",
           ignored = "◌",
@@ -35,9 +35,9 @@ return {
       },
     },
 
-    -- Definisce le finestre e come sono composte
+    -- Defines the windows and their composition
     window = {
-      -- Le mappature dei tasti all'interno di neo-tree
+      -- Key mappings inside neo-tree
       mappings = {
         ["<space>"] = "none",
         ["A"] = "git_add_all",
@@ -50,9 +50,9 @@ return {
       },
     },
 
-    -- Configurazione specifica per il filesystem
+    -- Specific configuration for the filesystem
     filesystem = {
-      -- Ordine in cui vengono renderizzati i componenti per ogni riga
+      -- Order in which components are rendered for each line
       renderers = {
         name = {
           { "git_status", "icon", "name" },
