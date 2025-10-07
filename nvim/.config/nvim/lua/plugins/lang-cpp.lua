@@ -4,7 +4,7 @@
 return {
   -- 1. MASON: Ensures tools are installed and provides their paths.
   {
-    "williamboman/mason.nvim",
+    "mason-org/mason.nvim",
     opts = function(_, opts)
       opts.ensure_installed = opts.ensure_installed or {}
       -- Add all our C/C++ tools here
@@ -19,7 +19,7 @@ return {
   -- 2. CONFORM.NVIM (Formatter): Explicitly use Mason's clang-format.
   {
     "stevearc/conform.nvim",
-    dependencies = { "williamboman/mason.nvim" },
+    dependencies = { "mason-org/mason.nvim" },
     opts = {
       formatters_by_ft = {
         ["c"] = { "clang-format" },
@@ -35,7 +35,7 @@ return {
   {
     "neovim/nvim-lspconfig",
     dependencies = {
-      "williamboman/mason.nvim",
+      "mason-org/mason.nvim",
       "mason-lspconfig.nvim", -- This plugin bridges Mason and lspconfig
       "hrsh7th/cmp-nvim-lsp",
     },
