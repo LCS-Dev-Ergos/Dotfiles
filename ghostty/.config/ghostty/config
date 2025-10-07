@@ -7,7 +7,8 @@ adjust-cell-height = 35%
 
 # ================================ Settings ================================= #
 window-padding-balance = true
-pad = 8
+window-padding-x = 8
+window-padding-y = 8
 window-save-state = always
 macos-titlebar-style = transparent
 window-colorspace = "display-p3"
@@ -17,10 +18,9 @@ shell-integration-features = no-cursor,sudo,no-title
 
 mouse-hide-while-typing = true
 mouse-scroll-multiplier = 2
-
 macos-option-as-alt = false
-macos-quit-after-last-window-closed = false
 
+# scrollback limit
 scrollback = 10000
 
 # Tokyo Night color scheme
@@ -28,18 +28,15 @@ background = 1a1b26
 foreground = a9b1d6
 
 # Selection colors
-selection = 28344a
+selection-background = 28344a
 
 # Cursor colors
-cursor = c0caf5
+cursor-color = c0caf5
 
 # URL colors
-hyperlinks = true
-hyperlink-color = 9ece6a
+# hyperlinks enabled by default
 
 # Window border colors
-window-focus-border = 3d59a1
-window-unfocus-border = 101014
 
 # Tokyo Night colors
 palette = 0=414868
@@ -75,31 +72,30 @@ font-feature = CaskaydiaCove Nerd Font Mono:liga=1
 # Config management
 keybind = cmd+s>r=reload_config
 keybind = cmd+s>x=close_surface
+# Config management
+keybind = cmd+s>r=reload_config
+keybind = cmd+s>x=close_surface
 
 # Basic controls
-keybind = cmd+t=spawn:tab
-keybind = cmd+n=spawn:window
-
-# Navigate through text
-keybind = alt+left=send:\x1b[1;3D
+keybind = cmd+t=new_tab
+keybind = cmd+n=new_window
 keybind = alt+right=send:\x1b[1;3C
-keybind = cmd+left=send:\x1bOH
-keybind = cmd+right=send:\x1bOF
-
-# Clipboard
-keybind = cmd+v=paste
+# Navigate through text
+keybind = alt+left=text:\x1b[1;3D
+keybind = alt+right=text:\x1b[1;3C
+keybind = cmd+left=text:\x1bOH
+keybind = cmd+right=text:\x1bOF
 keybind = cmd+c=copy
 copy-on-select = clipboard
 
 # Tab management
 keybind = cmd+s>c=new_tab
 keybind = cmd+s>shift+l=next_tab
-keybind = cmd+s>shift+h=previous_tab
-keybind = cmd+s>comma=move_tab:-1
-keybind = cmd+s>period=move_tab:1
-
-# Quick tab switching
-keybind = cmd+s>1=goto_tab:1
+# Tab management
+keybind = cmd+s>c=new_tab
+keybind = cmd+s>shift+l=goto_tab:next
+keybind = cmd+s>shift+h=goto_tab:previous
+# move_tab not supported in this version
 keybind = cmd+s>2=goto_tab:2
 keybind = cmd+s>3=goto_tab:3
 keybind = cmd+s>4=goto_tab:4
@@ -125,7 +121,10 @@ keybind = cmd+s>e=equalize_splits
 keybind = cmd+s>n=new_window
 keybind = cmd+w=close
 
-# Font size
-keybind = ctrl+shift+equal=font:increase
-keybind = ctrl+shift+minus=font:decrease
-keybind = ctrl+shift+0=font:reset
+# Window management
+keybind = cmd+s>n=new_window
+keybind = cmd+w=close_surface
+keybind = ctrl+shift+0=font:reset# Font size
+keybind = ctrl+shift+equal=increase_font_size:1
+keybind = ctrl+shift+minus=decrease_font_size:1
+keybind = ctrl+shift+0=reset_font_size
