@@ -1,9 +1,9 @@
 # ================================ General ================================== #
 
 # Font settings
-font-family = CaskaydiaCove Nerd Font Mono
+font-family = CaskaydiaCove Nerd Font
 font-size = 14.5
-adjust-cell-height = 35%
+adjust-cell-height = 45%
 
 # ================================ Settings ================================= #
 window-padding-balance = true
