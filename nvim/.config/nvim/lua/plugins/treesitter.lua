@@ -1,15 +1,20 @@
 -- File: lua/plugins/treesitter.lua
+-- Only generic languages not covered by specific lang-*.lua files
+
 return {
   {
     "nvim-treesitter/nvim-treesitter",
     opts = function(_, opts)
-      -- Here only "generic" languages not covered elsewhere
+      -- Only add parsers for generic config files and other utilities
+      -- Language-specific parsers are handled in their respective lang-*.lua files
       vim.list_extend(opts.ensure_installed, {
-        "bash",
         "json",
         "yaml",
-        "lua",
-        "query",
+        "toml",
+        "xml",
+        "regex",
+        "vim",
+        "vimdoc",
       })
     end,
   },

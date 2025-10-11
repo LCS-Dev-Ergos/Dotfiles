@@ -1,4 +1,5 @@
 -- File: lua/plugins/haskell.lua
+
 return {
   -- haskell-tools manages the LSP (haskell-language-server)
   {

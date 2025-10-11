@@ -1,6 +1,7 @@
 -- File: lua/plugins/lang-typescript.lua
+
 return {
-  -- 1. MASON: Installs tsserver, prettier (formatter) and eslint (linter)
+  -- 1. MASON: Installs tsserver, prettier (formatter) and eslint_d (linter)
   {
     "mason-org/mason.nvim",
     opts = function(_, opts)
@@ -25,17 +26,56 @@ return {
     },
   },
 
-  -- 3. NVIM-LSPCONFIG: Configures tsserver
+  -- 3. NVIM-LINT: Configure eslint_d linter
   {
-    "neovim/nvim-lspconfig",
+    "mfussenegger/nvim-lint",
     opts = {
-      servers = {
-        typescript_language_server = {},
+      linters_by_ft = {
+        javascript = { "eslint_d" },
+        typescript = { "eslint_d" },
+        javascriptreact = { "eslint_d" },
+        typescriptreact = { "eslint_d" },
       },
     },
   },
 
-  -- 4. TREESITTER: Installs the parsers
+  -- 4. NVIM-LSPCONFIG: Configures tsserver
+  {
+    "neovim/nvim-lspconfig",
+    opts = {
+      servers = {
+        ts_ls = {
+          -- typescript-language-server now uses ts_ls instead of tsserver
+          settings = {
+            typescript = {
+              inlayHints = {
+                includeInlayParameterNameHints = "all",
+                includeInlayParameterNameHintsWhenArgumentMatchesName = false,
+                includeInlayFunctionParameterTypeHints = true,
+                includeInlayVariableTypeHints = true,
+                includeInlayPropertyDeclarationTypeHints = true,
+                includeInlayFunctionLikeReturnTypeHints = true,
+                includeInlayEnumMemberValueHints = true,
+              },
+            },
+            javascript = {
+              inlayHints = {
+                includeInlayParameterNameHints = "all",
+                includeInlayParameterNameHintsWhenArgumentMatchesName = false,
+                includeInlayFunctionParameterTypeHints = true,
+                includeInlayVariableTypeHints = true,
+                includeInlayPropertyDeclarationTypeHints = true,
+                includeInlayFunctionLikeReturnTypeHints = true,
+                includeInlayEnumMemberValueHints = true,
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+
+  -- 5. TREESITTER: Installs the parsers
   {
     "nvim-treesitter/nvim-treesitter",
     opts = function(_, opts)
