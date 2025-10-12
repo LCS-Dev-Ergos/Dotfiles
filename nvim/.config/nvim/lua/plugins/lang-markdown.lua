@@ -1,7 +1,7 @@
 -- File: lua/plugins/lang-markdown.lua
 
 return {
-  -- 1. MASON: Install linter and prettier for formatting
+  -- 1. MASON: Install linter and prettier for formatting.
   {
     "mason-org/mason.nvim",
     opts = function(_, opts)
@@ -10,7 +10,7 @@ return {
     end,
   },
 
-  -- 2. NVIM-LINT: Configure markdownlint
+  -- 2. NVIM-LINT: Configure markdownlint.
   {
     "mfussenegger/nvim-lint",
     opts = {
@@ -20,7 +20,7 @@ return {
     },
   },
 
-  -- 3. CONFORM.NVIM (Optional): Use prettier for markdown formatting
+  -- 3. CONFORM.NVIM (Optional): Use prettier for markdown formatting.
   {
     "stevearc/conform.nvim",
     opts = {
@@ -30,7 +30,7 @@ return {
     },
   },
 
-  -- 4. TREESITTER: Ensure markdown parsers are installed
+  -- 4. TREESITTER: Ensure markdown parsers are installed.
   {
     "nvim-treesitter/nvim-treesitter",
     opts = function(_, opts)
@@ -40,7 +40,7 @@ return {
     end,
   },
 
-  -- 5. MARKDOWN PREVIEW: Live preview in browser
+  -- 5. MARKDOWN PREVIEW: Live preview in browser.
   {
     "iamcco/markdown-preview.nvim",
     cmd = { "MarkdownPreviewToggle", "MarkdownPreview", "MarkdownPreviewStop" },

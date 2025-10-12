@@ -1,4 +1,5 @@
 -- File: lua/plugins/lang-lua.lua
+
 return {
   -- 1. MASON: Ensures that lua-language-server (for LSP) and stylua (for formatting) are installed.
   {

@@ -1,6 +1,6 @@
 -- File: lua/plugins/lang-python.lua
 return {
-  -- 1. MASON: Installs pyright (LSP), ruff (linter/formatter) and debugpy (debugger)
+  -- 1. MASON: Installs pyright (LSP), ruff (linter/formatter) and debugpy (debugger).
   {
     "mason-org/mason.nvim",
     opts = function(_, opts)
@@ -9,7 +9,7 @@ return {
     end,
   },
 
-  -- 2. CONFORM.NVIM (Formatter): Uses ruff
+  -- 2. CONFORM.NVIM (Formatter): Uses ruff.
   {
     "stevearc/conform.nvim",
     opts = {
@@ -19,7 +19,7 @@ return {
     },
   },
 
-  -- 3. NVIM-LSPCONFIG: Configures pyright
+  -- 3. NVIM-LSPCONFIG: Configures pyright.
   {
     "neovim/nvim-lspconfig",
     opts = {
@@ -29,7 +29,7 @@ return {
     },
   },
 
-  -- 4. TREESITTER: Installs the parser
+  -- 4. TREESITTER: Installs the parser.
   {
     "nvim-treesitter/nvim-treesitter",
     opts = function(_, opts)

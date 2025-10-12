@@ -1,7 +1,7 @@
 -- File: lua/plugins/lang-typescript.lua
 
 return {
-  -- 1. MASON: Installs tsserver, prettier (formatter) and eslint_d (linter)
+  -- 1. MASON: Installs tsserver, prettier (formatter) and eslint_d (linter).
   {
     "mason-org/mason.nvim",
     opts = function(_, opts)
@@ -13,7 +13,7 @@ return {
     end,
   },
 
-  -- 2. CONFORM.NVIM (Formatter): Uses prettier
+  -- 2. CONFORM.NVIM (Formatter): Uses prettier.
   {
     "stevearc/conform.nvim",
     opts = {
@@ -26,7 +26,7 @@ return {
     },
   },
 
-  -- 3. NVIM-LINT: Configure eslint_d linter
+  -- 3. NVIM-LINT: Configure eslint_d linter.
   {
     "mfussenegger/nvim-lint",
     opts = {
@@ -39,13 +39,13 @@ return {
     },
   },
 
-  -- 4. NVIM-LSPCONFIG: Configures tsserver
+  -- 4. NVIM-LSPCONFIG: Configures tsserver.
   {
     "neovim/nvim-lspconfig",
     opts = {
       servers = {
         ts_ls = {
-          -- typescript-language-server now uses ts_ls instead of tsserver
+          -- typescript-language-server now uses ts_ls instead of tsserver.
           settings = {
             typescript = {
               inlayHints = {
@@ -75,7 +75,7 @@ return {
     },
   },
 
-  -- 5. TREESITTER: Installs the parsers
+  -- 5. TREESITTER: Installs the parsers.
   {
     "nvim-treesitter/nvim-treesitter",
     opts = function(_, opts)

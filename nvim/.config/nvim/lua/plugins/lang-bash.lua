@@ -1,20 +1,20 @@
 -- File: lua/plugins/lang-bash.lua
 
 return {
-  -- 1. MASON: Ensure LSP, formatter, and linter are installed
+  -- 1. MASON: Ensure LSP, formatter, and linter are installed.
   {
     "mason-org/mason.nvim",
     opts = function(_, opts)
       opts.ensure_installed = opts.ensure_installed or {}
       vim.list_extend(opts.ensure_installed, {
-        "bash-language-server",  -- LSP for diagnostics and completion
-        "shfmt",                 -- Formatter
-        "shellcheck",            -- Linter for shell scripts
+        "bash-language-server",  -- LSP for diagnostics and completion.
+        "shfmt",                 -- Formatter.
+        "shellcheck",            -- Linter for shell scripts.
       })
     end,
   },
 
-  -- 2. CONFORM.NVIM (Formatter): Use shfmt for shell script files
+  -- 2. CONFORM.NVIM (Formatter): Use shfmt for shell script files.
   {
     "stevearc/conform.nvim",
     opts = {
@@ -26,7 +26,7 @@ return {
     },
   },
 
-  -- 3. NVIM-LINT: Configure shellcheck linter
+  -- 3. NVIM-LINT: Configure shellcheck linter.
   {
     "mfussenegger/nvim-lint",
     opts = {
@@ -38,7 +38,7 @@ return {
     },
   },
 
-  -- 4. NVIM-LSPCONFIG: Configure the language server (bashls)
+  -- 4. NVIM-LSPCONFIG: Configure the language server (bashls).
   {
     "neovim/nvim-lspconfig",
     opts = {
@@ -50,7 +50,7 @@ return {
     },
   },
 
-  -- 5. TREESITTER: Ensure the parser for bash is installed
+  -- 5. TREESITTER: Ensure the parser for bash is installed.
   {
     "nvim-treesitter/nvim-treesitter",
     opts = function(_, opts)

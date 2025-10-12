@@ -5,10 +5,10 @@ return {
   priority = 1000,
   lazy = false,
   opts = {
-    -- Enable all useful modules, EXCEPT the dashboard
+    -- Enable all useful modules, EXCEPT the dashboard.
     dashboard = { enabled = false },
 
-    -- All other snacks you want to use
+    -- All other snacks you want to use.
     bigfile = { enabled = true },
     explorer = { enabled = true },
     indent = { enabled = true },
@@ -22,7 +22,7 @@ return {
     words = { enabled = true },
     zen = { enabled = true },
   },
-  -- Keep all Snacks shortcuts you have defined
+  -- Keep all Snacks shortcuts you have defined.
   keys = {
     {
       "<leader><space>",
@@ -37,5 +37,5 @@ return {
     { "<leader>bd", function() require("snacks").bufdelete() end, desc = "Delete Buffer" },
     { "<leader>gg", function() require("snacks").lazygit() end, desc = "Lazygit" },
   },
-  -- The 'config' function is no longer needed here
+  -- The 'config' function is no longer needed here.
 }

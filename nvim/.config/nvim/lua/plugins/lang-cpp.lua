@@ -1,7 +1,7 @@
 -- File: lua/plugins/lang-cpp.lua
 
 return {
-  -- 1. MASON: Ensures tools are installed
+  -- 1. MASON: Ensures tools are installed.
   {
     "mason-org/mason.nvim",
     opts = function(_, opts)
@@ -9,12 +9,12 @@ return {
       vim.list_extend(opts.ensure_installed, {
         "clangd",
         "clang-format",
-        "codelldb", -- For debugging
+        "codelldb", -- For debugging.
       })
     end,
   },
 
-  -- 2. CONFORM.NVIM (Formatter): Uses Mason's clang-format
+  -- 2. CONFORM.NVIM (Formatter): Uses Mason's clang-format.
   {
     "stevearc/conform.nvim",
     opts = {
@@ -25,13 +25,13 @@ return {
     },
   },
 
-  -- 3. NVIM-LSPCONFIG: Configure clangd using LazyVim's pattern
+  -- 3. NVIM-LSPCONFIG: Configure clangd using LazyVim's pattern.
   {
     "neovim/nvim-lspconfig",
     opts = {
       servers = {
         clangd = {
-          -- Command with useful flags
+          -- Command with useful flags.
           cmd = {
             "clangd",
             "--background-index",
@@ -41,7 +41,7 @@ return {
             "--function-arg-placeholders",
             "--fallback-style=llvm",
           },
-          -- Define root directory detection
+          -- Define root directory detection.
           root_dir = function(fname)
             return require("lspconfig.util").root_pattern(
               ".clangd",
@@ -53,7 +53,7 @@ return {
               ".git"
             )(fname) or require("lspconfig.util").dirname(fname)
           end,
-          -- Capabilities are automatically handled by LazyVim
+          -- Capabilities are automatically handled by LazyVim.
           capabilities = {
             offsetEncoding = { "utf-16" },
           },
@@ -68,7 +68,7 @@ return {
     },
   },
 
-  -- 4. TREESITTER: Ensure C/C++ parsers are installed
+  -- 4. TREESITTER: Ensure C/C++ parsers are installed.
   {
     "nvim-treesitter/nvim-treesitter",
     opts = function(_, opts)
@@ -78,7 +78,7 @@ return {
     end,
   },
 
-  -- 5. FILETYPE ASSOCIATION: Associate .tpp files with cpp
+  -- 5. FILETYPE ASSOCIATION: Associate .tpp files with cpp.
   {
     "nvim-treesitter/nvim-treesitter",
     opts = function()

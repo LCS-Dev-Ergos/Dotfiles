@@ -1,6 +1,7 @@
 -- File: lua/plugins/lang-java.lua
+
 return {
-  -- 1. MASON: Installs jdtls (LSP) and the Java debugger
+  -- 1. MASON: Installs jdtls (LSP) and the Java debugger.
   {
     "mason-org/mason.nvim",
     opts = function(_, opts)
@@ -19,7 +20,7 @@ return {
     },
   },
 
-  -- 3. TREESITTER: Installs the parser
+  -- 3. TREESITTER: Installs the parser.
   {
     "nvim-treesitter/nvim-treesitter",
     opts = function(_, opts)

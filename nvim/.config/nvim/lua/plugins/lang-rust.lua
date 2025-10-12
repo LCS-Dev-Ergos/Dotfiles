@@ -1,6 +1,6 @@
 -- File: lua/plugins/lang-rust.lua
 return {
-  -- 1. MASON: Ensures rust_analyzer, rustfmt and codelldb (for debugging) are installed
+  -- 1. MASON: Ensures rust_analyzer, rustfmt and codelldb (for debugging) are installed.
   {
     "mason-org/mason.nvim",
     opts = function(_, opts)
@@ -9,7 +9,7 @@ return {
     end,
   },
 
-  -- 2. CONFORM.NVIM (Formatter): Uses rustfmt
+  -- 2. CONFORM.NVIM (Formatter): Uses rustfmt.
   {
     "stevearc/conform.nvim",
     opts = {
@@ -19,17 +19,17 @@ return {
     },
   },
 
-  -- 3. NVIM-LSPCONFIG: Configures rust_analyzer
+  -- 3. NVIM-LSPCONFIG: Configures rust_analyzer.
   {
     "neovim/nvim-lspconfig",
     opts = {
       servers = {
-        rust_analyzer = {}, -- Default configuration, usually sufficient
+        rust_analyzer = {}, -- Default configuration, usually sufficient.
       },
     },
   },
 
-  -- 4. TREESITTER: Ensures the parser for Rust is installed
+  -- 4. TREESITTER: Ensures the parser for Rust is installed.
   {
     "nvim-treesitter/nvim-treesitter",
     opts = function(_, opts)

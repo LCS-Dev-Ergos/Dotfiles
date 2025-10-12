@@ -1,14 +1,14 @@
 return {
   {
     "hrsh7th/nvim-cmp",
-    -- Add new completion sources here
+    -- Add new completion sources here.
     dependencies = { "hrsh7th/cmp-emoji" },
     ---@param opts cmp.ConfigSchema
     opts = function(_, opts)
-      -- Add emoji to completion sources
+      -- Add emoji to completion sources.
       table.insert(opts.sources, { name = "emoji" })
 
-      -- Configuration for "Supertab"
+      -- Configuration for "Supertab".
       local cmp = require("cmp")
       local luasnip = require("luasnip")
       local has_words_before = function()
@@ -43,7 +43,7 @@ return {
       })
     end,
   },
-  -- Disable LuaSnip's default <Tab> mapping to avoid conflicts
+  -- Disable LuaSnip's default <Tab> mapping to avoid conflicts.
   {
     "L3MON4D3/LuaSnip",
     keys = function() return {} end,

@@ -14,9 +14,9 @@ return {
     enable_git_status = true,
     enable_diagnostics = true,
 
-    -- Default options for all commands
+    -- Default options for all commands.
     default_component_configs = {
-      -- Configuration for the git_status component
+      -- Configuration for the git_status component.
       git_status = {
         symbols = {
           -- used by 'git status'
@@ -35,9 +35,9 @@ return {
       },
     },
 
-    -- Defines the windows and their composition
+    -- Defines the windows and their composition.
     window = {
-      -- Key mappings inside neo-tree
+      -- Key mappings inside neo-tree.
       mappings = {
         ["<space>"] = "none",
         ["A"] = "git_add_all",
@@ -50,9 +50,9 @@ return {
       },
     },
 
-    -- Specific configuration for the filesystem
+    -- Specific configuration for the filesystem.
     filesystem = {
-      -- Order in which components are rendered for each line
+      -- Order in which components are rendered for each line.
       renderers = {
         name = {
           { "git_status", "icon", "name" },

@@ -1,6 +1,6 @@
 -- File: lua/plugins/lang-ocaml.lua
 return {
-  -- 1. MASON: Installs ocaml-lsp (LSP) and ocamlformat (formatter)
+  -- 1. MASON: Installs ocaml-lsp (LSP) and ocamlformat (formatter).
   {
     "mason-org/mason.nvim",
     opts = function(_, opts)
@@ -9,7 +9,7 @@ return {
     end,
   },
 
-  -- 2. CONFORM.NVIM (Formatter): Uses ocamlformat
+  -- 2. CONFORM.NVIM (Formatter): Uses ocamlformat.
   {
     "stevearc/conform.nvim",
     opts = {
@@ -17,7 +17,7 @@ return {
     },
   },
 
-  -- 3. NVIM-LSPCONFIG: Configures ocaml-lsp
+  -- 3. NVIM-LSPCONFIG: Configures ocaml-lsp.
   {
     "neovim/nvim-lspconfig",
     opts = {
@@ -27,7 +27,7 @@ return {
     },
   },
 
-  -- 4. TREESITTER: Installs the parser
+  -- 4. TREESITTER: Installs the parser.
   {
     "nvim-treesitter/nvim-treesitter",
     opts = function(_, opts)
