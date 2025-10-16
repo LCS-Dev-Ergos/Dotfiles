@@ -543,24 +543,28 @@ if [[ "$PLATFORM" == 'macOS' ]]; then
     export CPATH="/opt/homebrew/include"
     export LDFLAGS="-L/opt/homebrew/opt/llvm/lib"
     export CPPFLAGS="-I/opt/homebrew/opt/llvm/include"
+
+    # GO Language.
+    export GOROOT="/usr/local/go"
+    export GOPATH=$HOME/00_ENV/go
+
+    # Android Home for Platform Tools.
+    export ANDROID_HOME="$HOME/Library/Android/Sdk"
 fi
 
 if [[ "$PLATFORM" == 'Linux' && "$ARCH_LINUX" == true ]]; then
     # Set Electron flags.
     export ELECTRON_OZONE_PLATFORM_HINT="wayland"
     export NATIVE_WAYLAND="1"
+
+    # GO Language.
+    export GOPATH="$HOME/go"
+    export PATH="$PATH:$(go env GOBIN):$(go env GOPATH)/bin"
 fi
 
 # ============================================================================ #
 # +++++++++++++++++++++++++++++ GLOBAL VARIABLES +++++++++++++++++++++++++++++ #
 # ============================================================================ #
-
-# GO Language.
-export GOROOT="/usr/local/go"
-export GOPATH=$HOME/00_ENV/go
-
-# Android Home for Platform Tools.
-export ANDROID_HOME="$HOME/Library/Android/Sdk"
 
 # Clang-Format Configuration.
 export CLANG_FORMAT_CONFIG="$HOME/.config/clang-format/.clang-format"
