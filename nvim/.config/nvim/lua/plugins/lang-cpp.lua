@@ -51,7 +51,7 @@ return {
               "compile_flags.txt",
               "configure.ac",
               ".git"
-            )(fname) or require("lspconfig.util").dirname(fname)
+            )(fname) or vim.fn.getcwd()
           end,
           -- Capabilities are automatically handled by LazyVim.
           capabilities = {
