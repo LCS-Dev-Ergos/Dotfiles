@@ -416,6 +416,126 @@ function djvu_to_pdf() {
     fi
 }
 
+# ----------------------- PDF Bookmarks Copy Function ----------------------- #
+# Copy bookmarks from one PDF to another using copy_bookmarks.py script.
+# Usage: copy_pdf_bookmarks <source_with_bookmarks.pdf> <target_without_bookmarks.pdf> [output.pdf]
+function copy_pdf_bookmarks() {
+    # Check if Python 3 is installed
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "${C_RED}Error: Python 3 is not installed.${C_RESET}" >&2
+        echo "Please install Python 3 first:" >&2
+        if [[ "$PLATFORM" == "macOS" ]]; then
+            echo "  brew install python3" >&2
+        elif [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" == true ]]; then
+            echo "  sudo pacman -S python" >&2
+        elif [[ "$PLATFORM" == "Linux" ]]; then
+            echo "  sudo apt install python3 (Debian/Ubuntu)" >&2
+            echo "  sudo dnf install python3 (Fedora)" >&2
+        fi
+        return 1
+    fi
+
+    # Check if PyPDF2 is installed
+    if ! python3 -c "import PyPDF2" 2>/dev/null; then
+        echo "${C_RED}Error: PyPDF2 library is not installed.${C_RESET}" >&2
+        echo "Please install PyPDF2 first:" >&2
+        echo "  pip3 install PyPDF2" >&2
+        echo "  or: python3 -m pip install PyPDF2" >&2
+        return 1
+    fi
+
+    # Check if copy_bookmarks.py script exists
+    local script_path="${HOME}/.config/zsh/scripts/python/copy_bookmarks.py"
+    if [[ ! -f "$script_path" ]]; then
+        # Try alternative locations
+        if [[ -f "./copy_bookmarks.py" ]]; then
+            script_path="./copy_bookmarks.py"
+        elif [[ -f "$(dirname "${BASH_SOURCE[0]}")/copy_bookmarks.py" ]]; then
+            script_path="$(dirname "${BASH_SOURCE[0]}")/copy_bookmarks.py"
+        else
+            echo "${C_RED}Error: copy_bookmarks.py script not found.${C_RESET}" >&2
+            echo "Expected location: ${HOME}/.config/zsh/scripts/python/copy_bookmarks.py" >&2
+            echo "Or in current directory: ./copy_bookmarks.py" >&2
+            return 1
+        fi
+    fi
+
+    # Check if correct number of arguments is provided
+    if [[ $# -lt 2 || $# -gt 3 ]]; then
+        echo "${C_YELLOW}Usage: copy_pdf_bookmarks <source_with_bookmarks.pdf> <target_without_bookmarks.pdf> [output.pdf]${C_RESET}" >&2
+        echo "Example: copy_pdf_bookmarks original.pdf new.pdf" >&2
+        echo "         copy_pdf_bookmarks original.pdf new.pdf result.pdf" >&2
+        return 1
+    fi
+
+    local source_file="$1"
+    local target_file="$2"
+    local output_file="${3:-}"
+
+    # Check if source file exists and is a PDF
+    if [[ ! -f "$source_file" ]]; then
+        echo "${C_RED}Error: Source file '$source_file' not found.${C_RESET}" >&2
+        return 1
+    fi
+
+    if [[ ! "$source_file" =~ \.(pdf|PDF)$ ]]; then
+        echo "${C_RED}Error: Source file must be a PDF document.${C_RESET}" >&2
+        return 1
+    fi
+
+    # Check if target file exists and is a PDF
+    if [[ ! -f "$target_file" ]]; then
+        echo "${C_RED}Error: Target file '$target_file' not found.${C_RESET}" >&2
+        return 1
+    fi
+
+    if [[ ! "$target_file" =~ \.(pdf|PDF)$ ]]; then
+        echo "${C_RED}Error: Target file must be a PDF document.${C_RESET}" >&2
+        return 1
+    fi
+
+    # Generate output filename if not provided
+    if [[ -z "$output_file" ]]; then
+        local base_name="${target_file%.*}"
+        output_file="${base_name}_with_bookmarks.pdf"
+    fi
+
+    # Ensure output file has .pdf extension
+    if [[ ! "$output_file" =~ \.(pdf|PDF)$ ]]; then
+        output_file="${output_file}.pdf"
+    fi
+
+    # Check if output file already exists and ask for confirmation
+    if [[ -f "$output_file" ]]; then
+        echo -n "${C_YELLOW}Output file '$output_file' already exists. Overwrite? (y/N): ${C_RESET}"
+        read -r response
+        if [[ ! "$response" =~ ^[Yy]$ ]]; then
+            echo "${C_CYAN}Operation cancelled.${C_RESET}"
+            return 0
+        fi
+    fi
+
+    # Perform the bookmark copy operation
+    echo "${C_CYAN}Copying bookmarks from '$source_file' to '$target_file'...${C_RESET}"
+    echo
+
+    if python3 "$script_path" "$source_file" "$target_file" "$output_file"; then
+        echo
+        echo "${C_GREEN}✓ Successfully created '$output_file' with bookmarks${C_RESET}"
+
+        # Show file size information
+        if command -v du >/dev/null 2>&1; then
+            local source_size=$(du -h "$source_file" | cut -f1)
+            local target_size=$(du -h "$target_file" | cut -f1)
+            local output_size=$(du -h "$output_file" | cut -f1)
+            echo "${C_BLUE}Source: $source_size | Target: $target_size | Output: $output_size${C_RESET}"
+        fi
+    else
+        echo "${C_RED}Error: Failed to copy bookmarks. Please check the files and try again.${C_RESET}" >&2
+        return 1
+    fi
+}
+
 # ---------------------------- Find Large Files ----------------------------- #
 # Find files larger than specified size (default 100MB).
 # Usage: findlarge [size_in_MB] [directory]
