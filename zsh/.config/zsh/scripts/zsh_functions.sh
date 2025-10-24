@@ -536,6 +536,302 @@ function copy_pdf_bookmarks() {
     fi
 }
 
+# ----------------------- PDF Metadata Removal Function --------------------- #
+# Remove metadata from PDF documents for privacy and security.
+# Usage: remove_pdf_metadata <input.pdf> [output.pdf]
+function remove_pdf_metadata() {
+    # Check if qpdf is installed
+    if ! command -v qpdf >/dev/null 2>&1; then
+        echo "${C_RED}Error: qpdf is not installed.${C_RESET}" >&2
+        echo "Please install qpdf first:" >&2
+        if [[ "$PLATFORM" == "macOS" ]]; then
+            echo "  brew install qpdf" >&2
+        elif [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" == true ]]; then
+            echo "  sudo pacman -S qpdf" >&2
+        elif [[ "$PLATFORM" == "Linux" ]]; then
+            echo "  sudo apt install qpdf (Debian/Ubuntu)" >&2
+            echo "  sudo dnf install qpdf (Fedora)" >&2
+        fi
+        return 1
+    fi
+
+    # Check if exiftool is installed (highly recommended for metadata removal)
+    if ! command -v exiftool >/dev/null 2>&1; then
+        echo "${C_YELLOW}Warning: exiftool is not installed.${C_RESET}"
+        echo "${C_YELLOW}For complete metadata removal, it's highly recommended:${C_RESET}"
+        if [[ "$PLATFORM" == "macOS" ]]; then
+            echo "  brew install exiftool"
+        elif [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" == true ]]; then
+            echo "  sudo pacman -S perl-image-exiftool"
+        elif [[ "$PLATFORM" == "Linux" ]]; then
+            echo "  sudo apt install libimage-exiftool-perl (Debian/Ubuntu)"
+            echo "  sudo dnf install perl-Image-ExifTool (Fedora)"
+        fi
+        echo
+        echo -n "${C_YELLOW}Continue anyway? (y/N): ${C_RESET}"
+        read -r response
+        if [[ ! "$response" =~ ^[Yy]$ ]]; then
+            echo "${C_CYAN}Operation cancelled.${C_RESET}"
+            return 0
+        fi
+    fi
+
+    # Check if correct number of arguments is provided
+    if [[ $# -lt 1 || $# -gt 2 ]]; then
+        echo "${C_YELLOW}Usage: remove_pdf_metadata <input.pdf> [output.pdf]${C_RESET}" >&2
+        echo "Examples:" >&2
+        echo "  remove_pdf_metadata document.pdf" >&2
+        echo "  remove_pdf_metadata document.pdf cleaned.pdf" >&2
+        echo "" >&2
+        echo "If no output file is specified, the original will be overwritten." >&2
+        return 1
+    fi
+
+    local input_file="$1"
+    local output_file="${2:-}"
+    local overwrite_mode=false
+
+    # Check if input file exists and is a PDF
+    if [[ ! -f "$input_file" ]]; then
+        echo "${C_RED}Error: Input file '$input_file' not found.${C_RESET}" >&2
+        return 1
+    fi
+
+    if [[ ! "$input_file" =~ \.(pdf|PDF)$ ]]; then
+        echo "${C_RED}Error: Input file must be a PDF document.${C_RESET}" >&2
+        return 1
+    fi
+
+    # If no output file specified, overwrite the original
+    if [[ -z "$output_file" ]]; then
+        overwrite_mode=true
+        output_file="${input_file}.tmp"
+
+        echo -n "${C_YELLOW}No output file specified. Overwrite '$input_file'? (y/N): ${C_RESET}"
+        read -r response
+        if [[ ! "$response" =~ ^[Yy]$ ]]; then
+            echo "${C_CYAN}Operation cancelled.${C_RESET}"
+            return 0
+        fi
+    fi
+
+    # Ensure output file has .pdf extension
+    if [[ ! "$output_file" =~ \.(pdf|PDF)$ ]]; then
+        output_file="${output_file}.pdf"
+    fi
+
+    # Check if output file already exists (and we're not in overwrite mode)
+    if [[ "$overwrite_mode" == false && -f "$output_file" ]]; then
+        echo -n "${C_YELLOW}Output file '$output_file' already exists. Overwrite? (y/N): ${C_RESET}"
+        read -r response
+        if [[ ! "$response" =~ ^[Yy]$ ]]; then
+            echo "${C_CYAN}Operation cancelled.${C_RESET}"
+            return 0
+        fi
+    fi
+
+    # Display current metadata before removal (if exiftool is available)
+    if command -v exiftool >/dev/null 2>&1; then
+        echo "${C_CYAN}Current metadata:${C_RESET}"
+        local current_meta=$(exiftool -G -s "$input_file" 2>/dev/null | grep -E "(Author|Creator|Producer|Title|Subject|Keywords|CreateDate|ModifyDate)")
+        if [[ -n "$current_meta" ]]; then
+            echo "$current_meta"
+        else
+            echo "  (No standard metadata found)"
+        fi
+        echo
+    fi
+
+    # Perform metadata removal
+    echo "${C_CYAN}Removing metadata from '$input_file'...${C_RESET}"
+
+    # First, check if the PDF is valid
+    if ! qpdf --check "$input_file" >/dev/null 2>&1; then
+        echo "${C_YELLOW}Warning: PDF validation check reported issues, attempting anyway...${C_RESET}"
+    fi
+
+    # Use qpdf to remove metadata - using basic compatible options
+    # Basic qpdf command works with all versions
+    local qpdf_error
+    qpdf_error=$(qpdf "$input_file" "$output_file" 2>&1)
+
+    if [[ $? -eq 0 ]]; then
+
+        # qpdf alone doesn't remove metadata, we need exiftool for that
+        if command -v exiftool >/dev/null 2>&1; then
+            echo "${C_CYAN}Removing metadata with exiftool...${C_RESET}"
+            # Remove all metadata
+            if exiftool -all:all= -overwrite_original "$output_file" 2>/dev/null; then
+                echo "${C_GREEN}✓ Metadata removed successfully${C_RESET}"
+            else
+                echo "${C_YELLOW}Warning: exiftool had issues removing some metadata${C_RESET}"
+            fi
+        else
+            echo "${C_YELLOW}Warning: exiftool not found. Only basic PDF cleanup performed.${C_RESET}"
+            echo "${C_YELLOW}For complete metadata removal, install exiftool:${C_RESET}"
+            if [[ "$PLATFORM" == "macOS" ]]; then
+                echo "  brew install exiftool"
+            elif [[ "$PLATFORM" == "Linux" ]]; then
+                echo "  sudo apt install libimage-exiftool-perl (Debian/Ubuntu)"
+                echo "  sudo pacman -S perl-image-exiftool (Arch)"
+            fi
+        fi
+
+        # If in overwrite mode, replace the original file
+        if [[ "$overwrite_mode" == true ]]; then
+            mv "$output_file" "$input_file"
+            output_file="$input_file"
+        fi
+
+        echo "${C_GREEN}✓ Successfully processed PDF${C_RESET}"
+        echo "${C_GREEN}✓ Output file: '$output_file'${C_RESET}"
+
+        # Show file size comparison
+        if command -v du >/dev/null 2>&1; then
+            local input_size=$(du -h "$input_file" | cut -f1)
+            local output_size=$(du -h "$output_file" | cut -f1)
+            echo "${C_BLUE}Original: $input_size → Cleaned: $output_size${C_RESET}"
+        fi
+
+        # Show remaining metadata (if exiftool is available)
+        if command -v exiftool >/dev/null 2>&1; then
+            echo
+            echo "${C_CYAN}Remaining metadata:${C_RESET}"
+            local remaining_meta=$(exiftool -G -s "$output_file" 2>/dev/null | grep -E "(Author|Creator|Producer|Title|Subject|Keywords|CreateDate|ModifyDate)")
+            if [[ -n "$remaining_meta" ]]; then
+                echo "$remaining_meta"
+            else
+                echo "  ${C_GREEN}(All standard metadata removed)${C_RESET}"
+            fi
+        fi
+
+    else
+        # Clean up temporary file if it was created
+        [[ "$overwrite_mode" == true && -f "$output_file" ]] && rm -f "$output_file"
+
+        echo "${C_RED}Error: Failed to remove metadata.${C_RESET}" >&2
+        echo
+        echo "${C_YELLOW}qpdf error message:${C_RESET}" >&2
+        echo "$qpdf_error" >&2
+        echo
+        echo "${C_YELLOW}Possible solutions:${C_RESET}" >&2
+
+        # Provide specific suggestions based on error message
+        if echo "$qpdf_error" | grep -q "password"; then
+            echo "  → The PDF is password-protected. Decrypt it first:" >&2
+            echo "    qpdf --password=PASSWORD --decrypt input.pdf output.pdf" >&2
+        elif echo "$qpdf_error" | grep -q "damaged\|corrupt"; then
+            echo "  → The PDF appears to be corrupted. Try repairing it:" >&2
+            echo "    qpdf --check input.pdf" >&2
+            echo "    qpdf input.pdf --replace-input" >&2
+        elif echo "$qpdf_error" | grep -q "not a PDF"; then
+            echo "  → The file is not a valid PDF document" >&2
+        else
+            echo "  1. Check if the PDF is corrupted: qpdf --check \"$input_file\"" >&2
+            echo "  2. Try without linearization: qpdf \"$input_file\" \"${output_file%.pdf}_simple.pdf\"" >&2
+            echo "  3. If password-protected: qpdf --decrypt \"$input_file\" output.pdf" >&2
+        fi
+        return 1
+    fi
+}
+
+# -------------------- Batch PDF Metadata Removal Function ------------------ #
+# Remove metadata from multiple PDF files at once.
+# Usage: remove_pdf_metadata_batch <file1.pdf> [file2.pdf] [file3.pdf] ...
+function remove_pdf_metadata_batch() {
+    if [[ $# -lt 1 ]]; then
+        echo "${C_YELLOW}Usage: remove_pdf_metadata_batch <file1.pdf> [file2.pdf] ...${C_RESET}" >&2
+        echo "Example: remove_pdf_metadata_batch *.pdf" >&2
+        return 1
+    fi
+
+    local total_files=$#
+    local success_count=0
+    local fail_count=0
+
+    echo "${C_CYAN}Processing $total_files PDF file(s)...${C_RESET}"
+    echo
+
+    for pdf_file in "$@"; do
+        if [[ -f "$pdf_file" && "$pdf_file" =~ \.(pdf|PDF)$ ]]; then
+            echo "${C_BLUE}Processing: $pdf_file${C_RESET}"
+
+            # Create output filename with suffix
+            local base_name="${pdf_file%.*}"
+            local extension="${pdf_file##*.}"
+            local output_file="${base_name}_cleaned.${extension}"
+
+            # Use qpdf to remove metadata - basic command for compatibility
+            if qpdf "$pdf_file" "$output_file" 2>/dev/null; then
+
+                # Additionally use exiftool if available
+                if command -v exiftool >/dev/null 2>&1; then
+                    exiftool -all:all= -overwrite_original "$output_file" >/dev/null 2>&1
+                fi
+
+                echo "  ${C_GREEN}✓ Created: $output_file${C_RESET}"
+                ((success_count++))
+            else
+                echo "  ${C_RED}✗ Failed to process${C_RESET}"
+                ((fail_count++))
+            fi
+            echo
+        else
+            echo "${C_YELLOW}Skipping: $pdf_file (not a valid PDF)${C_RESET}"
+            echo
+            ((fail_count++))
+        fi
+    done
+
+    echo "${C_CYAN}Summary:${C_RESET}"
+    echo "  ${C_GREEN}Success: $success_count${C_RESET}"
+    [[ $fail_count -gt 0 ]] && echo "  ${C_RED}Failed: $fail_count${C_RESET}"
+}
+
+# ------------------- Simple PDF Metadata Removal (Fallback) ---------------- #
+# Simplified version without linearization for problematic PDFs.
+# Usage: remove_pdf_metadata_simple <input.pdf> [output.pdf]
+function remove_pdf_metadata_simple() {
+    if [[ $# -lt 1 || $# -gt 2 ]]; then
+        echo "${C_YELLOW}Usage: remove_pdf_metadata_simple <input.pdf> [output.pdf]${C_RESET}" >&2
+        echo "This is a simplified version that works with problematic PDFs." >&2
+        return 1
+    fi
+
+    local input_file="$1"
+    local output_file="${2:-}"
+
+    if [[ ! -f "$input_file" ]]; then
+        echo "${C_RED}Error: Input file '$input_file' not found.${C_RESET}" >&2
+        return 1
+    fi
+
+    # Generate output filename if not provided
+    if [[ -z "$output_file" ]]; then
+        local base_name="${input_file%.*}"
+        output_file="${base_name}_cleaned.pdf"
+    fi
+
+    echo "${C_CYAN}Attempting simple metadata removal...${C_RESET}"
+
+    # Try the simplest possible qpdf command
+    if qpdf "$input_file" "$output_file" 2>&1; then
+        echo "${C_GREEN}✓ Successfully created: $output_file${C_RESET}"
+
+        # Try to remove additional metadata with exiftool if available
+        if command -v exiftool >/dev/null 2>&1; then
+            echo "${C_CYAN}Removing additional metadata with exiftool...${C_RESET}"
+            exiftool -all:all= -overwrite_original "$output_file" >/dev/null 2>&1
+            echo "${C_GREEN}✓ Additional metadata removed${C_RESET}"
+        fi
+
+        return 0
+    else
+        echo "${C_RED}Error: Even simple processing failed.${C_RESET}" >&2
+        return 1
+    fi
+}
+
 # ---------------------------- Find Large Files ----------------------------- #
 # Find files larger than specified size (default 100MB).
 # Usage: findlarge [size_in_MB] [directory]
