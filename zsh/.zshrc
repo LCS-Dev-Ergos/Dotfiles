@@ -969,3 +969,9 @@ unset -f build_final_path
 # ============================================================================ #
 # +++++++++++++++++++++++++++ AUTOMATIC ADDITIONS ++++++++++++++++++++++++++++ #
 # ============================================================================ #
+
+# The following lines have been added by Docker Desktop to enable Docker CLI completions.
+fpath=(/Users/lcs-dev/.docker/completions $fpath)
+autoload -Uz compinit
+compinit
+# End of Docker CLI completions

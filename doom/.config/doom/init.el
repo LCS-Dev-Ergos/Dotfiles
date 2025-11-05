@@ -45,7 +45,7 @@
        hl-todo             ; highlight TODO/FIXME/NOTE/DEPRECATED/HACK/REVIEW
        ;;hydra
        ;;indent-guides     ; highlighted indent columns
-       ligatures           ; ligatures and symbols to make your code pretty again
+       (ligatures +extra)  ; ligatures and symbols to make your code pretty again
        ;;minimap           ; show a map of the code on the side
        modeline            ; snazzy, Atom-inspired modeline, plus API
        nav-flash           ; blink cursor line after big motions
@@ -128,7 +128,7 @@
        (cc +lsp)           ; C > C++ == 1
        ;;clojure           ; java with a lisp
        common-lisp         ; if you've seen one lisp, you've seen them all
-       ;;coq               ; proofs-as-programs
+       coq                 ; proofs-as-programs
        ;;crystal           ; ruby at the speed of c
        ;;csharp            ; unity, .NET, and mono shenanigans
        ;;data              ; config/data formats
@@ -162,7 +162,7 @@
        markdown            ; writing docs for people to ignore
        ;;nim               ; python + lisp at the speed of c
        nix                 ; I hereby declare "nix geht mehr!"
-       ocaml               ; an objective camel
+       (ocaml +lsp)        ; an objective camel
        org                 ; organize your plain life in plain text
        ;;php               ; perl's insecure younger brother
        ;;plantuml          ; diagrams for confusing people more
