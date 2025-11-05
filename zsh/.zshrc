@@ -975,3 +975,10 @@ fpath=(/Users/lcs-dev/.docker/completions $fpath)
 autoload -Uz compinit
 compinit
 # End of Docker CLI completions
+
+# Added by LM Studio CLI (lms)
+export PATH="$PATH:/Users/lcs-dev/.lmstudio/bin"
+# End of LM Studio CLI section
+
+# opencode
+export PATH=/Users/lcs-dev/.opencode/bin:$PATH
