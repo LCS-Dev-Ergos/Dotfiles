@@ -10,12 +10,35 @@ return {
     end,
   },
 
-  -- 2. NVIM-LINT: Configure markdownlint.
+  -- 2. NVIM-LINT: Configure markdownlint with toggle.
   {
     "mfussenegger/nvim-lint",
     opts = {
       linters_by_ft = {
-        markdown = { "markdownlint" },
+        markdown = {},  -- Start with no linters enabled for markdown.
+      },
+    },
+    keys = {
+      {
+        "<leader>tl",
+        function()
+          local lint = require("lint")
+          local current = lint.linters_by_ft.markdown or {}
+          
+          if #current == 0 then
+            -- Attiva il linting
+            lint.linters_by_ft.markdown = { "markdownlint" }
+            lint.try_lint()
+            vim.notify("Markdown linting enabled", vim.log.levels.INFO)
+          else
+            -- Disattiva il linting
+            lint.linters_by_ft.markdown = {}
+            vim.diagnostic.reset(nil, 0)
+            vim.notify("Markdown linting disabled", vim.log.levels.INFO)
+          end
+        end,
+        desc = "Toggle markdown linting",
+        ft = "markdown",
       },
     },
   },
@@ -51,6 +74,21 @@ return {
     end,
     init = function()
       vim.g.mkdp_filetypes = { "markdown" }
+    end,
+  },
+
+  -- 6. SPELL CHECKING: Configure spell checking for markdown files.
+  {
+    "LazyVim/LazyVim",
+    opts = function(_, opts)
+      -- Enable spell checking for markdown files
+      vim.api.nvim_create_autocmd("FileType", {
+        pattern = "markdown",
+        callback = function()
+          vim.opt_local.spell = true
+          vim.opt_local.spelllang = "it,en"  -- Italiano come prima lingua, inglese come seconda
+        end,
+      })
     end,
   },
 }
