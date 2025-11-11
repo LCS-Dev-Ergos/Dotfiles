@@ -26,14 +26,24 @@ return {
     },
   },
 
-  -- 3. NVIM-LINT: Configure shellcheck linter.
+  -- 3. NVIM-LINT: Shellcheck disabled (call manually when needed).
   {
     "mfussenegger/nvim-lint",
     opts = {
       linters_by_ft = {
-        bash = { "shellcheck" },
-        zsh = { "shellcheck" },
-        sh = { "shellcheck" },
+        bash = {},
+        zsh = {},
+        sh = {},
+      },
+    },
+    keys = {
+      {
+        "<leader>cs",
+        function()
+          require("lint").try_lint("shellcheck")
+        end,
+        desc = "Run shellcheck on current file",
+        ft = { "sh", "bash", "zsh" },
       },
     },
   },

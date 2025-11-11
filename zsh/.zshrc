@@ -1,3 +1,5 @@
+#!/usr/bin/env zsh
+# shellcheck shell=bash
 # ============================================================================ #
 # ++++++++++++++++++++++++++++ BASE CONFIGURATION ++++++++++++++++++++++++++++ #
 # ============================================================================ #
@@ -143,7 +145,7 @@ source "$ZSH/oh-my-zsh.sh"
 # Platform-specific prompt configuration.
 if [[ "$PLATFORM" == "macOS" ]]; then
     # macOS: Oh-My-Posh
-    local omp_config="$XDG_CONFIG_HOME/oh-my-posh/lcs-dev.omp.json"
+    omp_config="$XDG_CONFIG_HOME/oh-my-posh/lcs-dev.omp.json"
     if command -v oh-my-posh >/dev/null 2>&1 && [ -f "$omp_config" ]; then
         eval "$(oh-my-posh init zsh --config "$omp_config")"
     fi
@@ -157,7 +159,7 @@ elif [[ "$PLATFORM" == "Linux" ]]; then
         [[ -f "$HOME/.p10k.zsh" ]] && source "$HOME/.p10k.zsh"
     else
         # Fallback to Oh-My-Posh only if available and configured.
-        local omp_config="$XDG_CONFIG_HOME/oh-my-posh/lcs-dev.omp.json"
+        omp_config="$XDG_CONFIG_HOME/oh-my-posh/lcs-dev.omp.json"
         if command -v oh-my-posh >/dev/null 2>&1 && [ -f "$omp_config" ]; then
             eval "$(oh-my-posh init zsh --config "$omp_config")"
         fi
@@ -186,7 +188,7 @@ bindkey -v
 export KEYTIMEOUT=1
 
 # Simplified and more efficient logic to update prompt based on mode.
-function zle-line-init() { zle -K viins }
+function zle-line-init() { zle -K viins; }
 function zle-keymap-select() {
     case $KEYMAP in
         viins) zle-line-init ;;
@@ -407,6 +409,12 @@ elif [[ "$PLATFORM" == 'Linux' ]]; then
     alias remove="sudo apt remove"
     alias autoremove="sudo apt autoremove"
   elif command -v dnf >/dev/null 2>&1; then
+    # Fedora/RHEL
+    alias update="sudo dnf upgrade"
+    alias install="sudo dnf install"
+    alias search="dnf search"
+    alias remove="sudo dnf remove"
+    alias autoremove="sudo dnf autoremove"
   fi
   alias services="systemctl list-units --type=service"
   alias logs="journalctl -f"
@@ -415,6 +423,7 @@ elif [[ "$PLATFORM" == 'Linux' ]]; then
   alias openports="nmap -sT -O localhost"
   alias firewall="sudo ufw status"
   alias ip="curl -s ifconfig.me"
+  # shellcheck disable=SC2142
   alias localip="hostname -I | awk '{print \$1}'"
   alias path="echo \$PATH | tr ':' '\n'"
   alias topdir="du -h --max-depth=1 | sort -hr"
@@ -431,11 +440,13 @@ elif [[ "$PLATFORM" == 'Linux' ]]; then
     function command_not_found_handler {
       local purple='\e[1;35m' bright='\e[0;1m' green='\e[1;32m' reset='\e[0m'
       printf 'zsh: command not found: %s\n' "$1"
+      # shellcheck disable=SC2296
       local entries=( ${(f)"$(/usr/bin/pacman -F --machinereadable -- "/usr/bin/$1")"} )
       if (( ${#entries[@]} )); then
         printf "${bright}$1${reset} may be found in the following packages:\n"
         local pkg
         for entry in "${entries[@]}" ; do
+          # shellcheck disable=SC2296
           local fields=( ${(0)entry} )
           if [[ "$pkg" != "${fields[2]}" ]]; then
             printf "${purple}%s/${bright}%s ${green}%s${reset}\n" "${fields[1]}" "${fields[2]}" "${fields[3]}"
@@ -766,8 +777,8 @@ fi
 if command -v fnm &>/dev/null; then
 
     # Declare a command counter specific to this session.
-    # 'local -i' makes it an integer local to the session.
-    local -i FNM_CMD_COUNTER=0
+    # Integer variable for the session.
+    typeset -i FNM_CMD_COUNTER=0
 
     # Heartbeat function to keep the current session "alive".
     _fnm_update_timestamp() {
@@ -931,6 +942,7 @@ build_final_path() {
 
     # Add any directories from original PATH that weren't in template
     # (like VS Code extensions, etc.).
+    # shellcheck disable=SC2296
     local -a original_path_array=("${(@s/:/)original_path}")
     for dir in "${original_path_array[@]}"; do
         if [[ -n "$dir" && -d "$dir" ]]; then
