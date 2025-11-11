@@ -29,13 +29,14 @@ return {
   -- 3. NVIM-LINT: Shellcheck disabled (call manually when needed).
   {
     "mfussenegger/nvim-lint",
-    opts = {
-      linters_by_ft = {
-        bash = {},
-        zsh = {},
-        sh = {},
-      },
-    },
+    opts = function(_, opts)
+      -- Disable shellcheck for shell files
+      opts.linters_by_ft = opts.linters_by_ft or {}
+      opts.linters_by_ft.bash = {}
+      opts.linters_by_ft.zsh = {}
+      opts.linters_by_ft.sh = {}
+      return opts
+    end,
     keys = {
       {
         "<leader>cs",

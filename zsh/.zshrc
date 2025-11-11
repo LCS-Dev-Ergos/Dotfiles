@@ -921,6 +921,7 @@ build_final_path() {
             "$HOME/.ghcup/bin" "$HOME/.cabal/bin"
             "$HOME/.cargo/bin"
             "$HOME/.ada/bin"
+            "$HOME/.elan/bin"
             "$GOPATH/bin" "$GOROOT/bin"
             "$ANDROID_HOME/platform-tools" "$ANDROID_HOME/cmdline-tools/latest/bin"
             "$HOME/.local/share/JetBrains/Toolbox/scripts"
@@ -986,11 +987,9 @@ unset -f build_final_path
 fpath=(/Users/lcs-dev/.docker/completions $fpath)
 autoload -Uz compinit
 compinit
-# End of Docker CLI completions
 
-# Added by LM Studio CLI (lms)
+# LM Studio CLI (lms)
 export PATH="$PATH:/Users/lcs-dev/.lmstudio/bin"
-# End of LM Studio CLI section
 
 # opencode
 export PATH=/Users/lcs-dev/.opencode/bin:$PATH
