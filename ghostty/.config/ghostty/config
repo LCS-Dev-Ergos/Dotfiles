@@ -1,9 +1,16 @@
 # ================================ General ================================== #
 
-# Font settings
+# Font Settings
 font-family = CaskaydiaCove Nerd Font
 font-size = 14.5
-adjust-cell-height = 45%
+
+font-style = SemiBold  
+font-style-bold = Bold
+font-style-italic = SemiBold Italic
+font-style-bold-italic = Bold Italic
+
+# Symbol Mapping for Nerd Fonts
+font-feature = CaskaydiaCove Nerd Font:liga=1
 
 # ================================ Settings ================================= #
 window-padding-balance = true
@@ -11,34 +18,47 @@ window-padding-x = 8
 window-padding-y = 8
 window-save-state = always
 macos-titlebar-style = transparent
-window-colorspace = "display-p3"
+window-colorspace = display-p3
+macos-titlebar-style = hidden
 
+# Cursor Settings
 cursor-style = block
 shell-integration-features = no-cursor,sudo,no-title
 
+# Mouse Settings
 mouse-hide-while-typing = true
 mouse-scroll-multiplier = 2
 macos-option-as-alt = false
 
-# scrollback limit
-scrollback = 10000
+# Scrollback Limit
+scrollback-limit = 10000
 
-# Tokyo Night color scheme
+# Tokyo Night Color Scheme
 background = 1a1b26
 foreground = a9b1d6
 
-# Selection colors
+# Selection Colors
 selection-background = 28344a
 
-# Cursor colors
+# Cursor Colors
 cursor-color = c0caf5
 
-# URL colors
-# hyperlinks enabled by default
+# Custom Shaders
+# custom-shader = shaders/cursor_blaze_no_trail.glsl
+# custom-shader = shaders/cursor_blaze_tapered.glsl
+# custom-shader = shaders/cursor_blaze.glsl
+# custom-shader = shaders/cursor_border_1.glsl
+# custom-shader = shaders/cursor_frozen.glsl
+custom-shader = shaders/cursor_smear_fade.glsl
+custom-shader = shaders/cursor_smear_gradient.glsl
+custom-shader = shaders/cursor_smear_rainbow.glsl
+custom-shader = shaders/cursor_smear.glsl
+# custom-shader = shaders/debug_cursor_animated.glsl
+# custom-shader = shaders/debug_cursor_static.glsl
 
-# Window border colors
+# =============================== Color Palette ============================= #
 
-# Tokyo Night colors
+# Tokyo Night Palette
 palette = 0=414868
 palette = 8=414868
 
@@ -63,39 +83,30 @@ palette = 14=7dcfff
 palette = 7=c0caf5
 palette = 15=c0caf5
 
-# ================================ Nerd Font Support ======================== #
-# Symbol mapping for Nerd Fonts
-font-feature = CaskaydiaCove Nerd Font Mono:liga=1
-
 # ================================ Keybindings ============================== #
 
-# Config management
-keybind = cmd+s>r=reload_config
-keybind = cmd+s>x=close_surface
-# Config management
+# Config Management
 keybind = cmd+s>r=reload_config
 keybind = cmd+s>x=close_surface
 
-# Basic controls
+# Basic Controls
 keybind = cmd+t=new_tab
 keybind = cmd+n=new_window
-keybind = alt+right=send:\x1b[1;3C
-# Navigate through text
-keybind = alt+left=text:\x1b[1;3D
-keybind = alt+right=text:\x1b[1;3C
-keybind = cmd+left=text:\x1bOH
-keybind = cmd+right=text:\x1bOF
-keybind = cmd+c=copy
+
+# Navigate Through Text
+keybind = alt+left=csi:1;3D
+keybind = alt+right=csi:1;3C
+keybind = cmd+left=esc:OH
+keybind = cmd+right=esc:OF
+
+# Clipboard
+keybind = cmd+c=copy_to_clipboard
 copy-on-select = clipboard
 
-# Tab management
+# Tab Management
 keybind = cmd+s>c=new_tab
-keybind = cmd+s>shift+l=next_tab
-# Tab management
-keybind = cmd+s>c=new_tab
-keybind = cmd+s>shift+l=goto_tab:next
-keybind = cmd+s>shift+h=goto_tab:previous
-# move_tab not supported in this version
+# keybind = cmd+s>]=goto_tab:next
+# keybind = cmd+s>[=goto_tab:previous
 keybind = cmd+s>2=goto_tab:2
 keybind = cmd+s>3=goto_tab:3
 keybind = cmd+s>4=goto_tab:4
@@ -105,7 +116,7 @@ keybind = cmd+s>7=goto_tab:7
 keybind = cmd+s>8=goto_tab:8
 keybind = cmd+s>9=goto_tab:9
 
-# Split window management
+# Split Window Management
 keybind = cmd+s>\=new_split:right
 keybind = cmd+s>-=new_split:down
 
@@ -117,14 +128,14 @@ keybind = cmd+s>l=goto_split:right
 keybind = cmd+s>z=toggle_split_zoom
 keybind = cmd+s>e=equalize_splits
 
-# Window management
-keybind = cmd+s>n=new_window
-keybind = cmd+w=close
-
-# Window management
+# Window Management
 keybind = cmd+s>n=new_window
 keybind = cmd+w=close_surface
-keybind = ctrl+shift+0=font:reset# Font size
+
+# Font Size Management
 keybind = ctrl+shift+equal=increase_font_size:1
 keybind = ctrl+shift+minus=decrease_font_size:1
 keybind = ctrl+shift+0=reset_font_size
+
+# Reload Configuration
+keybind = cmd+r=reload_config
