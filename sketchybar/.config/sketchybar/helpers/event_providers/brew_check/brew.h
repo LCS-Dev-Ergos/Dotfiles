@@ -1,7 +1,41 @@
+//===--------------------------------------------------------------------------===//
+/**
+ * @file brew.h
+ * @brief Homebrew package manager integration library for monitoring outdated packages.
+ *
+ * This header provides a lightweight, self-contained C library for checking Homebrew
+ * package updates. It offers thread-safe operations for running `brew update` and
+ * `brew outdated` commands, with built-in safeguards against system overload and
+ * concurrent execution.
+ *
+ * Key features:
+ * - Zero external dependencies (uses only POSIX system calls)
+ * - Robust error handling with detailed error codes
+ * - Memory-safe buffer management with overflow protection
+ * - System load awareness to defer updates during high CPU usage
+ * - Direct process execution via fork/exec (no shell invocation)
+ *
+ * Typical usage:
+ * 1. Initialize with brew_init()
+ * 2. Check if update is needed with brew_needs_update()
+ * 3. Fetch outdated packages with brew_fetch_outdated()
+ * 4. Access results via brew_t structure
+ * 5. Clean up with brew_cleanup()
+ *
+ * @note Designed for use in minimal environments like status bar applications
+ *       where PATH may be restricted.
+ *
+ * @author LCS.Dev
+ * @date 2025-01-1o
+ */
+//===--------------------------------------------------------------------------===//
+
 #ifndef BREW_H
 #define BREW_H
 
+#include <fcntl.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,7 +44,7 @@
 #include <time.h>
 #include <unistd.h>
 
-// ----- Constants ----- //
+//===------------------------------- Constants --------------------------------===//
 
 /** @brief Absolute path to the Homebrew executable. Using an absolute path is crucial for
  * robustness when running from environments like Sketchybar, which may have a minimal PATH. */
@@ -26,7 +60,7 @@ static const int BREW_INITIAL_BUFFER_SIZE = 1024;
  * allocation. */
 static const int BREW_MAX_BUFFER_SIZE = 16384;
 
-// ----- Error Codes ----- //
+//===------------------------------ Error Codes -------------------------------===//
 
 /**
  * @enum brew_error_t
@@ -44,7 +78,7 @@ typedef enum {
                                */
 } brew_error_t;
 
-// ----- Main Data Structure ----- //
+//===-------------------------- Main Data Structure ---------------------------===//
 
 /**
  * @struct brew_t
@@ -63,14 +97,14 @@ typedef struct {
   bool         update_in_progress; /**< Flag to prevent concurrent updates. */
 } brew_t;
 
-// ----- Private Helper Function Prototypes ----- //
+//===------------------- Private Helper Function Prototypes -------------------===//
 
 [[nodiscard]] static brew_error_t _brew_execute_command(
     const char* args[], char** output_buffer, size_t* buffer_size);
 [[nodiscard]] static brew_error_t _brew_resize_buffer(brew_t* brew, size_t required_size);
 static int                        _get_cpu_core_count();
 
-// ----- Public API ----- //
+//===------------------------------- Public API -------------------------------===//
 
 /**
  * @brief Initializes the brew state structure.
@@ -91,7 +125,10 @@ static int                        _get_cpu_core_count();
 
   // Check if brew is installed right away.
   if (access(BREW_EXECUTABLE_PATH, X_OK) != 0) {
-    brew->last_error = BREW_ERROR_NOT_INSTALLED;
+    // Free allocated memory before returning error.
+    free(brew->package_list);
+    brew->package_list = NULL;
+    brew->last_error   = BREW_ERROR_NOT_INSTALLED;
     return BREW_ERROR_NOT_INSTALLED;
   }
 
@@ -119,7 +156,7 @@ static inline void brew_cleanup(brew_t* brew) {
     const brew_t* brew, int update_interval_seconds) {
   if (!brew) return false;
 
-  // Time check
+  // Time check.
   time_t current_time = time(NULL);
   if ((current_time - brew->last_update) < update_interval_seconds) {
     return false;
@@ -133,7 +170,7 @@ static inline void brew_cleanup(brew_t* brew) {
     // The threshold is 75% of the number of cores.
     double high_load_threshold = (double)core_count * 0.75;
     if (load[0] > high_load_threshold) {
-      return false;  // Defer update if system is busy
+      return false;  // Defer update if system is busy.
     }
   }
   return true;
@@ -190,7 +227,7 @@ static inline void brew_cleanup(brew_t* brew) {
     brew->outdated_count++;
     size_t line_len = strlen(line);
     size_t required_space =
-        package_list_used + line_len + 2;  // +1 for comma, +1 for null terminator
+        package_list_used + line_len + 2;  // +1 for comma, +1 for null terminator.
 
     if (required_space > brew->package_list_size) {
       err = _brew_resize_buffer(brew, required_space);
@@ -202,12 +239,14 @@ static inline void brew_cleanup(brew_t* brew) {
       }
     }
 
+    // Use memcpy instead of strcat for better performance.
     if (package_list_used > 0) {
-      strcat(brew->package_list, ",");
+      brew->package_list[package_list_used] = ',';
       package_list_used++;
     }
-    strcat(brew->package_list, line);
+    memcpy(brew->package_list + package_list_used, line, line_len);
     package_list_used += line_len;
+    brew->package_list[package_list_used] = '\0';
 
     line = strtok(NULL, "\n");
   }
@@ -246,7 +285,7 @@ static inline void brew_cleanup(brew_t* brew) {
   }
 }
 
-// ----- Private Helper Function Implementations ----- //
+//===---------------- Private Helper Function Implementations  ----------------===//
 
 /**
  * @brief [Private] Executes a command and captures its standard output.
@@ -277,26 +316,30 @@ static inline void brew_cleanup(brew_t* brew) {
     return BREW_ERROR_COMMAND_EXECUTION;
   }
 
-  if (pid == 0) {  // Child process
+  if (pid == 0) {  // Child process.
     if (output_buffer) {
-      close(pipefd[0]);                // Close unused read end
-      dup2(pipefd[1], STDOUT_FILENO);  // Redirect stdout to pipe
-      dup2(pipefd[1], STDERR_FILENO);  // Redirect stderr to pipe as well
+      close(pipefd[0]);                // Close unused read end.
+      dup2(pipefd[1], STDOUT_FILENO);  // Redirect stdout to pipe.
+      dup2(pipefd[1], STDERR_FILENO);  // Redirect stderr to pipe as well.
       close(pipefd[1]);
     } else {
-      // Discard output if no buffer is provided
-      freopen("/dev/null", "w", stdout);
-      freopen("/dev/null", "w", stderr);
+      // Discard output if no buffer is provided.
+      int devnull = open("/dev/null", O_WRONLY);
+      if (devnull != -1) {
+        dup2(devnull, STDOUT_FILENO);
+        dup2(devnull, STDERR_FILENO);
+        close(devnull);
+      }
     }
 
     execv(args[0], (char* const*)args);
-    // execv only returns on error
+    // execv only returns on error.
     exit(127);
   }
 
-  // Parent process
+  // Parent process.
   if (output_buffer) {
-    close(pipefd[1]);  // Close unused write end
+    close(pipefd[1]);  // Close unused write end.
 
     size_t capacity = 4096;
     size_t size     = 0;
@@ -311,15 +354,24 @@ static inline void brew_cleanup(brew_t* brew) {
     while ((bytes_read = read(pipefd[0], buffer + size, capacity - size - 1)) > 0) {
       size += bytes_read;
       if (size >= capacity - 1) {
-        capacity *= 2;
-        char* new_buffer = (char*)realloc(buffer, capacity);
+        // Check for overflow before doubling capacity.
+        size_t new_capacity = (capacity <= SIZE_MAX / 2) ? capacity * 2 : SIZE_MAX;
+        if (new_capacity <= capacity) {
+          // Cannot grow further.
+          free(buffer);
+          close(pipefd[0]);
+          waitpid(pid, NULL, 0);
+          return BREW_ERROR_MEMORY_ALLOCATION;
+        }
+        char* new_buffer = (char*)realloc(buffer, new_capacity);
         if (!new_buffer) {
           free(buffer);
           close(pipefd[0]);
           waitpid(pid, NULL, 0);
           return BREW_ERROR_MEMORY_ALLOCATION;
         }
-        buffer = new_buffer;
+        buffer   = new_buffer;
+        capacity = new_capacity;
       }
     }
     buffer[size] = '\0';
@@ -375,7 +427,9 @@ static inline int _get_cpu_core_count() {
   if (sysctlbyname("hw.ncpu", &ncpu, &len, NULL, 0) == 0 && ncpu > 0) {
     return ncpu;
   }
-  return 2;  // Return a safe default
+  return 2;  // Return a safe default.
 }
 
 #endif /* BREW_H */
+
+//===--------------------------------------------------------------------------===//

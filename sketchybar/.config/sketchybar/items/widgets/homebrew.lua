@@ -9,12 +9,12 @@ local CONFIG = {
   check_interval = 60,
   update_interval = 900,
   brew_path = "/opt/homebrew/bin/brew",
-  terminal_app = "alacritty",
+  terminal_app = "ghostty",
   timeout = 120,
   debug = false,
   hover_effect = true,
   widget_name = "widgets.brew",
-  package_icon = icons.package or "📦"
+  package_icon = icons.package or "[PKG]"
 }
 
 -- Color threshold definitions
@@ -104,21 +104,21 @@ brew:set({
     #!/bin/bash
     # Robust, self-contained and reliable click controller.
 
-    # --- Configuration ---
+    # ----- Configuration ----- #
     WIDGET_NAME="%s"
     TERMINAL_APP="%s"
     PACKAGE_ICON="%s"
     BREW_PATH="%s"
     CHECK_PROCESS_NAME="brew_check"
 
-    # --- Main Logic ---
+    # ----- Main Logic ----- #
 
     # 1. Instant and Safe Visual Feedback
     #    Set both icon and "loading" color to solve the problem
     #    of disappearing icon. Restoration will happen later.
     sketchybar --set "$WIDGET_NAME" icon="$PACKAGE_ICON" icon.color='#FFFFFF55'
 
-    # --- Click Handling ---
+    # ----- Click Handling ----- #
 
     if [ "$BUTTON" = "middle" ]; then
         # Middle click: Send refresh signal to background process.
@@ -140,13 +140,19 @@ brew:set({
         task_command="'$BREW_PATH' upgrade"
       fi
       if (( COUNT == 0 )); then
-        task_command="echo '✅ Homebrew is already up to date.'"
+        task_command="echo -e '\n✓ Homebrew is already up to date.'"
       fi
 
-      # 2. Launch Alacritty in background and capture its PID.
-      #    This solves the problem of windows not closing.
-      "$TERMINAL_APP" -e bash -c "$task_command; echo; read -p 'Press Enter to close...'" &
-      TERMINAL_PID=$!
+      # 2. Launch terminal in background and capture its PID.
+      #    Ghostty on macOS requires 'open -a' command with -n flag for new instance.
+      if [ "$TERMINAL_APP" = "ghostty" ]; then
+        open -n -a Ghostty --args -e bash -c "$task_command; echo; read -p 'Press Enter to close...'" &
+        TERMINAL_PID=$!
+      else
+        # Alacritty or other terminals with direct CLI support
+        "$TERMINAL_APP" -e bash -c "$task_command; echo; read -p 'Press Enter to close...'" &
+        TERMINAL_PID=$!
+      fi
 
       # 3. Wait for the terminal process (and only that) to finish.
       #    This is a blocking call, but happens in a background subshell,
@@ -155,13 +161,18 @@ brew:set({
 
       # 4. AFTER the terminal closes, send a signal to the C helper
       #    to force counter update.
-      #    This solves the problem of counter not updating.
       pkill -USR1 -f "$CHECK_PROCESS_NAME"
 
     ) & # The final ampersand is crucial for UI responsiveness.
 
   ]], CONFIG.widget_name, CONFIG.terminal_app, CONFIG.package_icon, CONFIG.brew_path)
 })
+
+-- Note: The inline bash script is necessary because:
+-- 1. It handles multiple click types (left/middle/right) without blocking Sketchybar
+-- 2. It waits for terminal closure before updating the counter
+-- 3. It provides immediate visual feedback
+-- Alternative approaches (pure Lua or separate C helper) would be more complex
 
 -- Hover effect and surrounding elements (unchanged)
 if CONFIG.hover_effect then
