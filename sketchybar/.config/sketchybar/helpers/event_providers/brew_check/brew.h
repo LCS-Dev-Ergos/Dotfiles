@@ -219,7 +219,12 @@ static inline void brew_cleanup(brew_t* brew) {
 
   char* line = strtok(package_output, "\n");
   while (line != NULL) {
-    if (line[0] == '\0') {
+    // Skip empty lines or lines that don't start with valid package name characters.
+    // Homebrew package names start with alphanumeric characters.
+    // This filters out status lines like "✔︎ JSON API cask.jws.json"
+    if (line[0] == '\0'
+        || (!(line[0] >= 'a' && line[0] <= 'z') && !(line[0] >= 'A' && line[0] <= 'Z')
+            && !(line[0] >= '0' && line[0] <= '9'))) {
       line = strtok(NULL, "\n");
       continue;
     }

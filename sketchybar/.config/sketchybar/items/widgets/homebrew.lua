@@ -43,10 +43,15 @@ local function safe_exec(command)
   sbar.exec(command)
 end
 local function start_event_provider()
+  -- Get the config directory by querying sketchybar
+  local config_dir = os.getenv("CONFIG_DIR") or os.getenv("HOME") .. "/.config/sketchybar"
+  local brew_check_path = config_dir .. "/helpers/event_providers/brew_check/bin/brew_check"
+
   local command = string.format(
     "pkill -f 'brew_check' >/dev/null 2>&1; " ..
-    "$CONFIG_DIR/helpers/event_providers/brew_check/bin/brew_check brew_update %d %d %s &",
-    CONFIG.check_interval, 
+    "%s brew_update %d %d %s &",
+    brew_check_path,
+    CONFIG.check_interval,
     CONFIG.update_interval,
     CONFIG.debug and "--verbose" or ""
   )
@@ -74,7 +79,7 @@ local brew = sbar.add("item", CONFIG.widget_name, {
     padding_right = 4,
   },
   label = {
-    string = "?",
+    string = "0",
     font = { family = settings.font.numbers, style = settings.font.style_map["Bold"], size = 9.0, },
     color = colors.grey,
     align = "right", padding_right = 0, width = 0, y_offset = 4
@@ -132,15 +137,12 @@ brew:set({
     # For left and right clicks, execute all logic in a background subshell
     # (&) to never block Sketchybar's interface.
     (
-      COUNT=$(sketchybar --query "$WIDGET_NAME" | jq -r '.label.value' 2>/dev/null || echo 0)
-
       # Determine the command to execute in terminal.
+      # Always check the real state of brew, don't trust the widget value
+      # which might be outdated or still initializing.
       task_command="'$BREW_PATH' outdated" # Default for left click
       if [ "$BUTTON" = "right" ]; then
         task_command="'$BREW_PATH' upgrade"
-      fi
-      if (( COUNT == 0 )); then
-        task_command="echo -e '\n✓ Homebrew is already up to date.'"
       fi
 
       # 2. Launch terminal in background and capture its PID.
@@ -182,7 +184,7 @@ end
 sbar.add("bracket", CONFIG.widget_name .. ".bracket", { brew.name }, { background = { color = colors.bg1 }})
 sbar.add("item", CONFIG.widget_name .. ".padding", { position = "right", width = settings.group_paddings })
 
--- Initial trigger (unchanged)
-sbar.exec("sketchybar --trigger brew_update")
+-- Note: Don't trigger brew_update here - let brew_check send the first update
+-- when it completes its initial check. This prevents showing stale "0" values.
 
 debug_log("Homebrew widget initialized successfully")
