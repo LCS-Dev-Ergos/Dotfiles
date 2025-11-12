@@ -66,3 +66,5 @@ fi
 # ----------------- Toolchains ----------------- #
 # Added by OrbStack: command-line tools and integration
 source ~/.orbstack/shell/init.zsh 2>/dev/null || :
+
+export PATH="$HOME/.elan/bin:$PATH"
