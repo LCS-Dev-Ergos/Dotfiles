@@ -74,7 +74,7 @@ elif [[ "$PLATFORM" == "macOS" ]]; then
 fi
 
 # ---------------------------- Terminal Variables ---------------------------- #
-if [ "$TERM" = "xterm-kitty" ]; then
+if [[ "$TERM" == "xterm-kitty" ]]; then
     export TERM=xterm-kitty
 else
     export TERM=xterm-256color
@@ -147,7 +147,7 @@ source "$ZSH/oh-my-zsh.sh"
 if [[ "$PLATFORM" == "macOS" ]]; then
     # macOS: Oh-My-Posh
     omp_config="$XDG_CONFIG_HOME/oh-my-posh/lcs-dev.omp.json"
-    if command -v oh-my-posh >/dev/null 2>&1 && [ -f "$omp_config" ]; then
+    if command -v oh-my-posh >/dev/null 2>&1 && [[ -f "$omp_config" ]]; then
         eval "$(oh-my-posh init zsh --config "$omp_config")"
     fi
 elif [[ "$PLATFORM" == "Linux" ]]; then
@@ -161,7 +161,7 @@ elif [[ "$PLATFORM" == "Linux" ]]; then
     else
         # Fallback to Oh-My-Posh only if available and configured.
         omp_config="$XDG_CONFIG_HOME/oh-my-posh/lcs-dev.omp.json"
-        if command -v oh-my-posh >/dev/null 2>&1 && [ -f "$omp_config" ]; then
+        if command -v oh-my-posh >/dev/null 2>&1 && [[ -f "$omp_config" ]]; then
             eval "$(oh-my-posh init zsh --config "$omp_config")"
         fi
     fi
@@ -201,7 +201,9 @@ zle -N zle-keymap-select
 
 # ------------------------------- COLORS & FZF ------------------------------- #
 # Set up fzf key bindings and fuzzy completion.
-eval "$(fzf --zsh)"
+if command -v fzf >/dev/null 2>&1; then
+    eval "$(fzf --zsh 2>/dev/null)" || echo "${C_YELLOW}Warning: fzf init failed.${C_RESET}"
+fi
 
 _gen_fzf_default_opts() {
 # ---------- Setup FZF theme -------- #
@@ -233,19 +235,21 @@ export FZF_DEFAULT_OPTS="$FZF_DEFAULT_OPTS"\
 _gen_fzf_default_opts
 
 # ------ Use fd instead of fzf ------ #
-export FZF_DEFAULT_COMMAND="fd --hidden --strip-cwd-prefix --exclude .git"
-export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
-export FZF_ALT_C_COMMAND="fd --type=d --hidden --strip-cwd-prefix --exclude .git"
+if command -v fd >/dev/null 2>&1; then
+    export FZF_DEFAULT_COMMAND="fd --hidden --strip-cwd-prefix --exclude .git"
+    export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
+    export FZF_ALT_C_COMMAND="fd --type=d --hidden --strip-cwd-prefix --exclude .git"
 
-# Use fd (https://github.com/sharkdp/fd) for listing path candidates.
-_fzf_compgen_path() {
-    fd --hidden --exclude .git . "$1"
-}
+    # Use fd (https://github.com/sharkdp/fd) for listing path candidates.
+    _fzf_compgen_path() {
+        fd --hidden --exclude .git . "$1"
+    }
 
-# Use fd to generate the list for directory completion.
-_fzf_compgen_dir() {
-    fd --type=d --hidden --exclude .git . "$1"
-}
+    # Use fd to generate the list for directory completion.
+    _fzf_compgen_dir() {
+        fd --type=d --hidden --exclude .git . "$1"
+    }
+fi
 
 # Source fzf-git.sh only if it exists.
 if [[ -f "$HOME/.config/fzf-git/fzf-git.sh" ]]; then
@@ -257,21 +261,41 @@ else
     fi
 fi
 
-export FZF_CTRL_T_OPTS="--preview 'bat -n --color=always --line-range :500 {}'"
-export FZF_ALT_C_OPTS="--preview 'eza --tree --color=always {} | head -200'"
+# FZF preview options (only if tools are available).
+if command -v bat >/dev/null 2>&1; then
+    export FZF_CTRL_T_OPTS="--preview 'bat -n --color=always --line-range :500 {}'"
+fi
+
+if command -v eza >/dev/null 2>&1; then
+    export FZF_ALT_C_OPTS="--preview 'eza --tree --color=always {} | head -200'"
+fi
 
 # Advanced customization of fzf options via _fzf_comprun function.
-_fzf_comprun() {
-    local command=$1
-    shift
+if command -v fzf >/dev/null 2>&1; then
+    _fzf_comprun() {
+        local command=$1
+        shift
 
-    case "$command" in
-        cd)           fzf --preview 'eza --tree --color=always {} | head -200'   "$@" ;;
-        export|unset) fzf --preview "eval 'echo $'{}"         "$@" ;;
-        ssh)          fzf --preview 'dig {}'                  "$@" ;;
-        *)            fzf --preview "bat -n --color=always --line-range :500 {}" "$@" ;;
-    esac
-}
+        case "$command" in
+            cd)
+                if command -v eza >/dev/null 2>&1; then
+                    fzf --preview 'eza --tree --color=always {} | head -200' "$@"
+                else
+                    fzf --preview 'ls -la {}' "$@"
+                fi
+                ;;
+            export|unset) fzf --preview "eval 'echo $'{}" "$@" ;;
+            ssh)          fzf --preview 'dig {}' "$@" ;;
+            *)
+                if command -v bat >/dev/null 2>&1; then
+                    fzf --preview "bat -n --color=always --line-range :500 {}" "$@"
+                else
+                    fzf --preview 'cat {}' "$@"
+                fi
+                ;;
+        esac
+    }
+fi
 
 # --------- Bat (better cat) -------- #
 export BAT_THEME=tokyonight_night
@@ -286,12 +310,10 @@ alias ...="cd ../.."
 alias ....="cd ../../.."
 alias .....="cd ../../../.."
 alias ......="cd ../../../../.."
-alias c="clear"
-alias md='mkdir -p'
 
 # Tools
 alias ranger="TERM=screen-256color ranger"
-alias clang-format="clang-format -style=file:$CLANG_FORMAT_CONFIG"
+alias clang-format="clang-format -style=file:\$CLANG_FORMAT_CONFIG"
 alias fnm-clean='echo "${CYAN}Cleaning up orphaned fnm sessions...${RESET}" &&
 rm -rf ~/.local/state/fnm_multishells/* && echo "${GREEN}Cleanup completed.${RESET}"'
 
@@ -304,59 +326,81 @@ fi
 # ------- Zoxide (smarter cd) ------- #
 if command -v zoxide >/dev/null 2>&1; then
     eval "$(zoxide init zsh 2>/dev/null)" || echo "${C_YELLOW}Warning: zoxide init failed.${C_RESET}"
-    alias cd="zoxide"
+    # Note: 'z' alias is already created by zoxide init.
+    # We'll use 'z' consistently instead of aliasing 'cd'.
 fi
 
 # ---------- C Compilation ---------- #
+# Determine include path dynamically based on platform.
+if [[ "$PLATFORM" == 'macOS' ]] && [[ -d "/opt/homebrew/include" ]]; then
+    C_INCLUDE_PATH="-I/opt/homebrew/include"
+elif [[ -d "/usr/local/include" ]]; then
+    C_INCLUDE_PATH="-I/usr/local/include"
+else
+    C_INCLUDE_PATH=""
+fi
+
 # Default C Compilation Alias.
-alias c-compile="clang -std=c23 -O3 -march=native -flto=thin -ffast-math -I/opt/homebrew/include"
+alias c-compile="clang -std=c23 -O3 -march=native -flto=thin -ffast-math $C_INCLUDE_PATH"
 
 # GCC C Compilation.
-alias gcc-c-compile="gcc -std=c23 -O3 -march=native -flto -ffast-math -I/opt/homebrew/include"
-alias gcc-c-debug="gcc -std=c23 -g -O0 -Wall -Wextra -DDEBUG -I/opt/homebrew/include"
+alias gcc-c-compile="gcc -std=c23 -O3 -march=native -flto -ffast-math $C_INCLUDE_PATH"
+alias gcc-c-debug="gcc -std=c23 -g -O0 -Wall -Wextra -DDEBUG $C_INCLUDE_PATH"
 
 # Clang C Compilation.
-alias clang-c-compile="clang -std=c23 -O3 -march=native -flto=thin -ffast-math -I/opt/homebrew/include"
-alias clang-c-debug="clang -std=c23 -g -O0 -Wall -Wextra -DDEBUG -I/opt/homebrew/include"
+alias clang-c-compile="clang -std=c23 -O3 -march=native -flto=thin -ffast-math $C_INCLUDE_PATH"
+alias clang-c-debug="clang -std=c23 -g -O0 -Wall -Wextra -DDEBUG $C_INCLUDE_PATH"
 
 # Ultra Performance Clang C with ThinLTO and PGO.
 alias clang-c-ultra="clang -std=c23 -O3 -march=native -mtune=native \
     -flto=thin -ffast-math -fprofile-generate=default.profraw -funroll-loops -fvectorize \
-    -I/opt/homebrew/include"
+    $C_INCLUDE_PATH"
 alias clang-c-ultra-use="clang -std=c23 -O3 -march=native -mtune=native \
     -flto=thin -ffast-math -fprofile-use=default.profdata -funroll-loops -fvectorize \
-    -I/opt/homebrew/include"
+    $C_INCLUDE_PATH"
 
 # Quick C compilation aliases.
-alias qc-compile="clang -std=c23 -O2 -I/opt/homebrew/include"
-alias qc-debug="clang -std=c23 -g -O0 -Wall -I/opt/homebrew/include"
+alias qc-compile="clang -std=c23 -O2 $C_INCLUDE_PATH"
+alias qc-debug="clang -std=c23 -g -O0 -Wall $C_INCLUDE_PATH"
 
 # --------- C++ Compilation --------- #
+# Determine LLVM library path dynamically.
+if [[ "$PLATFORM" == 'macOS' ]] && command -v brew >/dev/null 2>&1; then
+    LLVM_PREFIX=$(brew --prefix llvm 2>/dev/null)
+    if [[ -n "$LLVM_PREFIX" && -d "$LLVM_PREFIX/lib/c++" ]]; then
+        CPP_LIB_PATH="-L$LLVM_PREFIX/lib/c++ -lc++"
+    else
+        CPP_LIB_PATH="-lc++"
+    fi
+else
+    CPP_LIB_PATH="-lc++"
+fi
+
 # Default C++ Compilation Alias.
-alias compile="clang++ -std=c++23 -stdlib=libc++ -L/opt/homebrew/Cellar/llvm/21.1.0/lib/c++ -lc++ \
-    -O3 -march=native -flto=thin -ffast-math -I/opt/homebrew/include"
+alias compile="clang++ -std=c++23 -stdlib=libc++ $CPP_LIB_PATH \
+    -O3 -march=native -flto=thin -ffast-math $C_INCLUDE_PATH"
 
 # GCC Compilation.
-alias gcc-compile="g++ -std=c++23 -O3 -march=native -flto -ffast-math -I/opt/homebrew/include"
-alias gcc-debug="g++ -std=c++23 -g -O0 -Wall -Wextra -DDEBUG -I/opt/homebrew/include"
+alias gcc-compile="g++ -std=c++23 -O3 -march=native -flto -ffast-math $C_INCLUDE_PATH"
+alias gcc-debug="g++ -std=c++23 -g -O0 -Wall -Wextra -DDEBUG $C_INCLUDE_PATH"
 
 # Clang Compilation.
-alias clang-compile="clang++ -std=c++23 -stdlib=libc++ -L/opt/homebrew/Cellar/llvm/21.1.0/lib/c++ -lc++ \
-    -O3 -march=native -flto=thin -ffast-math -I/opt/homebrew/include"
-alias clang-debug="clang++ -std=c++23 -stdlib=libc++ -L/opt/homebrew/Cellar/llvm/21.1.0/lib/c++ -lc++ \
-    -g -O0 -Wall -Wextra -DDEBUG -I/opt/homebrew/include"
+alias clang-compile="clang++ -std=c++23 -stdlib=libc++ $CPP_LIB_PATH \
+    -O3 -march=native -flto=thin -ffast-math $C_INCLUDE_PATH"
+alias clang-debug="clang++ -std=c++23 -stdlib=libc++ $CPP_LIB_PATH \
+    -g -O0 -Wall -Wextra -DDEBUG $C_INCLUDE_PATH"
 
 # Ultra Performance Clang with ThinLTO and PGO.
-alias clang-ultra="clang++ -std=c++23 -stdlib=libc++ -L/opt/homebrew/Cellar/llvm/21.1.0/lib/c++ -lc++ -O3 -march=native -mtune=native \
+alias clang-ultra="clang++ -std=c++23 -stdlib=libc++ $CPP_LIB_PATH -O3 -march=native -mtune=native \
     -flto=thin -ffast-math -fprofile-generate=default.profraw -funroll-loops -fvectorize \
-    -I/opt/homebrew/include"
-alias clang-ultra-use="clang++ -std=c++23 -stdlib=libc++ -L/opt/homebrew/Cellar/llvm/21.1.0/lib/c++ -lc++ -O3 -march=native -mtune=native \
+    $C_INCLUDE_PATH"
+alias clang-ultra-use="clang++ -std=c++23 -stdlib=libc++ $CPP_LIB_PATH -O3 -march=native -mtune=native \
     -flto=thin -ffast-math -fprofile-use=default.profdata -funroll-loops -fvectorize \
-    -I/opt/homebrew/include"
+    $C_INCLUDE_PATH"
 
 # Quick compilation aliases.
-alias qcompile="clang++ -std=c++23 -stdlib=libc++ -L/opt/homebrew/Cellar/llvm/21.1.0/lib/c++ -lc++ -O2 -I/opt/homebrew/include"
-alias qdebug="clang++ -std=c++23 -stdlib=libc++ -L/opt/homebrew/Cellar/llvm/21.1.0/lib/c++ -lc++ -g -O0 -Wall -I/opt/homebrew/include"
+alias qcompile="clang++ -std=c++23 -stdlib=libc++ $CPP_LIB_PATH -O2 $C_INCLUDE_PATH"
+alias qdebug="clang++ -std=c++23 -stdlib=libc++ $CPP_LIB_PATH -g -O0 -Wall $C_INCLUDE_PATH"
 
 # ---------- OS-Specific Functions and Aliases ---------- #
 if [[ "$PLATFORM" == 'macOS' ]]; then
@@ -364,7 +408,6 @@ if [[ "$PLATFORM" == 'macOS' ]]; then
 
   # TailScale alias for easier access.
   alias tailscale="/Applications/Tailscale.app/Contents/MacOS/Tailscale"
-  command -v eza >/dev/null 2>&1 && alias ls="eza --color=always --long --git --icons=always"
 
   function brew() {
     command brew "$@"
@@ -442,13 +485,13 @@ elif [[ "$PLATFORM" == 'Linux' ]]; then
       local purple='\e[1;35m' bright='\e[0;1m' green='\e[1;32m' reset='\e[0m'
       printf 'zsh: command not found: %s\n' "$1"
       # shellcheck disable=SC2296
-      local entries=( ${(f)"$(/usr/bin/pacman -F --machinereadable -- "/usr/bin/$1")"} )
+      local entries=( "${(f)"$(/usr/bin/pacman -F --machinereadable -- "/usr/bin/$1")"}" )
       if (( ${#entries[@]} )); then
-        printf "${bright}$1${reset} may be found in the following packages:\n"
+        printf '%s may be found in the following packages:\n' "${bright}$1${reset}"
         local pkg
         for entry in "${entries[@]}" ; do
           # shellcheck disable=SC2296
-          local fields=( ${(0)entry} )
+          local fields=( "${(0)entry}" )
           if [[ "$pkg" != "${fields[2]}" ]]; then
             printf "${purple}%s/${bright}%s ${green}%s${reset}\n" "${fields[1]}" "${fields[2]}" "${fields[3]}"
           fi
@@ -499,14 +542,11 @@ elif [[ "$PLATFORM" == 'Linux' ]]; then
       alias po='pacman -Qtdq | $aurhelper -Rns -'
     fi
 
-    # Aliases for 'eza' on Arch (overrides generic Linux ones).
-    command -v eza >/dev/null 2>&1 && {
-      alias l='eza -lh --icons=auto'
-      alias ls='eza -1 --icons=auto'
-      alias ll='eza -lha --icons=auto --sort=name --group-directories-first'
+    # Additional 'eza' aliases for Arch (extends the default ones).
+    if command -v eza >/dev/null 2>&1; then
       alias ld='eza -lhD --icons=auto'
       alias lt='eza --icons=auto --tree'
-    }
+    fi
 
     # Other aliases for Arch.
     command -v kitten >/dev/null 2>&1 && alias ssh='kitten ssh'
@@ -532,10 +572,6 @@ alias fastfetch='~/.config/fastfetch/fastfetch-dynamic'
 
 # ------ Productivity Aliases ------- #
 alias c="clear"
-alias cd="z"
-alias ls="eza --color=always --long --git --icons=always"
-alias ll="ls -la"
-alias l="ls -l"
 alias md="mkdir -p"
 alias count="wc -l"
 alias size="du -sh"
@@ -546,6 +582,13 @@ echo \"Human readable: \$(date -d @{} 2>/dev/null || date -r {} 2>/dev/null)\"'"
 alias ping="ping -c 5"
 alias reload="source ~/.zshrc"
 alias edit="$EDITOR ~/.zshrc"
+
+# Default 'ls' alias (may be overridden below based on platform).
+if command -v eza >/dev/null 2>&1; then
+    alias ls="eza --color=always --long --git --icons=always"
+    alias ll="eza -lha --icons=auto --sort=name --group-directories-first"
+    alias l="eza -lh --icons=auto"
+fi
 
 # ----- OS-specific environment variables ----- #
 if [[ "$PLATFORM" == 'macOS' ]]; then
@@ -571,8 +614,14 @@ if [[ "$PLATFORM" == 'Linux' && "$ARCH_LINUX" == true ]]; then
     export NATIVE_WAYLAND="1"
 
     # GO Language.
-    export GOPATH="$HOME/go"
-    export PATH="$PATH:$(go env GOBIN):$(go env GOPATH)/bin"
+    if command -v go >/dev/null 2>&1; then
+        export GOPATH="$HOME/go"
+        go_bin=$(go env GOBIN 2>/dev/null)
+        go_path=$(go env GOPATH 2>/dev/null)
+        [[ -n "$go_bin" ]] && export PATH="$PATH:$go_bin"
+        [[ -n "$go_path" ]] && export PATH="$PATH:$go_path/bin"
+        unset go_bin go_path
+    fi
 fi
 
 # ============================================================================ #
@@ -591,12 +640,12 @@ fi
 # LCS.Data Volume
 if [[ "$PLATFORM" == 'macOS' ]]; then
     export LCS_Data="/Volumes/LCS.Data"
-    if [ ! -d "$LCS_Data" ]; then
+    if [[ ! -d "$LCS_Data" ]]; then
         echo "${C_YELLOW}⚠️ Warning: LCS.Data volume is not mounted${C_RESET}"
     fi
 elif [[ "$PLATFORM" == 'Linux' ]]; then
     export LCS_Data="/LCS.Data"
-    if [ ! -d "$LCS_Data" ]; then
+    if [[ ! -d "$LCS_Data" ]]; then
         echo "${C_YELLOW}⚠️ Warning: LCS.Data volume does not appear to be mounted in $LCS_Data${C_RESET}"
     fi
 fi
@@ -656,7 +705,7 @@ elif [[ "$PLATFORM" == 'Linux' ]]; then
 fi
 
 # ------- Haskell (ghcup-env) ------- #
-[ -f "$HOME/.ghcup/env" ] && . "$HOME/.ghcup/env"
+[[ -f "$HOME/.ghcup/env" ]] && . "$HOME/.ghcup/env"
 
 # -------------- Opam --------------- #
 [[ ! -r "$HOME/.opam/opam-init/init.zsh" ]] || source "$HOME/.opam/opam-init/init.zsh" > /dev/null 2> /dev/null
@@ -682,16 +731,13 @@ else
     setup_java_home_fallback() {
         if [[ "$PLATFORM" == 'macOS' ]]; then
             # On macOS, use the system-provided utility.
-            if [ -x "/usr/libexec/java_home" ]; then
-                if [[ -x "/usr/libexec/java_home" ]]; then
-                    local java_home_result
-                    java_home_result=$(/usr/libexec/java_home 2>/dev/null)
-                    if [[ $? -eq 0 && -n "$java_home_result" ]]; then
-                        export JAVA_HOME="$java_home_result"
-                        export PATH="$JAVA_HOME/bin:$PATH"
-                    fi
+            if [[ -x "/usr/libexec/java_home" ]]; then
+                local java_home_result
+                java_home_result=$(/usr/libexec/java_home 2>/dev/null)
+                if [[ $? -eq 0 && -n "$java_home_result" ]]; then
+                    export JAVA_HOME="$java_home_result"
+                    export PATH="$JAVA_HOME/bin:$PATH"
                 fi
-                export PATH="$JAVA_HOME/bin:$PATH"
             fi
         elif [[ "$PLATFORM" == 'Linux' ]]; then
             local found_java_home=""
@@ -749,11 +795,11 @@ __conda_init() {
 
     if [[ -n "$conda_path" ]]; then
         __conda_setup="$("$conda_path" 'shell.zsh' 'hook' 2> /dev/null)"
-        if [ $? -eq 0 ]; then
+        if [[ $? -eq 0 ]]; then
             eval "$__conda_setup"
         else
-            local conda_dir=$(dirname $(dirname "$conda_path"))
-            if [ -f "$conda_dir/etc/profile.d/conda.sh" ]; then
+            local conda_dir=$(dirname "$(dirname "$conda_path")")
+            if [[ -f "$conda_dir/etc/profile.d/conda.sh" ]]; then
                 . "$conda_dir/etc/profile.d/conda.sh"
             else
                 export PATH="$(dirname "$conda_path"):$PATH"
@@ -835,7 +881,12 @@ if [[ -d "$HOME/.docker/completions" ]]; then
     fpath=("$HOME/.docker/completions" $fpath)
 fi
 autoload -Uz compinit
-compinit -C  # -C skips security check for faster loading.
+# Use -C only if the dump file exists, otherwise do a full init.
+if [[ -f "$ZSH_COMPDUMP" ]]; then
+    compinit -C -d "$ZSH_COMPDUMP"
+else
+    compinit -d "$ZSH_COMPDUMP"
+fi
 
 # ============================================================================ #
 # ++++++++++++++++++++ FINAL PATH REORDERING AND CLEANUP +++++++++++++++++++++ #
@@ -985,13 +1036,12 @@ unset -f build_final_path
 # +++++++++++++++++++++++++++ AUTOMATIC ADDITIONS ++++++++++++++++++++++++++++ #
 # ============================================================================ #
 
-# The following lines have been added by Docker Desktop to enable Docker CLI completions.
-fpath=(/Users/lcs-dev/.docker/completions $fpath)
-autoload -Uz compinit
-compinit
+# LM Studio CLI (lms) - Cross-platform compatible.
+if [[ -d "$HOME/.lmstudio/bin" ]]; then
+    export PATH="$PATH:$HOME/.lmstudio/bin"
+fi
 
-# LM Studio CLI (lms)
-export PATH="$PATH:/Users/lcs-dev/.lmstudio/bin"
-
-# opencode
-export PATH=/Users/lcs-dev/.opencode/bin:$PATH
+# opencode - Cross-platform compatible.
+if [[ -d "$HOME/.opencode/bin" ]]; then
+    export PATH="$HOME/.opencode/bin:$PATH"
+fi
