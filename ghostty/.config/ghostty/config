@@ -4,7 +4,7 @@
 font-family = CaskaydiaCove Nerd Font
 font-size = 14.5
 
-font-style = SemiBold  
+font-style = SemiBold
 font-style-bold = Bold
 font-style-italic = SemiBold Italic
 font-style-bold-italic = Bold Italic
@@ -49,7 +49,7 @@ cursor-color = c0caf5
 # custom-shader = shaders/cursor_blaze.glsl
 # custom-shader = shaders/cursor_border_1.glsl
 # custom-shader = shaders/cursor_frozen.glsl
- xcustom-shader = shaders/cursor_smear_fade.glsl
+custom-shader = shaders/cursor_smear_fade.glsl
 custom-shader = shaders/cursor_smear_gradient.glsl
 # custom-shader = shaders/cursor_smear_rainbow.glsl
 custom-shader = shaders/cursor_smear.glsl

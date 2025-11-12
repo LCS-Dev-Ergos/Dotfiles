@@ -13,6 +13,10 @@ fi
 # Use specific values for height/width
 cols=$(tput cols)
 lines=$(tput lines)
+
+image_width=30
+image_height=18
+
 image_x=$((cols / 2 - 15))
 image_y=$((lines / 2 - 9))
 
