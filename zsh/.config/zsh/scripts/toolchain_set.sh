@@ -1,5 +1,5 @@
 #!/bin/bash
-
+# shellcheck shell=zsh
 # ============================================================================ #
 # Functions to dynamically switch the C/C++ toolchain for the current
 # terminal session.

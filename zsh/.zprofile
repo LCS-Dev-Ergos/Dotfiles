@@ -1,4 +1,5 @@
 # .zprofile - Executed only for login shells. Sets up basic environment.
+# shellcheck shell=zsh
 
 # -------- Export Fundamental Variables -------- #
 # Lets .zshrc know this file has already been executed.

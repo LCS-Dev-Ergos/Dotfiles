@@ -1,5 +1,5 @@
 #!/bin/bash
-
+# shellcheck shell=zsh
 # ============================================================================ #
 # Function to identify the active C/C++ toolchain on the system.
 # It analyzes gcc, g++, clang, and clang++ commands to determine their
