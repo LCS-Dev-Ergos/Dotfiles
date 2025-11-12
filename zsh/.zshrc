@@ -20,6 +20,7 @@ fi
 # Enables the advanced features of VS Code's integrated terminal.
 # Must be in .zshrc because it is run for each new interactive shell.
 if [[ "$TERM_PROGRAM" == "vscode" ]]; then
+    # shellcheck source=/dev/null
     command -v code >/dev/null 2>&1 && . "$(code --locate-shell-integration-path zsh)"
 fi
 

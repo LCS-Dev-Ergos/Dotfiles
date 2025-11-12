@@ -15,9 +15,12 @@ function cpptrace() {
     fi
 
     # 2. Find the Trace File.
-    local target=$(_get_default_target)
-    local target_name=$(echo "${1:-$target}" | sed -E 's/\.(cpp|cc|cxx)$//')
-    local trace_file_path_host="$(pwd)/build/CMakeFiles/${target_name}.dir/${target_name}.cpp.json"
+    local target
+    target=$(_get_default_target)
+    local target_name
+    target_name=$(echo "${1:-$target}" | sed -E 's/\.(cpp|cc|cxx)$//')
+    local trace_file_path_host
+    trace_file_path_host="$(pwd)/build/CMakeFiles/${target_name}.dir/${target_name}.cpp.json"
 
     if [ ! -f "$trace_file_path_host" ]; then
         echo "${RED}Error: Trace file not found for target '$target_name'.${RESET}" >&2
