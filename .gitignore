@@ -1,12 +1,12 @@
-# File di sistema macOS
+# macOS system files
 .DS_Store
 .AppleDouble
 .LSOverride
 
-# Escludere directory di debug 
+# Exclude debug directories
 *.dSYM/
 
-# Escludere file temporanei di Google Drive
+# Exclude Google Drive temporary files
 .Google\ Drive
 *.tmp
 *.tmp.drivedownload
@@ -14,15 +14,15 @@
 *.gsheet
 *.gslides
 
-# File di log
+# Log files
 *.log
 
-# File di cache
+# Cache files
 .cache
 *.cache
 *.tmp
 
-# File di backup
+# Backup files
 *~
 *.swp
 *.swo
@@ -34,7 +34,7 @@
 .emacs.desktop
 .emacs.desktop.lock
 
-# File di build
+# Build files
 /build/
 *.o
 *.out
@@ -42,10 +42,14 @@
 *.dll
 *.so
 
-# File temporanei
+# Temporary files
 .tmp.driveupload
 .fake
 
 # Git Submodules
 alacritty/.config/alacritty/themes
 tmux/.config/tmux/plugins/
+
+# Specific Tools Configurations
+nix-darwin/.config/nix-darwin/flake.lock
+nvim/.config/nvim/lazy-lock.json
