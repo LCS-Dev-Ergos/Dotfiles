@@ -66,7 +66,7 @@
           "type": "text",
           "style": "plain",
           "foreground": "p:terminal-white",
-          "template": " \u0000"
+          "template": "\u0000"
         },
         {
           "type": "node",
@@ -84,43 +84,71 @@
           "type": "python",
           "style": "plain",
           "foreground": "p:terminal-yellow",
-          "template": "\uE235 {{ .Full }}"
+          "template": " \uE235 {{ .Full }}"
         },
         {
           "type": "julia",
           "style": "plain",
           "foreground": "p:terminal-magenta",
-          "template": "\uE624 {{ .Full }}"
+          "template": " \uE624 {{ .Full }}"
         },
         {
           "type": "ruby",
           "style": "plain",
           "foreground": "p:terminal-red",
-          "template": "\uE791 {{ .Full }}"
+          "template": " \uE791 {{ .Full }}"
         },
         {
           "type": "go",
           "style": "plain",
           "foreground": "p:light-sky-blue",
-          "template": "\uFCD1 {{ .Full }}"
+          "template": " \uFCD1 {{ .Full }}"
         },
         {
           "type": "dotnet",
           "style": "plain",
           "foreground": "p:celeste-blue",
-          "template": "\uE7A8 {{ .Full }} "
+          "template": " \uE7A8 {{ .Full }}"
         },
         {
           "type": "java",
           "style": "plain",
           "foreground": "p:terminal-blue",
-          "template": "\uE738 {{ .Full }} "
+          "template": " \uE738 {{ .Full }}"
         },
         {
           "type": "rust",
           "style": "plain",
           "foreground": "p:terminal-red",
-          "template": "\uF7A2 {{ .Full }} "
+          "template": " \uF7A2 {{ .Full }}"
+        },
+        {
+          "type": "kubectl",
+          "style": "plain",
+          "foreground": "p:celeste-blue",
+          "template": " \uFD31 {{ .Context }}{{ if .Namespace }} :: {{ .Namespace }}{{ end }}",
+          "properties": {
+            "display_error": false
+          }
+        },
+        {
+          "type": "docker",
+          "style": "plain",
+          "foreground": "p:light-sky-blue",
+          "template": "{{ if ne .Context \"desktop-linux\" }} \uF308 {{ .Context }}{{ end }}",
+          "properties": {
+            "display_error": false
+          }
+        },
+        {
+          "type": "executiontime",
+          "style": "plain",
+          "foreground": "p:terminal-yellow",
+          "template": " \uF252 {{ .FormattedMs }}",
+          "properties": {
+            "threshold": 500,
+            "style": "austin"
+          }
         }
       ],
       "type": "prompt"
@@ -129,6 +157,15 @@
       "alignment": "left",
       "newline": true,
       "segments": [
+        {
+          "type": "status",
+          "style": "plain",
+          "foreground": "p:pistachio-green",
+          "foreground_templates": [
+            "{{ if gt .Code 0 }}p:terminal-red{{ end }}"
+          ],
+          "template": "{{ if gt .Code 0 }}\uF00D {{ .Code }} {{ end }}"
+        },
         {
           "type": "text",
           "style": "plain",
