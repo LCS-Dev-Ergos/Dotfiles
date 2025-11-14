@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/usr/bin/env zsh
+# shellcheck shell=zsh
 # ============================================================================ #
 # ------- Enhanced CMake & Shell Utilities for Competitive Programming ------- #
 #
@@ -87,12 +88,23 @@ fi
 _get_default_target() {
     # Find the most recently modified .cpp, .cc, or .cxx file.
     local default_target
-    default_target=$(find . -maxdepth 1 -type f \
-        \( -name "*.cpp" -o -name "*.cc" -o -name "*.cxx" \) \
-        -printf '%T@ %p\n' 2>/dev/null \
-        | sort -rn \
-        | head -n 1 \
-        | sed -E 's/^[0-9.]+ \.\/(.+)\.(cpp|cc|cxx)$/\1/')
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS version using stat
+        default_target=$(find . -maxdepth 1 -type f \
+            \( -name "*.cpp" -o -name "*.cc" -o -name "*.cxx" \) \
+            -exec stat -f '%m %N' {} \; 2>/dev/null \
+            | sort -rn \
+            | head -n 1 \
+            | sed -E 's/^[0-9]+ \.\/(.+)\.(cpp|cc|cxx)$/\1/')
+    else
+        # Linux version with -printf
+        default_target=$(find . -maxdepth 1 -type f \
+            \( -name "*.cpp" -o -name "*.cc" -o -name "*.cxx" \) \
+            -printf '%T@ %p\n' 2>/dev/null \
+            | sort -rn \
+            | head -n 1 \
+            | sed -E 's/^[0-9.]+ \.\/(.+)\.(cpp|cc|cxx)$/\1/')
+    fi
     # If no file is found, default to "main".
     echo "${default_target:-main}"
 }
@@ -158,7 +170,7 @@ function cppinit() {
     mkdir -p .ide-configs
     mkdir -p .statistics
 
-    # Create .contest_metadata in .statistics directory f it doesn't exist (for tracking).
+    # Create .contest_metadata in .statistics directory if it doesn't exist (for tracking).
     if [ ! -f ".statistics/contest_metadata" ]; then
         echo "# Contest Metadata" > .statistics/contest_metadata
         echo "CREATED=$(date +"%Y-%m-%d %H:%M:%S")" >> .statistics/contest_metadata
@@ -678,7 +690,7 @@ function cppconf() {
     # Run CMake with the selected toolchain - use array expansion.
     if cmake -S . -B build \
         -DCMAKE_BUILD_TYPE="${build_type}" \
-        -DCMAKE_TOOLCHAIN_FILE=${toolchain_file} \
+        -DCMAKE_TOOLCHAIN_FILE="${toolchain_file}" \
         -DCMAKE_CXX_FLAGS="-std=c++23" \
         "${cmake_flags[@]}"; then
         echo "${GREEN}CMake configuration successful.${RESET}"
@@ -802,10 +814,10 @@ function cppbuild() {
             timing_report=$(echo "$build_output" | sed -n '/Time variable/,/TOTAL/p; /Pass execution timing report/,$p')
 
             if [ -n "$timing_report" ]; then
-            # Extract only the relevant parts, stopping before the linking phase.
-            echo "$timing_report" | sed '/Linking CXX executable/q'
+                # Extract only the relevant parts, stopping before the linking phase.
+                echo "$timing_report" | sed '/Linking CXX executable/q'
             else
-            echo " Compilation finished. (Timing report not found in output)."
+                echo " Compilation finished. (Timing report not found in output)."
             fi
 
             # Check if this is a Clang build and add trace analysis note.
@@ -1182,8 +1194,17 @@ function _verify_submission_compilation() {
     local test_binary
     test_binary="/tmp/test_submission_$(basename "$submission_file" .cpp)"
 
+    # Find available g++ compiler
+    local gxx_compiler
+    gxx_compiler=$(command -v g++-15 || command -v g++-14 || command -v g++-13 || command -v g++)
+
+    if [ -z "$gxx_compiler" ]; then
+        echo "${YELLOW}Warning: No g++ compiler found for verification${RESET}" >&2
+        return 1
+    fi
+
     # Attempt syntax-only compilation with competition flags.
-    if g++-15 -std=c++23 -O2 -DNDEBUG -fsyntax-only "$submission_file" 2>/dev/null; then
+    if "$gxx_compiler" -std=c++23 -O2 -DNDEBUG -fsyntax-only "$submission_file" 2>/dev/null; then
         return 0
     else
         return 1
@@ -1245,12 +1266,21 @@ function cpptestsubmit() {
     # Ensure bin directory exists.
     mkdir -p "$(dirname "$test_binary")"
 
+    # Find available g++ compiler
+    local gxx_compiler
+    gxx_compiler=$(command -v g++-15 || command -v g++-14 || command -v g++-13 || command -v g++)
+
+    if [ -z "$gxx_compiler" ]; then
+        echo "${RED}Error: No g++ compiler found${RESET}" >&2
+        return 1
+    fi
+
     # Compile with timing information.
     echo -e "${BLUE}Compiling submission...${RESET}"
     local start_time
     start_time=$(date +%s%N 2>/dev/null || date +%s)
 
-    if g++-15 -std=c++23 -O2 -DNDEBUG -march=native \
+    if "$gxx_compiler" -std=c++23 -O2 -DNDEBUG -march=native \
            -I"$CP_ALGORITHMS_DIR" \
            "$submission_file" -o "$test_binary" 2>/tmp/compile_error.log; then
 
@@ -1851,7 +1881,7 @@ alias cpph='cpphelp'
 
 # Short alias for problem run with input redirection.
 # Dynamic problem runner function that handles both problem_X and problem_X[0..9] patterns.
-function cppgo_() {
+function _cppgo_problem() {
     local problem_id="$1"
     local target_name="problem_${problem_id}"
     local input_file="${target_name}.in"
@@ -1880,12 +1910,15 @@ function cppgo_() {
     cppgo "$target_name" "$input_file"
 }
 
-# Create aliases for common problem letters and numbered variants
+# Create aliases for common problem letters
 for letter in {A..H}; do
-    alias "cppgo_\${letter}"="cppgo_ \${letter}"
-    # Create numbered variants (e.g., cppgo_A1, cppgo_A2, etc.)
+    alias cppgo_${letter}="_cppgo_problem ${letter}"
+done
+
+# Create numbered variant aliases (e.g., cppgo_A1, cppgo_A2, etc.)
+for letter in {A..H}; do
     for num in {1..9}; do
-        alias "cppgo_\${letter}\${num}"="cppgo_ \${letter}\${num}"
+        alias cppgo_${letter}${num}="cppgo problem_${letter}${num} problem_${letter}${num}.in"
     done
 done
 
