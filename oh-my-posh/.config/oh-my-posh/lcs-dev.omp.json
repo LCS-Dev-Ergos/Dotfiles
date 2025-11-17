@@ -72,13 +72,13 @@
           "type": "node",
           "style": "plain",
           "foreground": "p:pistachio-green",
-          "template": "\ue718 {{ .Full }} "
+          "template": " \ue718 {{ .Full }}"
         },
         {
           "type": "php",
           "style": "plain",
           "foreground": "p:terminal-blue",
-          "template": "\ue73d {{ .Full }} "
+          "template": " \ue73d {{ .Full }}"
         },
         {
           "type": "python",
