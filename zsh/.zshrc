@@ -1046,3 +1046,5 @@ if [[ -d "$HOME/.opencode/bin" ]]; then
     export PATH="$HOME/.opencode/bin:$PATH"
 fi
 
+# Added by Antigravity
+export PATH="/Users/lcs-dev/.antigravity/antigravity/bin:$PATH"

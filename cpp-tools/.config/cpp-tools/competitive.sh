@@ -77,7 +77,8 @@ fi
 if [ -n "${BASH_SOURCE[0]}" ]; then
     SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 elif [ -n "$ZSH_VERSION" ]; then
-    SCRIPT_DIR="$( cd "$( dirname "${%:-%x}" )" &> /dev/null && pwd )"
+    # In zsh, use ${(%):-%x} to get the script path when sourced
+    SCRIPT_DIR="$( cd "$( dirname "${(%):-%x}" )" &> /dev/null && pwd )"
 else
     echo "${RED}Unsupported shell for script directory detection.${RESET}" >&2
     # Fallback to current directory, though this may be unreliable.
