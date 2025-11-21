@@ -11,7 +11,7 @@ local CONFIG = {
   brew_path = "/opt/homebrew/bin/brew",
   terminal_app = "ghostty",
   timeout = 120,
-  debug = false,
+  debug = true,
   hover_effect = true,
   widget_name = "widgets.brew",
   package_icon = icons.package or "[PKG]"
@@ -28,10 +28,10 @@ local THRESHOLDS = {
 
 -- Visual feedback colors
 local FEEDBACK_COLORS = {
-  updating = "#FF00FF00",
-  success = "#FF55FF55",
-  error = "#FFFF5555",
-  loading = "#FFFFFF55"
+  updating = "0xff00ff00",
+  success = "0xff55ff55",
+  error = "0xffff5555",
+  loading = "0x55ffffff"
 }
 
 -- Helper functions
@@ -48,8 +48,9 @@ local function start_event_provider()
   local brew_check_path = config_dir .. "/helpers/event_providers/brew_check/bin/brew_check"
 
   local command = string.format(
-    "pkill -f 'brew_check' >/dev/null 2>&1; " ..
-    "%s brew_update %d %d %s &",
+    "/bin/zsh -c 'source ~/.zshrc >/dev/null 2>&1; " ..
+    "pkill -f \"brew_check\" >/dev/null 2>&1; " ..
+    "\"%s\" brew_update %d %d \"%s\" >/tmp/brew_check.log 2>&1 &'",
     brew_check_path,
     CONFIG.check_interval,
     CONFIG.update_interval,
@@ -67,6 +68,7 @@ local function get_color(count)
 end
 
 -- Start event provider (unchanged)
+sbar.add("event", "brew_update")
 start_event_provider()
 
 -- Main widget - always visible (unchanged)
@@ -90,20 +92,28 @@ local brew = sbar.add("item", CONFIG.widget_name, {
 
 -- Subscribe to update event (modified for robustness)
 brew:subscribe("brew_update", function(env)
-  local count = tonumber(env.outdated_count) or 0
+  local info = env.outdated_count
+  if CONFIG.debug then
+    print("DEBUG: brew_update received env.outdated_count:", info)
+    os.execute("echo 'Lua received: " .. tostring(info) .. "' >> /tmp/brew_check.log")
+  end
+  local count = tonumber(info) or 0
   local color = get_color(count)
-  
+
   -- Ensure the icon is always set to prevent disappearing
   brew:set({
     icon = { string = CONFIG.package_icon, color = color },
     label = { string = tostring(count), color = color }
   })
-  
+
   -- Note: tooltip property is not supported by sketchybar, removed to fix errors
+  if env.error and env.error ~= "" and env.error ~= "Success" then
+    debug_log("Error from brew_check: " .. env.error)
+  end
   debug_log(string.format("Updated brew widget: %d packages", count))
 end)
 
--- === NEW INTEGRATED AND ROBUST CLICK SCRIPT ===
+-- === INTEGRATED AND ROBUST CLICK SCRIPT ===
 brew:set({
   click_script = string.format([[
     #!/bin/bash
@@ -121,7 +131,7 @@ brew:set({
     # 1. Instant and Safe Visual Feedback
     #    Set both icon and "loading" color to solve the problem
     #    of disappearing icon. Restoration will happen later.
-    sketchybar --set "$WIDGET_NAME" icon="$PACKAGE_ICON" icon.color='#FFFFFF55'
+    sketchybar --set "$WIDGET_NAME" icon.color='0x55ffffff'
 
     # ----- Click Handling ----- #
 
@@ -148,11 +158,11 @@ brew:set({
       # 2. Launch terminal in background and capture its PID.
       #    Ghostty on macOS requires 'open -a' command with -n flag for new instance.
       if [ "$TERMINAL_APP" = "ghostty" ]; then
-        open -n -a Ghostty --args -e bash -c "$task_command; echo; read -p 'Press Enter to close...'" &
+        open -n -a Ghostty --args -e bash -c "echo; echo 'Checking for updates...'; $task_command; echo; read -p 'Press Enter to close...'" &
         TERMINAL_PID=$!
       else
         # Alacritty or other terminals with direct CLI support
-        "$TERMINAL_APP" -e bash -c "$task_command; echo; read -p 'Press Enter to close...'" &
+        "$TERMINAL_APP" -e bash -c "echo 'Checking for updates...'; $task_command; echo; read -p 'Press Enter to close...'" &
         TERMINAL_PID=$!
       fi
 
@@ -169,12 +179,6 @@ brew:set({
 
   ]], CONFIG.widget_name, CONFIG.terminal_app, CONFIG.package_icon, CONFIG.brew_path)
 })
-
--- Note: The inline bash script is necessary because:
--- 1. It handles multiple click types (left/middle/right) without blocking Sketchybar
--- 2. It waits for terminal closure before updating the counter
--- 3. It provides immediate visual feedback
--- Alternative approaches (pure Lua or separate C helper) would be more complex
 
 -- Hover effect and surrounding elements (unchanged)
 if CONFIG.hover_effect then

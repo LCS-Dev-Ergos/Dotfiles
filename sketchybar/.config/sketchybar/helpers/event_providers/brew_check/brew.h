@@ -36,6 +36,7 @@
 #include <fcntl.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -327,18 +328,11 @@ static inline void brew_cleanup(brew_t* brew) {
       dup2(pipefd[1], STDOUT_FILENO);  // Redirect stdout to pipe.
       dup2(pipefd[1], STDERR_FILENO);  // Redirect stderr to pipe as well.
       close(pipefd[1]);
-    } else {
-      // Discard output if no buffer is provided.
-      int devnull = open("/dev/null", O_WRONLY);
-      if (devnull != -1) {
-        dup2(devnull, STDOUT_FILENO);
-        dup2(devnull, STDERR_FILENO);
-        close(devnull);
-      }
     }
 
     execv(args[0], (char* const*)args);
-    // execv only returns on error.
+    // If execv returns, it must have failed.
+    fprintf(stderr, "brew_check: execv failed: %s\n", strerror(errno));
     exit(127);
   }
 

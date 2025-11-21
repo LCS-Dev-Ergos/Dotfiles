@@ -160,7 +160,7 @@ static void check_and_notify(
   char trigger_message[MAX_MESSAGE_LENGTH];
   snprintf(
       trigger_message, sizeof(trigger_message),
-      "--trigger %s outdated_count='%d' pending_updates='%s' last_check='%ld' error='%s'",
+      "--trigger %s outdated_count=%d pending_updates='%s' last_check='%ld' error='%s'",
       event_name, brew->outdated_count, brew->package_list ? brew->package_list : "",
       (long)brew->last_check, brew_error_string(brew->last_error));
 
