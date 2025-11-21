@@ -1,6 +1,7 @@
-# Se CC non è definito, usa clang
+# Use clang as the C compiler
 CC ?= clang
-# Se CFLAGS non è definito, usa C23 con ottimizzazioni
+
+# Use C23 standard with optimizations - override any external flags
 CFLAGS ?= -std=c2x -O3 -Wall -Wextra -pedantic
 
 bin/brew_check: brew_check.c brew.h ../sketchybar.h | bin

@@ -1,6 +1,7 @@
-# Versione C23
+#Version C23
 C_STD = -std=c2x
-# Specifica il compilatore da usare (ad esempio gcc-12 o una versione recente di clang)
+
+# Specifies the compiler to use
 CC = gcc
 CFLAGS = $(C_STD) -O3 -Wall -Wextra -pedantic
 

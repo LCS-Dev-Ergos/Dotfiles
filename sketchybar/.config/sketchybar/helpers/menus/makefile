@@ -1,6 +1,7 @@
-# Se CC non è definito, usa clang
+# If CC is not defined, use clang
 CC ?= clang
-# Se CFLAGS non è definito, usa C23 con ottimizzazioni
+
+# If CFLAGS is not defined, use C23 with optimizations
 CFLAGS ?= -std=c2x -O3 -Wall -Wextra -pedantic
 
 bin/menus: menus.c | bin

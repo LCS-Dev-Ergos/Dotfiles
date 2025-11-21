@@ -5,11 +5,12 @@
 #include <string.h>
 #include <unistd.h>
 
-// Constants for better clarity
+// Constants
+#define MAX_BUFFER_SIZE          512
+#define MAX_NAME_BUFFER          256
+
 static const int MENU_BAR_LAYER           = 0x19;
 static const int MAIN_DISPLAY             = 0;
-static const int MAX_BUFFER_SIZE          = 512;
-static const int MAX_NAME_BUFFER          = 256;
 static const int CLICK_DELAY_MICROSECONDS = 150000; // 150ms
 
 /**
