@@ -4,6 +4,7 @@ return {
   -- 1. MASON: Installs tsserver, prettier (formatter) and eslint_d (linter).
   {
     "mason-org/mason.nvim",
+    ft = { "javascript", "typescript", "javascriptreact", "typescriptreact", "tsx" },
     opts = function(_, opts)
       opts.ensure_installed = opts.ensure_installed or {}
       vim.list_extend(
@@ -16,6 +17,7 @@ return {
   -- 2. CONFORM.NVIM (Formatter): Uses prettier.
   {
     "stevearc/conform.nvim",
+    ft = { "javascript", "typescript", "javascriptreact", "typescriptreact", "tsx" },
     opts = {
       formatters_by_ft = {
         javascript = { "prettier" },
@@ -29,6 +31,7 @@ return {
   -- 3. NVIM-LINT: Configure eslint_d linter.
   {
     "mfussenegger/nvim-lint",
+    ft = { "javascript", "typescript", "javascriptreact", "typescriptreact", "tsx" },
     opts = {
       linters_by_ft = {
         javascript = { "eslint_d" },
@@ -42,6 +45,7 @@ return {
   -- 4. NVIM-LSPCONFIG: Configures tsserver.
   {
     "neovim/nvim-lspconfig",
+    ft = { "javascript", "typescript", "javascriptreact", "typescriptreact", "tsx" },
     opts = {
       servers = {
         ts_ls = {
@@ -78,6 +82,7 @@ return {
   -- 5. TREESITTER: Installs the parsers.
   {
     "nvim-treesitter/nvim-treesitter",
+    ft = { "javascript", "typescript", "javascriptreact", "typescriptreact", "tsx" },
     opts = function(_, opts)
       if type(opts.ensure_installed) == "table" then
         vim.list_extend(opts.ensure_installed, { "javascript", "typescript", "tsx" })

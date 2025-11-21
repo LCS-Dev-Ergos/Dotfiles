@@ -3,6 +3,7 @@ return {
   -- 1. MASON: Ensures rust_analyzer, rustfmt and codelldb (for debugging) are installed.
   {
     "mason-org/mason.nvim",
+    ft = { "rust" },
     opts = function(_, opts)
       opts.ensure_installed = opts.ensure_installed or {}
       vim.list_extend(opts.ensure_installed, { "rust-analyzer", "rustfmt", "codelldb" })
@@ -12,6 +13,7 @@ return {
   -- 2. CONFORM.NVIM (Formatter): Uses rustfmt.
   {
     "stevearc/conform.nvim",
+    ft = { "rust" },
     opts = {
       formatters_by_ft = {
         rust = { "rustfmt" },
@@ -22,6 +24,7 @@ return {
   -- 3. NVIM-LSPCONFIG: Configures rust_analyzer.
   {
     "neovim/nvim-lspconfig",
+    ft = { "rust" },
     opts = {
       servers = {
         rust_analyzer = {}, -- Default configuration, usually sufficient.
@@ -32,6 +35,7 @@ return {
   -- 4. TREESITTER: Ensures the parser for Rust is installed.
   {
     "nvim-treesitter/nvim-treesitter",
+    ft = { "rust" },
     opts = function(_, opts)
       if type(opts.ensure_installed) == "table" then
         vim.list_extend(opts.ensure_installed, { "rust" })

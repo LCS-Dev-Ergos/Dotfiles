@@ -26,6 +26,7 @@ return {
   -- 1. MASON: Ensure the formatter is installed.
   {
     "mason-org/mason.nvim",
+    ft = { "haskell", "lhaskell", "cabal" },
     opts = function(_, opts)
       opts.ensure_installed = opts.ensure_installed or {}
       vim.list_extend(opts.ensure_installed, { "fourmolu" }) -- or "ormolu".
@@ -35,6 +36,7 @@ return {
   -- 2. CONFORM.NVIM (Formatter): Use fourmolu.
   {
     "stevearc/conform.nvim",
+    ft = { "haskell", "lhaskell", "cabal" },
     opts = {
       formatters_by_ft = {
         haskell = { "fourmolu" },
@@ -45,6 +47,7 @@ return {
   -- 3. TREESITTER: Ensure the parser for Haskell is installed.
   {
     "nvim-treesitter/nvim-treesitter",
+    ft = { "haskell", "lhaskell", "cabal" },
     opts = function(_, opts)
       if type(opts.ensure_installed) == "table" then
         vim.list_extend(opts.ensure_installed, { "haskell" })

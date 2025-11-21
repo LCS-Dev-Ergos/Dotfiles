@@ -4,6 +4,7 @@ return {
   -- 1. MASON: Ensure LSP, formatter, and linter are installed.
   {
     "mason-org/mason.nvim",
+    ft = { "sh", "bash", "zsh" },
     opts = function(_, opts)
       opts.ensure_installed = opts.ensure_installed or {}
       vim.list_extend(opts.ensure_installed, {
@@ -17,6 +18,7 @@ return {
   -- 2. CONFORM.NVIM (Formatter): Use shfmt for shell script files.
   {
     "stevearc/conform.nvim",
+    ft = { "sh", "bash", "zsh" },
     opts = {
       formatters_by_ft = {
         bash = { "shfmt" },
@@ -29,6 +31,7 @@ return {
   -- 3. NVIM-LINT: Shellcheck disabled (call manually when needed).
   {
     "mfussenegger/nvim-lint",
+    ft = { "sh", "bash", "zsh" },
     opts = function(_, opts)
       -- Disable shellcheck for shell files
       opts.linters_by_ft = opts.linters_by_ft or {}
@@ -52,6 +55,7 @@ return {
   -- 4. NVIM-LSPCONFIG: Configure the language server (bashls).
   {
     "neovim/nvim-lspconfig",
+    ft = { "sh", "bash", "zsh" },
     opts = {
       servers = {
         bashls = {
@@ -64,6 +68,7 @@ return {
   -- 5. TREESITTER: Ensure the parser for bash is installed.
   {
     "nvim-treesitter/nvim-treesitter",
+    ft = { "sh", "bash", "zsh" },
     opts = function(_, opts)
       if type(opts.ensure_installed) == "table" then
         vim.list_extend(opts.ensure_installed, { "bash" })

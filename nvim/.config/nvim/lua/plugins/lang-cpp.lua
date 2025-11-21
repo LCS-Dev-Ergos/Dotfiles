@@ -4,6 +4,7 @@ return {
   -- 1. MASON: Ensures tools are installed.
   {
     "mason-org/mason.nvim",
+    ft = { "c", "cpp" },
     opts = function(_, opts)
       opts.ensure_installed = opts.ensure_installed or {}
       vim.list_extend(opts.ensure_installed, {
@@ -17,6 +18,7 @@ return {
   -- 2. CONFORM.NVIM (Formatter): Uses Mason's clang-format.
   {
     "stevearc/conform.nvim",
+    ft = { "c", "cpp" },
     opts = {
       formatters_by_ft = {
         c = { "clang_format" },
@@ -28,6 +30,7 @@ return {
   -- 3. NVIM-LSPCONFIG: Configure clangd using LazyVim's pattern.
   {
     "neovim/nvim-lspconfig",
+    ft = { "c", "cpp" },
     opts = {
       servers = {
         clangd = {
@@ -71,6 +74,7 @@ return {
   -- 4. TREESITTER: Ensure C/C++ parsers are installed.
   {
     "nvim-treesitter/nvim-treesitter",
+    ft = { "c", "cpp" },
     opts = function(_, opts)
       if type(opts.ensure_installed) == "table" then
         vim.list_extend(opts.ensure_installed, { "c", "cpp" })
@@ -81,6 +85,7 @@ return {
   -- 5. FILETYPE ASSOCIATION: Associate .tpp files with cpp.
   {
     "nvim-treesitter/nvim-treesitter",
+    ft = { "c", "cpp" },
     opts = function()
       vim.filetype.add({
         extension = {

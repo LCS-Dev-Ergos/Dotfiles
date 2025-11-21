@@ -4,6 +4,7 @@ return {
   -- 1. MASON: Ensures that lua-language-server (for LSP) and stylua (for formatting) are installed.
   {
     "mason-org/mason.nvim",
+    ft = { "lua" },
     opts = function(_, opts)
       opts.ensure_installed = opts.ensure_installed or {}
       vim.list_extend(opts.ensure_installed, { "lua-language-server", "stylua" })
@@ -13,6 +14,7 @@ return {
   -- 2. CONFORM.NVIM (Formatter): Uses stylua for Lua files.
   {
     "stevearc/conform.nvim",
+    ft = { "lua" },
     opts = {
       formatters_by_ft = {
         lua = { "stylua" },
@@ -25,6 +27,7 @@ return {
   -- understand that we are working in a Neovim environment and to recognize globals like "vim".
   {
     "neovim/nvim-lspconfig",
+    ft = { "lua" },
     opts = {
       servers = {
         lua_ls = {
@@ -53,6 +56,7 @@ return {
   -- 4. TREESITTER: Ensures that parsers for Lua and queries (useful for development) are installed.
   {
     "nvim-treesitter/nvim-treesitter",
+    ft = { "lua" },
     opts = function(_, opts)
       if type(opts.ensure_installed) == "table" then
         vim.list_extend(opts.ensure_installed, { "lua", "query" })
