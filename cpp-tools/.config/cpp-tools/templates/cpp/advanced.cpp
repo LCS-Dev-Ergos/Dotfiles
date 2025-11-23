@@ -7,6 +7,7 @@
  * @status: In Progress
  */
 //===----------------------------------------------------------------------===//
+/* Included library */
 
 // clang-format off
 // Compiler optimizations and target-specific features:
@@ -55,84 +56,89 @@
 //===----------------------------------------------------------------------===//
 /* Advanced Type System and Aliases */
 
-// Fundamental type aliases with explicit sizes:
-using I8   = std::int8_t;
-using I16  = std::int16_t;
-using I32  = std::int32_t;
-using I64  = std::int64_t;
-using U8   = std::uint8_t;
-using U16  = std::uint16_t;
-using U32  = std::uint32_t;
-using U64  = std::uint64_t;
-using F32  = float;
-using F64  = double;
-using F80  = long double;
+#ifndef __TYPES__
+#define __TYPES__
 
-// Extended precision types (when available):
-#ifdef __SIZEOF_INT128__
-  using I128 = __int128;
-  using U128 = unsigned __int128;
-#else
-  using I128 = std::int64_t;
-  using U128 = std::uint64_t;
-#endif
+  // Fundamental type aliases with explicit sizes:
+  using I8   = std::int8_t;
+  using I16  = std::int16_t;
+  using I32  = std::int32_t;
+  using I64  = std::int64_t;
+  using U8   = std::uint8_t;
+  using U16  = std::uint16_t;
+  using U32  = std::uint32_t;
+  using U64  = std::uint64_t;
+  using F32  = float;
+  using F64  = double;
+  using F80  = long double;
 
-#ifdef __FLOAT128__
-  using F128 = __float128;
-#else
-  using F128 = long double;
-#endif
+  // Extended precision types (when available):
+  #ifdef __SIZEOF_INT128__
+    using I128 = __int128;
+    using U128 = unsigned __int128;
+  #else
+    using I128 = std::int64_t;
+    using U128 = std::uint64_t;
+  #endif
 
-// Legacy aliases for backward compatibility:
-using ll  = I64;
-using ull = U64;
-using ld  = F80;
+  #ifdef __FLOAT128__
+    using F128 = __float128;
+  #else
+    using F128 = long double;
+  #endif
 
-// Container type aliases with template parameters:
-template <class T>
-using VC = std::vector<T>;
-template <class T>
-using VVC = VC<VC<T>>;
-template <class T>
-using VVVC = VC<VVC<T>>;
-template <class T>
-using VVVVC = VC<VVVC<T>>;
+  // Legacy aliases for backward compatibility:
+  using ll  = I64;
+  using ull = U64;
+  using ld  = F80;
 
-// Specialized container aliases:
-using VI = VC<I64>;
-using VVI = VVC<I64>;
-using VVVI = VVVC<I64>;
-using VB = VC<bool>;
-using VS = VC<std::string>;
-using VU8 = VC<U8>;
-using VU32 = VC<U32>;
-using VU64 = VC<U64>;
+  // Container type aliases with template parameters:
+  template <class T>
+  using VC = std::vector<T>;
+  template <class T>
+  using VVC = VC<VC<T>>;
+  template <class T>
+  using VVVC = VC<VVC<T>>;
+  template <class T>
+  using VVVVC = VC<VVVC<T>>;
 
-// Pair and tuple aliases:
-using PII = std::pair<I32, I32>;
-using PLL = std::pair<I64, I64>;
-using PLD = std::pair<ld, ld>;
-template <class T, class U>
-using P = std::pair<T, U>;
+  // Specialized container aliases:
+  using VI = VC<I64>;
+  using VVI = VVC<I64>;
+  using VVVI = VVVC<I64>;
+  using VB = VC<bool>;
+  using VS = VC<std::string>;
+  using VU8 = VC<U8>;
+  using VU32 = VC<U32>;
+  using VU64 = VC<U64>;
 
-using VPII = VC<PII>;
-using VPLL = VC<PLL>;
-template <class T, class U>
-using VP = VC<P<T, U>>;
+  // Pair and tuple aliases:
+  using PII = std::pair<I32, I32>;
+  using PLL = std::pair<I64, I64>;
+  using PLD = std::pair<ld, ld>;
+  template <class T, class U>
+  using P = std::pair<T, U>;
 
-// Priority queue aliases:
-template <class T>
-using PQ_max = std::priority_queue<T>;
-template <class T>
-using PQ_min = std::priority_queue<T, VC<T>, std::greater<T>>;
+  using VPII = VC<PII>;
+  using VPLL = VC<PLL>;
+  template <class T, class U>
+  using VP = VC<P<T, U>>;
 
-// Advanced container aliases:
-template <class K, class V>
-using UMap = std::unordered_map<K, V>;
-template <class T>
-using USet = std::unordered_set<T>;
-template <class T>
-using MSet = std::multiset<T>;
+  // Priority queue aliases:
+  template <class T>
+  using PQ_max = std::priority_queue<T>;
+  template <class T>
+  using PQ_min = std::priority_queue<T, VC<T>, std::greater<T>>;
+
+  // Advanced container aliases:
+  template <class K, class V>
+  using UMap = std::unordered_map<K, V>;
+  template <class T>
+  using USet = std::unordered_set<T>;
+  template <class T>
+  using MSet = std::multiset<T>;
+
+#endif // __TYPES__
 
 // Policy-based data structures:
 using namespace __gnu_pbds;
@@ -215,6 +221,14 @@ constexpr I64 MOD3 = 1000000009;
 #define ALL(x) std::ranges::begin(x), std::ranges::end(x)
 #define RALL(x) std::ranges::rbegin(x), std::ranges::rend(x)
 
+// Advanced container operations:
+#define UNIQUE(x) (std::ranges::sort(x), x.erase(std::ranges::unique(x).begin(), x.end()), x.shrink_to_fit())
+#define LB(c, x) (I64)std::distance((c).begin(), std::ranges::lower_bound(c, x))
+#define UB(c, x) (I64)std::distance((c).begin(), std::ranges::upper_bound(c, x))
+#define SUM(x) std::accumulate(all(x), 0LL)
+#define MIN(x) *std::ranges::min_element(x)
+#define MAX(x) *std::ranges::max_element(x)
+
 // Container utility macros:
 #define all(x) (x).begin(), (x).end()
 #define rall(x) (x).rbegin(), (x).rend()
@@ -228,14 +242,6 @@ constexpr I64 MOD3 = 1000000009;
 #define se second
 #define elif else if
 
-// Advanced container operations:
-#define UNIQUE(x) (std::ranges::sort(x), x.erase(std::ranges::unique(x).begin(), x.end()), x.shrink_to_fit())
-#define LB(c, x) (I64)std::distance((c).begin(), std::ranges::lower_bound(c, x))
-#define UB(c, x) (I64)std::distance((c).begin(), std::ranges::upper_bound(c, x))
-#define SUM(x) std::accumulate(all(x), 0LL)
-#define MIN(x) *std::ranges::min_element(x)
-#define MAX(x) *std::ranges::max_element(x)
-
 //===----------------------------------------------------------------------===//
 /* Optimized I/O System */
 
@@ -244,7 +250,7 @@ namespace fast_io {
   alignas(64) char input_buffer[BUFFER_SIZE];
   alignas(64) char output_buffer[BUFFER_SIZE];
   alignas(64) char number_buffer[128];
-  
+
   // Precomputed number strings for fast output:
   struct NumberLookup {
     char digits[10000][4];
@@ -258,23 +264,23 @@ namespace fast_io {
     }
   };
   constexpr NumberLookup number_lookup;
-  
+
   U32 input_pos = 0, input_end = 0, output_pos = 0;
-  
+
   [[gnu::always_inline]] inline void load_input() {
     std::memmove(input_buffer, input_buffer + input_pos, input_end - input_pos);
-    input_end = input_end - input_pos + 
-                std::fread(input_buffer + input_end - input_pos, 1, 
+    input_end = input_end - input_pos +
+                std::fread(input_buffer + input_end - input_pos, 1,
                           BUFFER_SIZE - input_end + input_pos, stdin);
     input_pos = 0;
     if (input_end < BUFFER_SIZE) input_buffer[input_end++] = '\n';
   }
-  
+
   [[gnu::always_inline]] inline void flush_output() {
     std::fwrite(output_buffer, 1, output_pos, stdout);
     output_pos = 0;
   }
-  
+
   // Fast character reading:
   [[gnu::always_inline]] inline void read_char(char& c) {
     do {
@@ -282,15 +288,15 @@ namespace fast_io {
       c = input_buffer[input_pos++];
     } while (std::isspace(c));
   }
-  
+
   // Optimized integer reading with SIMD potential:
   template <typename T>
   [[gnu::always_inline]] inline void read_integer(T& x) {
     if (input_pos + 64 >= input_end) load_input();
-    
+
     char c;
     do { c = input_buffer[input_pos++]; } while (c < '-');
-    
+
     bool negative = false;
     if constexpr (std::is_signed_v<T>) {
       if (c == '-') {
@@ -298,18 +304,18 @@ namespace fast_io {
         c = input_buffer[input_pos++];
       }
     }
-    
+
     x = 0;
     while (c >= '0') {
       x = x * 10 + (c - '0');
       c = input_buffer[input_pos++];
     }
-    
+
     if constexpr (std::is_signed_v<T>) {
       if (negative) x = -x;
     }
   }
-  
+
   // Fast string reading:
   [[gnu::always_inline]] inline void read_string(std::string& s) {
     s.clear();
@@ -318,46 +324,46 @@ namespace fast_io {
       if (input_pos >= input_end) load_input();
       c = input_buffer[input_pos++];
     } while (std::isspace(c));
-    
+
     do {
       s.push_back(c);
       if (input_pos >= input_end) load_input();
       c = input_buffer[input_pos++];
     } while (!std::isspace(c));
   }
-  
+
   // Optimized integer writing:
   template <typename T>
   [[gnu::always_inline]] inline void write_integer(T x) {
     if (output_pos + 64 >= BUFFER_SIZE) flush_output();
-    
+
     if (x < 0) {
       output_buffer[output_pos++] = '-';
       x = -x;
     }
-    
+
     I32 digits = 0;
     T temp = x;
     do {
       number_buffer[digits++] = '0' + (temp % 10);
       temp /= 10;
     } while (temp > 0);
-    
+
     // Reverse and copy:
     for (I32 i = digits - 1; i >= 0; --i) {
       output_buffer[output_pos++] = number_buffer[i];
     }
   }
-  
+
   [[gnu::always_inline]] inline void write_char(char c) {
     if (output_pos >= BUFFER_SIZE) flush_output();
     output_buffer[output_pos++] = c;
   }
-  
+
   [[gnu::always_inline]] inline void write_string(const std::string& s) {
     for (char c : s) write_char(c);
   }
-  
+
   // Template-based readers:
   void read(I32& x) { read_integer(x); }
   void read(I64& x) { read_integer(x); }
@@ -365,20 +371,20 @@ namespace fast_io {
   void read(U64& x) { read_integer(x); }
   void read(char& x) { read_char(x); }
   void read(std::string& x) { read_string(x); }
-  
+
   template <class T, class U>
   void read(std::pair<T, U>& p) { read(p.first); read(p.second); }
-  
+
   template <class T>
   void read(VC<T>& v) { for (auto& x : v) read(x); }
-  
+
   // Variadic read:
   template <class Head, class... Tail>
   void read(Head& head, Tail&... tail) {
     read(head);
     if constexpr (sizeof...(tail) > 0) read(tail...);
   }
-  
+
   // Template-based writers:
   void write(I32 x) { write_integer(x); }
   void write(I64 x) { write_integer(x); }
@@ -387,12 +393,12 @@ namespace fast_io {
   void write(char x) { write_char(x); }
   void write(const std::string& x) { write_string(x); }
   void write(const char* x) { write_string(std::string(x)); }
-  
+
   template <class T, class U>
   void write(const std::pair<T, U>& p) {
     write(p.first); write(' '); write(p.second);
   }
-  
+
   template <class T>
   void write(const VC<T>& v) {
     for (I64 i = 0; i < sz(v); ++i) {
@@ -400,7 +406,7 @@ namespace fast_io {
       write(v[i]);
     }
   }
-  
+
   // Variadic write:
   template <class Head, class... Tail>
   void write(const Head& head, const Tail&... tail) {
@@ -410,15 +416,15 @@ namespace fast_io {
       write(tail...);
     }
   }
-  
+
   void writeln() { write_char('\n'); }
-  
+
   template <class... Args>
   void writeln(const Args&... args) {
     if constexpr (sizeof...(args) > 0) write(args...);
     write_char('\n');
   }
-  
+
   // Destructor for automatic flushing:
   struct IOFlusher {
     ~IOFlusher() { flush_output(); }
