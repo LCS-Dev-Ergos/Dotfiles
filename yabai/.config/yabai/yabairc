@@ -52,9 +52,9 @@ yabai -m rule --add app="kitty" opacity=0.9875
 # ============================= Disabling Rules ============================= #
 
 # Exclude problematic apps from being managed:
-EXCLUDED_APPS="1Password|Activity Monitor|Alfred|App Store|Archive Utility|BetterDisplay|Calculator|   \
-               |CleanMyMac|Company Portal|Dictionary|Finder|Google Drive|LocalSend|Microsoft OneDrive| \
-               |Photo Booth|Python|Software Update|Steam|Sudoku|System Preferences|System Settings|    \
+EXCLUDED_APPS="1Password|Activity Monitor|Alfred|App Store|Archive Utility|BetterDisplay|Calculator \
+               |CleanMyMac|Company Portal|Dictionary|Finder|Google Drive|LocalSend|Microsoft OneDrive \
+               |Photo Booth|Python|Software Update|Steam|Sudoku|System Preferences|System Settings \
                |Preview|Tailscale|TextEdit|The Unarchiver|Transmission|VLC"
 
 yabai -m rule --add app="^($EXCLUDED_APPS)$" manage=off
@@ -79,13 +79,13 @@ yabai -m rule --add app="^(${NEURAL_DSP})$" manage=off
 # +++++++++++++++++++++++++++++ JetBrains IDEs ++++++++++++++++++++++++++++++ #
 
 # Exclude JetBrains IDEs specific windows from being managed
-JETBRAINS_IDEs="CLion|CLion-EAP|DataGrip|DataGrip-EAP|GoLand-EAP|IntelliJ IDEA|IntelliJ IDEA EAP|IntelliJ IDEA-EAP| \
+JETBRAINS_IDEs="CLion|CLion-EAP|DataGrip|DataGrip-EAP|GoLand-EAP|IntelliJ IDEA|IntelliJ IDEA EAP|IntelliJ IDEA-EAP \
                 PhpStorm|PhpStorm-EAP|PyCharm|PyCharm-EAP|RustRover|RustRover-EAP|WebStorm|WebStorm-EAP"
 
 yabai -m rule --add \
     app="^($JETBRAINS_IDEs)$" \
-    title="^(.*Configurations?.*|.*Debug.*|.*Delete.*|.*devices?.*|.*Files?.*|.*Installations?.*|.*Errors?.*| \
-             |.*Licenses?.*|.*Lines?.*|.*Log.*|.*JetBrains.*|.*Move.*|.*Plugins?.*|.*Projects?.*|.*Rename.*| \
+    title="^(.*Configurations?.*|.*Debug.*|.*Delete.*|.*devices?.*|.*Files?.*|.*Installations?.*|.*Errors?.* \
+             |.*Licenses?.*|.*Lines?.*|.*Log.*|.*JetBrains.*|.*Move.*|.*Plugins?.*|.*Projects?.*|.*Rename.* \
              |.*Resources?.*|.*Tip of the Day.*|.*Updates?.*|.*Welcome.*)$" \
     manage=off
 
@@ -93,9 +93,9 @@ yabai -m rule --add \
 yabai -m rule --add \
     label="Android Studio Narwhal" \
     app="^.*Android Studio.*$" \
-    title="^(.*About.*|.*Add?.*|.*Android.*|.*Commits?.*|.*Configurations?.*|.*Convert.*|.*Debug.*|.*Delete.*| \
-             |.*Device.*|.*Directory.*|.*Errors?.*|.*Files?.*|.*Git.*|.*Gradle.*|.*Icons?.*|.*Installations?.*|.*JetBrains.*| \
-             |.*Lines?.*|.*Log.*|.*Move.*|.*Plugins?.*|.*Process?.*|.*Projects?.*|.*Provide?.*|.*Rename.*| \
+    title="^(.*About.*|.*Add?.*|.*Android.*|.*Commits?.*|.*Configurations?.*|.*Convert.*|.*Debug.*|.*Delete.* \
+             |.*Device.*|.*Directory.*|.*Errors?.*|.*Files?.*|.*Git.*|.*Gradle.*|.*Icons?.*|.*Inspections?.*|.*Installations?.* \
+             |.*JetBrains.*|.*Lines?.*|.*Log.*|.*Move.*|.*Plugins?.*|.*Process?.*|.*Projects?.*|.*Provide?.*|.*Rename.* \
              |.*Resources?.*|.*SDK.*|.*Select?.*|.*Studio.*|.*Tip of the Day.*|.*Updates?.*|.*Welcome.*|.*devices?.*)$" \
     manage=off
 
@@ -103,7 +103,7 @@ yabai -m rule --add \
 yabai -m rule --add \
     label="Eclipse" \
     app="^.*Eclipse.*$" \
-    title="^(.*Configuration.*|.*Errors?.*|.*Install.*|.*Import.*|.*Marketplace.*|.*Preferences.*| \
+    title="^(.*Configuration.*|.*Errors?.*|.*Install.*|.*Import.*|.*Marketplace.*|.*Preferences.* \
              |.*Problems?.*|.*Projects?.*|.*Resources?.*)$" \
     manage=off
 
