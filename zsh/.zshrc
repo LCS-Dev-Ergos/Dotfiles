@@ -606,6 +606,9 @@ if [[ "$PLATFORM" == 'macOS' ]]; then
 
     # Android Home for Platform Tools.
     export ANDROID_HOME="$HOME/Library/Android/Sdk"
+
+    # Ruby Gems.
+    export GEM_HOME=$HOME/.gem
 fi
 
 if [[ "$PLATFORM" == 'Linux' && "$ARCH_LINUX" == true ]]; then
@@ -898,6 +901,12 @@ build_final_path() {
     # Store original PATH for debugging.
     local original_path="$PATH"
 
+    # Version-specific Ruby gems bin (only when Ruby and GEM_HOME are available).
+    local ruby_user_bin=""
+    if [[ -n "$GEM_HOME" ]] && command -v ruby >/dev/null 2>&1; then
+        ruby_user_bin="$GEM_HOME/ruby/$(ruby -e 'print RbConfig::CONFIG["ruby_version"]' 2>/dev/null)/bin"
+    fi
+
     # Define the desired final order of directories in the PATH.
     local -a path_template
     if [[ "$PLATFORM" == 'macOS' ]]; then
@@ -932,9 +941,11 @@ build_final_path() {
             "$HOME/.ghcup/bin" "$HOME/.cabal/bin"
             "$HOME/.cargo/bin"
             "$HOME/.ada/bin"
+            "$HOME/.flutter/bin"
             "$HOME/Library/Application Support/Coursier/bin"
             "$HOME/00_ENV/perl5/bin"
             "$HOME/00_ENV/miniforge3/condabin" "$HOME/00_ENV/miniforge3/bin"
+            "$GEM_HOME/bin" "$ruby_user_bin"
             "$GOPATH/bin" "$GOROOT/bin"
             "$ANDROID_HOME/platform-tools" "$ANDROID_HOME/cmdline-tools/latest/bin"
 
@@ -974,7 +985,9 @@ build_final_path() {
             "$HOME/.ghcup/bin" "$HOME/.cabal/bin"
             "$HOME/.cargo/bin"
             "$HOME/.ada/bin"
+            "$HOME/.flutter/bin"
             "$HOME/.elan/bin"
+            "$ruby_user_bin"
             "$GOPATH/bin" "$GOROOT/bin"
             "$ANDROID_HOME/platform-tools" "$ANDROID_HOME/cmdline-tools/latest/bin"
             "$HOME/.local/share/JetBrains/Toolbox/scripts"
