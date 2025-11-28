@@ -1,0 +1,349 @@
+#!/usr/bin/env zsh
+# ============================================================================ #
+# Lightweight Zsh configuration for Ubuntu/Linux containers
+# Optimized for C/C++ development with GDB support
+# ============================================================================ #
+
+# ----------------------------- Base Configuration --------------------------- #
+set -o pipefail
+setopt LOCAL_OPTIONS
+setopt LOCAL_TRAPS
+
+# Load .zprofile if not already loaded
+if [[ -z "$ZPROFILE_HAS_RUN" ]]; then
+    [[ -f "${ZDOTDIR:-$HOME}/.zprofile" ]] && source "${ZDOTDIR:-$HOME}/.zprofile"
+fi
+
+# ----------------------------- Color Definitions ---------------------------- #
+if [[ -t 1 ]]; then
+    C_RESET="\e[0m"
+    C_BOLD="\e[1m"
+    C_RED="\e[31m"
+    C_GREEN="\e[32m"
+    C_YELLOW="\e[33m"
+    C_BLUE="\e[34m"
+    C_CYAN="\e[36m"
+fi
+
+export ZPROFILE_HAS_RUN=true
+export TERM=xterm-256color
+
+# ============================================================================ #
+# Oh-My-Zsh Configuration (Minimal)
+# ============================================================================ #
+
+if [[ -d "/usr/share/oh-my-zsh" ]]; then
+    export ZSH="/usr/share/oh-my-zsh"
+elif [[ -d "$HOME/.oh-my-zsh" ]]; then
+    export ZSH="$HOME/.oh-my-zsh"
+fi
+
+if [[ -n "$ZSH" ]]; then
+    ZSH_CUSTOM=${ZSH_CUSTOM:-$HOME/.config/zsh}
+    ZSH_THEME=""
+
+    # Essential plugins only
+    plugins=(
+        git
+        sudo
+        extract
+        colored-man-pages
+    )
+
+    # Add syntax highlighting if available
+    if [[ -f "$ZSH/custom/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]]; then
+        plugins+=(zsh-syntax-highlighting)
+    fi
+
+    export ZSH_COMPDUMP="$ZSH/cache/.zcompdump-$HOST"
+    source "$ZSH/oh-my-zsh.sh" 2>/dev/null || true
+fi
+
+# ============================================================================ #
+# Prompt Configuration
+# ============================================================================ #
+
+# PowerLevel10k if available, otherwise basic prompt
+if [[ -f "/usr/share/zsh-theme-powerlevel10k/powerlevel10k.zsh-theme" ]]; then
+    source "/usr/share/zsh-theme-powerlevel10k/powerlevel10k.zsh-theme"
+    [[ -f "$HOME/.p10k.zsh" ]] && source "$HOME/.p10k.zsh"
+elif [[ -f "$HOME/.oh-my-zsh/custom/themes/powerlevel10k/powerlevel10k.zsh-theme" ]]; then
+    source "$HOME/.oh-my-zsh/custom/themes/powerlevel10k/powerlevel10k.zsh-theme"
+    [[ -f "$HOME/.p10k.zsh" ]] && source "$HOME/.p10k.zsh"
+else
+    # Minimal fallback prompt
+    PROMPT='%F{cyan}%n@%m%f:%F{blue}%~%f$ '
+fi
+
+# ============================================================================ #
+# Vi Mode
+# ============================================================================ #
+
+bindkey -v
+export KEYTIMEOUT=1
+
+function zle-line-init() { zle -K viins; }
+function zle-keymap-select() {
+    case $KEYMAP in
+    viins) zle-line-init ;;
+    vicmd) zle reset-prompt ;;
+    esac
+}
+zle -N zle-line-init
+zle -N zle-keymap-select
+
+# ============================================================================ #
+# FZF Configuration (if available)
+# ============================================================================ #
+
+if command -v fzf >/dev/null 2>&1; then
+    eval "$(fzf --zsh 2>/dev/null)" || true
+
+    # Tokyo Night theme
+    export FZF_DEFAULT_OPTS="
+ --color=bg+:#16161e,bg:#1a1b26,spinner:#2ac3de,hl:#7aa2f7
+ --color=fg:#787c99,header:#7aa2f7,info:#e0af68,pointer:#2ac3de
+ --color=marker:#2ac3de,fg+:#c0caf5,prompt:#e0af68,hl+:#7aa2f7"
+
+    # Use fd if available
+    if command -v fd >/dev/null 2>&1; then
+        export FZF_DEFAULT_COMMAND="fd --hidden --strip-cwd-prefix --exclude .git"
+        export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
+        export FZF_ALT_C_COMMAND="fd --type=d --hidden --strip-cwd-prefix --exclude .git"
+    fi
+
+    # Preview with bat if available
+    if command -v bat >/dev/null 2>&1; then
+        export FZF_CTRL_T_OPTS="--preview 'bat -n --color=always --line-range :500 {}'"
+        export BAT_THEME=tokyonight_night
+    fi
+fi
+
+# ============================================================================ #
+# Aliases - Essential
+# ============================================================================ #
+
+# Navigation
+alias ..="cd .."
+alias ...="cd ../.."
+alias ....="cd ../../.."
+alias .....="cd ../../../.."
+
+# Tools
+alias c="clear"
+alias reload="source ~/.zshrc"
+alias edit="$EDITOR ~/.zshrc"
+
+# List files
+if command -v eza >/dev/null 2>&1; then
+    alias ls="eza --color=always --long --git --icons=always"
+    alias ll="eza -lha --icons=auto --sort=name --group-directories-first"
+    alias l="eza -lh --icons=auto"
+else
+    alias ls="ls --color=auto"
+    alias ll="ls -lah"
+    alias l="ls -lh"
+fi
+
+# System utilities
+alias update="sudo apt update && sudo apt upgrade"
+alias install="sudo apt install"
+alias search="apt search"
+alias remove="sudo apt remove"
+alias autoremove="sudo apt autoremove"
+alias services="systemctl list-units --type=service"
+alias logs="journalctl -f"
+alias ports="ss -tuln"
+alias listening="netstat -tuln"
+alias path="echo \$PATH | tr ':' '\n'"
+alias topdir="du -h --max-depth=1 | sort -hr"
+
+# Git shortcuts
+alias gst="git status"
+alias gaa="git add ."
+alias gcm="git commit -m"
+alias gp="git push"
+alias gl="git log --oneline -10"
+alias gd="git diff"
+alias gb="git branch"
+alias gco="git checkout"
+alias gcb="git checkout -b"
+alias gpl="git pull"
+alias gf="git fetch"
+
+# Productivity
+alias md="mkdir -p"
+alias count="wc -l"
+alias size="du -sh"
+alias ping="ping -c 5"
+
+# ============================================================================ #
+# C/C++ Development - Compilation Aliases
+# ============================================================================ #
+
+# Determine include paths
+if [[ -d "/usr/local/include" ]]; then
+    C_INCLUDE_PATH="-I/usr/local/include"
+else
+    C_INCLUDE_PATH=""
+fi
+
+# ---------- C Compilation (GCC primary for Linux/GDB compatibility) --------- #
+
+# GCC C compilation (preferred for GDB on Linux)
+alias gcc-c-compile="gcc -std=c23 -O3 -march=native -flto -ffast-math $C_INCLUDE_PATH"
+alias gcc-c-debug="gcc -std=c23 -g3 -O0 -Wall -Wextra -Wpedantic -DDEBUG $C_INCLUDE_PATH"
+
+# Clang C compilation (alternative)
+alias clang-c-compile="clang -std=c23 -O3 -march=native -flto=thin -ffast-math $C_INCLUDE_PATH"
+alias clang-c-debug="clang -std=c23 -g3 -O0 -Wall -Wextra -Wpedantic -DDEBUG $C_INCLUDE_PATH"
+
+# Default C compilation (uses GCC on Linux)
+alias c-compile="gcc-c-compile"
+alias c-debug="gcc-c-debug"
+
+# Quick C compilation aliases
+alias qc-compile="gcc -std=c23 -O2 $C_INCLUDE_PATH"
+alias qc-debug="gcc -std=c23 -g -O0 -Wall $C_INCLUDE_PATH"
+
+# --------- C++ Compilation (GCC primary for Linux/GDB compatibility) -------- #
+
+# GCC C++ compilation (preferred for GDB on Linux)
+alias gcc-compile="g++ -std=c++23 -O3 -march=native -flto -ffast-math $C_INCLUDE_PATH"
+alias gcc-debug="g++ -std=c++23 -g3 -O0 -Wall -Wextra -Wpedantic -DDEBUG $C_INCLUDE_PATH"
+
+# Clang C++ compilation (alternative)
+alias clang-compile="clang++ -std=c++23 -stdlib=libc++ -O3 -march=native -flto=thin -ffast-math $C_INCLUDE_PATH"
+alias clang-debug="clang++ -std=c++23 -stdlib=libc++ -g3 -O0 -Wall -Wextra -Wpedantic -DDEBUG $C_INCLUDE_PATH"
+
+# Default C++ compilation (uses GCC on Linux)
+alias compile="gcc-compile"
+alias debug="gcc-debug"
+
+# Quick compilation aliases
+alias qcompile="g++ -std=c++23 -O2 $C_INCLUDE_PATH"
+alias qdebug="g++ -std=c++23 -g -O0 -Wall $C_INCLUDE_PATH"
+
+# --------------------- GDB and debugging helpers ---------------------------- #
+
+# GDB with common useful flags
+alias gdb-run="gdb -q --args"
+alias gdb-tui="gdb -tui -q --args"
+alias gdb-core="gdb -q -c"
+
+# Valgrind shortcuts
+if command -v valgrind >/dev/null 2>&1; then
+    alias valgrind-leak="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
+    alias valgrind-cache="valgrind --tool=cachegrind"
+    alias valgrind-call="valgrind --tool=callgrind"
+fi
+
+# ============================================================================ #
+# Environment Variables
+# ============================================================================ #
+
+# Clang-Format Configuration
+export CLANG_FORMAT_CONFIG="$HOME/.config/clang-format/.clang-format"
+
+# Preferred editor
+export EDITOR="${EDITOR:-vim}"
+
+# OpenSSL for Python packages
+export CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1
+
+# ============================================================================ #
+# Optional: Zoxide (smarter cd)
+# ============================================================================ #
+
+if command -v zoxide >/dev/null 2>&1; then
+    eval "$(zoxide init zsh 2>/dev/null)" || true
+fi
+
+# ============================================================================ #
+# Optional: thefuck (command correction)
+# ============================================================================ #
+
+if command -v thefuck >/dev/null 2>&1; then
+    eval "$(thefuck --alias 2>/dev/null)" || true
+    eval "$(thefuck --alias fk 2>/dev/null)" || true
+fi
+
+# ============================================================================ #
+# Language Version Managers (Minimal Setup)
+# ============================================================================ #
+
+# PyENV
+if command -v pyenv >/dev/null 2>&1; then
+    export PYENV_ROOT="$HOME/.pyenv"
+    [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
+    eval "$(pyenv init - 2>/dev/null)" || true
+fi
+
+# FNM (Fast Node Manager)
+if command -v fnm >/dev/null 2>&1; then
+    eval "$(fnm env --use-on-cd --shell zsh 2>/dev/null)" || true
+fi
+
+# SDKMAN! (Java)
+if [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]]; then
+    export SDKMAN_DIR="$HOME/.sdkman"
+    source "$HOME/.sdkman/bin/sdkman-init.sh" 2>/dev/null || true
+fi
+
+# rbenv
+if command -v rbenv >/dev/null 2>&1; then
+    export RBENV_ROOT="$HOME/.rbenv"
+    [[ -d $RBENV_ROOT/bin ]] && export PATH="$RBENV_ROOT/bin:$PATH"
+    eval "$(rbenv init - zsh 2>/dev/null)" || true
+fi
+
+# ============================================================================ #
+# Completions
+# ============================================================================ #
+
+autoload -Uz compinit
+if [[ -f "$ZSH_COMPDUMP" ]]; then
+    compinit -C -d "$ZSH_COMPDUMP"
+else
+    compinit -d "${ZSH_COMPDUMP:-$HOME/.zcompdump}"
+fi
+
+# Docker completions
+if [[ -d "$HOME/.docker/completions" ]]; then
+    fpath=("$HOME/.docker/completions" $fpath)
+fi
+
+# ============================================================================ #
+# PATH Management
+# ============================================================================ #
+
+build_path() {
+    local -a path_dirs=(
+        "$HOME/.local/bin"
+        "$HOME/.pyenv/shims"
+        "$PYENV_ROOT/bin"
+        "$HOME/.sdkman/candidates/java/current/bin"
+        "/usr/local/bin"
+        "/usr/bin"
+        "/bin"
+        "/usr/local/sbin"
+        "/usr/sbin"
+        "/sbin"
+        "$HOME/.cargo/bin"
+    )
+
+    local -a new_path=()
+    for dir in "${path_dirs[@]}"; do
+        [[ -n "$dir" && -d "$dir" ]] && new_path+=("$dir")
+    done
+
+    local IFS=':'
+    export PATH="${new_path[*]}"
+    typeset -U PATH
+}
+
+build_path
+unset -f build_path
+
+# ============================================================================ #
+# End of Zsh Configuration
