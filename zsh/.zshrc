@@ -824,6 +824,13 @@ if [[ -d "$local_perl_dir" ]]; then
     fi
 fi
 
+# -------------- rbenv -------------- #
+if command -v rbenv >/dev/null 2>&1; then
+    export RBENV_ROOT="$HOME/.rbenv"
+    [[ -d $RBENV_ROOT/bin ]] && export PATH="$RBENV_ROOT/bin:$PATH"
+    eval "$(rbenv init - zsh)" 2>/dev/null || echo "${C_YELLOW}Warning: rbenv init failed.${C_RESET}"
+fi
+
 # ----- FNM (Fast Node Manager) ----- #
 if command -v fnm &>/dev/null; then
 
