@@ -126,7 +126,7 @@
           "type": "kubectl",
           "style": "plain",
           "foreground": "p:celeste-blue",
-          "template": " \uFD31 {{ .Context }}{{ if .Namespace }} :: {{ .Namespace }}{{ end }}",
+          "template": "{{ if .Context }}{{ if and (ne .Context \"orbstack\") (ne .Context \"default\") }} \uFD31 {{ .Context }}{{ if .Namespace }} :: {{ .Namespace }}{{ end }}{{ else }}{{ if .Namespace }}{{ if ne .Namespace \"default\" }} \uFD31 {{ .Context }} :: {{ .Namespace }}{{ end }}{{ end }}{{ end }}{{ end }}",
           "properties": {
             "display_error": false
           }
@@ -135,7 +135,7 @@
           "type": "docker",
           "style": "plain",
           "foreground": "p:light-sky-blue",
-          "template": "{{ if ne .Context \"desktop-linux\" }} \uF308 {{ .Context }}{{ end }}",
+          "template": "{{ if .Context }}{{ if and (ne .Context \"orbstack\") (ne .Context \"desktop-linux\") }} \uF308 {{ .Context }}{{ else }}{{ if gt .Containers 0 }} \uF308 {{ .Context }} ({{ .Containers }}){{ end }}{{ end }}{{ end }}",
           "properties": {
             "display_error": false
           }

@@ -568,7 +568,7 @@ alias gpl="git pull"
 alias gf="git fetch"
 alias greset="git reset --hard HEAD"
 alias gclean="git clean -fd"
-alias fastfetch='~/.config/fastfetch/fastfetch-dynamic'
+alias fastfetch='~/.config/fastfetch/scripts/fastfetch-dynamic.sh'
 
 # ------ Productivity Aliases ------- #
 alias c="clear"
