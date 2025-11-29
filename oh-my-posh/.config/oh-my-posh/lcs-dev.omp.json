@@ -123,10 +123,40 @@
           "template": " \uF7A2 {{ .Full }}"
         },
         {
+          "type": "kotlin",
+          "style": "plain",
+          "foreground": "p:terminal-magenta",
+          "template": " \uE634 {{ .Full }}"
+        },
+        {
+          "type": "scala",
+          "style": "plain",
+          "foreground": "p:terminal-red",
+          "template": " \uE737 {{ .Full }}"
+        },
+        {
+          "type": "haskell",
+          "style": "plain",
+          "foreground": "p:terminal-magenta",
+          "template": " \uE777 {{ .Full }}"
+        },
+        {
+          "type": "crystal",
+          "style": "plain",
+          "foreground": "p:terminal-white",
+          "template": " \uE7A3 {{ .Full }}"
+        },
+        {
+          "type": "nim",
+          "style": "plain",
+          "foreground": "p:terminal-yellow",
+          "template": " \uF6A4 {{ .Full }}"
+        },
+        {
           "type": "kubectl",
           "style": "plain",
           "foreground": "p:celeste-blue",
-          "template": "{{ if .Context }}{{ if and (ne .Context \"orbstack\") (ne .Context \"default\") }} \uFD31 {{ .Context }}{{ if .Namespace }} :: {{ .Namespace }}{{ end }}{{ else }}{{ if .Namespace }}{{ if ne .Namespace \"default\" }} \uFD31 {{ .Context }} :: {{ .Namespace }}{{ end }}{{ end }}{{ end }}{{ end }}",
+          "template": "{{ if .Context }}{{ if ne .Context \"orbstack\" }}{{ if ne .Context \"default\" }} \uFD31 {{ .Context }}{{ if .Namespace }} :: {{ .Namespace }}{{ end }}{{ end }}{{ end }}{{ end }}",
           "properties": {
             "display_error": false
           }
@@ -135,7 +165,7 @@
           "type": "docker",
           "style": "plain",
           "foreground": "p:light-sky-blue",
-          "template": "{{ if .Context }}{{ if and (ne .Context \"orbstack\") (ne .Context \"desktop-linux\") }} \uF308 {{ .Context }}{{ else }}{{ if gt .Containers 0 }} \uF308 {{ .Context }} ({{ .Containers }}){{ end }}{{ end }}{{ end }}",
+          "template": "{{ if .Context }}{{ if ne .Context \"orbstack\" }}{{ if ne .Context \"desktop-linux\" }} \uF308 {{ .Context }}{{ end }}{{ end }}{{ end }}",
           "properties": {
             "display_error": false
           }

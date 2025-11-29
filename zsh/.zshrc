@@ -143,15 +143,18 @@ source "$ZSH/oh-my-zsh.sh"
 
 # +++++++++++++++++++++++++++ PROMPT CONFIGURATION +++++++++++++++++++++++++++ #
 
-# Platform-specific prompt configuration.
-if [[ "$PLATFORM" == "macOS" ]]; then
+# Prompt priority: Starship > Platform-specific (Oh-My-Posh/PowerLevel10k)
+if command -v starship >/dev/null 2>&1; then
+    # Starship: Modern, fast, cross-platform (preferred)
+    eval "$(starship init zsh)"
+elif [[ "$PLATFORM" == "macOS" ]]; then
     # macOS: Oh-My-Posh
     omp_config="$XDG_CONFIG_HOME/oh-my-posh/lcs-dev.omp.json"
     if command -v oh-my-posh >/dev/null 2>&1 && [[ -f "$omp_config" ]]; then
         eval "$(oh-my-posh init zsh --config "$omp_config")"
     fi
 elif [[ "$PLATFORM" == "Linux" ]]; then
-    # Linux: PowerLevel10k with Oh-My-Posh fallback.
+    # Linux: PowerLevel10k with Oh-My-Posh fallback
     if [[ -f "/usr/share/zsh-theme-powerlevel10k/powerlevel10k.zsh-theme" ]]; then
         source "/usr/share/zsh-theme-powerlevel10k/powerlevel10k.zsh-theme"
         [[ -f "$HOME/.p10k.zsh" ]] && source "$HOME/.p10k.zsh"
@@ -159,7 +162,7 @@ elif [[ "$PLATFORM" == "Linux" ]]; then
         source "$HOME/.oh-my-zsh/custom/themes/powerlevel10k/powerlevel10k.zsh-theme"
         [[ -f "$HOME/.p10k.zsh" ]] && source "$HOME/.p10k.zsh"
     else
-        # Fallback to Oh-My-Posh only if available and configured.
+        # Fallback to Oh-My-Posh if available
         omp_config="$XDG_CONFIG_HOME/oh-my-posh/lcs-dev.omp.json"
         if command -v oh-my-posh >/dev/null 2>&1 && [[ -f "$omp_config" ]]; then
             eval "$(oh-my-posh init zsh --config "$omp_config")"
@@ -809,6 +812,9 @@ __conda_init() {
             fi
         fi
         unset __conda_setup
+
+        # Disable conda's built-in prompt modification
+        conda config --set changeps1 false 2>/dev/null
     fi
 }
 __conda_init
