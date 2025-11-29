@@ -48,14 +48,22 @@ fi
 # ---- ANSI Color Definitions ---- #
 # Check if the current shell is interactive and supports colors.
 # If so, define color variables. Otherwise, they will be empty strings.
-if [[ -t 1 ]]; then
+if [[ -t 1 ]] && command -v tput >/dev/null && [[ $(tput colors) -ge 8 ]]; then
     C_RESET="\e[0m"
     C_BOLD="\e[1m"
     C_RED="\e[31m"
     C_GREEN="\e[32m"
     C_YELLOW="\e[33m"
-    C_BLUE="\e[34m"
+    BLUE="\e[34m"
     C_CYAN="\e[36m"
+else
+    C_RESET=""
+    C_BOLD=""
+    C_RED=""
+    C_GREEN=""
+    C_YELLOW=""
+    BLUE=""
+    C_CYAN=""
 fi
 
 # Export this variable to let .zshrc know that this file has already run.
@@ -756,8 +764,8 @@ alias mv="mv -i"
 # Tools
 alias ranger="TERM=screen-256color ranger"
 alias clang-format="clang-format -style=file:\$CLANG_FORMAT_CONFIG"
-alias fnm-clean='echo "${CYAN}Cleaning up orphaned fnm sessions...${RESET}" &&
-rm -rf ~/.local/state/fnm_multishells/* && echo "${GREEN}Cleanup completed.${RESET}"'
+alias fnm-clean='echo "${C_CYAN}Cleaning up orphaned fnm sessions...${C_RESET}" &&
+rm -rf ~/.local/state/fnm_multishells/* && echo "${C_GREEN}Cleanup completed.${C_RESET}"'
 
 # thefuck alias (corrects mistyped commands).
 if command -v thefuck >/dev/null 2>&1; then

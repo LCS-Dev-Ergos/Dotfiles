@@ -1,242 +1,356 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # shellcheck shell=zsh
 # ============================================================================ #
-# Functions to dynamically switch the C/C++ toolchain for the current
-# terminal session.
+# Toolchain switcher for macOS (Homebrew/Xcode) and Linux (Arch/Ubuntu).
+# Provides safe toggles between LLVM/Clang and GNU GCC toolchains, handling
+# common installation layouts from Homebrew and distro packages.
 #
 # Usage:
-#   use_llvm    # Activate the LLVM toolchain installed via Homebrew
-#   use_gnu     # Activate the GNU GCC toolchain installed via Homebrew
-#   use_system  # Restore the default system toolchain (e.g., Apple Clang)
-#
+#   use_llvm    # Prefer LLVM/Clang toolchain (Homebrew on macOS, system on Linux)
+#   use_gnu     # Prefer GNU GCC toolchain (Homebrew on macOS, system on Linux)
+#   use_system  # Restore the original environment
 # ============================================================================ #
 
-# Check if terminal supports colors.
-if test -t 1; then
-    N_COLORS=$(tput colors)
-    if test -n "$N_COLORS" && test $N_COLORS -ge 8; then
-        BOLD="$(tput bold)"
-        BLUE="$(tput setaf 4)"
-        CYAN="$(tput setaf 6)"
-        GREEN="$(tput setaf 2)"
-        RED="$(tput setaf 1)"
-        YELLOW="$(tput setaf 3)"
-        MAGENTA="$(tput setaf 5)"
-        RESET="$(tput sgr0)"
+# ------------------------------ Color Handling ------------------------------ #
+_toolchain_init_colors() {
+    if [[ -n "${C_RESET:-}" ]]; then
+        return
     fi
-fi
 
-# Save the original PATH on shell startup if not already saved.
-# This allows us to reliably restore the initial state.
-if [[ -z "${ORIGINAL_PATH}" ]]; then
+    if [[ -t 1 ]] && command -v tput >/dev/null 2>&1 && [[ $(tput colors 2>/dev/null) -ge 8 ]]; then
+        C_RESET="\e[0m"
+        C_BOLD="\e[1m"
+        C_RED="\e[31m"
+        C_GREEN="\e[32m"
+        C_YELLOW="\e[33m"
+        C_BLUE="\e[34m"
+        C_CYAN="\e[36m"
+    else
+        C_RESET=""
+        C_BOLD=""
+        C_RED=""
+        C_GREEN=""
+        C_YELLOW=""
+        C_BLUE=""
+        C_CYAN=""
+    fi
+}
+
+# ------------------------------ Platform Probe ------------------------------ #
+_toolchain_detect_platform() {
+    if [[ -n "${TOOLCHAIN_OS:-}" ]]; then
+        return
+    fi
+
+    case "$(uname -s 2>/dev/null)" in
+    Darwin) TOOLCHAIN_OS="macOS" ;;
+    Linux) TOOLCHAIN_OS="Linux" ;;
+    *) TOOLCHAIN_OS="Other" ;;
+    esac
+
+    if [[ "$TOOLCHAIN_OS" == "Linux" && -f "/etc/arch-release" ]]; then
+        TOOLCHAIN_DISTRO="Arch"
+    fi
+}
+
+# ------------------------------ State Storage ------------------------------- #
+if [[ -z "${ORIGINAL_PATH:-}" ]]; then
     export ORIGINAL_PATH="${PATH}"
 fi
+: "${TOOLCHAIN_ORIGINAL_PATH:=${ORIGINAL_PATH}}"
 
-# ----------------------------- Helper Functions ----------------------------- #
+if [[ -z "${_TOOLCHAIN_SAVED_ENV:-}" ]]; then
+    _TOOLCHAIN_SAVED_ENV=1
+    TOOLCHAIN_ORIGINAL_LDFLAGS="${LDFLAGS-__TOOLCHAIN_UNSET__}"
+    TOOLCHAIN_ORIGINAL_CPPFLAGS="${CPPFLAGS-__TOOLCHAIN_UNSET__}"
+    TOOLCHAIN_ORIGINAL_PKG_CONFIG_PATH="${PKG_CONFIG_PATH-__TOOLCHAIN_UNSET__}"
+    TOOLCHAIN_ORIGINAL_CC="${CC-__TOOLCHAIN_UNSET__}"
+    TOOLCHAIN_ORIGINAL_CXX="${CXX-__TOOLCHAIN_UNSET__}"
+fi
 
-# Validate and get Homebrew prefix.
-_get_homebrew_prefix() {
-    local prefix
-    if command -v brew &>/dev/null; then
+# ------------------------------- Log Helpers -------------------------------- #
+_toolchain_log() {
+    local level="$1"
+    shift
+    case "$level" in
+    info) printf "%s[INFO]%s %s\n" "$C_CYAN" "$C_RESET" "$*" ;;
+    ok) printf "%s[OK]%s   %s\n" "$C_GREEN" "$C_RESET" "$*" ;;
+    warn) printf "%s[WARN]%s %s\n" "$C_YELLOW" "$C_RESET" "$*" >&2 ;;
+    error) printf "%s[ERROR]%s %s\n" "$C_RED" "$C_RESET" "$*" >&2 ;;
+    esac
+}
+
+_toolchain_restore_var() {
+    local name="$1" value="$2"
+    if [[ "$value" == "__TOOLCHAIN_UNSET__" ]]; then
+        unset "$name"
+    else
+        export "$name=$value"
+    fi
+}
+
+_toolchain_reset_env_to_original() {
+    _toolchain_restore_var LDFLAGS "$TOOLCHAIN_ORIGINAL_LDFLAGS"
+    _toolchain_restore_var CPPFLAGS "$TOOLCHAIN_ORIGINAL_CPPFLAGS"
+    _toolchain_restore_var PKG_CONFIG_PATH "$TOOLCHAIN_ORIGINAL_PKG_CONFIG_PATH"
+    _toolchain_restore_var CC "$TOOLCHAIN_ORIGINAL_CC"
+    _toolchain_restore_var CXX "$TOOLCHAIN_ORIGINAL_CXX"
+}
+
+_toolchain_set_path() {
+    local bin_dir="$1"
+    local base="${TOOLCHAIN_ORIGINAL_PATH}"
+    if [[ -n "$bin_dir" ]]; then
+        export PATH="${bin_dir}:${base}"
+        TOOLCHAIN_ACTIVE_BIN="$bin_dir"
+    else
+        export PATH="${base}"
+        TOOLCHAIN_ACTIVE_BIN=""
+    fi
+}
+
+_toolchain_get_homebrew_prefix() {
+    if [[ -n "${HOMEBREW_PREFIX:-}" && -d "${HOMEBREW_PREFIX}" ]]; then
+        echo "${HOMEBREW_PREFIX}"
+        return 0
+    fi
+
+    if command -v brew >/dev/null 2>&1; then
+        local prefix
         prefix=$(brew --prefix 2>/dev/null)
-        if [[ $? -eq 0 && -d "${prefix}" ]]; then
-            echo "${prefix}"
+        if [[ -n "$prefix" && -d "$prefix" ]]; then
+            echo "$prefix"
             return 0
         fi
     fi
 
-    # Fallback detection based on architecture.
-    case "$(uname -m)" in
-    arm64) prefix="/opt/homebrew" ;;
-    x86_64) prefix="/usr/local" ;;
-    *) prefix="/opt/homebrew" ;;
-    esac
-
-    if [[ -d "${prefix}" ]]; then
-        echo "${prefix}"
-        return 0
-    fi
+    for prefix in /opt/homebrew /usr/local; do
+        if [[ -d "$prefix" ]]; then
+            echo "$prefix"
+            return 0
+        fi
+    done
 
     return 1
 }
 
-# Validate directory existence and permissions.
-_validate_toolchain_dir() {
-    local dir="$1"
-    local name="$2"
+_toolchain_find_best_binary() {
+    local base="$1"
+    shift
+    local fallback="" best="" best_ver=-1 dir path ver ver_str
 
-    if [[ ! -d "${dir}" ]]; then
-        echo -e "${C_BOLD}${C_RED}[ERROR] ${name} directory not found at '${dir}'.${C_RESET}" >&2
-        echo -e "${C_YELLOW}[HINT] Install ${name} with: brew install ${name,,}${C_RESET}" >&2
-        return 1
+    local -a dirs=()
+    local IFS=:
+    for dir in $PATH; do
+        dirs+=("$dir")
+    done
+    for dir in "$@"; do
+        dirs+=("$dir")
+    done
+
+    for dir in "${dirs[@]}"; do
+        [[ -d "$dir" ]] || continue
+        if [[ -x "$dir/$base" && -z "$fallback" ]]; then
+            fallback="$dir/$base"
+        fi
+
+        for path in "$dir"/"$base"-[0-9]*; do
+            [[ -e "$path" ]] || continue
+            [[ -x "$path" ]] || continue
+            ver_str="${path##*-}"
+            case "$ver_str" in
+            '' | *[!0-9]*) continue ;;
+            esac
+            ver=$ver_str
+            if ((ver > best_ver)); then
+                best_ver=$ver
+                best="$path"
+            fi
+        done
+    done
+
+    if [[ -n "$best" ]]; then
+        printf "%s\n" "$best"
+    elif [[ -n "$fallback" ]]; then
+        printf "%s\n" "$fallback"
     fi
-
-    if [[ ! -r "${dir}" ]]; then
-        echo -e "${C_BOLD}${C_RED}[ERROR] No read permission for ${name} directory '${dir}'.${C_RESET}" >&2
-        return 1
-    fi
-
-    return 0
 }
 
-# Clean PATH by removing previous toolchain entries.
-_clean_path() {
-    local homebrew_prefix="$1"
-    local cleaned_path="${ORIGINAL_PATH}"
+_toolchain_select_llvm_bin_dir() {
+    local -a candidates=()
 
-    # Remove known toolchain paths.
-    cleaned_path=$(echo "${cleaned_path}" | sed -E "s|${homebrew_prefix}/opt/[^:]*bin:||g")
+    if [[ "$TOOLCHAIN_OS" == "macOS" ]]; then
+        local brew_prefix
+        brew_prefix=$(_toolchain_get_homebrew_prefix 2>/dev/null) || true
+        if [[ -n "$brew_prefix" && -d "$brew_prefix/opt/llvm/bin" ]]; then
+            candidates+=("$brew_prefix/opt/llvm/bin")
+        fi
+        [[ -d "/usr/local/opt/llvm/bin" ]] && candidates+=("/usr/local/opt/llvm/bin")
+        [[ -d "/opt/homebrew/opt/llvm/bin" ]] && candidates+=("/opt/homebrew/opt/llvm/bin")
+    else
+        candidates+=(
+            /usr/lib/llvm*/bin
+            /usr/lib64/llvm*/bin
+            /usr/local/llvm*/bin
+            /opt/llvm*/bin
+        )
+    fi
 
-    echo "${cleaned_path}"
+    local best="" best_ver=-1 dir dir_no_bin ver resolved
+    for dir in "${candidates[@]}"; do
+        for resolved in $dir; do
+            [[ -d "$resolved" ]] || continue
+            dir_no_bin="${resolved%/bin}"
+            ver="${dir_no_bin##*-}"
+            case "$ver" in
+            '' | *[!0-9]*) ver=0 ;;
+            esac
+            if ((ver > best_ver)); then
+                best_ver=$ver
+                best="$resolved"
+            fi
+        done
+    done
+
+    if [[ -n "$best" ]]; then
+        printf "%s\n" "$best"
+    fi
 }
 
-# Verify compiler installation.
-_verify_compiler() {
-    local compiler="$1"
-    local version_flag="${2:---version}"
-
-    if command -v "${compiler}" &>/dev/null; then
-        local version_output
-        version_output=$("${compiler}" "${version_flag}" 2>/dev/null | head -n 1)
-        if [[ $? -eq 0 && -n "${version_output}" ]]; then
-            echo -e "${C_GREEN}[INFO] ${compiler}: ${version_output}${C_RESET}"
+_toolchain_select_gcc_bin_dir() {
+    if [[ "$TOOLCHAIN_OS" == "macOS" ]]; then
+        local brew_prefix
+        brew_prefix=$(_toolchain_get_homebrew_prefix 2>/dev/null) || true
+        if [[ -n "$brew_prefix" && -d "$brew_prefix/opt/gcc/bin" ]]; then
+            printf "%s\n" "$brew_prefix/opt/gcc/bin"
             return 0
         fi
     fi
+    return 1
+}
 
-    echo -e "${C_YELLOW}[WARN] Compiler '${compiler}' not found or not working properly.${C_RESET}" >&2
+_toolchain_verify_compiler() {
+    local compiler="$1"
+    if command -v "$compiler" >/dev/null 2>&1; then
+        local version_output
+        version_output=$("$compiler" --version 2>/dev/null | head -n 1)
+        if [[ -n "$version_output" ]]; then
+            _toolchain_log ok "${compiler}: ${version_output}"
+            return 0
+        fi
+    fi
+    _toolchain_log warn "Compiler '${compiler}' not found or not working properly."
     return 1
 }
 
 # ------------------------- Main Toolchain Functions ------------------------- #
-
-# Function to activate the LLVM toolchain.
 use_llvm() {
-    echo -e "${C_BOLD}${C_CYAN}[+] Activating LLVM toolchain...${C_RESET}"
+    _toolchain_init_colors
+    _toolchain_detect_platform
+    printf "%s%s[+] Activating LLVM/Clang toolchain...%s\n" "$C_BOLD" "$C_CYAN" "$C_RESET"
 
-    local homebrew_prefix
-    homebrew_prefix=$(_get_homebrew_prefix)
-    if [[ $? -ne 0 ]]; then
-        echo -e "${C_BOLD}${C_RED}[ERROR] Cannot determine Homebrew prefix.${C_RESET}" >&2
+    _toolchain_reset_env_to_original
+
+    local llvm_bin_dir clang_bin cxx_bin prefix_for_flags
+    llvm_bin_dir=$(_toolchain_select_llvm_bin_dir) || true
+
+    clang_bin=$(_toolchain_find_best_binary "clang" "$llvm_bin_dir") || true
+    cxx_bin=$(_toolchain_find_best_binary "clang++" "$llvm_bin_dir") || true
+
+    if [[ -z "$clang_bin" || -z "$cxx_bin" ]]; then
+        _toolchain_log error "No Clang toolchain found. Install with Homebrew (macOS) or your package manager (e.g., pacman -S clang / apt install clang)."
         return 1
     fi
 
-    local llvm_prefix="${homebrew_prefix}/opt/llvm"
+    local bin_dir_for_path
+    bin_dir_for_path="$(dirname "$clang_bin")"
+    _toolchain_set_path "$bin_dir_for_path"
 
-    # Validate LLVM installation.
-    if ! _validate_toolchain_dir "${llvm_prefix}" "LLVM"; then
-        return 1
+    prefix_for_flags="${bin_dir_for_path%/bin}"
+    if [[ "$TOOLCHAIN_OS" == "macOS" && -d "$prefix_for_flags/lib" ]]; then
+        local base_ldflags base_cppflags
+        [[ "$TOOLCHAIN_ORIGINAL_LDFLAGS" == "__TOOLCHAIN_UNSET__" ]] && base_ldflags="" || base_ldflags="$TOOLCHAIN_ORIGINAL_LDFLAGS"
+        [[ "$TOOLCHAIN_ORIGINAL_CPPFLAGS" == "__TOOLCHAIN_UNSET__" ]] && base_cppflags="" || base_cppflags="$TOOLCHAIN_ORIGINAL_CPPFLAGS"
+
+        export LDFLAGS="-L${prefix_for_flags}/lib${base_ldflags:+ ${base_ldflags}}"
+        export CPPFLAGS="-I${prefix_for_flags}/include${base_cppflags:+ ${base_cppflags}}"
     fi
 
-    # Check if LLVM bin directory exists and is executable.
-    if [[ ! -d "${llvm_prefix}/bin" ]] || [[ ! -x "${llvm_prefix}/bin" ]]; then
-        echo -e "${C_BOLD}${C_RED}[ERROR] LLVM bin directory not accessible.${C_RESET}" >&2
-        return 1
-    fi
+    export CC
+    export CXX
+    CC=$(basename "$clang_bin")
+    CXX=$(basename "$cxx_bin")
 
-    # Clean and set PATH.
-    local clean_path
-    clean_path=$(_clean_path "${homebrew_prefix}")
-    export PATH="${llvm_prefix}/bin:${clean_path}"
-
-    # Export compiler and linker flags as recommended by Homebrew.
-    export LDFLAGS="-L${llvm_prefix}/lib ${LDFLAGS:-}"
-    export CPPFLAGS="-I${llvm_prefix}/include ${CPPFLAGS:-}"
-
-    # Set default compilers.
-    export CC="clang"
-    export CXX="clang++"
-
-    # Verify installation
-    if _verify_compiler "clang" && _verify_compiler "clang++"; then
-        echo -e "${C_GREEN}[OK] LLVM toolchain is now active.${C_RESET}"
-        echo -e "${C_CYAN}[INFO] Use 'get_toolchain_info' to verify the setup.${C_RESET}"
-    else
-        echo -e "${C_YELLOW}[WARN] LLVM toolchain activated but compilers may not be working properly.${C_RESET}"
-    fi
+    _toolchain_log info "PATH=${PATH}"
+    _toolchain_log ok "CC='${CC}', CXX='${CXX}'"
+    _toolchain_verify_compiler "$CC"
+    _toolchain_verify_compiler "$CXX"
 }
 
-# Function to activate the GNU GCC toolchain.
 use_gnu() {
-    echo -e "${C_BOLD}${C_CYAN}[+] Activating GNU GCC toolchain...${C_RESET}"
+    _toolchain_init_colors
+    _toolchain_detect_platform
+    printf "%s%s[+] Activating GNU GCC toolchain...%s\n" "$C_BOLD" "$C_CYAN" "$C_RESET"
 
-    local homebrew_prefix
-    homebrew_prefix=$(_get_homebrew_prefix)
-    if [[ $? -ne 0 ]]; then
-        echo -e "${C_BOLD}${C_RED}[ERROR] Cannot determine Homebrew prefix.${C_RESET}" >&2
+    _toolchain_reset_env_to_original
+
+    local gcc_bin_dir gcc_bin gxx_bin
+    gcc_bin_dir=$(_toolchain_select_gcc_bin_dir) || true
+
+    gcc_bin=$(_toolchain_find_best_binary "gcc" "$gcc_bin_dir") || true
+    gxx_bin=$(_toolchain_find_best_binary "g++" "$gcc_bin_dir") || true
+
+    if [[ -z "$gcc_bin" || -z "$gxx_bin" ]]; then
+        _toolchain_log error "GCC not found. Install via Homebrew (macOS) or your distro packages (e.g., pacman -S gcc / apt install build-essential)."
         return 1
     fi
 
-    local gcc_prefix="${homebrew_prefix}/opt/gcc"
+    local bin_dir_for_path
+    bin_dir_for_path="$(dirname "$gcc_bin")"
+    _toolchain_set_path "$bin_dir_for_path"
 
-    # Validate GCC installation.
-    if ! _validate_toolchain_dir "${gcc_prefix}" "GCC"; then
-        return 1
-    fi
+    export CC
+    export CXX
+    CC=$(basename "$gcc_bin")
+    CXX=$(basename "$gxx_bin")
 
-    # Clean and set PATH.
-    local clean_path
-    clean_path=$(_clean_path "${homebrew_prefix}")
-    export PATH="${gcc_prefix}/bin:${clean_path}"
-
-    # Clear potentially conflicting flags from other toolchains.
-    unset LDFLAGS CPPFLAGS
-
-    # Find the versioned GCC executables with better error handling.
-    local gcc_executable gxx_executable
-    gcc_executable=$(find "${gcc_prefix}/bin" -name "gcc-[0-9]*" -type f -executable | sort -V | tail -n 1)
-    gxx_executable=$(find "${gcc_prefix}/bin" -name "g++-[0-9]*" -type f -executable | sort -V | tail -n 1)
-
-    if [[ -n "${gcc_executable}" && -n "${gxx_executable}" ]]; then
-        export CC=$(basename "${gcc_executable}")
-        export CXX=$(basename "${gxx_executable}")
-
-        # Verify installation.
-        if _verify_compiler "${CC}" && _verify_compiler "${CXX}"; then
-            echo -e "${C_GREEN}[OK] GNU GCC toolchain is now active.${C_RESET}"
-            echo -e "${C_CYAN}[INFO] CC='${C_BOLD}${CC}${C_RESET}${C_CYAN}', CXX='${C_BOLD}${CXX}${C_RESET}${C_CYAN}'${C_RESET}"
-        else
-            echo -e "${C_YELLOW}[WARN] GCC toolchain activated but compilers may not be working properly.${C_RESET}"
-        fi
-    else
-        echo -e "${C_BOLD}${C_RED}[ERROR] Versioned GCC compilers not found in ${gcc_prefix}/bin.${C_RESET}" >&2
-        echo -e "${C_YELLOW}[HINT] Ensure GCC is properly installed via Homebrew.${C_RESET}" >&2
-        return 1
-    fi
+    _toolchain_log info "PATH=${PATH}"
+    _toolchain_log ok "CC='${CC}', CXX='${CXX}'"
+    _toolchain_verify_compiler "$CC"
+    _toolchain_verify_compiler "$CXX"
 }
 
-# Function to restore the system's default toolchain.
 use_system() {
-    echo -e "${C_BOLD}${C_YELLOW}[*] Restoring system default toolchain...${C_RESET}"
+    _toolchain_init_colors
+    printf "%s%s[*] Restoring system/default toolchain...%s\n" "$C_BOLD" "$C_YELLOW" "$C_RESET"
 
-    # Validate that ORIGINAL_PATH is set.
-    if [[ -z "${ORIGINAL_PATH}" ]]; then
-        echo -e "${C_BOLD}${C_RED}[ERROR] ORIGINAL_PATH not set. Cannot restore system PATH.${C_RESET}" >&2
-        echo -e "${C_YELLOW}[HINT] Restart your shell to reinitialize the toolchain system.${C_RESET}" >&2
+    if [[ -z "${TOOLCHAIN_ORIGINAL_PATH:-}" ]]; then
+        _toolchain_log error "TOOLCHAIN_ORIGINAL_PATH not set. Restart the shell if restoration fails."
         return 1
     fi
 
-    # Restore the original PATH.
-    export PATH="${ORIGINAL_PATH}"
+    _toolchain_set_path ""
+    _toolchain_reset_env_to_original
 
-    # Unset all custom environment variables.
-    unset LDFLAGS CPPFLAGS CC CXX
-
-    # Verify system compilers.
-    echo -e "${C_CYAN}[INFO] Verifying system compilers...${C_RESET}"
     local system_cc system_cxx
-    system_cc=$(command -v cc || command -v clang || command -v gcc)
-    system_cxx=$(command -v c++ || command -v clang++ || command -v g++)
+    system_cc=$(command -v cc 2>/dev/null || command -v clang 2>/dev/null || command -v gcc 2>/dev/null)
+    system_cxx=$(command -v c++ 2>/dev/null || command -v clang++ 2>/dev/null || command -v g++ 2>/dev/null)
 
-    if [[ -n "${system_cc}" ]] && _verify_compiler "${system_cc}"; then
-        echo -e "${C_GREEN}[OK] System C compiler: ${system_cc}${C_RESET}"
+    if [[ -n "$system_cc" ]]; then
+        _toolchain_log ok "System C compiler: $system_cc"
+        _toolchain_verify_compiler "$system_cc"
+    else
+        _toolchain_log warn "No system C compiler detected in PATH."
     fi
 
-    if [[ -n "${system_cxx}" ]] && _verify_compiler "${system_cxx}"; then
-        echo -e "${C_GREEN}[OK] System C++ compiler: ${system_cxx}${C_RESET}"
+    if [[ -n "$system_cxx" ]]; then
+        _toolchain_log ok "System C++ compiler: $system_cxx"
+        _toolchain_verify_compiler "$system_cxx"
+    else
+        _toolchain_log warn "No system C++ compiler detected in PATH."
     fi
 
-    echo -e "${C_GREEN}[OK] System toolchain restored.${C_RESET}"
+    _toolchain_log ok "System toolchain restored."
 }
 
 # ============================================================================ #

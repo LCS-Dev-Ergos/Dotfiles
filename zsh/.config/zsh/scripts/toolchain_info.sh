@@ -1,177 +1,256 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # shellcheck shell=zsh
 # ============================================================================ #
-# Function to identify the active C/C++ toolchain on the system.
-# It analyzes gcc, g++, clang, and clang++ commands to determine their
-# origin (Apple, GNU, LLVM) and version. It also detects common wrappers
-# like ccache and name masquerading (e.g., gcc being clang).
-#
-# Usage:
-#   get_toolchain_info
+# Report the active C/C++ toolchain in a portable way (macOS + Linux).
+# Detects compiler origin (Apple, Homebrew, distro GCC/Clang), common wrappers
+# such as ccache, and warns when names are masquerading (e.g., gcc -> clang).
 # ============================================================================ #
 
-get_toolchain_info() {
-    # Check if terminal supports colors.
-    if test -t 1; then
-        N_COLORS=$(tput colors)
-        if test -n "$N_COLORS" && test $N_COLORS -ge 8; then
-            BOLD="$(tput bold)"
-            BLUE="$(tput setaf 4)"
-            CYAN="$(tput setaf 6)"
-            GREEN="$(tput setaf 2)"
-            RED="$(tput setaf 1)"
-            YELLOW="$(tput setaf 3)"
-            MAGENTA="$(tput setaf 5)"
-            RESET="$(tput sgr0)"
+# ------------------------------ Color Handling ------------------------------ #
+# Reuse the palette defined in .zshrc when available; otherwise, define a
+# minimal set locally without failing in limited terminals.
+_toolchain_info_init_colors() {
+    if [[ -n "${C_RESET:-}" ]]; then
+        return
+    fi
+
+    if [[ -t 1 ]] && command -v tput >/dev/null 2>&1 && [[ $(tput colors 2>/dev/null) -ge 8 ]]; then
+        C_RESET="\e[0m"
+        C_BOLD="\e[1m"
+        C_RED="\e[31m"
+        C_GREEN="\e[32m"
+        C_YELLOW="\e[33m"
+        C_BLUE="\e[34m"
+        C_MAGENTA="\e[35m"
+        C_CYAN="\e[36m"
+    else
+        C_RESET=""
+        C_BOLD=""
+        C_RED=""
+        C_GREEN=""
+        C_YELLOW=""
+        C_BLUE=""
+        C_MAGENTA=""
+        C_CYAN=""
+    fi
+}
+
+# ------------------------------ Helper Utils -------------------------------- #
+_toolchain_detect_platform() {
+    local os
+    os=$(uname -s 2>/dev/null || printf "unknown")
+    case "$os" in
+    Darwin) echo "macOS" ;;
+    Linux)
+        if [[ -f "/etc/arch-release" ]]; then
+            echo "Linux (Arch)"
+        elif command -v lsb_release >/dev/null 2>&1; then
+            echo "Linux ($(lsb_release -si 2>/dev/null))"
+        else
+            echo "Linux"
+        fi
+        ;;
+    *) echo "$os" ;;
+    esac
+}
+
+_toolchain_path_without_ccache() {
+    local IFS=:
+    local dir filtered=()
+    for dir in $PATH; do
+        [[ "$dir" == *ccache* ]] && continue
+        filtered+=("$dir")
+    done
+    (
+        IFS=:
+        printf "%s" "${filtered[*]}"
+    )
+}
+
+_toolchain_portable_realpath() {
+    local target="$1"
+
+    if command -v realpath >/dev/null 2>&1; then
+        realpath "$target" 2>/dev/null && return 0
+    fi
+
+    if command -v python3 >/dev/null 2>&1; then
+        python3 - "$target" <<'PY'
+import os, sys
+print(os.path.realpath(sys.argv[1]))
+PY
+        return 0
+    fi
+
+    if command -v readlink >/dev/null 2>&1 && [[ -L "$target" ]]; then
+        local link
+        link=$(readlink "$target" 2>/dev/null) || true
+        if [[ -n "$link" ]]; then
+            printf "%s\n" "$link"
+            return 0
         fi
     fi
 
-    echo "/===--------------------------------------------------------------===/"
-    echo -e "${C_BOLD}${C_CYAN}Analyzing C/C++ toolchain configuration...${C_RESET}"
+    printf "%s\n" "$target"
+}
 
-    # Check for CC and CXX environment variables.
+_toolchain_find_in_path() {
+    local name="$1" search_path="${2:-$PATH}" dir
+    local IFS=:
+    for dir in $search_path; do
+        if [[ -x "$dir/$name" ]]; then
+            printf "%s\n" "$dir/$name"
+            return 0
+        fi
+    done
+    return 1
+}
+
+_toolchain_resolve_real_compiler() {
+    local compiler_path="$1"
+    local resolved
+    resolved=$(_toolchain_portable_realpath "$compiler_path")
+
+    if [[ "$compiler_path" == *ccache* ]]; then
+        local compiler_name filtered_path alt_path
+        compiler_name=$(basename "$compiler_path")
+        filtered_path=$(_toolchain_path_without_ccache)
+        alt_path=$(_toolchain_find_in_path "$compiler_name" "$filtered_path") || true
+        if [[ -n "$alt_path" ]]; then
+            resolved=$(_toolchain_portable_realpath "$alt_path")
+        fi
+    fi
+
+    printf "%s\n" "${resolved:-$compiler_path}"
+}
+
+_toolchain_vendor_for_gcc() {
+    local version_info="$1" compiler_path="$2"
+    if [[ "$version_info" == *"Homebrew"* ]]; then
+        echo "Homebrew GNU"
+    elif [[ "$version_info" == *"Ubuntu"* ]]; then
+        echo "GNU (Ubuntu)"
+    elif [[ "$version_info" == *"Debian"* ]]; then
+        echo "GNU (Debian)"
+    elif [[ "$version_info" == *"Arch Linux"* || "$version_info" == *"Archlinux"* ]]; then
+        echo "GNU (Arch)"
+    elif [[ "$compiler_path" == /usr/bin/* ]]; then
+        echo "GNU (system)"
+    else
+        echo "GNU"
+    fi
+}
+
+_toolchain_vendor_for_clang() {
+    local version_info="$1" compiler_path="$2"
+    if [[ "$version_info" == *"Apple clang"* ]]; then
+        echo "Apple"
+    elif [[ "$version_info" == *"Homebrew"* ]]; then
+        echo "Homebrew LLVM"
+    elif [[ "$version_info" == *"Ubuntu"* ]]; then
+        echo "LLVM (Ubuntu)"
+    elif [[ "$version_info" == *"Debian"* ]]; then
+        echo "LLVM (Debian)"
+    elif [[ "$compiler_path" == /usr/bin/* ]]; then
+        echo "LLVM (system)"
+    else
+        echo "LLVM"
+    fi
+}
+
+_toolchain_compiler_details() {
+    local compiler_path="$1"
+    local version_info toolchain_type="Unknown" vendor=""
+
+    if ! version_info=$("$compiler_path" --version 2>/dev/null | head -n 1); then
+        version_info="Version information unavailable"
+        printf "%s|%s|%s\n" "$toolchain_type" "$vendor" "$version_info"
+        return
+    fi
+
+    version_info="${version_info//$'\r'/}"
+
+    if [[ "$version_info" == *"Apple clang"* || "$version_info" == *"clang version"* ]]; then
+        toolchain_type="Clang"
+        vendor=$(_toolchain_vendor_for_clang "$version_info" "$compiler_path")
+    elif [[ "$version_info" == *"(GCC)"* || "$version_info" == *"gcc version"* ]]; then
+        toolchain_type="GCC"
+        vendor=$(_toolchain_vendor_for_gcc "$version_info" "$compiler_path")
+    fi
+
+    printf "%s|%s|%s\n" "$toolchain_type" "$vendor" "$version_info"
+}
+
+# ------------------------------ Main Function ------------------------------- #
+get_toolchain_info() {
+    _toolchain_info_init_colors
+
+    echo "/===--------------------------------------------------------------===/"
+    printf "%s%sAnalyzing C/C++ toolchain configuration (%s)...%s\n" \
+        "$C_BOLD" "$C_CYAN" "$(_toolchain_detect_platform)" "$C_RESET"
+
     if [[ -n "${CC:-}" || -n "${CXX:-}" ]]; then
-        echo -e "${C_YELLOW}Environment variables (override defaults):${C_RESET}"
-        [[ -n "${CC:-}" ]] && echo -e "   ${C_BOLD}CC  = ${C_CYAN}${CC}${C_RESET}"
-        [[ -n "${CXX:-}" ]] && echo -e "   ${C_BOLD}CXX = ${C_CYAN}${CXX}${C_RESET}"
+        printf "%sEnvironment variables (override defaults):%s\n" "$C_YELLOW" "$C_RESET"
+        [[ -n "${CC:-}" ]] && printf "   %sCC  = %s%s%s\n" "$C_BOLD" "$C_CYAN" "$CC" "$C_RESET"
+        [[ -n "${CXX:-}" ]] && printf "   %sCXX = %s%s%s\n" "$C_BOLD" "$C_CYAN" "$CXX" "$C_RESET"
         echo
     fi
 
-    # Function to resolve the real compiler behind wrappers.
-    resolve_real_compiler() {
-        local compiler_path="$1"
-        local real_path="$compiler_path"
+    local -a compilers=("cc" "c++" "gcc" "g++" "clang" "clang++")
 
-        # Follow symlinks.
-        if [[ -L "$compiler_path" ]]; then
-            real_path=$(readlink -f "$compiler_path" 2>/dev/null || readlink "$compiler_path")
-        fi
+    printf "%sActive compilers in PATH:%s\n\n" "$C_BOLD" "$C_RESET"
 
-        # Check if it's a ccache wrapper.
-        if [[ "$compiler_path" == *"/ccache/"* ]]; then
-            # Try to find the real compiler ccache would use.
-            local compiler_name
-            compiler_name=$(basename "$compiler_path")
-
-            # Look for the real compiler in common locations.
-            local search_paths=(
-                "/usr/bin"
-                "/usr/local/bin"
-                "/opt/homebrew/bin"
-                "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin"
-            )
-
-            for path in "${search_paths[@]}"; do
-                if [[ -x "$path/$compiler_name" && "$path/$compiler_name" != "$compiler_path" ]]; then
-                    real_path="$path/$compiler_name"
-                    break
-                fi
-            done
-        fi
-
-        echo "$real_path"
-    }
-
-    # Function to get detailed compiler info.
-    get_compiler_details() {
-        local compiler_path="$1"
-        local version_info
-        local toolchain_type="Unknown"
-        local vendor=""
-
-        if ! version_info=$(timeout 5 "$compiler_path" --version 2>/dev/null | head -n 1); then
-            version_info="Version information unavailable"
-            echo "$toolchain_type|$vendor|$version_info"
-            return
-        fi
-
-        # Sanitize version_info.
-        version_info="${version_info//[^[:print:]]/ }"
-
-        # Determine toolchain type and vendor.
-        if [[ "$version_info" == *"Apple clang"* ]]; then
-            toolchain_type="Clang"
-            vendor="Apple"
-        elif [[ "$version_info" == *"Homebrew clang"* ]]; then
-            toolchain_type="Clang"
-            vendor="Homebrew LLVM"
-        elif [[ "$version_info" == *"clang version"* ]]; then
-            toolchain_type="Clang"
-            vendor="LLVM"
-        elif [[ "$version_info" == *"(GCC)"* || "$version_info" == *"gcc version"* ]]; then
-            toolchain_type="GCC"
-            if [[ "$version_info" == *"Homebrew"* ]]; then
-                vendor="Homebrew GNU"
-            else
-                vendor="GNU"
-            fi
-        fi
-
-        echo "$toolchain_type|$vendor|$version_info"
-    }
-
-    # Array of compilers to check.
-    local -a compilers=("gcc" "g++" "clang" "clang++")
-
-    echo -e "${C_BOLD}Active compilers in PATH:${C_RESET}"
-    echo
-
-    # Iterate over each compiler.
+    local compiler
     for compiler in "${compilers[@]}"; do
         local compiler_path
         compiler_path=$(command -v "$compiler" 2>/dev/null)
 
         if [[ -n "$compiler_path" && -x "$compiler_path" ]]; then
-            # Resolve real compiler.
             local real_compiler_path
-            real_compiler_path=$(resolve_real_compiler "$compiler_path")
+            real_compiler_path=$(_toolchain_resolve_real_compiler "$compiler_path")
 
-            # Get details for both wrapper and real compiler.
             local wrapper_details real_details
-            wrapper_details=$(get_compiler_details "$compiler_path")
-            real_details=$(get_compiler_details "$real_compiler_path")
+            wrapper_details=$(_toolchain_compiler_details "$compiler_path")
+            real_details=$(_toolchain_compiler_details "$real_compiler_path")
 
             IFS='|' read -r wrapper_type wrapper_vendor wrapper_version <<<"$wrapper_details"
             IFS='|' read -r real_type real_vendor real_version <<<"$real_details"
 
-            # Print compiler name and path.
-            printf "${C_GREEN}◆ %-10s${C_RESET} ${C_CYAN}%s${C_RESET}\n" "$compiler" "$compiler_path"
+            printf "%s◆ %-10s%s %s%s%s\n" "$C_GREEN" "$compiler" "$C_RESET" "$C_CYAN" "$compiler_path" "$C_RESET"
 
-            # Detect and show wrapper.
             local has_wrapper=false
-            if [[ "$compiler_path" == *"/ccache/"* ]]; then
-                printf "  ├─ ${C_YELLOW}Wrapper:${C_RESET} ccache (caching)\n"
+            if [[ "$compiler_path" == *"/ccache/"* || "$compiler_path" == *"ccache/bin"* ]]; then
+                printf "  ├─ %sWrapper:%s ccache (caching)\n" "$C_YELLOW" "$C_RESET"
                 has_wrapper=true
             elif [[ "$compiler_path" != "$real_compiler_path" ]]; then
-                printf "  ├─ ${C_YELLOW}Symlink:${C_RESET} → ${C_CYAN}%s${C_RESET}\n" "$real_compiler_path"
+                printf "  ├─ %sSymlink:%s → %s%s%s\n" "$C_YELLOW" "$C_RESET" "$C_CYAN" "$real_compiler_path" "$C_RESET"
                 has_wrapper=true
             fi
 
-            # Show real compiler details.
             if [[ "$has_wrapper" == true ]]; then
-                printf "  └─ ${C_BLUE}Real compiler:${C_RESET} %s %s\n" "$real_vendor" "$real_type"
-                printf "     ${C_MAGENTA}Version:${C_RESET} %s\n" "$real_version"
+                printf "  └─ %sReal compiler:%s %s %s\n" "$C_BLUE" "$C_RESET" "$real_vendor" "$real_type"
+                printf "     %sVersion:%s %s\n" "$C_MAGENTA" "$C_RESET" "$real_version"
             else
-                printf "  ├─ ${C_BLUE}Type:${C_RESET} %s %s\n" "$real_vendor" "$real_type"
-                printf "  └─ ${C_MAGENTA}Version:${C_RESET} %s\n" "$real_version"
+                printf "  ├─ %sType:%s %s %s\n" "$C_BLUE" "$C_RESET" "$real_vendor" "$real_type"
+                printf "  └─ %sVersion:%s %s\n" "$C_MAGENTA" "$C_RESET" "$real_version"
             fi
 
-            # Check for name masquerading.
             if [[ ("$compiler" == "gcc" || "$compiler" == "g++") && "$real_type" == "Clang" ]]; then
-                printf "     ${C_YELLOW}⚠ Warning: '$compiler' is actually Clang, not GCC${C_RESET}\n"
+                printf "     %sWarning:%s '%s' resolves to Clang, not GCC\n" "$C_YELLOW" "$C_RESET" "$compiler"
             elif [[ ("$compiler" == "clang" || "$compiler" == "clang++") && "$real_type" == "GCC" ]]; then
-                printf "     ${C_YELLOW}⚠ Warning: '$compiler' is actually GCC, not Clang${C_RESET}\n"
+                printf "     %sWarning:%s '%s' resolves to GCC, not Clang\n" "$C_YELLOW" "$C_RESET" "$compiler"
             fi
 
-            # Debug information (formatted for consistency).
-            printf "     ${C_BOLD}Debug:${C_RESET} compiler_path=${C_CYAN}%s${C_RESET}\n" "$compiler_path"
-            printf "            real_compiler_path=${C_CYAN}%s${C_RESET}\n" "$real_compiler_path"
-            printf "            wrapper_details='${C_BLUE}%s${C_RESET}|${C_YELLOW}%s${C_RESET}|${C_MAGENTA}%s${C_RESET}'\n" "$wrapper_type" "$wrapper_vendor" "$wrapper_version"
-            printf "            real_details='${C_BLUE}%s${C_RESET}|${C_YELLOW}%s${C_RESET}|${C_MAGENTA}%s${C_RESET}'\n" "$real_type" "$real_vendor" "$real_version"
+            printf "     %sDebug:%s compiler_path=%s%s%s\n" "$C_BOLD" "$C_RESET" "$C_CYAN" "$compiler_path" "$C_RESET"
+            printf "            real_compiler_path=%s%s%s\n" "$C_CYAN" "$real_compiler_path" "$C_RESET"
+            printf "            wrapper_details='%s%s%s|%s%s%s|%s%s%s'\n" \
+                "$C_BLUE" "$wrapper_type" "$C_RESET" "$C_YELLOW" "$wrapper_vendor" "$C_RESET" "$C_MAGENTA" "$wrapper_version" "$C_RESET"
+            printf "            real_details='%s%s%s|%s%s%s|%s%s%s'\n" \
+                "$C_BLUE" "$real_type" "$C_RESET" "$C_YELLOW" "$real_vendor" "$C_RESET" "$C_MAGENTA" "$real_version" "$C_RESET"
 
             echo
         else
-            printf "${C_RED}✗ %-10s${C_RESET} Not found in PATH\n\n" "$compiler"
+            printf "%s✗ %-10s%s Not found in PATH\n\n" "$C_RED" "$compiler" "$C_RESET"
         fi
     done
 

@@ -68,4 +68,5 @@ fi
 # Added by OrbStack: command-line tools and integration
 source ~/.orbstack/shell/init.zsh 2>/dev/null || :
 
+# ----------------- Elan PATH ------------------ #
 export PATH="$HOME/.elan/bin:$PATH"
