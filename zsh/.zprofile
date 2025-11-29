@@ -17,7 +17,7 @@ export LC_ALL="en_US.UTF-8"
 export HISTFILE=${ZDOTDIR:-$HOME}/.zsh_history
 
 # History size in memory.
-export HISTSIZE=10000
+export HISTSIZE=20000
 
 # History size on disk.
 export SAVEHIST=50000

@@ -80,6 +80,19 @@ else
     export TERM=xterm-256color
 fi
 
+autoload -Uz add-zsh-hook
+
+# -------------------------- History & Safety opts --------------------------- #
+HISTFILE="${ZDOTDIR:-$HOME}/.zsh_history"
+HISTSIZE=20000
+SAVEHIST=50000
+setopt BANG_HIST             # support !-style history expansion
+setopt EXTENDED_HISTORY      # record timestamp/duration
+setopt HIST_EXPIRE_DUPS_FIRST HIST_IGNORE_DUPS HIST_IGNORE_SPACE
+setopt HIST_VERIFY           # show before executing history expansions
+setopt INC_APPEND_HISTORY SHARE_HISTORY
+set -o notify                # report background job status immediately
+
 # ++++++++++++++++++++++++++++++++ OH-MY-ZSH +++++++++++++++++++++++++++++++++ #
 
 # Path to Oh-My-Zsh installation (platform specific).
@@ -142,33 +155,189 @@ source "$ZSH/oh-my-zsh.sh"
 # ============================================================================ #
 
 # +++++++++++++++++++++++++++ PROMPT CONFIGURATION +++++++++++++++++++++++++++ #
+# Prompt priority (cross-platform):
+#   1. Starship (preferred - modern, fast, cross-platform)
+#   2. Oh-My-Posh (macOS/Windows fallback)
+#   3. PowerLevel10k (Linux fallback)
 
-# Prompt priority: Starship > Platform-specific (Oh-My-Posh/PowerLevel10k)
-if command -v starship >/dev/null 2>&1; then
-    # Starship: Modern, fast, cross-platform (preferred)
+# Keep prompt substitution enabled globally (LOCAL_OPTIONS would otherwise undo
+# the change inside functions).
+setopt PROMPT_SUBST
+
+_init_starship_prompt() {
+    [[ -n "${_STARSHIP_INIT_DONE-}" ]] && return 0
+    # Ensure prompt substitution is enabled (required for Starship).
+    setopt PROMPT_SUBST
+    autoload -Uz add-zsh-hook
+
+    # Initialize Starship prompt system.
     eval "$(starship init zsh)"
-elif [[ "$PLATFORM" == "macOS" ]]; then
-    # macOS: Oh-My-Posh
-    omp_config="$XDG_CONFIG_HOME/oh-my-posh/lcs-dev.omp.json"
-    if command -v oh-my-posh >/dev/null 2>&1 && [[ -f "$omp_config" ]]; then
-        eval "$(oh-my-posh init zsh --config "$omp_config")"
+
+    # Verify Starship initialized correctly.
+    [[ -z "$PROMPT" ]] && {
+        print "Warning: Starship failed to initialize properly" >&2
+        return 1
+    }
+
+    # ---- Transient Prompt ---- #
+    # Replaces full prompt with minimal version after command execution.
+    # Source: https://gist.github.com/subnut/3af65306fbecd35fe2dda81f59acf2b2
+    # Fix: Starship sets PROMPT once, so stash it and restore it on every precmd.
+    typeset -g _STARSHIP_PROMPT_FULL="$PROMPT"
+    typeset -g _STARSHIP_RPROMPT_FULL="$RPROMPT"
+    typeset -g _STARSHIP_PROMPT2_FULL="${PROMPT2-}"
+    typeset -g _STARSHIP_TRANSIENT_PROMPT='%B%F{purple}%(4~|…/%3~|%~)%f%b %B%F{green}❯%f%b '
+
+    _starship_transient_restore_prompt() {
+        setopt promptsubst
+        PROMPT="$_STARSHIP_PROMPT_FULL"
+        RPROMPT="$_STARSHIP_RPROMPT_FULL"
+        PROMPT2="$_STARSHIP_PROMPT2_FULL"
+    }
+
+    _starship_transient_line_finish() {
+        PROMPT="$_STARSHIP_TRANSIENT_PROMPT"
+        RPROMPT=
+        zle reset-prompt
+        zle -R
+    }
+
+    # Preserve any existing zle-line-finish widget and wrap ours around it.
+    if [[ -v widgets[zle-line-finish] ]]; then
+        _STARSHIP_PREV_ZLE_LINE_FINISH=${widgets[zle-line-finish]#user:}
     fi
-elif [[ "$PLATFORM" == "Linux" ]]; then
-    # Linux: PowerLevel10k with Oh-My-Posh fallback
-    if [[ -f "/usr/share/zsh-theme-powerlevel10k/powerlevel10k.zsh-theme" ]]; then
-        source "/usr/share/zsh-theme-powerlevel10k/powerlevel10k.zsh-theme"
-        [[ -f "$HOME/.p10k.zsh" ]] && source "$HOME/.p10k.zsh"
-    elif [[ -f "$HOME/.oh-my-zsh/custom/themes/powerlevel10k/powerlevel10k.zsh-theme" ]]; then
-        source "$HOME/.oh-my-zsh/custom/themes/powerlevel10k/powerlevel10k.zsh-theme"
-        [[ -f "$HOME/.p10k.zsh" ]] && source "$HOME/.p10k.zsh"
-    else
-        # Fallback to Oh-My-Posh if available
-        omp_config="$XDG_CONFIG_HOME/oh-my-posh/lcs-dev.omp.json"
-        if command -v oh-my-posh >/dev/null 2>&1 && [[ -f "$omp_config" ]]; then
-            eval "$(oh-my-posh init zsh --config "$omp_config")"
+    _starship_transient_line_finish_wrapper() {
+        if [[ -n "${_STARSHIP_PREV_ZLE_LINE_FINISH-}" ]]; then
+            "${_STARSHIP_PREV_ZLE_LINE_FINISH}" "$@"
         fi
+        _starship_transient_line_finish "$@"
+    }
+    zle -N zle-line-finish _starship_transient_line_finish_wrapper
+    add-zsh-hook -D precmd _starship_transient_restore_prompt 2>/dev/null
+    add-zsh-hook precmd _starship_transient_restore_prompt
+
+    # ---- Smart Newline ---- #
+    # Adds visual separation between commands (skips first prompt after shell start).
+    # Skip newline right after clearing the screen so prompt stays on the top row.
+    _starship_record_last_cmd() {
+        local cmd="$1"
+        # Trim leading spaces.
+        cmd="${cmd#"${cmd%%[![:space:]]*}"}"
+        _STARSHIP_LAST_CMD="$cmd"
+    }
+    add-zsh-hook -D preexec _starship_record_last_cmd 2>/dev/null
+    add-zsh-hook preexec _starship_record_last_cmd
+
+    _starship_precmd_newline() {
+        case ${_STARSHIP_LAST_CMD:-} in
+            clear*|cls*|c|c\ *) unset _STARSHIP_LAST_CMD; return ;;
+        esac
+        if [[ -z "${_STARSHIP_FIRST_PROMPT_DONE+x}" ]]; then
+            export _STARSHIP_FIRST_PROMPT_DONE=1
+        else
+            print ""
+        fi
+    }
+
+    # Register newline hook.
+    add-zsh-hook -D precmd _starship_precmd_newline 2>/dev/null
+    add-zsh-hook precmd _starship_precmd_newline
+
+    _STARSHIP_INIT_DONE=1
+    return 0
+}
+
+_init_ohmyposh_prompt() {
+    local omp_config="${XDG_CONFIG_HOME:-$HOME/.config}/oh-my-posh/lcs-dev.omp.json"
+
+    if [[ ! -f "$omp_config" ]]; then
+        print "Warning: Oh-My-Posh config not found at $omp_config" >&2
+        return 1
+    fi
+
+    # Initialize Oh-My-Posh.
+    eval "$(oh-my-posh init zsh --config "$omp_config")" || {
+        print "Warning: Oh-My-Posh initialization failed" >&2
+        return 1
+    }
+
+    return 0
+}
+
+_init_p10k_prompt() {
+    local p10k_theme p10k_config="$HOME/.p10k.zsh"
+    local -a p10k_locations=(
+        "/usr/share/zsh-theme-powerlevel10k/powerlevel10k.zsh-theme"
+        "$HOME/.oh-my-zsh/custom/themes/powerlevel10k/powerlevel10k.zsh-theme"
+        "${ZDOTDIR:-$HOME}/.oh-my-zsh/custom/themes/powerlevel10k/powerlevel10k.zsh-theme"
+    )
+
+    # Search for PowerLevel10k theme.
+    for p10k_theme in "${p10k_locations[@]}"; do
+        if [[ -f "$p10k_theme" ]]; then
+            source "$p10k_theme" || {
+                print "Warning: Failed to load PowerLevel10k from $p10k_theme" >&2
+                continue
+            }
+
+            # Load P10k config if exists.
+            [[ -f "$p10k_config" ]] && source "$p10k_config"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+_init_minimal_prompt() {
+    # Minimal fallback prompt with basic features.
+    setopt PROMPT_SUBST
+    PROMPT='%F{cyan}%n@%m%f:%F{yellow}%~%f %(?.%F{green}.%F{red})%#%f '
+    RPROMPT='%F{240}%D{%H:%M:%S}%f'
+}
+
+# ============================================================================ #
+# ++++++++++++++++++++++++++ PROMPT INITIALIZATION +++++++++++++++++++++++++++ #
+# ============================================================================ #
+# Try prompts in priority order: Starship > Oh-My-Posh > PowerLevel10k > Minimal
+
+_prompt_initialized=0
+
+# Priority 1: Starship (cross-platform, modern, fast).
+if command -v starship >/dev/null 2>&1; then
+    if _init_starship_prompt; then
+        _prompt_initialized=1
+    else
+        print "Starship initialization failed, trying fallback..." >&2
     fi
 fi
+
+# Priority 2: Oh-My-Posh (cross-platform fallback).
+if (( ! _prompt_initialized )) && command -v oh-my-posh >/dev/null 2>&1; then
+    if _init_ohmyposh_prompt; then
+        _prompt_initialized=1
+    else
+        print "Oh-My-Posh initialization failed, trying fallback..." >&2
+    fi
+fi
+
+# Priority 3: PowerLevel10k (Linux/macOS with Oh-My-Zsh).
+if (( ! _prompt_initialized )); then
+    if _init_p10k_prompt; then
+        _prompt_initialized=1
+    else
+        [[ "$PLATFORM" == "Linux" ]] && print "PowerLevel10k not found, using minimal prompt" >&2
+    fi
+fi
+
+# Priority 4: Minimal fallback (always works).
+if (( ! _prompt_initialized )); then
+    _init_minimal_prompt
+    _prompt_initialized=1
+fi
+
+# Cleanup.
+unset _prompt_initialized
 
 # Load scripts for "Competitive Programming".
 if [[ -f "$HOME/.config/cpp-tools/competitive.sh" ]]; then
@@ -191,22 +360,58 @@ bindkey -v
 # Reduce mode change delay (0.1 seconds).
 export KEYTIMEOUT=1
 
-# Simplified and more efficient logic to update prompt based on mode.
-function zle-line-init() { zle -K viins; }
+# Simplified and more efficient logic to update prompt based on mode, with cursor shape feedback.
+_vi_cursor_shape() {
+    case ${KEYMAP} in
+        vicmd) printf '\e[2 q' ;; # steady block
+        *)     printf '\e[6 q' ;; # steady bar
+    esac
+}
+
+function zle-line-init() { zle -K viins; _vi_cursor_shape; }
+
+if [[ -v widgets[zle-keymap-select] ]]; then
+    _VI_PREV_ZLE_KEYMAP_SELECT=${widgets[zle-keymap-select]#user:}
+fi
 function zle-keymap-select() {
+    if [[ -n "${_VI_PREV_ZLE_KEYMAP_SELECT-}" ]]; then
+        "${_VI_PREV_ZLE_KEYMAP_SELECT}" "$@"
+    fi
     case $KEYMAP in
         viins) zle-line-init ;;
         vicmd) zle reset-prompt ;;
     esac
+    _vi_cursor_shape
 }
 zle -N zle-line-init
 zle -N zle-keymap-select
 
-# ------------------------------- COLORS & FZF ------------------------------- #
-# Set up fzf key bindings and fuzzy completion.
-if command -v fzf >/dev/null 2>&1; then
-    eval "$(fzf --zsh 2>/dev/null)" || echo "${C_YELLOW}Warning: fzf init failed.${C_RESET}"
+# Quick copy of cwd with Ctrl+O (macOS pbcopy).
+if command -v pbcopy >/dev/null 2>&1; then
+    bindkey -s '^O' 'pwd | pbcopy\n'
 fi
+
+# ------------------------------- COLORS & FZF ------------------------------- #
+# Lazy init for fzf/zoxide/direnv to keep startup snappy.
+_tools_lazy_init() {
+    [[ -n "${_TOOLS_LAZY_INIT_DONE-}" ]] && return
+
+    if command -v fzf >/dev/null 2>&1; then
+        eval "$(fzf --zsh 2>/dev/null)" || echo "${C_YELLOW}Warning: fzf init failed.${C_RESET}"
+    fi
+
+    if command -v zoxide >/dev/null 2>&1; then
+        eval "$(zoxide init zsh 2>/dev/null)" || echo "${C_YELLOW}Warning: zoxide init failed.${C_RESET}"
+    fi
+
+    if command -v direnv >/dev/null 2>&1; then
+        eval "$(direnv hook zsh 2>/dev/null)" || echo "${C_YELLOW}Warning: direnv init failed.${C_RESET}"
+    fi
+
+    _TOOLS_LAZY_INIT_DONE=1
+    add-zsh-hook -d precmd _tools_lazy_init 2>/dev/null
+}
+add-zsh-hook precmd _tools_lazy_init
 
 _gen_fzf_default_opts() {
 # ---------- Setup FZF theme -------- #
@@ -313,6 +518,9 @@ alias ...="cd ../.."
 alias ....="cd ../../.."
 alias .....="cd ../../../.."
 alias ......="cd ../../../../.."
+alias rm="rm -i"
+alias cp="cp -i"
+alias mv="mv -i"
 
 # Tools
 alias ranger="TERM=screen-256color ranger"
@@ -326,12 +534,17 @@ if command -v thefuck >/dev/null 2>&1; then
     eval "$(thefuck --alias fk 2>/dev/null)" || true
 fi
 
-# ------- Zoxide (smarter cd) ------- #
-if command -v zoxide >/dev/null 2>&1; then
-    eval "$(zoxide init zsh 2>/dev/null)" || echo "${C_YELLOW}Warning: zoxide init failed.${C_RESET}"
-    # Note: 'z' alias is already created by zoxide init.
-    # We'll use 'z' consistently instead of aliasing 'cd'.
-fi
+# Quick-jump to the directory of a file chosen via fzf.
+cdf() {
+    if ! command -v fzf >/dev/null 2>&1; then
+        echo "${C_YELLOW}fzf is required for cdf${C_RESET}" >&2
+        return 1
+    fi
+    local target
+    target=$(fzf --select-1 --exit-0)
+    [[ -z "$target" ]] && return 1
+    cd -- "$(dirname -- "$target")"
+}
 
 # ---------- C Compilation ---------- #
 # Determine include path dynamically based on platform.

@@ -168,7 +168,7 @@ disabled = false
 format = '[\($localipv4\)](gray) '
 
 [shlvl]
-disabled = false
+disabled = true
 threshold = 2
 symbol = '󰘍'
 repeat = true
@@ -198,7 +198,7 @@ truncate_to_repo = true
 truncation_symbol = '…/'
 read_only = ' 󰌾'
 read_only_style = 'red'
-home_symbol = '󰋜 '
+home_symbol = ' '
 use_os_path_sep = true
 
 [directory.substitutions]
@@ -623,11 +623,8 @@ disabled = false
 style = 'bold blue'
 symbol = '⬢ '
 format = '[$symbol$project]($style) '
-truncation_length = '2**32 - 1'
+truncation_length = 4294967295
 truncation_symbol = '…'
-detect_extensions = []
-detect_files = ['meson.build']
-detect_folders = []
 
 [nix_shell]
 disabled = false
