@@ -175,6 +175,9 @@ export ZSH_COMPDUMP="$ZSH/cache/.zcompdump-$HOST"
 
 source "$ZSH/oh-my-zsh.sh"
 
+# Unset options to restore default behavior.
+unsetopt xtrace verbose
+
 # ============================================================================ #
 # ++++++++++++++++++++++++ PERSONAL SETTINGS - THEMES ++++++++++++++++++++++++ #
 # ============================================================================ #
@@ -794,6 +797,9 @@ elif [[ -d "/usr/local/include" ]]; then
 else
     C_INCLUDE_PATH=""
 fi
+
+# Toolchain Information Alias.
+alias toolchain='ZSH_HIGHLIGHT_MAXLENGTH=0 get_toolchain_info 2> >(grep -v "^[a-z_]*=")'
 
 # Default C Compilation Alias.
 alias c-compile="clang -std=c23 -O3 -march=native -flto=thin -ffast-math $C_INCLUDE_PATH"

@@ -10,6 +10,10 @@
 # Reuse the palette defined in .zshrc when available; otherwise, define a
 # minimal set locally without failing in limited terminals.
 _toolchain_info_init_colors() {
+    # Preserve xtrace state.
+    emulate -L zsh
+    setopt noxtrace noverbose
+
     if [[ -t 1 ]] && command -v tput >/dev/null 2>&1 && [[ $(tput colors 2>/dev/null) -ge 8 ]]; then
         C_RESET=$'\e[0m'
         C_BOLD=$'\e[1m'
@@ -33,6 +37,10 @@ _toolchain_info_init_colors() {
 
 # ------------------------------ Helper Utils -------------------------------- #
 _toolchain_detect_platform() {
+    # Preserve xtrace state.
+    emulate -L zsh
+    setopt noxtrace noverbose
+
     local os
     os=$(uname -s 2>/dev/null || printf "unknown")
     case "$os" in
@@ -51,6 +59,10 @@ _toolchain_detect_platform() {
 }
 
 _toolchain_path_without_ccache() {
+    # Preserve xtrace state.
+    emulate -L zsh
+    setopt noxtrace noverbose
+
     local IFS=:
     local dir filtered=()
     for dir in $PATH; do
@@ -64,6 +76,10 @@ _toolchain_path_without_ccache() {
 }
 
 _toolchain_portable_realpath() {
+    # Preserve xtrace state.
+    emulate -L zsh
+    setopt noxtrace noverbose
+
     local target="$1"
 
     if command -v realpath >/dev/null 2>&1; then
@@ -91,6 +107,10 @@ PY
 }
 
 _toolchain_find_in_path() {
+    # Preserve xtrace state.
+    emulate -L zsh
+    setopt noxtrace noverbose
+
     local name="$1" search_path="${2:-$PATH}" dir
     local IFS=:
     for dir in $search_path; do
@@ -103,6 +123,10 @@ _toolchain_find_in_path() {
 }
 
 _toolchain_resolve_real_compiler() {
+    # Preserve xtrace state.
+    emulate -L zsh
+    setopt noxtrace noverbose
+
     local compiler_path="$1"
     local resolved
     resolved=$(_toolchain_portable_realpath "$compiler_path")
@@ -138,6 +162,10 @@ _toolchain_resolve_real_compiler() {
 }
 
 _toolchain_vendor_for_gcc() {
+    # Preserve xtrace state.
+    emulate -L zsh
+    setopt noxtrace noverbose
+
     local version_info="$1" compiler_path="$2"
     if [[ "$version_info" == *"Homebrew"* ]]; then
         echo "Homebrew GNU"
@@ -155,6 +183,10 @@ _toolchain_vendor_for_gcc() {
 }
 
 _toolchain_vendor_for_clang() {
+    # Preserve xtrace state.
+    emulate -L zsh
+    setopt noxtrace noverbose
+
     local version_info="$1" compiler_path="$2"
     if [[ "$version_info" == *"Apple clang"* ]]; then
         echo "Apple"
@@ -172,6 +204,10 @@ _toolchain_vendor_for_clang() {
 }
 
 _toolchain_compiler_details() {
+    # Preserve xtrace state.
+    emulate -L zsh
+    setopt noxtrace noverbose
+
     local compiler_path="$1"
     local version_info toolchain_type="Unknown" vendor=""
 
@@ -196,6 +232,11 @@ _toolchain_compiler_details() {
 
 # ------------------------------ Main Function ------------------------------- #
 get_toolchain_info() {
+    # Preserve xtrace state.
+    emulate -L zsh
+    setopt noxtrace noverbose
+
+    # Initialize colors.
     _toolchain_info_init_colors
 
     echo "/===--------------------------------------------------------------===/"
@@ -210,6 +251,43 @@ get_toolchain_info() {
     fi
 
     local -a compilers=("cc" "c++" "gcc" "g++" "clang" "clang++")
+    local -A seen_compilers=()
+
+    # Add Homebrew versioned GCC binaries if present (e.g., gcc-15, g++-15).
+    if [[ "$(uname -s 2>/dev/null)" == "Darwin" ]]; then
+        local brew_prefix gcc_bin
+        if command -v brew >/dev/null 2>&1; then
+            brew_prefix=$(brew --prefix 2>/dev/null)
+            if [[ -n "$brew_prefix" && -d "$brew_prefix/opt/gcc/bin" ]]; then
+                gcc_bin="$brew_prefix/opt/gcc/bin"
+            fi
+        fi
+
+        if [[ -z "$gcc_bin" && -d "/opt/homebrew/opt/gcc/bin" ]]; then
+            gcc_bin="/opt/homebrew/opt/gcc/bin"
+        fi
+
+        if [[ -n "$gcc_bin" && -d "$gcc_bin" ]]; then
+            while IFS= read -r compiler_entry; do
+                local name
+                name=$(basename "$compiler_entry")
+                if [[ -n "$name" ]]; then
+                    compilers+=("$name")
+                fi
+            done < <(find "$gcc_bin" -maxdepth 1 -type f \( -name "gcc-[0-9]*" -o -name "g++-[0-9]*" \) -print 2>/dev/null | sort -V)
+        fi
+    fi
+
+    # Deduplicate while preserving order.
+    local -a unique=()
+    local name
+    for name in "${compilers[@]}"; do
+        if [[ -z "${seen_compilers[$name]:-}" ]]; then
+            seen_compilers["$name"]=1
+            unique+=("$name")
+        fi
+    done
+    compilers=("${unique[@]}")
 
     printf "%sActive compilers in PATH:%s\n\n" "$C_BOLD" "$C_RESET"
 
@@ -254,13 +332,14 @@ get_toolchain_info() {
                 printf "     %sWarning:%s '%s' resolves to GCC, not Clang\n" "$C_YELLOW" "$C_RESET" "$compiler"
             fi
 
-            printf "     %sDebug:%s compiler_path=%s%s%s\n" "$C_BOLD" "$C_RESET" "$C_CYAN" "$compiler_path" "$C_RESET"
-            printf "            real_compiler_path=%s%s%s\n" "$C_CYAN" "$real_compiler_path" "$C_RESET"
-            printf "            wrapper_details='%s%s%s|%s%s%s|%s%s%s'\n" \
-                "$C_BLUE" "$wrapper_type" "$C_RESET" "$C_YELLOW" "$wrapper_vendor" "$C_RESET" "$C_MAGENTA" "$wrapper_version" "$C_RESET"
-            printf "            real_details='%s%s%s|%s%s%s|%s%s%s'\n" \
-                "$C_BLUE" "$real_type" "$C_RESET" "$C_YELLOW" "$real_vendor" "$C_RESET" "$C_MAGENTA" "$real_version" "$C_RESET"
-
+            if [[ "${TOOLCHAIN_INFO_DEBUG:-1}" != "0" ]]; then
+                printf "     %sDebug:%s compiler_path=%s%s%s\n" "$C_BOLD" "$C_RESET" "$C_CYAN" "$compiler_path" "$C_RESET"
+                printf "            real_compiler_path=%s%s%s\n" "$C_CYAN" "$real_compiler_path" "$C_RESET"
+                printf "            wrapper_details='%s%s%s|%s%s%s|%s%s%s'\n" \
+                    "$C_BLUE" "$wrapper_type" "$C_RESET" "$C_YELLOW" "$wrapper_vendor" "$C_RESET" "$C_MAGENTA" "$wrapper_version" "$C_RESET"
+                printf "            real_details='%s%s%s|%s%s%s|%s%s%s'\n" \
+                    "$C_BLUE" "$real_type" "$C_RESET" "$C_YELLOW" "$real_vendor" "$C_RESET" "$C_MAGENTA" "$real_version" "$C_RESET"
+            fi
             echo
         else
             printf "%s✗ %-10s%s Not found in PATH\n\n" "$C_RED" "$compiler" "$C_RESET"
@@ -269,6 +348,10 @@ get_toolchain_info() {
 
     echo "/===--------------------------------------------------------------===/"
 }
+
+if [[ "${ZSH_EVAL_CONTEXT:-}" != *:file:* ]] || [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    get_toolchain_info "$@"
+fi
 
 # ============================================================================ #
 # End of script.

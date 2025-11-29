@@ -50,6 +50,12 @@ _toolchain_detect_platform() {
 }
 
 # ------------------------------ State Storage ------------------------------- #
+# Ensure PATH is not empty; otherwise, fall back to a sane default to avoid
+# breaking builtin utilities when this file is sourced in a bad environment.
+if [[ -z "${PATH:-}" ]]; then
+    PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+fi
+
 if [[ -z "${ORIGINAL_PATH:-}" ]]; then
     export ORIGINAL_PATH="${PATH}"
 fi
@@ -96,6 +102,9 @@ _toolchain_reset_env_to_original() {
 _toolchain_set_path() {
     local bin_dir="$1"
     local base="${TOOLCHAIN_ORIGINAL_PATH}"
+    if [[ -z "$base" ]]; then
+        base="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+    fi
     if [[ -n "$bin_dir" ]]; then
         export PATH="${bin_dir}:${base}"
         TOOLCHAIN_ACTIVE_BIN="$bin_dir"
@@ -133,7 +142,7 @@ _toolchain_get_homebrew_prefix() {
 _toolchain_find_best_binary() {
     local base="$1"
     shift
-    local fallback="" best="" best_ver=-1 dir path ver ver_str
+    local fallback="" best="" best_ver=-1 dir candidate_path ver ver_str
 
     local -a dirs=()
     local IFS=:
@@ -151,15 +160,15 @@ _toolchain_find_best_binary() {
         fi
 
         # Prefer versioned binaries (e.g., clang-17, gcc-14) without relying on shell globbing.
-        while IFS= read -r path; do
-            ver_str="${path##*-}"
+        while IFS= read -r candidate_path; do
+            ver_str="${candidate_path##*-}"
             case "$ver_str" in
             '' | *[!0-9]*) continue ;;
             esac
             ver=$ver_str
             if ((ver > best_ver)); then
                 best_ver=$ver
-                best="$path"
+                best="$candidate_path"
             fi
         done < <(find "$dir" -maxdepth 1 -type f -name "$base-[0-9]*" -print 2>/dev/null)
     done
