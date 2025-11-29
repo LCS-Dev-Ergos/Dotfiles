@@ -21,7 +21,7 @@
     },
     {
       "type": "custom",
-      "format": "┌──────────────────────────────────────────┐"
+      "format": "┌────────────────────────────────────────────────┐"
     },
     {
       "type": "os",
@@ -34,21 +34,16 @@
       "keyColor": "red"
     },
     {
-      "type": "packages",
-      "format": "System: {nix-system}, User: {nix-user}, Default: {nix-default}",
-      "key": "   Nix",
-      "keyColor": "blue"
-    },
-    {
-      "type": "packages",
-      "format": "Formulae: {brew}, Casks: {brew-cask}",
-      "key": "   Homebrew",
-      "keyColor": "yellow"
+      "type": "command",
+      "key": "   Packages",
+      "keyColor": "blue",
+      "text": "printed=0; first=1; indent=${FASTFETCH_INDENT:-$'\\033[63C'}\nprint_line(){ if (( first )); then printf '\\n'; first=0; fi; printf '%s  · %s\\n' \"$indent\" \"$1\"; printed=1; }\nif command -v pacman >/dev/null 2>&1; then print_line \"pacman: $(pacman -Qq 2>/dev/null | wc -l | awk '{print $1}')\"; fi\nif command -v paru >/dev/null 2>&1; then print_line \"paru: $(paru -Qq 2>/dev/null | wc -l | awk '{print $1}')\"; fi\nif command -v yay >/dev/null 2>&1; then print_line \"yay: $(yay -Qq 2>/dev/null | wc -l | awk '{print $1}')\"; fi\nif command -v flatpak >/dev/null 2>&1; then print_line \"flatpak: $(flatpak list --app 2>/dev/null | wc -l | awk '{print $1}')\"; fi\nif command -v snap >/dev/null 2>&1; then print_line \"snap: $(snap list 2>/dev/null | wc -l | awk '{print $1}')\"; fi\nif command -v brew >/dev/null 2>&1; then print_line \"brew: $(brew list 2>/dev/null | wc -l | awk '{print $1}')\"; fi\nif command -v brew >/dev/null 2>&1; then print_line \"brew cask: $(brew list --cask 2>/dev/null | wc -l | awk '{print $1}')\"; fi\nif command -v nix-env >/dev/null 2>&1 && [[ -d /nix/var/nix/profiles/per-user/${USER:-$(whoami)} ]]; then print_line \"nix-user: $(nix-env -q 2>/dev/null | wc -l | awk '{print $1}')\"; fi\nif [[ -d /run/current-system/sw/bin ]]; then print_line \"nix-system: $(ls -1 /run/current-system/sw/bin 2>/dev/null | wc -l | awk '{print $1}')\"; fi\nif (( printed == 0 )); then printf '\\n%s  none\\n' \"$indent\"; fi"
     },
     {
       "type": "display",
       "key": "  󰹑 Display",
-      "keyColor": "green"
+      "keyColor": "green",
+      "compactType": "original"
     },
     {
       "type": "wm",
@@ -62,7 +57,7 @@
     },
     {
       "type": "custom",
-      "format": "└──────────────────────────────────────────┘"
+      "format": "└────────────────────────────────────────────────┘"
     },
     "break",
     {
@@ -71,7 +66,7 @@
     },
     {
       "type": "custom",
-      "format": "┌──────────────────────────────────────────┐"
+      "format": "┌────────────────────────────────────────────────┐"
     },
     {
       "type": "cpu",
@@ -109,7 +104,7 @@
     },
     {
       "type": "custom",
-      "format": "└──────────────────────────────────────────┘"
+      "format": "└────────────────────────────────────────────────┘"
     },
     {
       "type": "colors",

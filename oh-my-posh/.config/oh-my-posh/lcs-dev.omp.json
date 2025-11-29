@@ -129,10 +129,10 @@
           "template": " \uE634 {{ .Full }}"
         },
         {
-          "type": "scala",
+          "type": "swift",
           "style": "plain",
           "foreground": "p:terminal-red",
-          "template": " \uE737 {{ .Full }}"
+          "template": " \uE699 {{ .Full }}"
         },
         {
           "type": "haskell",
@@ -191,9 +191,7 @@
           "type": "status",
           "style": "plain",
           "foreground": "p:pistachio-green",
-          "foreground_templates": [
-            "{{ if gt .Code 0 }}p:terminal-red{{ end }}"
-          ],
+          "foreground_templates": ["{{ if gt .Code 0 }}p:terminal-red{{ end }}"],
           "template": "{{ if gt .Code 0 }}\uF00D {{ .Code }} {{ end }}"
         },
         {
