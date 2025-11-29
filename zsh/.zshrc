@@ -1,9 +1,26 @@
 #!/usr/bin/env zsh
 # shellcheck shell=zsh
 # ============================================================================ #
+# Personal interactive Zsh config.
+#
+# What this file sets up (in order):
+# - Base guards: pipefail, unset-variable protection, and login-shell bootstrap
+#   via .zprofile.
+# - OS detection and TERM tweaks; VS Code shell integration when present.
+# - Oh-My-Zsh core with platform-aware plugins.
+# - Prompt stack: Starship with transient + smart newline helpers, falling back
+#   to Oh-My-Posh, Powerlevel10k, then minimal.
+# - External script loader (~/.config/zsh/scripts), competitive programming helpers.
+# - Vi-mode widgets (cursor shape, mode bindings) and clipboard helper on macOS.
+# - Lazy init for fzf/zoxide/direnv, themed fzf defaults, bat/eza previews.
+# - Aliases and dev shortcuts (git, compilers, sys tools),
+#   plus platform-specific utilities.
+# - Environment wiring: Homebrew/Nix/Java/pyenv/conda, language/tool paths,
+#   and personal directories.
+
+# ============================================================================ #
 # ++++++++++++++++++++++++++++ BASE CONFIGURATION ++++++++++++++++++++++++++++ #
 # ============================================================================ #
-
 # Fail on pipe errors.
 set -o pipefail
 
@@ -151,102 +168,215 @@ export ZSH_COMPDUMP="$ZSH/cache/.zcompdump-$HOST"
 source "$ZSH/oh-my-zsh.sh"
 
 # ============================================================================ #
-# ++++++++++++++++++++++ PERSONAL CONFIGURATION - THEMES +++++++++++++++++++++ #
+# ++++++++++++++++++++++++ PERSONAL SETTINGS - THEMES ++++++++++++++++++++++++ #
 # ============================================================================ #
 
 # +++++++++++++++++++++++++++ PROMPT CONFIGURATION +++++++++++++++++++++++++++ #
 # Prompt priority (cross-platform):
-#   1. Starship (preferred - modern, fast, cross-platform)
-#   2. Oh-My-Posh (macOS/Windows fallback)
-#   3. PowerLevel10k (Linux fallback)
+#   1. Starship      - Modern, fast, cross-platform (preferred)
+#   2. Oh-My-Posh    - macOS/Windows fallback
+#   3. PowerLevel10k - Linux fallback
+#   4. Minimal       - Basic fallback (always works)
 
-# Keep prompt substitution enabled globally (LOCAL_OPTIONS would otherwise undo
-# the change inside functions).
+# Enable prompt substitution globally.
 setopt PROMPT_SUBST
 
+# -----------------------------------------------------------------------------
+# _init_starship_prompt
+# -----------------------------------------------------------------------------
+# Initialize Starship prompt with transient prompt and smart newline features:
+#   - Transient prompt: Shows minimal prompt for previous commands.
+#   - Smart newline: Adds visual separation between commands.
+#
+# Returns:
+#   0 - Success.
+#   1 - Starship not available or initialization failed.
+# -----------------------------------------------------------------------------
 _init_starship_prompt() {
+    # Guard: prevent re-initialization (allows re-sourcing .zshrc safely).
     [[ -n "${_STARSHIP_INIT_DONE-}" ]] && return 0
-    # Ensure prompt substitution is enabled (required for Starship).
+
     setopt PROMPT_SUBST
     autoload -Uz add-zsh-hook
 
-    # Initialize Starship prompt system.
+    # Initialize Starship and verify.
     eval "$(starship init zsh)"
-
-    # Verify Starship initialized correctly.
-    [[ -z "$PROMPT" ]] && {
-        print "Warning: Starship failed to initialize properly" >&2
+    if [[ -z "$PROMPT" ]]; then
+        print "Warning: Starship failed to initialize" >&2
         return 1
-    }
+    fi
 
-    # ---- Transient Prompt ---- #
-    # Replaces full prompt with minimal version after command execution.
-    # Source: https://gist.github.com/subnut/3af65306fbecd35fe2dda81f59acf2b2
-    # Fix: Starship sets PROMPT once, so stash it and restore it on every precmd.
+    # ------ Transient Prompt Setup ------ #
+    # Reference: https://gist.github.com/subnut/3af65306fbecd35fe2dda81f59acf2b2
+
+    # Stash original prompts (Starship sets these once at init).
     typeset -g _STARSHIP_PROMPT_FULL="$PROMPT"
     typeset -g _STARSHIP_RPROMPT_FULL="$RPROMPT"
     typeset -g _STARSHIP_PROMPT2_FULL="${PROMPT2-}"
+
+    # Minimal transient prompt: truncated path + chevron.
+    # Format: %(4~|…/%3~|%~) = show "…/last/3/dirs" if depth > 4, else full path.
     typeset -g _STARSHIP_TRANSIENT_PROMPT='%B%F{purple}%(4~|…/%3~|%~)%f%b %B%F{green}❯%f%b '
 
-    _starship_transient_restore_prompt() {
-        setopt promptsubst
-        PROMPT="$_STARSHIP_PROMPT_FULL"
-        RPROMPT="$_STARSHIP_RPROMPT_FULL"
-        PROMPT2="$_STARSHIP_PROMPT2_FULL"
-    }
+    # ------- Smart Newline State -------- #
+    # Track last command, first prompt state, and whether to emit a spacer line.
+    typeset -g _STARSHIP_LAST_CMD=
+    typeset -gi _STARSHIP_NEED_NEWLINE=0
+    unset _STARSHIP_FIRST_PROMPT_DONE  # Must be unset, not empty.
 
-    _starship_transient_line_finish() {
-        PROMPT="$_STARSHIP_TRANSIENT_PROMPT"
-        RPROMPT=
-        zle reset-prompt
-        zle -R
-    }
+    # ---------- Register Hooks ---------- #
+    # Order matters: newline first, then restore prompt.
+    add-zsh-hook preexec _starship_record_cmd
+    add-zsh-hook precmd _starship_smart_newline
+    add-zsh-hook precmd _starship_restore_prompt
 
-    # Preserve any existing zle-line-finish widget and wrap ours around it.
-    if [[ -v widgets[zle-line-finish] ]]; then
-        _STARSHIP_PREV_ZLE_LINE_FINISH=${widgets[zle-line-finish]#user:}
+    # ------- Register ZLE Widgets ------- #
+    # Preserve existing zle-line-finish widget if present.
+    typeset -g _STARSHIP_PREV_LINE_FINISH=
+    if [[ -n "${widgets[zle-line-finish]-}" ]]; then
+        _STARSHIP_PREV_LINE_FINISH="${widgets[zle-line-finish]#user:}"
+        [[ "$_STARSHIP_PREV_LINE_FINISH" == "_starship_line_finish" ]] && _STARSHIP_PREV_LINE_FINISH=
     fi
-    _starship_transient_line_finish_wrapper() {
-        if [[ -n "${_STARSHIP_PREV_ZLE_LINE_FINISH-}" ]]; then
-            "${_STARSHIP_PREV_ZLE_LINE_FINISH}" "$@"
-        fi
-        _starship_transient_line_finish "$@"
-    }
-    zle -N zle-line-finish _starship_transient_line_finish_wrapper
-    add-zsh-hook -D precmd _starship_transient_restore_prompt 2>/dev/null
-    add-zsh-hook precmd _starship_transient_restore_prompt
+    zle -N zle-line-finish _starship_line_finish
 
-    # ---- Smart Newline ---- #
-    # Adds visual separation between commands (skips first prompt after shell start).
-    # Skip newline right after clearing the screen so prompt stays on the top row.
-    _starship_record_last_cmd() {
-        local cmd="$1"
-        # Trim leading spaces.
-        cmd="${cmd#"${cmd%%[![:space:]]*}"}"
-        _STARSHIP_LAST_CMD="$cmd"
-    }
-    add-zsh-hook -D preexec _starship_record_last_cmd 2>/dev/null
-    add-zsh-hook preexec _starship_record_last_cmd
-
-    _starship_precmd_newline() {
-        case ${_STARSHIP_LAST_CMD:-} in
-            clear*|cls*|c|c\ *) unset _STARSHIP_LAST_CMD; return ;;
-        esac
-        if [[ -z "${_STARSHIP_FIRST_PROMPT_DONE+x}" ]]; then
-            export _STARSHIP_FIRST_PROMPT_DONE=1
-        else
-            print ""
-        fi
-    }
-
-    # Register newline hook.
-    add-zsh-hook -D precmd _starship_precmd_newline 2>/dev/null
-    add-zsh-hook precmd _starship_precmd_newline
+    # Preserve existing clear-screen widget and wrap it.
+    typeset -g _STARSHIP_PREV_CLEAR_SCREEN=
+    if [[ -n "${widgets[clear-screen]-}" ]]; then
+        _STARSHIP_PREV_CLEAR_SCREEN="${widgets[clear-screen]#user:}"
+        [[ "$_STARSHIP_PREV_CLEAR_SCREEN" == "_starship_clear_screen" ]] && _STARSHIP_PREV_CLEAR_SCREEN=".clear-screen"
+    fi
+    zle -N clear-screen _starship_clear_screen
 
     _STARSHIP_INIT_DONE=1
     return 0
 }
 
+# -----------------------------------------------------------------------------
+# _starship_record_cmd <command>
+# -----------------------------------------------------------------------------
+# Record the executed command for smart newline logic.
+# Called by preexec hook before each command execution.
+#
+# Arguments:
+#   $1 - The command string being executed
+# -----------------------------------------------------------------------------
+_starship_record_cmd() {
+    # Store command with leading whitespace trimmed.
+    _STARSHIP_LAST_CMD="${1#"${1%%[![:space:]]*}"}"
+}
+
+# -----------------------------------------------------------------------------
+# _starship_smart_newline
+# -----------------------------------------------------------------------------
+# Print a blank line before the prompt for visual separation.
+# Called by precmd hook before each prompt display.
+#
+# Behavior:
+#   - Skips newline for first prompt after shell start.
+#   - Skips newline after clear/cls/reset commands.
+#   - Prints newline for all other cases.
+# -----------------------------------------------------------------------------
+_starship_smart_newline() {
+    # First prompt: mark as seen, reset state, and do not print a spacer.
+    if [[ -z "${_STARSHIP_FIRST_PROMPT_DONE+x}" ]]; then
+        _STARSHIP_FIRST_PROMPT_DONE=1
+        _STARSHIP_NEED_NEWLINE=0
+        _STARSHIP_LAST_CMD=
+        return 0
+    fi
+
+    # Emit spacer line only when requested by the submitted command.
+    (( _STARSHIP_NEED_NEWLINE )) && print ""
+
+    # Reset state for the next command cycle.
+    _STARSHIP_NEED_NEWLINE=0
+    _STARSHIP_LAST_CMD=
+}
+
+# -----------------------------------------------------------------------------
+# _starship_restore_prompt
+# -----------------------------------------------------------------------------
+# Restore full Starship prompt before displaying. Called by precmd hook after
+# smart newline logic.
+#
+# This ensures the full prompt is shown for the current command line,
+# while previous command lines show the transient (minimal) prompt.
+# -----------------------------------------------------------------------------
+_starship_restore_prompt() {
+    PROMPT="$_STARSHIP_PROMPT_FULL"
+    RPROMPT="$_STARSHIP_RPROMPT_FULL"
+    PROMPT2="$_STARSHIP_PROMPT2_FULL"
+}
+
+# -----------------------------------------------------------------------------
+# _starship_line_finish
+# -----------------------------------------------------------------------------
+# Switch to transient prompt after command submission.
+# Called by zle-line-finish widget when user presses Enter.
+#
+# This replaces the full prompt with a minimal version, keeping
+# scrollback clean and readable.
+# -----------------------------------------------------------------------------
+_starship_line_finish() {
+    # Determine if the next prompt should include a spacer line.
+    local cmd="${BUFFER:-}"
+    cmd="${cmd#"${cmd%%[![:space:]]*}"}"
+    _STARSHIP_LAST_CMD="$cmd"
+    case "${cmd:-}" in
+        "" )
+            _STARSHIP_NEED_NEWLINE=1
+            ;;
+        clear|clear\ *|cls|cls\ *|reset|reset\ *|c|c\ *)
+            _STARSHIP_NEED_NEWLINE=0
+            ;;
+        * )
+            _STARSHIP_NEED_NEWLINE=1
+            ;;
+    esac
+    unset cmd
+
+    # Chain to previous widget if exists.
+    if [[ -n "$_STARSHIP_PREV_LINE_FINISH" ]]; then
+        "$_STARSHIP_PREV_LINE_FINISH" "$@"
+    fi
+
+    # Apply transient prompt.
+    PROMPT="$_STARSHIP_TRANSIENT_PROMPT"
+    RPROMPT=
+    zle .reset-prompt
+}
+
+# -----------------------------------------------------------------------------
+# _starship_clear_screen
+# -----------------------------------------------------------------------------
+# Track clears triggered via widgets (e.g., Ctrl+L) to skip the next newline.
+# -----------------------------------------------------------------------------
+_starship_clear_screen() {
+    _STARSHIP_NEED_NEWLINE=0
+    _STARSHIP_LAST_CMD="clear-screen"
+
+    if [[ -n "${_STARSHIP_PREV_CLEAR_SCREEN:-}" ]]; then
+        if [[ "${_STARSHIP_PREV_CLEAR_SCREEN[1]}" == "." ]]; then
+            zle "$_STARSHIP_PREV_CLEAR_SCREEN"
+        else
+            "$_STARSHIP_PREV_CLEAR_SCREEN" "$@"
+        fi
+    else
+        zle .clear-screen
+    fi
+}
+
+# ============================================================================ #
+# ++++++++++++++++++++++++++++++++ OH-MY-POSH ++++++++++++++++++++++++++++++++ #
+# ============================================================================ #
+
+# -----------------------------------------------------------------------------
+# _init_ohmyposh_prompt
+# -----------------------------------------------------------------------------
+# Initialize Oh-My-Posh prompt as fallback for macOS/Windows.
+#
+# Expects config file at: $XDG_CONFIG_HOME/oh-my-posh/lcs-dev.omp.json
+# -----------------------------------------------------------------------------
 _init_ohmyposh_prompt() {
     local omp_config="${XDG_CONFIG_HOME:-$HOME/.config}/oh-my-posh/lcs-dev.omp.json"
 
@@ -255,32 +385,43 @@ _init_ohmyposh_prompt() {
         return 1
     fi
 
-    # Initialize Oh-My-Posh.
-    eval "$(oh-my-posh init zsh --config "$omp_config")" || {
+    if ! eval "$(oh-my-posh init zsh --config "$omp_config")"; then
         print "Warning: Oh-My-Posh initialization failed" >&2
         return 1
-    }
+    fi
 
     return 0
 }
 
+# ============================================================================ #
+# +++++++++++++++++++++++++++ POWERLEVEL10K ++++++++++++++++++++++++++++++++++ #
+# ============================================================================ #
+
+# -----------------------------------------------------------------------------
+# _init_p10k_prompt
+# -----------------------------------------------------------------------------
+# Initialize PowerLevel10k prompt as Linux fallback.
+#
+# Searches for theme in common locations:
+#   - /usr/share/zsh-theme-powerlevel10k/
+#   - ~/.oh-my-zsh/custom/themes/powerlevel10k/
+#   - $ZDOTDIR/.oh-my-zsh/custom/themes/powerlevel10k/
+# -----------------------------------------------------------------------------
 _init_p10k_prompt() {
-    local p10k_theme p10k_config="$HOME/.p10k.zsh"
+    local p10k_theme
+    local p10k_config="$HOME/.p10k.zsh"
     local -a p10k_locations=(
         "/usr/share/zsh-theme-powerlevel10k/powerlevel10k.zsh-theme"
         "$HOME/.oh-my-zsh/custom/themes/powerlevel10k/powerlevel10k.zsh-theme"
         "${ZDOTDIR:-$HOME}/.oh-my-zsh/custom/themes/powerlevel10k/powerlevel10k.zsh-theme"
     )
 
-    # Search for PowerLevel10k theme.
     for p10k_theme in "${p10k_locations[@]}"; do
         if [[ -f "$p10k_theme" ]]; then
-            source "$p10k_theme" || {
+            if ! source "$p10k_theme"; then
                 print "Warning: Failed to load PowerLevel10k from $p10k_theme" >&2
                 continue
-            }
-
-            # Load P10k config if exists.
+            fi
             [[ -f "$p10k_config" ]] && source "$p10k_config"
             return 0
         fi
@@ -289,8 +430,22 @@ _init_p10k_prompt() {
     return 1
 }
 
+# ============================================================================ #
+# +++++++++++++++++++++++++++++++++ MINIMAL ++++++++++++++++++++++++++++++++++ #
+# ============================================================================ #
+
+# -----------------------------------------------------------------------------
+# _init_minimal_prompt
+# -----------------------------------------------------------------------------
+# Initialize basic fallback prompt when no other prompt system is available.
+#
+# Format:
+#   Left:  user@host:path #/$
+#   Right: HH:MM:SS (dimmed)
+#
+# Exit code colors prompt symbol green (success) or red (failure).
+# -----------------------------------------------------------------------------
 _init_minimal_prompt() {
-    # Minimal fallback prompt with basic features.
     setopt PROMPT_SUBST
     PROMPT='%F{cyan}%n@%m%f:%F{yellow}%~%f %(?.%F{green}.%F{red})%#%f '
     RPROMPT='%F{240}%D{%H:%M:%S}%f'
@@ -299,99 +454,175 @@ _init_minimal_prompt() {
 # ============================================================================ #
 # ++++++++++++++++++++++++++ PROMPT INITIALIZATION +++++++++++++++++++++++++++ #
 # ============================================================================ #
-# Try prompts in priority order: Starship > Oh-My-Posh > PowerLevel10k > Minimal
 
-_prompt_initialized=0
+# Initialize prompt system in priority order.
+# Wrapped in anonymous function for local scope.
+() {
+    # Allow re-sourcing by clearing init flag.
+    unset _STARSHIP_INIT_DONE
 
-# Priority 1: Starship (cross-platform, modern, fast).
-if command -v starship >/dev/null 2>&1; then
-    if _init_starship_prompt; then
-        _prompt_initialized=1
-    else
-        print "Starship initialization failed, trying fallback..." >&2
+    # Priority 1: Starship.
+    if command -v starship >/dev/null 2>&1; then
+        _init_starship_prompt && return 0
+        print "Starship init failed, trying fallback..." >&2
     fi
-fi
 
-# Priority 2: Oh-My-Posh (cross-platform fallback).
-if (( ! _prompt_initialized )) && command -v oh-my-posh >/dev/null 2>&1; then
-    if _init_ohmyposh_prompt; then
-        _prompt_initialized=1
-    else
-        print "Oh-My-Posh initialization failed, trying fallback..." >&2
+    # Priority 2: Oh-My-Posh.
+    if command -v oh-my-posh >/dev/null 2>&1; then
+        _init_ohmyposh_prompt && return 0
+        print "Oh-My-Posh init failed, trying fallback..." >&2
     fi
-fi
 
-# Priority 3: PowerLevel10k (Linux/macOS with Oh-My-Zsh).
-if (( ! _prompt_initialized )); then
+    # Priority 3: PowerLevel10k.
     if _init_p10k_prompt; then
-        _prompt_initialized=1
+        return 0
     else
-        [[ "$PLATFORM" == "Linux" ]] && print "PowerLevel10k not found, using minimal prompt" >&2
+        [[ "${PLATFORM:-}" == "Linux" ]] && print "PowerLevel10k not found" >&2
     fi
-fi
 
-# Priority 4: Minimal fallback (always works).
-if (( ! _prompt_initialized )); then
+    # Priority 4: Minimal (always succeeds).
+    print "Using minimal prompt" >&2
     _init_minimal_prompt
-    _prompt_initialized=1
-fi
+}
 
-# Cleanup.
-unset _prompt_initialized
+# ============================================================================ #
+# +++++++++++++++++++++++++++++ EXTERNAL SCRIPTS +++++++++++++++++++++++++++++ #
+# ============================================================================ #
 
-# Load scripts for "Competitive Programming".
-if [[ -f "$HOME/.config/cpp-tools/competitive.sh" ]]; then
-    source "$HOME/.config/cpp-tools/competitive.sh"
-fi
+# Load Competitive Programming tools.
+[[ -f "$HOME/.config/cpp-tools/competitive.sh" ]] && source "$HOME/.config/cpp-tools/competitive.sh"
 
-# Load all scripts from the custom ZSH scripts directory.
+# Load custom ZSH scripts from ~/.config/zsh/scripts/.
+# The (N) glob qualifier suppresses errors if no files match.
 if [[ -d "$HOME/.config/zsh/scripts" ]]; then
-    for script in "$HOME/.config/zsh/scripts"/*.sh; do
-        if [[ -r "$script" ]]; then
-            source "$script"
-        fi
-    done
+    () {
+        setopt localoptions noxtrace noverbose
+        local script
+        for script in "$HOME/.config/zsh/scripts"/*.sh(N); do
+            [[ -r "$script" ]] && source "$script"
+        done
+    }
 fi
 
-# --------------------------------- VI-MODE ---------------------------------- #
-# Enable vi mode.
-bindkey -v
+# ============================================================================ #
+# +++++++++++++++++++++++++++++++ VI-MODE ++++++++++++++++++++++++++++++++++++ #
+# ============================================================================ #
 
-# Reduce mode change delay (0.1 seconds).
+# Enable vi mode with minimal delay for Escape key.
+bindkey -v
 export KEYTIMEOUT=1
 
-# Simplified and more efficient logic to update prompt based on mode, with cursor shape feedback.
-_vi_cursor_shape() {
-    case ${KEYMAP} in
-        vicmd) printf '\e[2 q' ;; # steady block
-        *)     printf '\e[6 q' ;; # steady bar
+# +++++++++++++++++++++++++++++++ Cursor Shape +++++++++++++++++++++++++++++++ #
+# DECSCUSR (DEC Set Cursor Style) escape sequences:
+#   \e[1 q  = blinking block
+#   \e[2 q  = steady block
+#   \e[3 q  = blinking underline
+#   \e[4 q  = steady underline
+#   \e[5 q  = blinking bar
+#   \e[6 q  = steady bar
+#
+# Note: With tmux terminal-overrides (Ss/Se), cursor changes are tracked
+# per-pane automatically. No DCS passthrough wrapping needed.
+# Required in tmux.conf:
+#   set -ga terminal-overrides '*:Ss=\E[%p1%d q:Se=\E[2 q'
+
+# -----------------------------------------------------------------------------
+# _vi_set_cursor <shape>
+# -----------------------------------------------------------------------------
+# Set terminal cursor shape using DECSCUSR escape sequence.
+#
+# Arguments:
+#   $1 - Cursor shape number (1-6, see table above)
+# -----------------------------------------------------------------------------
+_vi_set_cursor() {
+    printf '\e[%d q' "$1"
+}
+
+# -----------------------------------------------------------------------------
+# _vi_cursor_for_keymap
+# -----------------------------------------------------------------------------
+# Update cursor shape based on current vi keymap.
+#
+# Shapes:
+#   vicmd (normal mode)  → steady block (2)
+#   viins (insert mode)  → blinking block (1)
+# -----------------------------------------------------------------------------
+_vi_cursor_for_keymap() {
+    case "${KEYMAP:-viins}" in
+        vicmd) _vi_set_cursor 2 ;;  # Normal: steady block.
+        *)     _vi_set_cursor 1 ;;  # Insert: blinking block.
     esac
 }
 
-function zle-line-init() { zle -K viins; _vi_cursor_shape; }
+# +++++++++++++++++++++++++++++++ ZLE Widgets ++++++++++++++++++++++++++++++++ #
 
-if [[ -v widgets[zle-keymap-select] ]]; then
-    _VI_PREV_ZLE_KEYMAP_SELECT=${widgets[zle-keymap-select]#user:}
+# -----------------------------------------------------------------------------
+# _vi_line_init
+# -----------------------------------------------------------------------------
+# Initialize command line in insert mode with correct cursor.
+# Called by zle-line-init widget when a new command line starts.
+# -----------------------------------------------------------------------------
+_vi_line_init() {
+    zle -K viins
+    _vi_cursor_for_keymap
+}
+
+# -----------------------------------------------------------------------------
+# _vi_keymap_select
+# -----------------------------------------------------------------------------
+# Update cursor shape when vi mode changes (insert <-> normal).
+# Called by zle-keymap-select widget on mode transitions.
+#
+# Chains to previous widget (e.g., Starship's) to preserve functionality.
+# -----------------------------------------------------------------------------
+
+# Capture existing widget before overwriting.
+typeset -g _VI_PREV_KEYMAP_SELECT=
+if [[ -n "${widgets[zle-keymap-select]-}" ]]; then
+    _vi_current="${widgets[zle-keymap-select]#user:}"
+    # Prevent self-reference loop.
+    [[ "$_vi_current" != "_vi_keymap_select" ]] && _VI_PREV_KEYMAP_SELECT="$_vi_current"
+    unset _vi_current
 fi
-function zle-keymap-select() {
-    if [[ -n "${_VI_PREV_ZLE_KEYMAP_SELECT-}" ]]; then
-        "${_VI_PREV_ZLE_KEYMAP_SELECT}" "$@"
+
+_vi_keymap_select() {
+    # Chain to previous widget (e.g., Starship's indicator).
+    if [[ -n "$_VI_PREV_KEYMAP_SELECT" ]]; then
+        if [[ "$_VI_PREV_KEYMAP_SELECT" == "starship_zle-keymap-select-wrapped" ]]; then
+            # Starship uses a wrapper function.
+            (( $+functions[starship_zle-keymap-select] )) && starship_zle-keymap-select "$@"
+        else
+            "$_VI_PREV_KEYMAP_SELECT" "$@"
+        fi
     fi
-    case $KEYMAP in
-        viins) zle-line-init ;;
-        vicmd) zle reset-prompt ;;
-    esac
-    _vi_cursor_shape
-}
-zle -N zle-line-init
-zle -N zle-keymap-select
 
-# Quick copy of cwd with Ctrl+O (macOS pbcopy).
+    _vi_cursor_for_keymap
+}
+
+# Register vi mode widgets.
+zle -N zle-line-init _vi_line_init
+zle -N zle-keymap-select _vi_keymap_select
+
+# +++++++++++++++++++++++++++++++ Keybindings ++++++++++++++++++++++++++++++++ #
+
+# -----------------------------------------------------------------------------
+# _vi_copy_cwd
+# -----------------------------------------------------------------------------
+# Copy current working directory to system clipboard.
+# Bound to Ctrl+O. Only available on macOS (requires pbcopy).
+# -----------------------------------------------------------------------------
 if command -v pbcopy >/dev/null 2>&1; then
-    bindkey -s '^O' 'pwd | pbcopy\n'
+    _vi_copy_cwd() {
+        print -rn -- "$PWD" | pbcopy
+        zle -M "Copied: $PWD"
+    }
+    zle -N _vi_copy_cwd
+    bindkey '^O' _vi_copy_cwd
 fi
 
-# ------------------------------- COLORS & FZF ------------------------------- #
+# ============================================================================ #
+# +++++++++++++++++++++++++++++++ COLORS & FZF +++++++++++++++++++++++++++++++ #
+# ============================================================================ #
 # Lazy init for fzf/zoxide/direnv to keep startup snappy.
 _tools_lazy_init() {
     [[ -n "${_TOOLS_LAZY_INIT_DONE-}" ]] && return
@@ -414,7 +645,7 @@ _tools_lazy_init() {
 add-zsh-hook precmd _tools_lazy_init
 
 _gen_fzf_default_opts() {
-# ---------- Setup FZF theme -------- #
+# ---------- Setup FZF theme ---------- #
 # Scheme name: Tokyo Night
 
 local color00='#1a1b26'  # background
@@ -442,7 +673,7 @@ export FZF_DEFAULT_OPTS="$FZF_DEFAULT_OPTS"\
 
 _gen_fzf_default_opts
 
-# ------ Use fd instead of fzf ------ #
+# ------ Use fd instead of fzf ------- #
 if command -v fd >/dev/null 2>&1; then
     export FZF_DEFAULT_COMMAND="fd --hidden --strip-cwd-prefix --exclude .git"
     export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
@@ -505,14 +736,14 @@ if command -v fzf >/dev/null 2>&1; then
     }
 fi
 
-# --------- Bat (better cat) -------- #
+# --------- Bat (better cat) --------- #
 export BAT_THEME=tokyonight_night
 
 # ============================================================================ #
 # +++++++++++++++++++++++++++++++++ ALIASES ++++++++++++++++++++++++++++++++++ #
 # ============================================================================ #
 
-# ------ Common Aliases (Cross-Platform) ------ #
+# ------ Common Aliases (Cross-Platform) ------- #
 alias ..="cd .."
 alias ...="cd ../.."
 alias ....="cd ../../.."
@@ -546,7 +777,7 @@ cdf() {
     cd -- "$(dirname -- "$target")"
 }
 
-# ---------- C Compilation ---------- #
+# ---------- C Compilation ----------- #
 # Determine include path dynamically based on platform.
 if [[ "$PLATFORM" == 'macOS' ]] && [[ -d "/opt/homebrew/include" ]]; then
     C_INCLUDE_PATH="-I/opt/homebrew/include"
@@ -579,7 +810,7 @@ alias clang-c-ultra-use="clang -std=c23 -O3 -march=native -mtune=native \
 alias qc-compile="clang -std=c23 -O2 $C_INCLUDE_PATH"
 alias qc-debug="clang -std=c23 -g -O0 -Wall $C_INCLUDE_PATH"
 
-# --------- C++ Compilation --------- #
+# --------- C++ Compilation ---------- #
 # Determine LLVM library path dynamically.
 if [[ "$PLATFORM" == 'macOS' ]] && command -v brew >/dev/null 2>&1; then
     LLVM_PREFIX=$(brew --prefix llvm 2>/dev/null)
@@ -618,9 +849,9 @@ alias clang-ultra-use="clang++ -std=c++23 -stdlib=libc++ $CPP_LIB_PATH -O3 -marc
 alias qcompile="clang++ -std=c++23 -stdlib=libc++ $CPP_LIB_PATH -O2 $C_INCLUDE_PATH"
 alias qdebug="clang++ -std=c++23 -stdlib=libc++ $CPP_LIB_PATH -g -O0 -Wall $C_INCLUDE_PATH"
 
-# ---------- OS-Specific Functions and Aliases ---------- #
+# ---------- OS-Specific Functions and Aliases ----------- #
 if [[ "$PLATFORM" == 'macOS' ]]; then
-  # -------- macOS Specific --------- #
+  # ---------- macOS Specific ---------- #
 
   # TailScale alias for easier access.
   alias tailscale="/Applications/Tailscale.app/Contents/MacOS/Tailscale"
@@ -633,7 +864,7 @@ if [[ "$PLATFORM" == 'macOS' ]]; then
     fi
   }
 
-  # -------- macOS utilities -------- #
+  # --------- macOS utilities ---------- #
   alias update="brew update && brew upgrade"
   alias install="brew install"
   alias search="brew search"
@@ -652,7 +883,7 @@ if [[ "$PLATFORM" == 'macOS' ]]; then
   alias emptytrash="osascript -e 'tell application \"Finder\" to empty trash'"
 
 elif [[ "$PLATFORM" == 'Linux' ]]; then
-  # -------- Linux utilities -------- #
+  # --------- Linux utilities ---------- #
   # Detect package manager and set aliases accordingly.
   if command -v pacman >/dev/null 2>&1; then
     # Arch Linux
@@ -694,7 +925,7 @@ elif [[ "$PLATFORM" == 'Linux' ]]; then
     alias emptytrash='gio trash --empty'
   fi
 
-  # ----- Arch Linux Specific ------- #
+  # ------- Arch Linux Specific -------- #
   if [[ "$ARCH_LINUX" == true ]]; then
     # Command not found handler for pacman.
     function command_not_found_handler {
@@ -770,7 +1001,7 @@ elif [[ "$PLATFORM" == 'Linux' ]]; then
   fi
 fi
 
-# -------- Cross-Platform Dev. Aliases -------- #
+# -------- Cross-Platform Dev. Aliases --------- #
 alias gst="git status"
 alias gaa="git add ."
 alias gcm="git commit -m"
