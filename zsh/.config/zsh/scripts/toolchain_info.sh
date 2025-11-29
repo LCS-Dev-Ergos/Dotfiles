@@ -10,19 +10,15 @@
 # Reuse the palette defined in .zshrc when available; otherwise, define a
 # minimal set locally without failing in limited terminals.
 _toolchain_info_init_colors() {
-    if [[ -n "${C_RESET:-}" ]]; then
-        return
-    fi
-
     if [[ -t 1 ]] && command -v tput >/dev/null 2>&1 && [[ $(tput colors 2>/dev/null) -ge 8 ]]; then
-        C_RESET="\e[0m"
-        C_BOLD="\e[1m"
-        C_RED="\e[31m"
-        C_GREEN="\e[32m"
-        C_YELLOW="\e[33m"
-        C_BLUE="\e[34m"
-        C_MAGENTA="\e[35m"
-        C_CYAN="\e[36m"
+        C_RESET=$'\e[0m'
+        C_BOLD=$'\e[1m'
+        C_RED=$'\e[31m'
+        C_GREEN=$'\e[32m'
+        C_YELLOW=$'\e[33m'
+        C_BLUE=$'\e[34m'
+        C_MAGENTA=$'\e[35m'
+        C_CYAN=$'\e[36m'
     else
         C_RESET=""
         C_BOLD=""
@@ -118,6 +114,23 @@ _toolchain_resolve_real_compiler() {
         alt_path=$(_toolchain_find_in_path "$compiler_name" "$filtered_path") || true
         if [[ -n "$alt_path" ]]; then
             resolved=$(_toolchain_portable_realpath "$alt_path")
+        fi
+
+        # Fallback: search common compiler locations if we still resolve to ccache.
+        if [[ "$resolved" == *ccache* ]]; then
+            local fallback_dirs=(
+                "/usr/bin"
+                "/usr/local/bin"
+                "/opt/homebrew/bin"
+                "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin"
+            )
+            local dir
+            for dir in "${fallback_dirs[@]}"; do
+                if [[ -x "$dir/$compiler_name" ]]; then
+                    resolved=$(_toolchain_portable_realpath "$dir/$compiler_name")
+                    break
+                fi
+            done
         fi
     fi
 

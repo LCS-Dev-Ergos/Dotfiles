@@ -13,18 +13,14 @@
 
 # ------------------------------ Color Handling ------------------------------ #
 _toolchain_init_colors() {
-    if [[ -n "${C_RESET:-}" ]]; then
-        return
-    fi
-
     if [[ -t 1 ]] && command -v tput >/dev/null 2>&1 && [[ $(tput colors 2>/dev/null) -ge 8 ]]; then
-        C_RESET="\e[0m"
-        C_BOLD="\e[1m"
-        C_RED="\e[31m"
-        C_GREEN="\e[32m"
-        C_YELLOW="\e[33m"
-        C_BLUE="\e[34m"
-        C_CYAN="\e[36m"
+        C_RESET=$'\e[0m'
+        C_BOLD=$'\e[1m'
+        C_RED=$'\e[31m'
+        C_GREEN=$'\e[32m'
+        C_YELLOW=$'\e[33m'
+        C_BLUE=$'\e[34m'
+        C_CYAN=$'\e[36m'
     else
         C_RESET=""
         C_BOLD=""
@@ -154,9 +150,8 @@ _toolchain_find_best_binary() {
             fallback="$dir/$base"
         fi
 
-        for path in "$dir"/"$base"-[0-9]*; do
-            [[ -e "$path" ]] || continue
-            [[ -x "$path" ]] || continue
+        # Prefer versioned binaries (e.g., clang-17, gcc-14) without relying on shell globbing.
+        while IFS= read -r path; do
             ver_str="${path##*-}"
             case "$ver_str" in
             '' | *[!0-9]*) continue ;;
@@ -166,7 +161,7 @@ _toolchain_find_best_binary() {
                 best_ver=$ver
                 best="$path"
             fi
-        done
+        done < <(find "$dir" -maxdepth 1 -type f -name "$base-[0-9]*" -print 2>/dev/null)
     done
 
     if [[ -n "$best" ]]; then

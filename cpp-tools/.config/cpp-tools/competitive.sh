@@ -58,23 +58,21 @@ SUBMISSIONS_DIR="submissions"
 # PERFETTO_UI_DIR="$HOME/Dev/Tools/perfetto"
 
 # Check if terminal supports colors.
-if [[ -t 1 ]] && command -v tput >/dev/null && [[ $(tput colors) -ge 8 ]]; then
-    C_RESET="\e[0m"
-    C_BOLD="\e[1m"
-    C_RED="\e[31m"
-    C_GREEN="\e[32m"
-    C_YELLOW="\e[33m"
-    BLUE="\e[34m"
-    C_BLUE="$BLUE"
-    C_MAGENTA="\e[35m"
-    C_CYAN="\e[36m"
+if [[ -t 1 ]] && command -v tput >/dev/null 2>&1 && [[ $(tput colors 2>/dev/null) -ge 8 ]]; then
+    C_RESET=$'\e[0m'
+    C_BOLD=$'\e[1m'
+    C_RED=$'\e[31m'
+    C_GREEN=$'\e[32m'
+    C_YELLOW=$'\e[33m'
+    C_BLUE=$'\e[34m'
+    C_MAGENTA=$'\e[35m'
+    C_CYAN=$'\e[36m'
 else
     C_RESET=""
     C_BOLD=""
     C_RED=""
     C_GREEN=""
     C_YELLOW=""
-    BLUE=""
     C_BLUE=""
     C_MAGENTA=""
     C_CYAN=""

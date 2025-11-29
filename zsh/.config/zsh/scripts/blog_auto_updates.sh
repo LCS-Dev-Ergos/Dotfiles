@@ -53,24 +53,24 @@ fi
 # +++++++++++++++++++++++++++++ Color Support ++++++++++++++++++++++++++++++++ #
 # ============================================================================ #
 
-if [[ -t 1 ]] && command -v tput >/dev/null && [[ $(tput colors) -ge 8 ]]; then
-    RESET="\e[0m"
-    BOLD="\e[1m"
-    RED="\e[31m"
-    GREEN="\e[32m"
-    YELLOW="\e[33m"
-    BLUE="\e[34m"
-    MAGENTA="\e[35m"
-    CYAN="\e[36m"
+if [[ -t 1 ]] && command -v tput >/dev/null 2>&1 && [[ $(tput colors 2>/dev/null) -ge 8 ]]; then
+    C_RESET=$'\e[0m'
+    C_BOLD=$'\e[1m'
+    C_RED=$'\e[31m'
+    C_GREEN=$'\e[32m'
+    C_YELLOW=$'\e[33m'
+    C_BLUE=$'\e[34m'
+    C_MAGENTA=$'\e[35m'
+    C_CYAN=$'\e[36m'
 else
-    RESET=""
-    BOLD=""
-    RED=""
-    GREEN=""
-    YELLOW=""
-    BLUE=""
-    MAGENTA=""
-    CYAN=""
+    C_RESET=""
+    C_BOLD=""
+    C_RED=""
+    C_GREEN=""
+    C_YELLOW=""
+    C_BLUE=""
+    C_MAGENTA=""
+    C_CYAN=""
 fi
 
 # ============================================================================ #
@@ -107,16 +107,16 @@ blog_log() {
     # Set color based on level.
     case "$level" in
         "INFO")  color="" ;;
-        "WARN")  color="$YELLOW" ;;
-        "ERROR") color="$RED" ;;
-        "DEBUG") color="$CYAN" ;;
-        "SUCCESS") color="$GREEN"; level="INFO" ;;
+        "WARN")  color="$C_YELLOW" ;;
+        "ERROR") color="$C_RED" ;;
+        "DEBUG") color="$C_CYAN" ;;
+        "SUCCESS") color="$C_GREEN"; level="INFO" ;;
     esac
 
     # Create log entry with color for terminal, plain for file.
     if [[ -t 1 ]] && [[ "$BLOG_LOG_FILE" != "/dev/stdout" ]]; then
         # Terminal output with color.
-        echo "${color}[$timestamp] [$level] $message${RESET}"
+        echo "${color}[$timestamp] [$level] $message${C_RESET}"
         # Plain text to file.
         echo "[$timestamp] [$level] $message" >> "$BLOG_LOG_FILE"
     else
@@ -536,7 +536,7 @@ _blog_ensure_valid_location() {
 # Initializes Git repository with remote origin.
 # Ensures the repository is properly set up for blog automation.
 blog_init_git() {
-    blog_info "${BOLD}=== Git Initialization ===${RESET}"
+    blog_info "${C_BOLD}=== Git Initialization ===${C_RESET}"
 
     _blog_ensure_valid_location || return 1
 
@@ -577,7 +577,7 @@ blog_init_git() {
 # Synchronizes posts from Obsidian vault to Hugo content directory.
 # Uses rsync for efficient synchronization with backup protection.
 blog_sync_posts() {
-    blog_info "${BOLD}=== Posts Synchronization ===${RESET}"
+    blog_info "${C_BOLD}=== Posts Synchronization ===${C_RESET}"
 
     _blog_ensure_valid_location || return 1
 
@@ -630,7 +630,7 @@ blog_sync_posts() {
 # Detects changes using the configured method (Git or hash-based).
 # This is the main change detection function.
 blog_detect_changes() {
-    blog_info "${BOLD}=== Change Detection ===${RESET}"
+    blog_info "${C_BOLD}=== Change Detection ===${C_RESET}"
 
     _blog_ensure_valid_location || return 1
 
@@ -653,7 +653,7 @@ blog_detect_changes() {
 # Updates frontmatter in markdown files using change detection.
 # Only processes files that have been modified since last run.
 blog_update_frontmatter() {
-    blog_info "${BOLD}=== Frontmatter Update ===${RESET}"
+    blog_info "${C_BOLD}=== Frontmatter Update ===${C_RESET}"
 
     _blog_ensure_valid_location || return 1
 
@@ -710,7 +710,7 @@ blog_update_frontmatter() {
 # Processes images in markdown files.
 # Converts Obsidian-style image links to Hugo-compatible markdown.
 blog_process_images() {
-    blog_info "${BOLD}=== Image Processing ===${RESET}"
+    blog_info "${C_BOLD}=== Image Processing ===${C_RESET}"
 
     _blog_ensure_valid_location || return 1
 
@@ -731,7 +731,7 @@ blog_process_images() {
 # Builds the Hugo static site.
 # Generates the final website in the 'public' directory.
 blog_build_hugo() {
-    blog_info "${BOLD}=== Hugo Site Build ===${RESET}"
+    blog_info "${C_BOLD}=== Hugo Site Build ===${C_RESET}"
 
     _blog_ensure_valid_location || return 1
 
@@ -767,7 +767,7 @@ blog_build_hugo() {
 # Commits all changes to the Git repository.
 # Creates a timestamped commit with all modifications.
 blog_commit_changes() {
-    blog_info "${BOLD}=== Commit Changes ===${RESET}"
+    blog_info "${C_BOLD}=== Commit Changes ===${C_RESET}"
 
     _blog_ensure_valid_location || return 1
 
@@ -817,7 +817,7 @@ blog_commit_changes() {
 
 # Pushes committed changes to the main branch on the remote repository.
 blog_push_main() {
-    blog_info "${BOLD}=== Push to Main Branch ===${RESET}"
+    blog_info "${C_BOLD}=== Push to Main Branch ===${C_RESET}"
 
     _blog_ensure_valid_location || return 1
 
@@ -866,7 +866,7 @@ blog_push_main() {
 # Deploys the Hugo-generated public directory to the Hostinger branch.
 # Uses git subtree to create a deployment-specific branch.
 blog_deploy_hostinger() {
-    blog_info "${BOLD}=== Deploy to Hostinger ===${RESET}"
+    blog_info "${C_BOLD}=== Deploy to Hostinger ===${C_RESET}"
 
     _blog_ensure_valid_location || return 1
 
@@ -929,7 +929,7 @@ blog_deploy_hostinger() {
 # Executes all blog automation steps in sequence.
 # Provides complete blog update workflow from sync to deployment.
 blog_run_all() {
-    blog_info "${BOLD}${MAGENTA}=== Starting Complete Blog Automation Process ===${RESET}"
+    blog_info "${C_BOLD}${C_MAGENTA}=== Starting Complete Blog Automation Process ===${C_RESET}"
 
     local start_time=$(date +%s)
     local failed_step=""
@@ -966,7 +966,7 @@ blog_run_all() {
         blog_error "Duration before failure: ${duration}s"
         return 1
     else
-        blog_success "${BOLD}=== Process Completed Successfully ===${RESET}"
+        blog_success "${C_BOLD}=== Process Completed Successfully ===${C_RESET}"
         blog_info "Total duration: ${duration}s"
 
         # Cleanup old backups.
@@ -983,7 +983,7 @@ blog_run_all() {
 # Shows current system status and configuration.
 # Useful for debugging and system verification.
 blog_status() {
-    blog_info "${BOLD}=== Blog Automation Status ===${RESET}"
+    blog_info "${C_BOLD}=== Blog Automation Status ===${C_RESET}"
 
     # This function doesn't require location validation as it's just showing info.
     blog_set_defaults
@@ -1009,9 +1009,9 @@ blog_status() {
     blog_info "=== Dependency Check ==="
     for cmd in python3 hugo git rsync; do
         if command -v "$cmd" &>/dev/null; then
-            blog_info "$cmd: ${GREEN}✓${RESET} $(command -v "$cmd")"
+            blog_info "$cmd: ${C_GREEN}✓${C_RESET} $(command -v "$cmd")"
         else
-            blog_warn "$cmd: ${RED}✗ NOT FOUND${RESET}"
+            blog_warn "$cmd: ${C_RED}✗ NOT FOUND${C_RESET}"
         fi
     done
 
@@ -1019,84 +1019,84 @@ blog_status() {
     blog_info "=== File Check ==="
     for file in "$BLOG_HASH_GENERATOR" "$BLOG_FRONTMATTER_SCRIPT" "$BLOG_IMAGES_SCRIPT"; do
         if [[ -f "$file" ]]; then
-            blog_info "$(basename "$file"): ${GREEN}✓${RESET}"
+            blog_info "$(basename "$file"): ${C_GREEN}✓${C_RESET}"
         else
-            blog_warn "$(basename "$file"): ${RED}✗${RESET} $file"
+            blog_warn "$(basename "$file"): ${C_RED}✗${C_RESET} $file"
         fi
     done
 
     echo ""
     blog_info "=== Location Check ==="
     if [[ -d "$ALLOWED_BLOG_ROOT" ]]; then
-        blog_info "Blog root: ${GREEN}✓${RESET} $ALLOWED_BLOG_ROOT"
+        blog_info "Blog root: ${C_GREEN}✓${C_RESET} $ALLOWED_BLOG_ROOT"
         local current_dir="$(pwd)"
         case "$current_dir" in
             "$ALLOWED_BLOG_ROOT"*)
-                blog_info "Current location: ${GREEN}✓ Valid${RESET}"
+                blog_info "Current location: ${C_GREEN}✓ Valid${C_RESET}"
                 ;;
             *)
-                blog_warn "Current location: ${YELLOW}⚠ Outside blog directory${RESET}"
-                blog_info "To use blog functions, run: ${CYAN}cd $ALLOWED_BLOG_ROOT${RESET}"
+                blog_warn "Current location: ${C_YELLOW}⚠ Outside blog directory${C_RESET}"
+                blog_info "To use blog functions, run: ${C_CYAN}cd $ALLOWED_BLOG_ROOT${C_RESET}"
                 ;;
         esac
     else
-        blog_error "Blog root: ${RED}✗ Not found${RESET}"
+        blog_error "Blog root: ${C_RED}✗ Not found${C_RESET}"
     fi
 }
 
 # Shows comprehensive help information.
 blog_help() {
     cat << EOF
-${BOLD}Blog Automation Script v$VERSION - System: $PLATFORM${RESET}
+${C_BOLD}Blog Automation Script v$VERSION - System: $PLATFORM${C_RESET}
 
-${BOLD}USAGE:${RESET}
+${C_BOLD}USAGE:${C_RESET}
     Individual functions:
-        ${CYAN}blog_init_git${RESET}              - Initialize Git repository
-        ${CYAN}blog_sync_posts${RESET}            - Sync posts from Obsidian
-        ${CYAN}blog_detect_changes${RESET}        - Detect changes (Git or hash-based)
-        ${CYAN}blog_update_frontmatter${RESET}    - Update post frontmatter
-        ${CYAN}blog_process_images${RESET}        - Process images in posts
-        ${CYAN}blog_build_hugo${RESET}            - Build Hugo site
-        ${CYAN}blog_commit_changes${RESET}        - Commit changes to Git
-        ${CYAN}blog_push_main${RESET}             - Push to main branch
-        ${CYAN}blog_deploy_hostinger${RESET}      - Deploy to hostinger branch
+        ${C_CYAN}blog_init_git${C_RESET}              - Initialize Git repository
+        ${C_CYAN}blog_sync_posts${C_RESET}            - Sync posts from Obsidian
+        ${C_CYAN}blog_detect_changes${C_RESET}        - Detect changes (Git or hash-based)
+        ${C_CYAN}blog_update_frontmatter${C_RESET}    - Update post frontmatter
+        ${C_CYAN}blog_process_images${C_RESET}        - Process images in posts
+        ${C_CYAN}blog_build_hugo${C_RESET}            - Build Hugo site
+        ${C_CYAN}blog_commit_changes${C_RESET}        - Commit changes to Git
+        ${C_CYAN}blog_push_main${C_RESET}             - Push to main branch
+        ${C_CYAN}blog_deploy_hostinger${C_RESET}      - Deploy to hostinger branch
 
     Orchestration:
-        ${GREEN}blog_run_all${RESET}               - Execute all steps in sequence
+        ${C_GREEN}blog_run_all${C_RESET}               - Execute all steps in sequence
 
     Utilities:
-        ${YELLOW}blog_status${RESET}                - Show system status
-        ${YELLOW}blog_help${RESET}                  - Show this help
+        ${C_YELLOW}blog_status${C_RESET}                - Show system status
+        ${C_YELLOW}blog_help${C_RESET}                  - Show this help
 
-${BOLD}ENVIRONMENT VARIABLES:${RESET}
-    ${CYAN}BLOG_DRY_RUN=true${RESET}              - Dry-run mode (default: false)
-    ${CYAN}BLOG_VERBOSE=true${RESET}              - Verbose output (default: false)
-    ${CYAN}BLOG_CHANGE_DETECTION=git${RESET}      - Change detection method (git/hash)
+${C_BOLD}ENVIRONMENT VARIABLES:${C_RESET}
+    ${C_CYAN}BLOG_DRY_RUN=true${C_RESET}              - Dry-run mode (default: false)
+    ${C_CYAN}BLOG_VERBOSE=true${C_RESET}              - Verbose output (default: false)
+    ${C_CYAN}BLOG_CHANGE_DETECTION=git${C_RESET}      - Change detection method (git/hash)
 
-${BOLD}RESTRICTIONS:${RESET}
-    This script only works in: ${YELLOW}$ALLOWED_BLOG_ROOT${RESET}
+${C_BOLD}RESTRICTIONS:${C_RESET}
+    This script only works in: ${C_YELLOW}$ALLOWED_BLOG_ROOT${C_RESET}
     Current directory: $(pwd)
 
-${BOLD}CONFIGURATION:${RESET}
+${C_BOLD}CONFIGURATION:${C_RESET}
     File: $BLOG_CONFIG_FILE
     Logs: $BLOG_LOG_DIR/
     Backups: ${BLOG_BACKUP_DIR:-$ALLOWED_BLOG_ROOT/backups}/
 
-${BOLD}EXAMPLES:${RESET}
+${C_BOLD}EXAMPLES:${C_RESET}
     # Complete execution
-    ${GREEN}blog_run_all${RESET}
+    ${C_GREEN}blog_run_all${C_RESET}
 
     # Dry-run mode
-    ${CYAN}BLOG_DRY_RUN=true blog_run_all${RESET}
+    ${C_CYAN}BLOG_DRY_RUN=true blog_run_all${C_RESET}
 
     # Sync only
-    ${CYAN}blog_sync_posts${RESET}
+    ${C_CYAN}blog_sync_posts${C_RESET}
 
     # Status check
-    ${YELLOW}blog_status${RESET}
+    ${C_YELLOW}blog_status${C_RESET}
 
     # Git-based change detection
-    ${CYAN}BLOG_CHANGE_DETECTION=git blog_run_all${RESET}
+    ${C_CYAN}BLOG_CHANGE_DETECTION=git blog_run_all${C_RESET}
 EOF
 }
 
