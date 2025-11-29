@@ -173,6 +173,15 @@ _toolchain_find_best_binary() {
         done < <(find "$dir" -maxdepth 1 -type f -name "$base-[0-9]*" -print 2>/dev/null)
     done
 
+    # Last resort: whatever command -v sees.
+    if [[ -z "$best" && -z "$fallback" ]]; then
+        local from_path
+        from_path=$(command -v "$base" 2>/dev/null || true)
+        if [[ -n "$from_path" ]]; then
+            fallback="$from_path"
+        fi
+    fi
+
     if [[ -n "$best" ]]; then
         printf "%s\n" "$best"
     elif [[ -n "$fallback" ]]; then
@@ -229,7 +238,21 @@ _toolchain_select_gcc_bin_dir() {
             printf "%s\n" "$brew_prefix/opt/gcc/bin"
             return 0
         fi
+        return 1
     fi
+
+    # Linux: prefer distro gcc in /usr/bin (Arch/Ubuntu) or /usr/local/bin.
+    if [[ "$TOOLCHAIN_OS" == "Linux" ]]; then
+        if [[ -x "/usr/bin/gcc" ]]; then
+            printf "%s\n" "/usr/bin"
+            return 0
+        fi
+        if [[ -x "/usr/local/bin/gcc" ]]; then
+            printf "%s\n" "/usr/local/bin"
+            return 0
+        fi
+    fi
+
     return 1
 }
 

@@ -239,7 +239,7 @@ get_toolchain_info() {
     # Initialize colors.
     _toolchain_info_init_colors
 
-    echo "/===--------------------------------------------------------------===/"
+    echo "${C_GREEN}/===--------------------------------------------------------------===/${C_RESET}"
     printf "%s%sAnalyzing C/C++ toolchain configuration (%s)...%s\n" \
         "$C_BOLD" "$C_CYAN" "$(_toolchain_detect_platform)" "$C_RESET"
 
@@ -332,7 +332,7 @@ get_toolchain_info() {
                 printf "     %sWarning:%s '%s' resolves to GCC, not Clang\n" "$C_YELLOW" "$C_RESET" "$compiler"
             fi
 
-            if [[ "${TOOLCHAIN_INFO_DEBUG:-1}" != "0" ]]; then
+            if [[ "${TOOLCHAIN_INFO_DEBUG:-0}" != "0" ]]; then
                 printf "     %sDebug:%s compiler_path=%s%s%s\n" "$C_BOLD" "$C_RESET" "$C_CYAN" "$compiler_path" "$C_RESET"
                 printf "            real_compiler_path=%s%s%s\n" "$C_CYAN" "$real_compiler_path" "$C_RESET"
                 printf "            wrapper_details='%s%s%s|%s%s%s|%s%s%s'\n" \
@@ -346,7 +346,7 @@ get_toolchain_info() {
         fi
     done
 
-    echo "/===--------------------------------------------------------------===/"
+    echo "${C_GREEN}/===--------------------------------------------------------------===/${C_RESET}"
 }
 
 # ============================================================================ #
