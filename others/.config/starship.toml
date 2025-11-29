@@ -92,6 +92,8 @@ $crystal\
 $custom\
 $sudo\
 $fill\
+$kubernetes\
+$docker_context\
 $jobs\
 $battery\
 $time\
@@ -103,9 +105,8 @@ $shell\
 $status\
 $character"""
 
-# Right prompt for additional context
-right_format = """$kubernetes\
-$docker_context"""
+# Right prompt disabled (integrated in main format with $fill)
+right_format = ""
 
 # Continuation prompt for multi-line commands
 continuation_prompt = '[∙](bold bright-black) '
@@ -201,18 +202,15 @@ home_symbol = '󰋜 '
 use_os_path_sep = true
 
 [directory.substitutions]
-'Documents' = '󰈙'
-'Downloads' = '󰉍'
-'Music' = '󰝚'
-'Pictures' = '󰉏'
-'Desktop' = '󰚝'
-'Code' = '󰲋'
-'Projects' = '󱃪'
-'.config' = '󰒓'
-'.ssh' = '󰣀'
-'.cargo' = ''
-'.rustup' = ''
-'node_modules' = ''
+'~/Documents' = '󰈙'
+'~/Downloads' = '󰉍'
+'~/Music' = '󰝚'
+'~/Pictures' = '󰉏'
+'~/Desktop' = '󰚝'
+'~/.config' = '󰒓'
+'~/.ssh' = '󰣀'
+'~/.cargo' = ''
+'~/.rustup' = ''
 
 # ────────────────────────────────────────────────────────────────────────────
 # VERSION CONTROL SYSTEMS
