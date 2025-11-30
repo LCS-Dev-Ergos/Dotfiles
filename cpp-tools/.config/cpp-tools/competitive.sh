@@ -554,7 +554,7 @@ function cppdelete() {
     local deleted_count=0
     for file in "${files_to_delete[@]}"; do
         if [ -f "$file" ]; then
-            rm "$file"
+            rm -f -- "$file"
             echo "${C_GREEN}Deleted: $file${C_RESET}"
             ((deleted_count++))
         fi
@@ -996,9 +996,8 @@ function cppgo() {
         else
             printf "${C_MAGENTA}Execution time: %.2fs${C_RESET}\n" $elapsed_sec
         fi
-        echo ""
     else
-        echo "${C_RED}Build failed!${C_RESET}" >&2
+        echo "${C_RED}Build failed!${C_RESET}\n" >&2
         return 1
     fi
 }
@@ -1097,6 +1096,7 @@ function cppjudge() {
 
         ((total++))
         echo -n "Testing $(basename "$test_in")... "
+        echo ""
 
         # Measure execution time.
         local start_time=$EPOCHREALTIME
@@ -1108,7 +1108,7 @@ function cppjudge() {
         # Check if expected output file exists.
         if [ ! -f "$output_case" ]; then
             echo "${C_BOLD}${C_YELLOW}WARNING: Expected output file '$(basename "$output_case")' not found.${C_RESET}"
-            rm "$temp_out"
+            rm -f -- "$temp_out"
             continue
         fi
 
@@ -1125,7 +1125,7 @@ function cppjudge() {
             cat "$output_case"
             echo "${C_BOLD}${C_YELLOW}════-------------------------------------════${C_RESET}"
         fi
-        rm "$temp_out"
+        rm -f -- "$temp_out"
     done
 
     # Summary.
