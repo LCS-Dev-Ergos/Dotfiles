@@ -11,8 +11,7 @@
 # minimal set locally without failing in limited terminals.
 _toolchain_info_init_colors() {
     # Preserve xtrace state.
-    emulate -L zsh
-    setopt noxtrace noverbose
+    unsetopt VERBOSE SOURCE_TRACE
 
     if [[ -t 1 ]] && command -v tput >/dev/null 2>&1 && [[ $(tput colors 2>/dev/null) -ge 8 ]]; then
         C_RESET=$'\e[0m'
@@ -38,8 +37,7 @@ _toolchain_info_init_colors() {
 # ------------------------------ Helper Utils -------------------------------- #
 _toolchain_detect_platform() {
     # Preserve xtrace state.
-    emulate -L zsh
-    setopt noxtrace noverbose
+    unsetopt VERBOSE SOURCE_TRACE
 
     local os
     os=$(uname -s 2>/dev/null || printf "unknown")
@@ -60,8 +58,7 @@ _toolchain_detect_platform() {
 
 _toolchain_path_without_ccache() {
     # Preserve xtrace state.
-    emulate -L zsh
-    setopt noxtrace noverbose
+    unsetopt VERBOSE SOURCE_TRACE
 
     local IFS=:
     local dir filtered=()
@@ -77,8 +74,7 @@ _toolchain_path_without_ccache() {
 
 _toolchain_portable_realpath() {
     # Preserve xtrace state.
-    emulate -L zsh
-    setopt noxtrace noverbose
+    unsetopt VERBOSE SOURCE_TRACE
 
     local target="$1"
 
@@ -108,8 +104,7 @@ PY
 
 _toolchain_find_in_path() {
     # Preserve xtrace state.
-    emulate -L zsh
-    setopt noxtrace noverbose
+    unsetopt VERBOSE SOURCE_TRACE
 
     local name="$1" search_path="${2:-$PATH}" dir
     local IFS=:
@@ -163,8 +158,7 @@ _toolchain_resolve_real_compiler() {
 
 _toolchain_vendor_for_gcc() {
     # Preserve xtrace state.
-    emulate -L zsh
-    setopt noxtrace noverbose
+    unsetopt VERBOSE SOURCE_TRACE
 
     local version_info="$1" compiler_path="$2"
     if [[ "$version_info" == *"Homebrew"* ]]; then
@@ -234,7 +228,7 @@ _toolchain_compiler_details() {
 get_toolchain_info() {
     # Preserve xtrace state.
     emulate -L zsh
-    setopt noxtrace noverbose
+    setopt noxtrace
 
     # Initialize colors.
     _toolchain_info_init_colors
@@ -269,8 +263,7 @@ get_toolchain_info() {
 
         if [[ -n "$gcc_bin" && -d "$gcc_bin" ]]; then
             while IFS= read -r compiler_entry; do
-                local name
-                name=$(basename "$compiler_entry")
+                local name=$(basename "$compiler_entry")
                 if [[ -n "$name" ]]; then
                     compilers+=("$name")
                 fi
@@ -280,11 +273,11 @@ get_toolchain_info() {
 
     # Deduplicate while preserving order.
     local -a unique=()
-    local name
-    for name in "${compilers[@]}"; do
-        if [[ -z "${seen_compilers[$name]:-}" ]]; then
-            seen_compilers["$name"]=1
-            unique+=("$name")
+    local comp_name
+    for comp_name in "${compilers[@]}"; do
+        if [[ -z "${seen_compilers[$comp_name]:-}" ]]; then
+            seen_compilers["$comp_name"]=1
+            unique+=("$comp_name")
         fi
     done
     compilers=("${unique[@]}")
@@ -293,30 +286,27 @@ get_toolchain_info() {
 
     local compiler
     for compiler in "${compilers[@]}"; do
-        local compiler_path
-        compiler_path=$(command -v "$compiler" 2>/dev/null)
+        local cpath=$(command -v "$compiler" 2>/dev/null)
 
-        if [[ -n "$compiler_path" && -x "$compiler_path" ]]; then
-            local real_compiler_path
-            real_compiler_path=$(_toolchain_resolve_real_compiler "$compiler_path")
+        if [[ -n "$cpath" && -x "$cpath" ]]; then
+            local real_cpath=$(_toolchain_resolve_real_compiler "$cpath")
 
-            local wrapper_details real_details
-            wrapper_details=$(_toolchain_compiler_details "$compiler_path")
-            real_details=$(_toolchain_compiler_details "$real_compiler_path")
+            local wrapper_details=$(_toolchain_compiler_details "$cpath")
+            local real_details=$(_toolchain_compiler_details "$real_cpath")
 
             IFS='|' read -r wrapper_type wrapper_vendor wrapper_version <<<"$wrapper_details"
             IFS='|' read -r real_type real_vendor real_version <<<"$real_details"
 
-            printf "%s◆ %-10s%s %s%s%s\n" "$C_GREEN" "$compiler" "$C_RESET" "$C_CYAN" "$compiler_path" "$C_RESET"
+                printf "%s◆ %-10s%s %s%s%s\n" "$C_GREEN" "$compiler" "$C_RESET" "$C_CYAN" "$cpath" "$C_RESET"
 
-            local has_wrapper=false
-            if [[ "$compiler_path" == *"/ccache/"* || "$compiler_path" == *"ccache/bin"* ]]; then
-                printf "  ├─ %sWrapper:%s ccache (caching)\n" "$C_YELLOW" "$C_RESET"
-                has_wrapper=true
-            elif [[ "$compiler_path" != "$real_compiler_path" ]]; then
-                printf "  ├─ %sSymlink:%s → %s%s%s\n" "$C_YELLOW" "$C_RESET" "$C_CYAN" "$real_compiler_path" "$C_RESET"
-                has_wrapper=true
-            fi
+                local has_wrapper=false
+                if [[ "$cpath" == *"/ccache/"* || "$cpath" == *"ccache/bin"* ]]; then
+                    printf "  ├─ %sWrapper:%s ccache (caching)\n" "$C_YELLOW" "$C_RESET"
+                    has_wrapper=true
+                elif [[ "$cpath" != "$real_cpath" ]]; then
+                    printf "  ├─ %sSymlink:%s → %s%s%s\n" "$C_YELLOW" "$C_RESET" "$C_CYAN" "$real_cpath" "$C_RESET"
+                    has_wrapper=true
+                fi
 
             if [[ "$has_wrapper" == true ]]; then
                 printf "  └─ %sReal compiler:%s %s %s\n" "$C_BLUE" "$C_RESET" "$real_vendor" "$real_type"

@@ -772,8 +772,22 @@ rm -rf ~/.local/state/fnm_multishells/* && echo "${C_GREEN}Cleanup completed.${C
 
 # thefuck alias (corrects mistyped commands).
 if command -v thefuck >/dev/null 2>&1; then
-    eval "$(thefuck --alias 2>/dev/null)" || true
-    eval "$(thefuck --alias fk 2>/dev/null)" || true
+    # Lazy load thefuck to save startup time.
+    fuck() {
+        unset -f fuck
+        eval "$(thefuck --alias 2>/dev/null)"
+        # The alias is now defined, invoke it.
+        eval "$functions[fuck]" "$@"
+        # Check if alias was created successfully
+        if alias fuck >/dev/null 2>&1; then
+            # Notes that aliases expand at parse time so we can't call the alias
+            # immediately from the function; due to history-expansion complexities
+            # with "thefuck", the workaround is to either ask the user to run it
+            # again or execute the alias's underlying command (raw command) once instead.
+            PYTHONIOENCODING=utf-8 thefuck $(fc -ln -1 | tail -n 1) && fc -R
+        fi
+    }
+    alias fk=fuck
 fi
 
 # Quick-jump to the directory of a file chosen via fzf.
@@ -1341,11 +1355,13 @@ fi
 # ============================================================================ #
 
 # ------------ ngrok ---------------- #
+# Lazy load or manual load recommended to save startup time.
 if command -v ngrok >/dev/null 2>&1; then
     eval "$(ngrok completion 2>/dev/null)" || true
 fi
 
 # ----------- Angular CLI ----------- #
+# Lazy load or manual load recommended to save startup time.
 if command -v ng >/dev/null 2>&1; then
     source <(ng completion script 2>/dev/null) || true
 fi
@@ -1374,8 +1390,13 @@ build_final_path() {
 
     # Version-specific Ruby gems bin (only when Ruby and GEM_HOME are available).
     local ruby_user_bin=""
-    if [[ -n "$GEM_HOME" ]] && command -v ruby >/dev/null 2>&1; then
-        ruby_user_bin="$GEM_HOME/ruby/$(ruby -e 'print RbConfig::CONFIG["ruby_version"]' 2>/dev/null)/bin"
+    if [[ -n "$GEM_HOME" ]]; then
+        # Use glob expansion to find the version directory without spawning ruby.
+        # Looks for "$GEM_HOME/ruby/*/bin".
+        local -a ruby_dirs=("$GEM_HOME"/ruby/*/bin(N))
+        if (( ${#ruby_dirs} )); then
+            ruby_user_bin="${ruby_dirs[1]}"
+        fi
     fi
 
     # Define the desired final order of directories in the PATH.

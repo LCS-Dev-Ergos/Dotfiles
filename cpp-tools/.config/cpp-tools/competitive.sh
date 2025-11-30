@@ -17,6 +17,9 @@
 #
 # ============================================================================ #
 
+# Load datetime module for high-precision timing
+zmodload zsh/datetime 2>/dev/null || true
+
 # ------------------------------ CONFIGURATION ------------------------------- #
 
 # Define the allowed workspace root directories for competitive programming.
@@ -93,27 +96,18 @@ fi
 
 # Utility to get the last modified cpp file as the default target.
 _get_default_target() {
-    # Find the most recently modified .cpp, .cc, or .cxx file.
-    local default_target
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        # macOS version using stat
-        default_target=$(find . -maxdepth 1 -type f \
-            \( -name "*.cpp" -o -name "*.cc" -o -name "*.cxx" \) \
-            -exec stat -f '%m %N' {} \; 2>/dev/null \
-            | sort -rn \
-            | head -n 1 \
-            | sed -E 's/^[0-9]+ \.\/(.+)\.(cpp|cc|cxx)$/\1/')
+    # Find the most recently modified .cpp, .cc, or .cxx file using Zsh glob qualifiers.
+    # (.): regular files
+    # om: order by modification time (newest first)
+    # [1]: take the first one
+    local -a files=( *.(cpp|cc|cxx)(.om[1]) )
+
+    if (( ${#files} )); then
+        # Remove extension
+        echo "${files[1]:r}"
     else
-        # Linux version with -printf
-        default_target=$(find . -maxdepth 1 -type f \
-            \( -name "*.cpp" -o -name "*.cc" -o -name "*.cxx" \) \
-            -printf '%T@ %p\n' 2>/dev/null \
-            | sort -rn \
-            | head -n 1 \
-            | sed -E 's/^[0-9.]+ \.\/(.+)\.(cpp|cc|cxx)$/\1/')
+        echo "main"
     fi
-    # If no file is found, default to "main".
-    echo "${default_target:-main}"
 }
 
 # Utility to check if the project is initialized.
@@ -516,10 +510,12 @@ function cppdelete() {
     fi
 
     # Check for multiple input files (numbered pattern).
-    while IFS= read -r -d '' input_file; do
+    # Use Zsh globbing instead of find
+    local -a input_files=( input_cases/"${problem_name}".*.in(N) )
+    for input_file in "${input_files[@]}"; do
         echo "  - Input file: ${C_CYAN}$input_file${C_RESET}"
         files_to_delete+=("$input_file")
-    done < <(find input_cases -name "${problem_name}.*.in" -print0 2>/dev/null)
+    done
 
     if [ -f "output_cases/${problem_name}.exp" ]; then
         echo "  - Output file: ${C_CYAN}output_cases/${problem_name}.exp${C_RESET}"
@@ -527,10 +523,11 @@ function cppdelete() {
     fi
 
     # Check for multiple output files (numbered pattern).
-    while IFS= read -r -d '' output_file; do
+    local -a output_files=( output_cases/"${problem_name}".*.exp(N) )
+    for output_file in "${output_files[@]}"; do
         echo "  - Output file: ${C_CYAN}$output_file${C_RESET}"
         files_to_delete+=("$output_file")
-    done < <(find output_cases -name "${problem_name}.*.exp" -print0 2>/dev/null)
+    done
 
     # Check for submission file.
     if [ -f "$SUBMISSIONS_DIR/${problem_name}_sub.cpp" ]; then
@@ -587,10 +584,11 @@ function cppbatch() {
 
     echo "${C_CYAN}Creating $count problems with template '$template'...${C_RESET}"
 
-    for i in $(seq 65 $((64 + count))); do
+    for (( i=65; i < 65 + count; i++ )); do
         local problem_name
         local letter
-        letter=$(printf '%b' "$(printf '\\%03o' "$i")")
+        # Zsh character conversion: convert ASCII code to character
+        letter=${(#)i}
         problem_name="problem_${letter}"
         if [ ! -f "${problem_name}.cpp" ]; then
             cppnew "$problem_name" "$template"
@@ -845,13 +843,7 @@ function cppbuild() {
     echo "${C_CYAN}Building target: ${C_BOLD}$target_name${C_RESET}..."
 
     # Record start time for total build duration.
-    local start_time
-    local use_ns=true
-    start_time=$(date +%s%N 2>/dev/null || true)
-    if [[ ! "$start_time" =~ ^[0-9]+$ ]]; then
-        use_ns=false
-        start_time=$(date +%s)
-    fi
+    local start_time=$EPOCHREALTIME
 
     # Check if timing is enabled in CMake cache.
     local timing_enabled=false
@@ -867,27 +859,14 @@ function cppbuild() {
     local build_status=$?
 
     # Calculate total build time.
-    local end_time
-    if $use_ns; then
-        end_time=$(date +%s%N 2>/dev/null || date +%s)
-    else
-        end_time=$(date +%s)
-    fi
-
+    local end_time=$EPOCHREALTIME
+    local elapsed_sec=$(( end_time - start_time ))
     local elapsed_str
-    local have_ms=false
-    local elapsed_ms=0
-    local decimal_part=0
-    local elapsed_s=0
-    if $use_ns && [[ "$end_time" =~ ^[0-9]+$ ]]; then
-        have_ms=true
-        local elapsed_ns=$(( end_time - start_time ))
-        elapsed_ms=$(( elapsed_ns / 1000000 ))
-        decimal_part=$(( (elapsed_ns % 1000000) / 10000 ))
-        elapsed_str=$(printf "%d.%02dms" "$elapsed_ms" "$decimal_part")
+
+    if (( elapsed_sec < 1 )); then
+        printf -v elapsed_str "%.2fms" $(( elapsed_sec * 1000 ))
     else
-        elapsed_s=$(( end_time - start_time ))
-        elapsed_str="${elapsed_s}s"
+        printf -v elapsed_str "%.2fs" $elapsed_sec
     fi
 
     # Handle build failures with full error output.
@@ -986,14 +965,8 @@ function cppgo() {
         echo "${C_BLUE}════-------------------------------------════${C_RESET}"
         echo "${C_BLUE}${C_BOLD}RUNNING: $target_name${C_RESET}"
 
-        # Track execution time in nanoseconds for better precision.
-        local start_time
-        local use_ns=true
-        start_time=$(date +%s%N 2>/dev/null || true)
-        if [[ ! "$start_time" =~ ^[0-9]+$ ]]; then
-            use_ns=false
-            start_time=$(date +%s)
-        fi
+        # Track execution time.
+        local start_time=$EPOCHREALTIME
 
         local exit_code=0
         if [ -f "$input_path" ]; then
@@ -1008,12 +981,8 @@ function cppgo() {
             exit_code=$?
         fi
 
-        local end_time
-        if $use_ns; then
-            end_time=$(date +%s%N 2>/dev/null || date +%s)
-        else
-            end_time=$(date +%s)
-        fi
+        local end_time=$EPOCHREALTIME
+        local elapsed_sec=$(( end_time - start_time ))
 
         # Check if the program was terminated due to timeout
         if [ $exit_code -eq 124 ]; then
@@ -1023,14 +992,10 @@ function cppgo() {
         fi
 
         echo "${C_BLUE}════------------- FINISHED --------------════${C_RESET}"
-        if $use_ns && [[ "$end_time" =~ ^[0-9]+$ ]]; then
-            local elapsed_ns=$(( end_time - start_time ))
-            local elapsed_ms=$(( elapsed_ns / 1000000 ))
-            local decimal_part=$(( (elapsed_ns % 1000000) / 10000 ))
-            printf "${C_MAGENTA}Execution time: %d.%02dms${C_RESET}\n" $elapsed_ms $decimal_part
+        if (( elapsed_sec < 1 )); then
+            printf "${C_MAGENTA}Execution time: %.2fms${C_RESET}\n" $(( elapsed_sec * 1000 ))
         else
-            local elapsed_s=$(( end_time - start_time ))
-            printf "${C_MAGENTA}Execution time: %ds${C_RESET}\n" $elapsed_s
+            printf "${C_MAGENTA}Execution time: %.2fs${C_RESET}\n" $elapsed_sec
         fi
         echo ""
     else
@@ -1102,20 +1067,20 @@ function cppjudge() {
         return 1
     fi
 
-    # Check for test cases - first try the specific pattern, then fall back to simple .in file.
+    # Check for test cases using Zsh globs.
     local test_files=()
 
-    # Use find to avoid "no matches found" error in zsh.
-    while IFS= read -r -d '' file; do
-        test_files+=("$file")
-    done < <(find "$input_dir" -name "${target_name}.*.in" -print0 2>/dev/null)
+    # Check for numbered test cases: target.1.in, target.2.in, etc.
+    # (N): null glob (empty if no match)
+    # n: numeric sort order
+    test_files=( "$input_dir"/${target_name}.*.in(Nn) )
 
     # If no numbered test cases found, check for single test case.
-    if [ ${#test_files[@]} -eq 0 ] && [ -f "$input_dir/${target_name}.in" ]; then
+    if (( ${#test_files} == 0 )) && [[ -f "$input_dir/${target_name}.in" ]]; then
         test_files+=("$input_dir/${target_name}.in")
     fi
 
-    if [ ${#test_files[@]} -eq 0 ]; then
+    if (( ${#test_files} == 0 )); then
         echo "${C_YELLOW}No test cases found for '$target_name' (looked for '${target_name}.*.in' and '${target_name}.in')${C_RESET}"
         return 0
     fi
@@ -1135,27 +1100,11 @@ function cppjudge() {
         echo -n "Testing $(basename "$test_in")... "
 
         # Measure execution time.
-        local start_time
-        local use_ns=true
-        start_time=$(date +%s%N 2>/dev/null || true)
-        if [[ ! "$start_time" =~ ^[0-9]+$ ]]; then
-            use_ns=false
-            start_time=$(date +%s)
-        fi
+        local start_time=$EPOCHREALTIME
         "$exec_path" < "$test_in" > "$temp_out"
-        local end_time
-        if $use_ns; then
-            end_time=$(date +%s%N 2>/dev/null || date +%s)
-        else
-            end_time=$(date +%s)
-        fi
-
+        local end_time=$EPOCHREALTIME
         local elapsed_ms
-        if $use_ns && [[ "$end_time" =~ ^[0-9]+$ ]]; then
-            elapsed_ms=$(( (end_time - start_time) / 1000000 ))
-        else
-            elapsed_ms=$(( (end_time - start_time) * 1000 ))
-        fi
+        printf -v elapsed_ms "%.0f" $(( (end_time - start_time) * 1000 ))
 
         # Check if expected output file exists.
         if [ ! -f "$output_case" ]; then
@@ -1429,13 +1378,7 @@ function cpptestsubmit() {
 
     # Compile with timing information.
     echo -e "${C_BLUE}Compiling submission...${C_RESET}"
-    local start_time
-    local use_ns=true
-    start_time=$(date +%s%N 2>/dev/null || true)
-    if [[ ! "$start_time" =~ ^[0-9]+$ ]]; then
-        use_ns=false
-        start_time=$(date +%s)
-    fi
+    local start_time=$EPOCHREALTIME
 
     local compile_err_log
     compile_err_log=$(mktemp "/tmp/cp_compile_error.XXXXXX") || {
@@ -1447,19 +1390,13 @@ function cpptestsubmit() {
            -I"$CP_ALGORITHMS_DIR" \
            "$submission_file" -o "$test_binary" 2>"$compile_err_log"; then
 
-        local end_time
-        if $use_ns; then
-            end_time=$(date +%s%N 2>/dev/null || date +%s)
-        else
-            end_time=$(date +%s)
-        fi
+        local end_time=$EPOCHREALTIME
+        local elapsed_sec=$(( end_time - start_time ))
 
-        if $use_ns && [[ "$end_time" =~ ^[0-9]+$ ]]; then
-            local compile_time=$(( (end_time - start_time) / 1000000 ))
-            echo -e "${C_GREEN}✓ Submission compiled successfully in ${compile_time}ms${C_RESET}"
+        if (( elapsed_sec < 1 )); then
+            printf "${C_GREEN}✓ Submission compiled successfully in %.2fms${C_RESET}\n" $(( elapsed_sec * 1000 ))
         else
-            local compile_time=$(( end_time - start_time ))
-            echo -e "${C_GREEN}✓ Submission compiled successfully in ${compile_time}s${C_RESET}"
+            printf "${C_GREEN}✓ Submission compiled successfully in %.2fs${C_RESET}\n" $elapsed_sec
         fi
 
         # Test execution with input.
