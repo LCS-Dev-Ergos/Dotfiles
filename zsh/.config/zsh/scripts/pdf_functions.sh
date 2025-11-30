@@ -3,10 +3,41 @@
 # ============================================================================ #
 # ++++++++++++++++++++++++++++++++ PDF UTILS +++++++++++++++++++++++++++++++++ #
 # ============================================================================ #
+#
+# This file contains specialized utilities for PDF document manipulation:
+#   - Page extraction and document splitting
+#   - DjVu to PDF conversion
+#   - Bookmark copying between PDFs
+#   - Metadata removal for privacy (single and batch processing)
+#
+# All functions include comprehensive error handling, input validation,
+# dependency checking, and platform-aware installation instructions.
+# Uses qpdf, exiftool, and ddjvu as core tools.
+#
+# ============================================================================ #
 
-# --------------------------- PDF Page Extraction ---------------------------- #
-# Extract specific pages from a PDF document using qpdf.
-# Usage: pdfextract <input.pdf> <start_page> <end_page> [output.pdf]
+# -----------------------------------------------------------------------------
+# pdfextract
+# -----------------------------------------------------------------------------
+# Extract specific page range from a PDF document using qpdf.
+# Validates page numbers against document length and handles edge cases.
+#
+# Usage:
+#   pdfextract <input.pdf> <start_page> <end_page> [output.pdf]
+#
+# Arguments:
+#   input.pdf  - Source PDF file (required)
+#   start_page - First page to extract (required, 1-indexed)
+#   end_page   - Last page to extract (required, 1-indexed)
+#   output.pdf - Output filename (optional, auto-generated if not provided)
+#
+# Returns:
+#   0 - Pages extracted successfully.
+#   1 - Invalid arguments, qpdf not available, or extraction failed.
+#
+# Dependencies:
+#   qpdf - PDF manipulation tool
+# -----------------------------------------------------------------------------
 function pdfextract() {
     setopt localoptions pipefail no_aliases
 
@@ -113,9 +144,26 @@ function pdfextract() {
     fi
 }
 
-# -------------------------- DjVu to PDF Conversion -------------------------- #
-# Convert DjVu documents to PDF format using ddjvu.
-# Usage: djvu_to_pdf <input.djvu> [output.pdf]
+# -----------------------------------------------------------------------------
+# djvu_to_pdf
+# -----------------------------------------------------------------------------
+# Convert DjVu documents to PDF format using ddjvu from djvulibre.
+# Automatically adds .pdf extension to output if missing.
+#
+# Usage:
+#   djvu_to_pdf <input.djvu> [output.pdf]
+#
+# Arguments:
+#   input.djvu - Source DjVu file (.djvu, .djv) (required)
+#   output.pdf - Output PDF filename (optional, auto-generated from input name)
+#
+# Returns:
+#   0 - Conversion successful.
+#   1 - Invalid arguments, ddjvu not available, or conversion failed.
+#
+# Dependencies:
+#   ddjvu - DjVu document viewer and converter (djvulibre package)
+# -----------------------------------------------------------------------------
 function djvu_to_pdf() {
     setopt localoptions pipefail no_aliases
 
@@ -195,9 +243,30 @@ function djvu_to_pdf() {
     fi
 }
 
-# ----------------------- PDF Bookmarks Copy Function ----------------------- #
-# Copy bookmarks from one PDF to another using copy_bookmarks.py script.
-# Usage: copy_pdf_bookmarks <source_with_bookmarks.pdf> <target_without_bookmarks.pdf> [output.pdf]
+# -----------------------------------------------------------------------------
+# copy_pdf_bookmarks
+# -----------------------------------------------------------------------------
+# Copy bookmarks (table of contents) from one PDF to another using Python
+# script. Requires copy_bookmarks.py in ~/.config/zsh/scripts/python/ or
+# current directory.
+#
+# Usage:
+#   copy_pdf_bookmarks <source_with_bookmarks.pdf> <target_without_bookmarks.pdf> [output.pdf]
+#
+# Arguments:
+#   source_with_bookmarks.pdf    - PDF with bookmarks to copy (required)
+#   target_without_bookmarks.pdf - PDF to receive bookmarks (required)
+#   output.pdf                   - Output filename (optional, auto-generated)
+#
+# Returns:
+#   0 - Bookmarks copied successfully.
+#   1 - Dependencies missing, invalid arguments, or copy operation failed.
+#
+# Dependencies:
+#   python3 - Python 3 interpreter
+#   PyPDF2  - Python PDF library (pip3 install PyPDF2)
+#   copy_bookmarks.py - Custom script in ~/.config/zsh/scripts/python/
+# -----------------------------------------------------------------------------
 function copy_pdf_bookmarks() {
     setopt localoptions pipefail no_aliases
 
@@ -318,9 +387,31 @@ function copy_pdf_bookmarks() {
     fi
 }
 
-# ----------------------- PDF Metadata Removal Function --------------------- #
+# -----------------------------------------------------------------------------
+# remove_pdf_metadata
+# -----------------------------------------------------------------------------
 # Remove metadata from PDF documents for privacy and security.
-# Usage: remove_pdf_metadata <input.pdf> [output.pdf]
+# Uses qpdf for PDF processing and exiftool for comprehensive metadata removal.
+# Displays metadata before and after removal for verification.
+#
+# Usage:
+#   remove_pdf_metadata <input.pdf> [output.pdf]
+#
+# Arguments:
+#   input.pdf  - PDF file to clean (required)
+#   output.pdf - Output filename (optional, overwrites original if not provided)
+#
+# Returns:
+#   0 - Metadata removed successfully.
+#   1 - Invalid arguments, dependencies missing, or removal failed.
+#
+# Dependencies:
+#   qpdf     - PDF manipulation tool (required)
+#   exiftool - Metadata tool (highly recommended for complete removal)
+#
+# Removed metadata:
+#   Author, Creator, Producer, Title, Subject, Keywords, CreateDate, ModifyDate
+# -----------------------------------------------------------------------------
 function remove_pdf_metadata() {
     setopt localoptions pipefail no_aliases
 
@@ -519,9 +610,31 @@ function remove_pdf_metadata() {
     fi
 }
 
-# -------------------- Batch PDF Metadata Removal Function ------------------ #
-# Remove metadata from multiple PDF files at once.
-# Usage: remove_pdf_metadata_batch <file1.pdf> [file2.pdf] [file3.pdf] ...
+# -----------------------------------------------------------------------------
+# remove_pdf_metadata_batch
+# -----------------------------------------------------------------------------
+# Remove metadata from multiple PDF files in a single operation.
+# Creates cleaned copies with "_cleaned" suffix. Processes all valid PDFs
+# and provides summary statistics.
+#
+# Usage:
+#   remove_pdf_metadata_batch <file1.pdf> [file2.pdf] [file3.pdf] ...
+#   remove_pdf_metadata_batch *.pdf
+#
+# Arguments:
+#   file1.pdf, file2.pdf, ... - PDF files to process (one or more required)
+#
+# Returns:
+#   0 - All files processed (check summary for individual results).
+#   1 - Invalid usage or qpdf not available.
+#
+# Dependencies:
+#   qpdf     - PDF manipulation tool (required)
+#   exiftool - Metadata tool (optional, for complete removal)
+#
+# Output:
+#   Creates files with "_cleaned" suffix (e.g., document_cleaned.pdf)
+# -----------------------------------------------------------------------------
 function remove_pdf_metadata_batch() {
     setopt localoptions pipefail no_aliases
 
@@ -585,9 +698,31 @@ function remove_pdf_metadata_batch() {
     [[ $fail_count -gt 0 ]] && echo "  ${C_RED}Failed: $fail_count${C_RESET}"
 }
 
-# ------------------- Simple PDF Metadata Removal (Fallback) ---------------- #
-# Simplified version without linearization for problematic PDFs.
-# Usage: remove_pdf_metadata_simple <input.pdf> [output.pdf]
+# -----------------------------------------------------------------------------
+# remove_pdf_metadata_simple
+# -----------------------------------------------------------------------------
+# Simplified metadata removal for problematic PDFs that fail with the standard
+# function. Uses basic qpdf command without advanced options.
+# Fallback option when remove_pdf_metadata encounters issues.
+#
+# Usage:
+#   remove_pdf_metadata_simple <input.pdf> [output.pdf]
+#
+# Arguments:
+#   input.pdf  - PDF file to clean (required)
+#   output.pdf - Output filename (optional, creates "_cleaned" version)
+#
+# Returns:
+#   0 - Processing successful.
+#   1 - Invalid arguments, qpdf not available, or processing failed.
+#
+# Dependencies:
+#   qpdf     - PDF manipulation tool (required)
+#   exiftool - Metadata tool (optional, for additional cleanup)
+#
+# Note:
+#   Use this when remove_pdf_metadata fails due to PDF compatibility issues.
+# -----------------------------------------------------------------------------
 function remove_pdf_metadata_simple() {
     setopt localoptions pipefail no_aliases
 
@@ -655,3 +790,6 @@ function remove_pdf_metadata_simple() {
         return 1
     fi
 }
+
+# ============================================================================ #
+# End of script.

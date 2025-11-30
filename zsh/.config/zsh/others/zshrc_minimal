@@ -346,4 +346,4 @@ build_path
 unset -f build_path
 
 # ============================================================================ #
-# End of Zsh Configuration
+# End of script.

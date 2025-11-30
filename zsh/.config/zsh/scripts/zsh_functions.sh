@@ -3,10 +3,38 @@
 # ============================================================================ #
 # +++++++++++++++++++++++++++++ USEFUL FUNCTIONS +++++++++++++++++++++++++++++ #
 # ============================================================================ #
+#
+# This file contains a collection of useful Zsh functions for daily workflow:
+#   - Weather information and public IP lookups
+#   - File and archive management utilities
+#   - Interactive tools with fzf integration
+#   - Git helpers and stash management
+#   - Network utilities and port scanning
+#   - Docker container access
+#   - Note-taking and directory bookmarks
+#   - System information and cleanup
+#
+# Each function includes comprehensive error handling, input validation, and
+# colored output for better user experience.
+#
+# ============================================================================ #
 
-# ----------------------------- Weather Forecast ----------------------------- #
-# Get weather information for a specified location.
-# Usage: weather <city> (e.g., weather Rome).
+# -----------------------------------------------------------------------------
+# weather
+# -----------------------------------------------------------------------------
+# Get weather information for a specified location using wttr.in service.
+# Implements caching (1 hour) to reduce API calls and improve performance.
+#
+# Usage:
+#   weather [city]
+#
+# Arguments:
+#   city - Location name (default: Bari)
+#
+# Returns:
+#   0 - Weather data fetched or retrieved from cache.
+#   1 - Network error and no cached data available.
+# -----------------------------------------------------------------------------
 function weather() {
     local location="${1:-Bari}"
     local cache_file="/tmp/weather_${location}.cache"
@@ -38,9 +66,22 @@ function weather() {
     fi
 }
 
-# ------------------------------- Quick Backup ------------------------------- #
-# Create a timestamped backup of a file.
-# Usage: bak <file>
+# -----------------------------------------------------------------------------
+# bak
+# -----------------------------------------------------------------------------
+# Create a timestamped backup of a file in the same directory.
+# The backup file will have the format: original.YYYY-MM-DD_HH-MM-SS.bak
+#
+# Usage:
+#   bak <file>
+#
+# Arguments:
+#   file - Path to the file to backup (required)
+#
+# Returns:
+#   0 - Backup created successfully.
+#   1 - File not found or backup creation failed.
+# -----------------------------------------------------------------------------
 function bak() {
     if [[ $# -eq 0 ]]; then
         echo "${C_YELLOW}Usage: bak <file>${C_RESET}" >&2
@@ -61,9 +102,22 @@ function bak() {
     fi
 }
 
-# ------------------------ Interactive Process Killer ------------------------ #
-# Interactively find and kill processes using fzf.
-# Usage: fkill [signal]
+# -----------------------------------------------------------------------------
+# fkill
+# -----------------------------------------------------------------------------
+# Interactively find and kill processes using fzf for selection.
+# Allows multi-selection and sends specified signal to selected processes.
+#
+# Usage:
+#   fkill [signal]
+#
+# Arguments:
+#   signal - Signal number to send (default: 15/SIGTERM)
+#
+# Returns:
+#   0 - Process(es) killed successfully or no selection made.
+#   1 - fzf not available or kill operation failed.
+# -----------------------------------------------------------------------------
 function fkill() {
     if ! command -v fzf >/dev/null 2>&1; then
         echo "${C_RED}Error: fzf is required for this function.${C_RESET}" >&2
@@ -91,10 +145,23 @@ function fkill() {
     fi
 }
 
-# ---------------------------- Quick HTTP Server ----------------------------- #
-# Start a simple HTTP server in the current directory.
-# Requires Python to be installed.
-# Usage: serve [port]
+# -----------------------------------------------------------------------------
+# serve
+# -----------------------------------------------------------------------------
+# Start a simple HTTP server in the current directory using Python.
+# Supports both local-only and public access modes with port validation.
+#
+# Usage:
+#   serve [port] [--public]
+#
+# Arguments:
+#   port     - Port number (default: 8000, range: 1-65535)
+#   --public - Bind to 0.0.0.0 instead of 127.0.0.1 for network access
+#
+# Returns:
+#   0 - Server started successfully.
+#   1 - Invalid arguments or Python not available.
+# -----------------------------------------------------------------------------
 function serve() {
     local port="8000"
     local bind_address="127.0.0.1"
@@ -168,9 +235,24 @@ function serve() {
     return 1
 }
 
-# --------------------------- Network Port Scanner --------------------------- #
-# Simple port scanner for a host.
-# Usage: portscan <host> [start_port] [end_port]
+# -----------------------------------------------------------------------------
+# portscan
+# -----------------------------------------------------------------------------
+# Simple port scanner for a specified host using netcat or bash /dev/tcp.
+# Scans a range of ports and reports which ones are open.
+#
+# Usage:
+#   portscan <host> [start_port] [end_port]
+#
+# Arguments:
+#   host       - Target hostname or IP address (required)
+#   start_port - Starting port number (default: 1)
+#   end_port   - Ending port number (default: 1000)
+#
+# Returns:
+#   0 - Scan completed successfully.
+#   1 - Invalid arguments.
+# -----------------------------------------------------------------------------
 function portscan() {
     if [[ $# -lt 1 ]]; then
         echo "${C_YELLOW}Usage: portscan <host> [start_port] [end_port]${C_RESET}" >&2
@@ -204,9 +286,19 @@ function portscan() {
     fi
 }
 
-# ---------------------------- fzf File Previewer ---------------------------- #
-# Interactively preview files in the current directory using fzf and bat/eza.
-# Usage: preview
+# -----------------------------------------------------------------------------
+# preview
+# -----------------------------------------------------------------------------
+# Interactively preview and select files using fzf with bat/eza integration.
+# Shows directory tree for folders and syntax-highlighted content for files.
+#
+# Usage:
+#   preview
+#
+# Returns:
+#   0 - File selected or preview exited.
+#   1 - fzf not available.
+# -----------------------------------------------------------------------------
 function preview() {
     if ! command -v fzf >/dev/null 2>&1; then
         echo "${C_RED}Error: fzf is required for this function.${C_RESET}" >&2
@@ -222,9 +314,24 @@ function preview() {
     fi'
 }
 
-# ------------------------- Create Archives Quickly -------------------------- #
-# Quick helpers to create different types of archives.
-# Usage: mktar <dir>, mkgz <dir>, etc.
+# -----------------------------------------------------------------------------
+# mktar, mkgz, mktbz, mkzip
+# -----------------------------------------------------------------------------
+# Quick helpers to create different types of compressed archives from directories.
+#
+# Usage:
+#   mktar <directory>  - Create .tar archive
+#   mkgz <directory>   - Create .tar.gz archive
+#   mktbz <directory>  - Create .tar.bz2 archive
+#   mkzip <directory>  - Create .zip archive
+#
+# Arguments:
+#   directory - Path to directory to archive (required)
+#
+# Returns:
+#   0 - Archive created successfully.
+#   1 - No directory specified.
+# -----------------------------------------------------------------------------
 mktar() {
     [[ -z "$1" ]] && {
         echo "${C_YELLOW}Usage: mktar <directory>${C_RESET}"
@@ -257,9 +364,26 @@ mkzip() {
     zip -r "${1%%/}.zip" "${1%%/}/"
 }
 
-# --------------------------- Extract Any Archive ---------------------------- #
-# Universal extraction function for various archive formats.
-# Usage: extract <archive>
+# -----------------------------------------------------------------------------
+# extract
+# -----------------------------------------------------------------------------
+# Universal extraction function supporting multiple archive formats.
+# Automatically detects archive type by extension and uses appropriate tool.
+#
+# Supported formats:
+#   .tar.bz2, .tbz2, .tar.gz, .tgz, .tar.xz, .txz, .tar, .bz2,
+#   .rar, .gz, .zip, .Z, .7z, .xz
+#
+# Usage:
+#   extract <archive>
+#
+# Arguments:
+#   archive - Path to archive file (required)
+#
+# Returns:
+#   0 - Extraction successful.
+#   1 - File not found, unsupported format, or extraction failed.
+# -----------------------------------------------------------------------------
 function extract() {
     if [[ $# -eq 0 ]]; then
         echo "${C_YELLOW}Usage: extract <archive>${C_RESET}" >&2
@@ -297,9 +421,23 @@ function extract() {
     fi
 }
 
-# ---------------------------- Find Large Files ----------------------------- #
-# Find files larger than specified size (default 100MB).
-# Usage: findlarge [size_in_MB] [directory]
+# -----------------------------------------------------------------------------
+# findlarge
+# -----------------------------------------------------------------------------
+# Find and list files larger than specified size in a directory tree.
+# Results are sorted by size in descending order (largest first).
+#
+# Usage:
+#   findlarge [size_in_MB] [directory]
+#
+# Arguments:
+#   size_in_MB - Minimum file size in megabytes (default: 100)
+#   directory  - Directory to search in (default: current directory)
+#
+# Returns:
+#   0 - Search completed successfully.
+#   1 - Invalid size parameter.
+# -----------------------------------------------------------------------------
 function findlarge() {
     local size="${1:-100}"
     local dir="${2:-.}"
@@ -313,9 +451,19 @@ function findlarge() {
     find "$dir" -type f -size +${size}M -exec du -h {} + 2>/dev/null | sort -rh
 }
 
-# --------------------------- Recent Git Branches ---------------------------- #
-# Show local git branches, sorted by most recent commit date.
-# Usage: gbr
+# -----------------------------------------------------------------------------
+# gbr
+# -----------------------------------------------------------------------------
+# Show local git branches sorted by most recent commit date.
+# Displays branch name, commit hash, subject, author, and relative date.
+#
+# Usage:
+#   gbr
+#
+# Returns:
+#   0 - Branch list displayed successfully.
+#   1 - Not in a git repository.
+# -----------------------------------------------------------------------------
 function gbr() {
     if ! git rev-parse --git-dir >/dev/null 2>&1; then
         echo "${C_RED}Error: Not in a git repository.${C_RESET}" >&2
@@ -329,9 +477,19 @@ function gbr() {
         %(authorname) (%(color:green)%(committerdate:relative)%(color:reset))'
 }
 
-# ---------------------------- Git Stash Manager ----------------------------- #
-# Interactive git stash management with fzf.
-# Usage: gstash
+# -----------------------------------------------------------------------------
+# gstash
+# -----------------------------------------------------------------------------
+# Interactive git stash management using fzf for selection.
+# Preview shows the diff for each stash entry before applying.
+#
+# Usage:
+#   gstash
+#
+# Returns:
+#   0 - Stash applied successfully or no selection made.
+#   1 - Not in git repository or fzf not available.
+# -----------------------------------------------------------------------------
 function gstash() {
     if ! git rev-parse --git-dir >/dev/null 2>&1; then
         echo "${C_RED}Error: Not in a git repository.${C_RESET}" >&2
@@ -354,9 +512,22 @@ function gstash() {
     fi
 }
 
-# ---------------------------- Quick Note Taking ----------------------------- #
-# Quick note-taking function that appends timestamped notes to a file.
-# Usage: note [text] or just 'note' for interactive mode
+# -----------------------------------------------------------------------------
+# note
+# -----------------------------------------------------------------------------
+# Quick note-taking function with automatic timestamping and monthly organization.
+# Notes are stored in markdown format in monthly files.
+#
+# Usage:
+#   note [text]           - Add note with text as arguments
+#   note                  - Interactive mode (Ctrl+D to finish)
+#
+# Environment:
+#   NOTES_DIR - Custom notes directory (default: ~/.notes)
+#
+# Returns:
+#   0 - Note saved successfully.
+# -----------------------------------------------------------------------------
 function note() {
     local notes_dir="${NOTES_DIR:-$HOME/.notes}"
     local notes_file="$notes_dir/notes_$(date +'%Y-%m').md"
@@ -382,9 +553,19 @@ function note() {
     fi
 }
 
-# -------------------------- Docker Container Shell -------------------------- #
-# Quickly access shell in a Docker container using fzf.
-# Usage: dshell
+# -----------------------------------------------------------------------------
+# dshell
+# -----------------------------------------------------------------------------
+# Interactively access shell in a running Docker container using fzf.
+# Attempts to use bash, falls back to sh if not available.
+#
+# Usage:
+#   dshell
+#
+# Returns:
+#   0 - Shell session completed successfully.
+#   1 - Docker or fzf not available, or no container selected.
+# -----------------------------------------------------------------------------
 function dshell() {
     if ! command -v docker >/dev/null 2>&1; then
         echo "${C_RED}Error: Docker is not installed.${C_RESET}" >&2
@@ -407,9 +588,22 @@ function dshell() {
     fi
 }
 
-# ------------------------------ URL Shortener ------------------------------- #
-# Shorten URL using is.gd service.
-# Usage: shorten <url>
+# -----------------------------------------------------------------------------
+# shorten
+# -----------------------------------------------------------------------------
+# Shorten URL using is.gd service and optionally copy to clipboard.
+# Automatically adds https:// prefix if missing.
+#
+# Usage:
+#   shorten <url>
+#
+# Arguments:
+#   url - URL to shorten (required)
+#
+# Returns:
+#   0 - URL shortened and copied to clipboard (if available).
+#   1 - No URL provided or shortening failed.
+# -----------------------------------------------------------------------------
 function shorten() {
     if [[ $# -eq 0 ]]; then
         echo "${C_YELLOW}Usage: shorten <url>${C_RESET}" >&2
@@ -443,9 +637,18 @@ function shorten() {
     fi
 }
 
-# ---------------------------- System Information ---------------------------- #
-# Display comprehensive system information.
-# Usage: sysinfo
+# -----------------------------------------------------------------------------
+# sysinfo
+# -----------------------------------------------------------------------------
+# Display comprehensive system information including OS, CPU, memory, disk,
+# network interfaces, and uptime. Platform-aware (macOS/Linux).
+#
+# Usage:
+#   sysinfo
+#
+# Returns:
+#   0 - System information displayed successfully.
+# -----------------------------------------------------------------------------
 function sysinfo() {
     echo "${C_CYAN}/===----------- System Information -----------===/${C_RESET}"
 
@@ -497,9 +700,26 @@ function sysinfo() {
     uptime
 }
 
-# --------------------------- Directory Bookmarks ---------------------------- #
-# Simple bookmark system for directories.
-# Usage: bm [add|del|list] [name]
+# -----------------------------------------------------------------------------
+# bm
+# -----------------------------------------------------------------------------
+# Simple bookmark system for directories with add/delete/list/jump operations.
+# Bookmarks are stored in ~/.directory_bookmarks
+#
+# Usage:
+#   bm add <name>    - Bookmark current directory
+#   bm del <name>    - Delete bookmark
+#   bm list          - List all bookmarks (default)
+#   bm <name>        - Jump to bookmarked directory
+#
+# Arguments:
+#   action - Operation to perform (add|del|list|<name>)
+#   name   - Bookmark name (for add/del/jump)
+#
+# Returns:
+#   0 - Operation completed successfully.
+#   1 - Invalid usage or bookmark not found.
+# -----------------------------------------------------------------------------
 function bm() {
     local bookmarks_file="$HOME/.directory_bookmarks"
     local action="${1:-list}"
@@ -558,9 +778,26 @@ function bm() {
     esac
 }
 
-# ---------------------------- Cleanup Temp Files ---------------------------- #
-# Clean various temporary and cache files.
-# Usage: cleanup [--dry-run]
+# -----------------------------------------------------------------------------
+# cleanup
+# -----------------------------------------------------------------------------
+# Clean various temporary and cache files across the system.
+# Supports dry-run mode to preview what will be deleted.
+#
+# Cleaned locations:
+#   - System temp directories (/tmp, /private/var/tmp)
+#   - User caches (~/.cache, ~/Library/Caches on macOS)
+#   - Package manager caches (npm, yarn)
+#
+# Usage:
+#   cleanup [--dry-run]
+#
+# Arguments:
+#   --dry-run - Show what would be deleted without actually removing files
+#
+# Returns:
+#   0 - Cleanup completed successfully.
+# -----------------------------------------------------------------------------
 function cleanup() {
     local dry_run=false
     [[ "$1" == "--dry-run" ]] && dry_run=true
@@ -606,9 +843,19 @@ function cleanup() {
     fi
 }
 
-# ---------------------------- Clang Format Link ----------------------------- #
-# Create a symbolic link to the global .clang-format configuration file.
-# Usage: clanglink
+# -----------------------------------------------------------------------------
+# clang_format_link
+# -----------------------------------------------------------------------------
+# Create a symbolic link to the global .clang-format configuration file
+# in the current directory. Prompts before overwriting existing files.
+#
+# Usage:
+#   clang_format_link
+#
+# Returns:
+#   0 - Symbolic link created successfully or operation cancelled.
+#   1 - Global config file not found or link creation failed.
+# -----------------------------------------------------------------------------
 function clang_format_link() {
     local config_file="$HOME/.config/clang-format/.clang-format"
     local target_file="./.clang-format"
@@ -659,9 +906,22 @@ function clang_format_link() {
     fi
 }
 
-# --------------------------- Make Directory & CD ---------------------------- #
-# Create a directory and change into it immediately.
-# Usage: mkcd <directory>
+# -----------------------------------------------------------------------------
+# mkcd
+# -----------------------------------------------------------------------------
+# Create a directory (including parent directories) and change into it.
+# Combines mkdir -p and cd in one convenient command.
+#
+# Usage:
+#   mkcd <directory>
+#
+# Arguments:
+#   directory - Path to directory to create and enter (required)
+#
+# Returns:
+#   0 - Directory created and changed successfully.
+#   1 - No directory specified or operation failed.
+# -----------------------------------------------------------------------------
 function mkcd() {
     if [[ -z "$1" ]]; then
         echo "${C_YELLOW}Usage: mkcd <directory>${C_RESET}" >&2
@@ -670,9 +930,22 @@ function mkcd() {
     mkdir -p "$1" && cd "$1" || return 1
 }
 
-# ---------------------------- Up Directory Navigation ----------------------- #
-# Go up N directories.
-# Usage: up [n]
+# -----------------------------------------------------------------------------
+# up
+# -----------------------------------------------------------------------------
+# Navigate up N directories in the filesystem hierarchy.
+# Provides quick traversal without typing multiple '../' sequences.
+#
+# Usage:
+#   up [n]
+#
+# Arguments:
+#   n - Number of directories to go up (default: 1)
+#
+# Returns:
+#   0 - Navigation successful.
+#   1 - Invalid argument or cannot go up specified levels.
+# -----------------------------------------------------------------------------
 function up() {
     local d=""
     local limit="${1:-1}"
@@ -694,9 +967,18 @@ function up() {
     fi
 }
 
-# ----------------------------- Public IP Info ------------------------------- #
-# Get public IP address and information.
-# Usage: myip
+# -----------------------------------------------------------------------------
+# myip
+# -----------------------------------------------------------------------------
+# Get public IP address and geolocation information using ipinfo.io service.
+# Displays IP, city, region, country, and ISP organization.
+#
+# Usage:
+#   myip
+#
+# Returns:
+#   0 - IP information fetched successfully.
+# -----------------------------------------------------------------------------
 function myip() {
     echo "${C_CYAN}Fetching public IP info...${C_RESET}"
     curl -s "https://ipinfo.io/json" |
@@ -705,9 +987,22 @@ function myip() {
         awk -F: -v color="${C_GREEN}" -v reset="${C_RESET}" '{printf "%s%s%s%s\n", $1 ":", color, $2, reset}'
 }
 
-# ----------------------------- Command Cheat Sheet -------------------------- #
-# Get a cheat sheet for a command using cheat.sh.
-# Usage: cheat <command>
+# -----------------------------------------------------------------------------
+# cheat
+# -----------------------------------------------------------------------------
+# Get a cheat sheet for a command using cheat.sh service.
+# Displays practical examples and common usage patterns.
+#
+# Usage:
+#   cheat <command>
+#
+# Arguments:
+#   command - Command name to get cheat sheet for (required)
+#
+# Returns:
+#   0 - Cheat sheet displayed successfully.
+#   1 - No command specified.
+# -----------------------------------------------------------------------------
 function cheat() {
     if [[ -z "$1" ]]; then
         echo "${C_YELLOW}Usage: cheat <command>${C_RESET}" >&2
@@ -716,9 +1011,22 @@ function cheat() {
     curl -s "cheat.sh/$1" | less -R
 }
 
-# ----------------------------- Tree View ------------------------------------ #
-# Tree view respecting gitignore.
-# Usage: tre [dir]
+# -----------------------------------------------------------------------------
+# tre
+# -----------------------------------------------------------------------------
+# Display directory tree view respecting .gitignore rules.
+# Uses eza if available, falls back to tree command.
+#
+# Usage:
+#   tre [directory]
+#
+# Arguments:
+#   directory - Directory to display tree for (default: current directory)
+#
+# Returns:
+#   0 - Tree displayed successfully.
+#   1 - Neither eza nor tree available.
+# -----------------------------------------------------------------------------
 function tre() {
     if command -v eza >/dev/null 2>&1; then
         eza --tree --git-ignore --color=always "${1:-.}"
@@ -730,9 +1038,22 @@ function tre() {
     fi
 }
 
-# ----------------------------- QR Code Generator ---------------------------- #
-# Generate a QR code in the terminal.
-# Usage: qr <text>
+# -----------------------------------------------------------------------------
+# qr
+# -----------------------------------------------------------------------------
+# Generate a QR code in the terminal using qrenco.de service.
+# Useful for quickly sharing text, URLs, or WiFi credentials.
+#
+# Usage:
+#   qr <text>
+#
+# Arguments:
+#   text - Text or URL to encode in QR code (required)
+#
+# Returns:
+#   0 - QR code generated successfully.
+#   1 - No text provided.
+# -----------------------------------------------------------------------------
 function qr() {
     if [[ -z "$1" ]]; then
         echo "${C_YELLOW}Usage: qr <text>${C_RESET}" >&2
@@ -741,4 +1062,5 @@ function qr() {
     curl -sF-="\<-" qrenco.de <<<"$1"
 }
 
-# +++++++++++++++++++++++++++++++ END OF FILE ++++++++++++++++++++++++++++++++ #
+# ============================================================================ #
+# End of script.

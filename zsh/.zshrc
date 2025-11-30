@@ -1,26 +1,66 @@
 #!/usr/bin/env zsh
 # shellcheck shell=zsh
 # ============================================================================ #
-# Personal interactive Zsh config.
+# +++++++++++++++++++++++++++++ ZSH CONFIGURATION ++++++++++++++++++++++++++++ #
+# ============================================================================ #
 #
-# What this file sets up (in order):
-# - Base guards: pipefail, unset-variable protection, and login-shell bootstrap
-#   via .zprofile.
-# - OS detection and TERM tweaks; VS Code shell integration when present.
-# - Oh-My-Zsh core with platform-aware plugins.
-# - Prompt stack: Starship with transient + smart newline helpers, falling back
-#   to Oh-My-Posh, Powerlevel10k, then minimal.
-# - External script loader (~/.config/zsh/scripts), competitive programming helpers.
-# - Vi-mode widgets (cursor shape, mode bindings) and clipboard helper on macOS.
-# - Lazy init for fzf/zoxide/direnv, themed fzf defaults, bat/eza previews.
-# - Aliases and dev shortcuts (git, compilers, sys tools),
-#   plus platform-specific utilities.
-# - Environment wiring: Homebrew/Nix/Java/pyenv/conda, language/tool paths,
-#   and personal directories.
-
+# Personal interactive Zsh configuration with cross-platform support.
+#
+# INITIALIZATION ORDER (critical for proper setup):
+#
+# 1. Base Configuration
+#    - Shell safety (pipefail, local options/traps)
+#    - .zprofile bootstrap for non-login shells
+#    - Platform detection (macOS/Linux/Arch)
+#    - Color definitions and terminal setup
+#
+# 2. History & Framework
+#    - History configuration (size, deduplication, timestamps)
+#    - Oh-My-Zsh initialization with platform-specific plugins
+#
+# 3. Prompt System (priority cascade)
+#    - Starship (preferred) with transient prompt and smart newlines
+#    - Oh-My-Posh (macOS/Windows fallback)
+#    - PowerLevel10k (Linux fallback)
+#    - Minimal prompt (always-available fallback)
+#
+# 4. External Scripts & Tools
+#    - Custom function libraries (~/.config/zsh/scripts/*.sh)
+#    - Competitive programming utilities
+#
+# 5. Vi Mode & Keybindings
+#    - Vi mode with cursor shape changes
+#    - Custom widgets (clipboard, navigation)
+#    - ZLE widget integration
+#
+# 6. Interactive Tools (lazy-loaded)
+#    - fzf (fuzzy finder) with Tokyo Night theme
+#    - zoxide (smart cd)
+#    - direnv (environment loader)
+#    - Custom fzf integrations (bat, eza previews)
+#
+# 7. Aliases & Shortcuts
+#    - Cross-platform aliases (navigation, git, productivity)
+#    - Platform-specific utilities (package managers, system tools)
+#    - Compiler shortcuts (C/C++ with optimization flags)
+#
+# 8. Environment Managers
+#    - Static: Homebrew/Nix, Haskell (ghcup), OCaml (opam)
+#    - Dynamic: Java (SDKMAN/fallback), pyenv, conda, rbenv, fnm
+#    - Language-specific: Perl, Ruby gems, Go, Android
+#
+# 9. Completions
+#    - Docker, ngrok, Angular CLI completions
+#    - Custom completion directories
+#
+# 10. Final PATH Assembly
+#     - Deterministic PATH rebuild (shims first, system last)
+#     - Duplicate removal and orphan cleanup
+#
 # ============================================================================ #
 # ++++++++++++++++++++++++++++ BASE CONFIGURATION ++++++++++++++++++++++++++++ #
 # ============================================================================ #
+
 # Fail on pipe errors.
 set -o pipefail
 
@@ -634,7 +674,21 @@ fi
 # ============================================================================ #
 # +++++++++++++++++++++++++++++++ COLORS & FZF +++++++++++++++++++++++++++++++ #
 # ============================================================================ #
-# Lazy init for fzf/zoxide/direnv to keep startup snappy.
+
+# -----------------------------------------------------------------------------
+# _tools_lazy_init
+# -----------------------------------------------------------------------------
+# Lazy initialization for fzf, zoxide, and direnv to improve startup time.
+# Runs once on first precmd hook, then removes itself.
+#
+# Initializes:
+#   - fzf: Fuzzy finder shell integration
+#   - zoxide: Smarter cd command
+#   - direnv: Directory-specific environment loading
+#
+# Returns:
+#   0 - Tools initialized or already initialized.
+# -----------------------------------------------------------------------------
 _tools_lazy_init() {
     [[ -n "${_TOOLS_LAZY_INIT_DONE-}" ]] && return
 
@@ -655,6 +709,12 @@ _tools_lazy_init() {
 }
 add-zsh-hook precmd _tools_lazy_init
 
+# -----------------------------------------------------------------------------
+# _gen_fzf_default_opts
+# -----------------------------------------------------------------------------
+# Configure fzf color scheme (Tokyo Night theme).
+# Sets FZF_DEFAULT_OPTS with consistent color palette for all fzf invocations.
+# -----------------------------------------------------------------------------
 _gen_fzf_default_opts() {
 # ---------- Setup FZF theme ---------- #
 # Scheme name: Tokyo Night
@@ -754,6 +814,33 @@ export BAT_THEME=tokyonight_night
 # +++++++++++++++++++++++++++++++++ ALIASES ++++++++++++++++++++++++++++++++++ #
 # ============================================================================ #
 
+# -----------------------------------------------------------------------------
+# cdf
+# -----------------------------------------------------------------------------
+# Change directory to the parent folder of a file selected via fzf.
+# Interactive file picker that navigates to the containing directory.
+#
+# Usage:
+#   cdf
+#
+# Returns:
+#   0 - Successfully changed directory.
+#   1 - fzf not available or no file selected.
+#
+# Dependencies:
+#   fzf - Fuzzy finder
+# -----------------------------------------------------------------------------
+cdf() {
+    if ! command -v fzf >/dev/null 2>&1; then
+        echo "${C_YELLOW}fzf is required for cdf${C_RESET}" >&2
+        return 1
+    fi
+    local target
+    target=$(fzf --select-1 --exit-0)
+    [[ -z "$target" ]] && return 1
+    cd -- "$(dirname -- "$target")"
+}
+
 # ------ Common Aliases (Cross-Platform) ------- #
 alias ..="cd .."
 alias ...="cd ../.."
@@ -789,18 +876,6 @@ if command -v thefuck >/dev/null 2>&1; then
     }
     alias fk=fuck
 fi
-
-# Quick-jump to the directory of a file chosen via fzf.
-cdf() {
-    if ! command -v fzf >/dev/null 2>&1; then
-        echo "${C_YELLOW}fzf is required for cdf${C_RESET}" >&2
-        return 1
-    fi
-    local target
-    target=$(fzf --select-1 --exit-0)
-    [[ -z "$target" ]] && return 1
-    cd -- "$(dirname -- "$target")"
-}
 
 # ---------- C Compilation ----------- #
 # Determine include path dynamically based on platform.
@@ -884,6 +959,18 @@ if [[ "$PLATFORM" == 'macOS' ]]; then
   # TailScale alias for easier access.
   alias tailscale="/Applications/Tailscale.app/Contents/MacOS/Tailscale"
 
+  # ---------------------------------------------------------------------------
+  # brew
+  # ---------------------------------------------------------------------------
+  # Homebrew wrapper that triggers sketchybar updates after package operations.
+  # Automatically notifies sketchybar when packages are updated/upgraded.
+  #
+  # Usage:
+  #   brew <command> [arguments]
+  #
+  # Triggers:
+  #   - Sends brew_update trigger to sketchybar after update/upgrade/outdated
+  # ---------------------------------------------------------------------------
   function brew() {
     command brew "$@"
     if [[ $* =~ "upgrade" ]] || [[ $* =~ "update" ]] || [[ $* =~ "outdated" ]]; then
@@ -957,7 +1044,18 @@ elif [[ "$PLATFORM" == 'Linux' ]]; then
 
   # ------- Arch Linux Specific -------- #
   if [[ "$ARCH_LINUX" == true ]]; then
-    # Command not found handler for pacman.
+    # -------------------------------------------------------------------------
+    # command_not_found_handler
+    # -------------------------------------------------------------------------
+    # Arch Linux command not found handler using pacman file database.
+    # Suggests packages containing the missing command.
+    #
+    # Arguments:
+    #   $1 - Command name that was not found
+    #
+    # Returns:
+    #   127 - Standard exit code for command not found
+    # -------------------------------------------------------------------------
     function command_not_found_handler {
       local purple='\e[1;35m' bright='\e[0;1m' green='\e[1;32m' reset='\e[0m'
       printf 'zsh: command not found: %s\n' "$1"
@@ -986,7 +1084,23 @@ elif [[ "$PLATFORM" == 'Linux' ]]; then
       aurhelper="paru"
     fi
 
-    # 'in' function for intelligent installation from official repos and AUR.
+    # -------------------------------------------------------------------------
+    # in
+    # -------------------------------------------------------------------------
+    # Intelligent package installer for Arch Linux.
+    # Automatically determines whether packages are in official repos or AUR
+    # and uses the appropriate tool (pacman or AUR helper).
+    #
+    # Usage:
+    #   in <package1> [package2] [package3] ...
+    #
+    # Arguments:
+    #   package1, package2, ... - Package names to install
+    #
+    # Returns:
+    #   0 - All packages installed successfully.
+    #   1 - Installation failed or no AUR helper available for AUR packages.
+    # -------------------------------------------------------------------------
     function in {
       local -a inPkg=("$@")
       local -a arch=()
@@ -1207,7 +1321,20 @@ if [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]]; then
         echo "${C_YELLOW}Warning: SDKMAN init script not found.${C_RESET}"
     fi
 else
-    # SDKMAN! not found. Use the fallback logic to auto-detect Java.
+    # -------------------------------------------------------------------------
+    # setup_java_home_fallback
+    # -------------------------------------------------------------------------
+    # Auto-detect and configure JAVA_HOME when SDKMAN is not available.
+    # Platform-aware detection using system utilities and standard JVM paths.
+    #
+    # Detection methods:
+    #   macOS: /usr/libexec/java_home utility
+    #   Linux: update-alternatives, archlinux-java, or /usr/lib/jvm search
+    #
+    # Sets:
+    #   JAVA_HOME - Java installation directory
+    #   PATH      - Adds $JAVA_HOME/bin
+    # -------------------------------------------------------------------------
     setup_java_home_fallback() {
         if [[ "$PLATFORM" == 'macOS' ]]; then
             # On macOS, use the system-provided utility.
@@ -1263,6 +1390,19 @@ fi
 
 # -------------- CONDA -------------- #
 # >>> Conda initialize >>>
+# -----------------------------------------------------------------------------
+# __conda_init
+# -----------------------------------------------------------------------------
+# Initialize Conda/Miniforge with platform-aware path detection.
+# Supports both Arch Linux system installation and user installation.
+#
+# Paths checked:
+#   Linux (Arch): /opt/miniconda3/bin/conda
+#   User:         ~/00_ENV/miniforge3/bin/conda
+#
+# Configuration:
+#   - Disables conda's prompt modification (changeps1 false)
+# -----------------------------------------------------------------------------
 __conda_init() {
     local conda_path=""
     # Arch specific path.
@@ -1318,7 +1458,20 @@ if command -v fnm &>/dev/null; then
     # Integer variable for the session.
     typeset -i FNM_CMD_COUNTER=0
 
-    # Heartbeat function to keep the current session "alive".
+    # -------------------------------------------------------------------------
+    # _fnm_update_timestamp
+    # -------------------------------------------------------------------------
+    # Heartbeat function to keep fnm multishell session alive.
+    # Updates symlink timestamp every 30 commands to prevent cleanup.
+    #
+    # Called by:
+    #   precmd hook on every command
+    #
+    # Behavior:
+    #   - Increments command counter
+    #   - Updates timestamp when counter exceeds 30
+    #   - Resets counter after update
+    # -------------------------------------------------------------------------
     _fnm_update_timestamp() {
         # Increment the counter on every command.
         ((FNM_CMD_COUNTER++))
@@ -1387,6 +1540,26 @@ fi
 # This runs LAST. It takes the messy PATH and rebuilds it in the desired order.
 # This guarantees that shims have top priority and the order is consistent.
 
+# -----------------------------------------------------------------------------
+# build_final_path
+# -----------------------------------------------------------------------------
+# Rebuild PATH in deterministic order with version manager shims at top.
+# Ensures consistent PATH priority across shell sessions and removes duplicates.
+#
+# Priority order:
+#   1. Dynamic shims (pyenv, etc.)
+#   2. Static language bins (SDKMAN, opam, etc.)
+#   3. FNM current session
+#   4. Homebrew/system tools
+#   5. User and app-specific paths
+#   6. Leftover paths from original PATH
+#
+# Behavior:
+#   - Filters non-existent directories
+#   - Removes FNM orphaned session directories
+#   - Preserves VS Code and other dynamically added paths
+#   - Removes duplicates via typeset -U
+# -----------------------------------------------------------------------------
 build_final_path() {
     # Store original PATH for debugging.
     local original_path="$PATH"
