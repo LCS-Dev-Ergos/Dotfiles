@@ -8,6 +8,8 @@
 # Extract specific pages from a PDF document using qpdf.
 # Usage: pdfextract <input.pdf> <start_page> <end_page> [output.pdf]
 function pdfextract() {
+    setopt localoptions pipefail no_aliases
+
     # Check if qpdf is installed
     if ! command -v qpdf >/dev/null 2>&1; then
         echo "${C_RED}Error: qpdf is not installed.${C_RESET}" >&2
@@ -115,6 +117,8 @@ function pdfextract() {
 # Convert DjVu documents to PDF format using ddjvu.
 # Usage: djvu_to_pdf <input.djvu> [output.pdf]
 function djvu_to_pdf() {
+    setopt localoptions pipefail no_aliases
+
     # Check if ddjvu is installed (part of djvulibre)
     if ! command -v ddjvu >/dev/null 2>&1; then
         echo "${C_RED}Error: ddjvu is not installed.${C_RESET}" >&2
@@ -195,6 +199,8 @@ function djvu_to_pdf() {
 # Copy bookmarks from one PDF to another using copy_bookmarks.py script.
 # Usage: copy_pdf_bookmarks <source_with_bookmarks.pdf> <target_without_bookmarks.pdf> [output.pdf]
 function copy_pdf_bookmarks() {
+    setopt localoptions pipefail no_aliases
+
     # Check if Python 3 is installed
     if ! command -v python3 >/dev/null 2>&1; then
         echo "${C_RED}Error: Python 3 is not installed.${C_RESET}" >&2
@@ -220,13 +226,14 @@ function copy_pdf_bookmarks() {
     fi
 
     # Check if copy_bookmarks.py script exists
+    local script_dir="${${(%):-%N}:A:h}"
     local script_path="${HOME}/.config/zsh/scripts/python/copy_bookmarks.py"
     if [[ ! -f "$script_path" ]]; then
         # Try alternative locations
-        if [[ -f "./copy_bookmarks.py" ]]; then
+        if [[ -f "$script_dir/copy_bookmarks.py" ]]; then
+            script_path="$script_dir/copy_bookmarks.py"
+        elif [[ -f "./copy_bookmarks.py" ]]; then
             script_path="./copy_bookmarks.py"
-        elif [[ -f "$(dirname "${BASH_SOURCE[0]}")/copy_bookmarks.py" ]]; then
-            script_path="$(dirname "${BASH_SOURCE[0]}")/copy_bookmarks.py"
         else
             echo "${C_RED}Error: copy_bookmarks.py script not found.${C_RESET}" >&2
             echo "Expected location: ${HOME}/.config/zsh/scripts/python/copy_bookmarks.py" >&2
@@ -315,6 +322,8 @@ function copy_pdf_bookmarks() {
 # Remove metadata from PDF documents for privacy and security.
 # Usage: remove_pdf_metadata <input.pdf> [output.pdf]
 function remove_pdf_metadata() {
+    setopt localoptions pipefail no_aliases
+
     # Check if qpdf is installed
     if ! command -v qpdf >/dev/null 2>&1; then
         echo "${C_RED}Error: qpdf is not installed.${C_RESET}" >&2
@@ -514,10 +523,23 @@ function remove_pdf_metadata() {
 # Remove metadata from multiple PDF files at once.
 # Usage: remove_pdf_metadata_batch <file1.pdf> [file2.pdf] [file3.pdf] ...
 function remove_pdf_metadata_batch() {
+    setopt localoptions pipefail no_aliases
+
     if [[ $# -lt 1 ]]; then
         echo "${C_YELLOW}Usage: remove_pdf_metadata_batch <file1.pdf> [file2.pdf] ...${C_RESET}" >&2
         echo "Example: remove_pdf_metadata_batch *.pdf" >&2
         return 1
+    fi
+
+    if ! command -v qpdf >/dev/null 2>&1; then
+        echo "${C_RED}Error: qpdf is not installed.${C_RESET}" >&2
+        return 1
+    fi
+
+    local exiftool_available=true
+    if ! command -v exiftool >/dev/null 2>&1; then
+        exiftool_available=false
+        echo "${C_YELLOW}Warning: exiftool not found; only qpdf cleanup will be applied.${C_RESET}" >&2
     fi
 
     local total_files=$#
@@ -540,7 +562,7 @@ function remove_pdf_metadata_batch() {
             if qpdf "$pdf_file" "$output_file" 2>/dev/null; then
 
                 # Additionally use exiftool if available
-                if command -v exiftool >/dev/null 2>&1; then
+                if [[ "$exiftool_available" == true ]]; then
                     exiftool -all:all= -overwrite_original "$output_file" >/dev/null 2>&1
                 fi
 
@@ -567,9 +589,16 @@ function remove_pdf_metadata_batch() {
 # Simplified version without linearization for problematic PDFs.
 # Usage: remove_pdf_metadata_simple <input.pdf> [output.pdf]
 function remove_pdf_metadata_simple() {
+    setopt localoptions pipefail no_aliases
+
     if [[ $# -lt 1 || $# -gt 2 ]]; then
         echo "${C_YELLOW}Usage: remove_pdf_metadata_simple <input.pdf> [output.pdf]${C_RESET}" >&2
         echo "This is a simplified version that works with problematic PDFs." >&2
+        return 1
+    fi
+
+    if ! command -v qpdf >/dev/null 2>&1; then
+        echo "${C_RED}Error: qpdf is not installed.${C_RESET}" >&2
         return 1
     fi
 
@@ -581,10 +610,30 @@ function remove_pdf_metadata_simple() {
         return 1
     fi
 
+    if [[ ! "$input_file" =~ \.(pdf|PDF)$ ]]; then
+        echo "${C_RED}Error: Input file must be a PDF document.${C_RESET}" >&2
+        return 1
+    fi
+
     # Generate output filename if not provided
     if [[ -z "$output_file" ]]; then
         local base_name="${input_file%.*}"
         output_file="${base_name}_cleaned.pdf"
+    fi
+
+    # Ensure output file has .pdf extension.
+    if [[ ! "$output_file" =~ \.(pdf|PDF)$ ]]; then
+        output_file="${output_file}.pdf"
+    fi
+
+    # Check if output file already exists and ask for confirmation.
+    if [[ -f "$output_file" ]]; then
+        echo -n "${C_YELLOW}Output file '$output_file' already exists. Overwrite? (y/N): ${C_RESET}"
+        read -r response
+        if [[ ! "$response" =~ ^[Yy]$ ]]; then
+            echo "${C_CYAN}Operation cancelled.${C_RESET}"
+            return 0
+        fi
     fi
 
     echo "${C_CYAN}Attempting simple metadata removal...${C_RESET}"
