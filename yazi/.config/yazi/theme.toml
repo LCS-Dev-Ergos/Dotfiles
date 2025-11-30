@@ -1,0 +1,29 @@
+# Tokyo Night theme for Yazi
+
+[manager]
+cwd = { fg = "#7aa2f7" }
+
+# Hovered
+hovered = { bg = "#2f3549" }
+preview_hovered = { bg = "#2f3549" }
+
+# Find
+find_keyword = { fg = "#e0af68", italic = true }
+find_position = { fg = "#7aa2f7", bg = "#1a1b26", italic = true }
+
+# Marker
+marker_selected = { fg = "#9ece6a", bg = "#1a1b26" }
+marker_copied   = { fg = "#e0af68", bg = "#1a1b26" }
+marker_cut      = { fg = "#f7768e", bg = "#1a1b26" }
+
+# Tab
+tab_active   = { fg = "#1a1b26", bg = "#7aa2f7" }
+tab_inactive = { fg = "#a9b1d6", bg = "#2f3549" }
+tab_width    = 1
+
+# Border
+border_symbol = "│"
+border_style  = { fg = "#565f89" }
+
+# Highlighting
+syntect_theme = "~/.config/yazi/tokyonight_night.tmTheme"

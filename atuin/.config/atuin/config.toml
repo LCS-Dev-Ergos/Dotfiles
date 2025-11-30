@@ -1,0 +1,21 @@
+[theme]
+name = "tokyonight"
+
+[ui]
+inline_height = 20
+show_preview = true
+
+[search]
+filter_mode = "global"
+search_mode = "fuzzy"
+exit_mode = "return-original"
+
+[stats]
+common_subcommands = [ "cargo", "go", "git", "npm", "yarn", "pnpm", "kubectl" ]
+common_prefix = [ "sudo" ]
+
+[sync]
+records = true
+
+[preview]
+strategy = "auto"

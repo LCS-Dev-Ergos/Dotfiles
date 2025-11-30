@@ -205,6 +205,7 @@ elif [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" == true ]]; then
         fzf
         zsh-256color
         zsh-history-substring-search
+        zsh-autopair
         zsh-autosuggestions
         zsh-syntax-highlighting
     )
@@ -214,6 +215,15 @@ fi
 export ZSH_COMPDUMP="$ZSH/cache/.zcompdump-$HOST"
 
 source "$ZSH/oh-my-zsh.sh"
+
+# ++++++++++++++++++++++++++++++ MODERN TOOLS ++++++++++++++++++++++++++++++++ #
+
+# Initialize Atuin (Magical Shell History).
+if command -v atuin >/dev/null 2>&1; then
+    eval "$(atuin init zsh)"
+fi
+
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
 
 # Unset options to restore default behavior.
 unsetopt xtrace verbose
@@ -244,8 +254,7 @@ setopt PROMPT_SUBST
 #   1 - Starship not available or initialization failed.
 # -----------------------------------------------------------------------------
 _init_starship_prompt() {
-    # Guard: prevent re-initialization (allows re-sourcing .zshrc safely).
-    [[ -n "${_STARSHIP_STATE[init_done]-}" ]] && return 0
+    # Note: We allow re-initialization to support re-sourcing .zshrc.
 
     setopt PROMPT_SUBST
     autoload -Uz add-zsh-hook
@@ -273,7 +282,11 @@ _init_starship_prompt() {
     _STARSHIP_STATE[init_done]=1
     _STARSHIP_STATE[need_newline]=0
     _STARSHIP_STATE[first_prompt]=1
-    _STARSHIP_STATE[transient_on]=1  # Default: Enabled
+
+    # Default: Enabled (preserve if already set during reload).
+    if [[ -z "${_STARSHIP_STATE[transient_on]-}" ]]; then
+        _STARSHIP_STATE[transient_on]=1
+    fi
 
     # Stash original prompts (Starship sets these once at init).
     _STARSHIP_STATE[prompt_full]="$PROMPT"
@@ -300,6 +313,9 @@ _init_starship_prompt() {
     # Register custom widgets.
     zle -N toggle-transient-prompt _starship_toggle_transient
     zle -N reset-prompt-state _starship_reset_state
+
+    # Optional: Bind toggle widget to Ctrl+T.
+    # bindkey '^T' toggle-transient-prompt
 
     return 0
 }
@@ -557,9 +573,6 @@ _init_minimal_prompt() {
 # Initialize prompt system in priority order.
 # Wrapped in anonymous function for local scope.
 () {
-    # Allow re-sourcing by clearing init flag.
-    unset _STARSHIP_INIT_DONE
-
     # Priority 1: Starship.
     if command -v starship >/dev/null 2>&1; then
         _init_starship_prompt && return 0

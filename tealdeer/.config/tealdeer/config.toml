@@ -1,0 +1,9 @@
+[style]
+description = { fg = "white" }
+command_name = { fg = "cyan", bold = true }
+example_text = { fg = "green" }
+example_code = { fg = "blue" }
+example_variable = { fg = "yellow", underline = true }
+
+[updates]
+auto_update = true
