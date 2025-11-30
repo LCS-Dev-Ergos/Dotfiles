@@ -223,6 +223,15 @@ if command -v atuin >/dev/null 2>&1; then
     eval "$(atuin init zsh)"
 fi
 
+# Wrapper function for yazi to change directory after execution.
+function y() {
+	local tmp="$(mktemp -t "yazi-cwd.XXXXXX")" cwd
+	yazi "$@" --cwd-file="$tmp"
+	IFS= read -r -d '' cwd < "$tmp"
+	[ -n "$cwd" ] && [ "$cwd" != "$PWD" ] && builtin cd -- "$cwd"
+	rm -f -- "$tmp"
+}
+
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
 
 # Unset options to restore default behavior.

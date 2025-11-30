@@ -1,6 +1,6 @@
 # Tokyo Night theme for Yazi
 
-[manager]
+[mgr]
 cwd = { fg = "#7aa2f7" }
 
 # Hovered

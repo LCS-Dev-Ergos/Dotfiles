@@ -130,7 +130,7 @@ style = 'bold yellow'
 format = '[$symbol]($style) '
 
 [os.symbols]
-Macos = '󰀵'
+Macos = ''
 Linux = '󰌽'
 Windows = '󰖳'
 Arch = '󰣇'
