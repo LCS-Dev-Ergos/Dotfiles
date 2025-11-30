@@ -1,29 +1,118 @@
-# Tokyo Night theme for Yazi
+# Tokyo Night Theme for Yazi
+# https://yazi-rs.github.io/docs/configuration/theme
+
+[flavor]
+use = "dark"
 
 [mgr]
-cwd = { fg = "#7aa2f7" }
+cwd = { fg = "#7aa2f7", bold = true }
 
 # Hovered
-hovered = { bg = "#2f3549" }
+hovered = { bg = "#2f3549", bold = true }
 preview_hovered = { bg = "#2f3549" }
 
 # Find
-find_keyword = { fg = "#e0af68", italic = true }
+find_keyword = { fg = "#e0af68", italic = true, bold = true }
 find_position = { fg = "#7aa2f7", bg = "#1a1b26", italic = true }
 
 # Marker
-marker_selected = { fg = "#9ece6a", bg = "#1a1b26" }
-marker_copied   = { fg = "#e0af68", bg = "#1a1b26" }
-marker_cut      = { fg = "#f7768e", bg = "#1a1b26" }
+marker_selected = { fg = "#9ece6a", bg = "#1a1b26", bold = true }
+marker_copied = { fg = "#e0af68", bg = "#1a1b26" }
+marker_cut = { fg = "#f7768e", bg = "#1a1b26" }
 
 # Tab
-tab_active   = { fg = "#1a1b26", bg = "#7aa2f7" }
+tab_active = { fg = "#1a1b26", bg = "#7aa2f7", bold = true }
 tab_inactive = { fg = "#a9b1d6", bg = "#2f3549" }
-tab_width    = 1
+tab_width = 1
 
 # Border
 border_symbol = "│"
-border_style  = { fg = "#565f89" }
+border_style = { fg = "#565f89" }
+
+# Selection
+selection = { bg = "#2f3549", fg = "#7aa2f7" }
+
+# Count
+count_copied = { fg = "#e0af68", bg = "#1a1b26" }
+count_cut = { fg = "#f7768e", bg = "#1a1b26" }
+count_selected = { fg = "#9ece6a", bg = "#1a1b26" }
+
+[status]
+separator_open = ""
+separator_close = ""
+separator_style = { fg = "#565f89" }
+
+# Mode
+mode_normal = { fg = "#1a1b26", bg = "#7aa2f7", bold = true }
+mode_select = { fg = "#1a1b26", bg = "#9ece6a", bold = true }
+mode_unset = { fg = "#1a1b26", bg = "#f7768e", bold = true }
+
+# Progress
+progress_label = { fg = "#a9b1d6", bold = true }
+progress_normal = { fg = "#7aa2f7" }
+progress_error = { fg = "#f7768e" }
+
+# Permissions
+permissions_t = { fg = "#9ece6a" }
+permissions_r = { fg = "#e0af68" }
+permissions_w = { fg = "#f7768e" }
+permissions_x = { fg = "#7aa2f7" }
+permissions_s = { fg = "#bb9af7" }
+
+[input]
+border = { fg = "#7aa2f7" }
+title = { fg = "#7aa2f7" }
+value = { fg = "#a9b1d6" }
+selected = { bg = "#2f3549" }
+
+[select]
+border = { fg = "#7aa2f7" }
+active = { fg = "#e0af68", bold = true }
+inactive = { fg = "#a9b1d6" }
+
+[confirm]
+border = { fg = "#f7768e" }
+title = { fg = "#f7768e", bold = true }
+content = { fg = "#a9b1d6" }
+selected = { bg = "#2f3549" }
+
+[which]
+cols = 3
+mask = { bg = "#1a1b26" }
+cand = { fg = "#7aa2f7" }
+rest = { fg = "#565f89" }
+desc = { fg = "#a9b1d6" }
+separator = "  "
+separator_style = { fg = "#565f89" }
+
+[help]
+on = { fg = "#9ece6a", bold = true }
+run = { fg = "#7aa2f7" }
+desc = { fg = "#a9b1d6" }
+hovered = { bg = "#2f3549", bold = true }
+footer = { fg = "#565f89" }
+
+[filetype]
+rules = [
+    { mime = "image/*", fg = "#bb9af7" },
+    { mime = "video/*", fg = "#e0af68" },
+    { mime = "audio/*", fg = "#7aa2f7" },
+    { mime = "application/zip", fg = "#f7768e" },
+    { mime = "application/gzip", fg = "#f7768e" },
+    { mime = "application/x-tar", fg = "#f7768e" },
+    { mime = "application/x-bzip", fg = "#f7768e" },
+    { mime = "application/x-7z-compressed", fg = "#f7768e" },
+    { mime = "application/x-rar", fg = "#f7768e" },
+    { mime = "application/pdf", fg = "#f7768e" },
+    { name = "*", is = "link", fg = "#73daca" },
+    { name = "*", is = "orphan", fg = "#f7768e" },
+    { name = "*", is = "exec", fg = "#9ece6a" },
+    { name = "*.md", fg = "#a9b1d6" },
+    { name = "*.json", fg = "#e0af68" },
+    { name = "*.toml", fg = "#bb9af7" },
+    { name = "*.yaml", fg = "#bb9af7" },
+    { name = "*.yml", fg = "#bb9af7" },
+]
 
 # Highlighting
 syntect_theme = "~/.config/yazi/tokyonight_night.tmTheme"

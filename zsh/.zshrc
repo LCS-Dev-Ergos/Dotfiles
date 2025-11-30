@@ -1246,7 +1246,7 @@ alias edit="$EDITOR ~/.zshrc"
 
 # Default 'ls' alias (may be overridden below based on platform).
 if command -v eza >/dev/null 2>&1; then
-    alias ls="eza --color=always --long --git --icons=always"
+    alias ls="eza --color=auto --long --git --icons=auto"
     alias ll="eza -lha --icons=auto --sort=name --group-directories-first"
     alias l="eza -lh --icons=auto"
 fi
