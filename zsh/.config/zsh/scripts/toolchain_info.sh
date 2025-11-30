@@ -1,14 +1,53 @@
 #!/usr/bin/env bash
 # shellcheck shell=zsh
 # ============================================================================ #
-# Report the active C/C++ toolchain in a portable way (macOS + Linux).
-# Detects compiler origin (Apple, Homebrew, distro GCC/Clang), common wrappers
-# such as ccache, and warns when names are masquerading (e.g., gcc -> clang).
+# ++++++++++++++++++++++++ Toolchain Information Reporter +++++++++++++++++++ #
+# ============================================================================ #
+# Comprehensive C/C++ compiler toolchain analysis and reporting utility.
+#
+# This script provides detailed information about active compiler toolchains:
+# - Compiler detection (cc, c++, gcc, g++, clang, clang++, versioned variants)
+# - Vendor identification (Apple, Homebrew, GNU, LLVM, system packages)
+# - Wrapper detection (ccache, symlinks, masquerading binaries)
+# - Version reporting with origin attribution
+# - Cross-platform support (macOS, Linux: Arch, Ubuntu, Debian)
+#
+# Features:
+# - Automatic detection of Homebrew versioned GCC (gcc-14, gcc-15, etc.)
+# - Symlink resolution to identify real compiler binaries
+# - ccache wrapper detection with fallback resolution
+# - Masquerading warnings (gcc pointing to clang, etc.)
+# - Color-coded output with vendor/type highlighting
+# - Environment variable override display (CC, CXX)
+# - Debug mode for detailed path resolution information
+#
+# Usage:
+#   get_toolchain_info              # Display comprehensive toolchain report
+#   TOOLCHAIN_INFO_DEBUG=1 get_toolchain_info  # Enable debug output
+#
+# Author: XtremeXSPC
+# License: MIT
 # ============================================================================ #
 
-# ------------------------------ Color Handling ------------------------------ #
-# Reuse the palette defined in .zshrc when available; otherwise, define a
-# minimal set locally without failing in limited terminals.
+# ++++++++++++++++++++++++++++++ Color Handling ++++++++++++++++++++++++++++++ #
+
+# -----------------------------------------------------------------------------
+# _toolchain_info_init_colors
+# -----------------------------------------------------------------------------
+# Initializes terminal color codes for formatted toolchain output.
+# Detects terminal capabilities and sets color variables. Preserves shell
+# trace state to avoid polluting debug output.
+#
+# Usage:
+#   _toolchain_info_init_colors
+#
+# Returns:
+#   0 - Always succeeds
+#
+# Side Effects:
+#   - Sets global color variables: C_RESET, C_BOLD, C_RED, C_GREEN, etc.
+#   - Temporarily disables VERBOSE and SOURCE_TRACE options
+# -----------------------------------------------------------------------------
 _toolchain_info_init_colors() {
     # Preserve xtrace state.
     unsetopt VERBOSE SOURCE_TRACE
@@ -34,7 +73,28 @@ _toolchain_info_init_colors() {
     fi
 }
 
-# ------------------------------ Helper Utils -------------------------------- #
+# ++++++++++++++++++++++++++++++ Helper Utils ++++++++++++++++++++++++++++++++ #
+
+# -----------------------------------------------------------------------------
+# _toolchain_detect_platform
+# -----------------------------------------------------------------------------
+# Detects operating system and Linux distribution for platform-specific logic.
+# Returns human-readable platform string with distribution details.
+#
+# Usage:
+#   platform=$(_toolchain_detect_platform)
+#
+# Returns:
+#   0 - Always succeeds
+#
+# Side Effects:
+#   - Outputs platform string to stdout
+#   - Temporarily disables VERBOSE and SOURCE_TRACE options
+#
+# Dependencies:
+#   uname - System information utility
+#   lsb_release - Linux distribution info (optional)
+# -----------------------------------------------------------------------------
 _toolchain_detect_platform() {
     # Preserve xtrace state.
     unsetopt VERBOSE SOURCE_TRACE
@@ -56,6 +116,22 @@ _toolchain_detect_platform() {
     esac
 }
 
+# -----------------------------------------------------------------------------
+# _toolchain_path_without_ccache
+# -----------------------------------------------------------------------------
+# Filters PATH to exclude ccache directories.
+# Used to find real compiler binaries when ccache wrappers are active.
+#
+# Usage:
+#   filtered_path=$(_toolchain_path_without_ccache)
+#
+# Returns:
+#   0 - Always succeeds
+#
+# Side Effects:
+#   - Outputs filtered PATH to stdout (colon-separated)
+#   - Temporarily disables VERBOSE and SOURCE_TRACE options
+# -----------------------------------------------------------------------------
 _toolchain_path_without_ccache() {
     # Preserve xtrace state.
     unsetopt VERBOSE SOURCE_TRACE
@@ -72,6 +148,30 @@ _toolchain_path_without_ccache() {
     )
 }
 
+# -----------------------------------------------------------------------------
+# _toolchain_portable_realpath
+# -----------------------------------------------------------------------------
+# Resolves symbolic links to absolute paths in portable way.
+# Tries multiple methods with graceful fallback: realpath, python3, readlink.
+#
+# Usage:
+#   real_path=$(_toolchain_portable_realpath <target>)
+#
+# Arguments:
+#   target - File or symlink path to resolve (required)
+#
+# Returns:
+#   0 - Always succeeds (returns original path if resolution fails)
+#
+# Side Effects:
+#   - Outputs resolved path to stdout
+#   - Temporarily disables VERBOSE and SOURCE_TRACE options
+#
+# Dependencies:
+#   realpath - GNU coreutils (preferred, optional)
+#   python3 - Python 3 interpreter (fallback, optional)
+#   readlink - Symlink reader (fallback, optional)
+# -----------------------------------------------------------------------------
 _toolchain_portable_realpath() {
     # Preserve xtrace state.
     unsetopt VERBOSE SOURCE_TRACE
@@ -102,6 +202,27 @@ PY
     printf "%s\n" "$target"
 }
 
+# -----------------------------------------------------------------------------
+# _toolchain_find_in_path
+# -----------------------------------------------------------------------------
+# Searches for executable binary in specified PATH or custom search path.
+# Returns first matching executable found.
+#
+# Usage:
+#   binary=$(_toolchain_find_in_path <name> [search_path])
+#
+# Arguments:
+#   name - Binary name to search for (required)
+#   search_path - Colon-separated path list (optional, default: $PATH)
+#
+# Returns:
+#   0 - Binary found (outputs path to stdout)
+#   1 - Binary not found
+#
+# Side Effects:
+#   - Outputs binary path to stdout on success
+#   - Temporarily disables VERBOSE and SOURCE_TRACE options
+# -----------------------------------------------------------------------------
 _toolchain_find_in_path() {
     # Preserve xtrace state.
     unsetopt VERBOSE SOURCE_TRACE
@@ -117,6 +238,30 @@ _toolchain_find_in_path() {
     return 1
 }
 
+# -----------------------------------------------------------------------------
+# _toolchain_resolve_real_compiler
+# -----------------------------------------------------------------------------
+# Resolves real compiler binary from wrappers and symlinks.
+# Handles ccache wrappers by searching for actual compiler in filtered PATH.
+# Falls back to common compiler installation directories when needed.
+#
+# Usage:
+#   real_compiler=$(_toolchain_resolve_real_compiler <compiler_path>)
+#
+# Arguments:
+#   compiler_path - Compiler binary path to resolve (required)
+#
+# Returns:
+#   0 - Always succeeds
+#
+# Side Effects:
+#   - Outputs resolved compiler path to stdout
+#   - Preserves xtrace state
+#
+# Dependencies:
+#   _toolchain_portable_realpath - Path resolution function
+#   _toolchain_path_without_ccache - ccache filter function
+# -----------------------------------------------------------------------------
 _toolchain_resolve_real_compiler() {
     # Preserve xtrace state.
     emulate -L zsh
@@ -156,6 +301,26 @@ _toolchain_resolve_real_compiler() {
     printf "%s\n" "${resolved:-$compiler_path}"
 }
 
+# -----------------------------------------------------------------------------
+# _toolchain_vendor_for_gcc
+# -----------------------------------------------------------------------------
+# Identifies GCC compiler vendor from version output and installation path.
+# Distinguishes between Homebrew, Ubuntu, Debian, Arch, and system GCC.
+#
+# Usage:
+#   vendor=$(_toolchain_vendor_for_gcc <version_info> <compiler_path>)
+#
+# Arguments:
+#   version_info - Output from compiler --version (required)
+#   compiler_path - Full path to compiler binary (required)
+#
+# Returns:
+#   0 - Always succeeds
+#
+# Side Effects:
+#   - Outputs vendor string to stdout
+#   - Temporarily disables VERBOSE and SOURCE_TRACE options
+# -----------------------------------------------------------------------------
 _toolchain_vendor_for_gcc() {
     # Preserve xtrace state.
     unsetopt VERBOSE SOURCE_TRACE
@@ -178,6 +343,26 @@ _toolchain_vendor_for_gcc() {
     fi
 }
 
+# -----------------------------------------------------------------------------
+# _toolchain_vendor_for_clang
+# -----------------------------------------------------------------------------
+# Identifies Clang/LLVM compiler vendor from version output and path.
+# Distinguishes between Apple Clang, Homebrew LLVM, Ubuntu, Debian, and system.
+#
+# Usage:
+#   vendor=$(_toolchain_vendor_for_clang <version_info> <compiler_path>)
+#
+# Arguments:
+#   version_info - Output from compiler --version (required)
+#   compiler_path - Full path to compiler binary (required)
+#
+# Returns:
+#   0 - Always succeeds
+#
+# Side Effects:
+#   - Outputs vendor string to stdout
+#   - Preserves xtrace state
+# -----------------------------------------------------------------------------
 _toolchain_vendor_for_clang() {
     # Preserve xtrace state.
     emulate -L zsh
@@ -199,6 +384,32 @@ _toolchain_vendor_for_clang() {
     fi
 }
 
+# -----------------------------------------------------------------------------
+# _toolchain_compiler_details
+# -----------------------------------------------------------------------------
+# Extracts compiler type, vendor, and version information.
+# Executes compiler with --version and parses output to identify toolchain.
+# Returns pipe-delimited string: type|vendor|version
+#
+# Usage:
+#   details=$(_toolchain_compiler_details <compiler_path>)
+#   IFS='|' read -r type vendor version <<<"$details"
+#
+# Arguments:
+#   compiler_path - Full path to compiler binary (required)
+#
+# Returns:
+#   0 - Always succeeds
+#
+# Side Effects:
+#   - Outputs type|vendor|version to stdout
+#   - Preserves xtrace state
+#
+# Output Format:
+#   Clang|Apple|Apple clang version 15.0.0
+#   GCC|Homebrew GNU|gcc (Homebrew GCC 14.1.0)
+#   Unknown||Version information unavailable
+# -----------------------------------------------------------------------------
 _toolchain_compiler_details() {
     # Preserve xtrace state.
     emulate -L zsh
@@ -226,7 +437,34 @@ _toolchain_compiler_details() {
     printf "%s|%s|%s\n" "$toolchain_type" "$vendor" "$version_info"
 }
 
-# ------------------------------ Main Function ------------------------------- #
+# ++++++++++++++++++++++++++++++ Main Function +++++++++++++++++++++++++++++++ #
+
+# -----------------------------------------------------------------------------
+# get_toolchain_info
+# -----------------------------------------------------------------------------
+# Generates comprehensive compiler toolchain report with vendor, version, and
+# wrapper resolution details. Enumerates common compilers plus Homebrew GCC
+# variants, resolves ccache/symlinks to real binaries, and warns on masqueraded
+# toolchains (e.g., gcc → clang). Supports optional debug output.
+#
+# Usage:
+#   get_toolchain_info
+#   TOOLCHAIN_INFO_DEBUG=1 get_toolchain_info  # Enable debug logging
+#
+# Returns:
+#   0 - Always succeeds
+#
+# Side Effects:
+#   - Prints formatted toolchain report to stdout
+#   - Reads environment variables: CC, CXX, TOOLCHAIN_INFO_DEBUG, PATH
+#
+# Dependencies:
+#   _toolchain_info_init_colors - Color setup helper
+#   _toolchain_detect_platform - Platform identification helper
+#   _toolchain_resolve_real_compiler - Wrapper resolution helper
+#   _toolchain_compiler_details - Compiler info parser
+#   brew/find/command/uname - External utilities used for detection
+# -----------------------------------------------------------------------------
 get_toolchain_info() {
     # Preserve xtrace state.
     emulate -L zsh

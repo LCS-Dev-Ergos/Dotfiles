@@ -1,15 +1,26 @@
 #!/usr/bin/env zsh
-
 # ============================================================================ #
 # ++++++++++++++++++++++++++ Blog Automation Script ++++++++++++++++++++++++++ #
 # ============================================================================ #
-# This script automates the Hugo blog synchronization, build and deployment
-# process. It syncs markdown files from an Obsidian vault, uses Git-based
-# change detection, updates frontmatter, processes images, builds the static
-# site with Hugo, and deploys it to a Git repository.
+# Comprehensive Hugo blog automation system with Obsidian vault integration.
+#
+# This script provides a complete blog publishing workflow that:
+# - Synchronizes markdown posts from an Obsidian vault to Hugo content directory
+# - Detects file changes using Git status or hash-based comparison
+# - Updates YAML frontmatter metadata in blog posts
+# - Processes and converts Obsidian-style image links to Hugo format
+# - Builds static site with Hugo generator
+# - Manages Git commits and deployment to remote repositories
+# - Supports multiple deployment targets (main branch and Hostinger)
+# - Implements security validation, backup/recovery, and comprehensive logging
+#
+# The script is platform-aware (macOS/Linux) with configurable paths,
+# dry-run mode for testing, verbose logging, and timeout protection
+# for long-running operations.
 #
 # Author: XtremeXSPC
 # Version: 2.1.0 - Git-based change detection
+# License: MIT
 # ============================================================================ #
 
 # Determine current script path.
@@ -82,7 +93,24 @@ BLOG_DRY_RUN=${BLOG_DRY_RUN:-false}
 BLOG_VERBOSE=${BLOG_VERBOSE:-false}
 BLOG_LOG_DIR="${BLOG_LOG_DIR:-$ALLOWED_BLOG_ROOT/logs}"
 
-# Initialize log directory only when needed.
+# -----------------------------------------------------------------------------
+# _blog_init_logging
+# -----------------------------------------------------------------------------
+# Initializes the logging system by creating log directory and file path.
+# This function is called lazily on first log message to avoid creating
+# log files when they're not needed. Falls back to stdout if directory
+# creation fails.
+#
+# Usage:
+#   _blog_init_logging
+#
+# Returns:
+#   0 - Always succeeds (uses stdout as fallback)
+#
+# Side Effects:
+#   - Creates BLOG_LOG_DIR if it doesn't exist
+#   - Sets BLOG_LOG_FILE global variable
+# -----------------------------------------------------------------------------
 _blog_init_logging() {
     if [[ -z "$BLOG_LOG_FILE" ]]; then
         BLOG_LOG_FILE="${BLOG_LOG_DIR}/blog_automation_$(date +%Y%m%d_%H%M%S).log"
@@ -93,7 +121,28 @@ _blog_init_logging() {
     fi
 }
 
-# Logging functions with timestamp, level and color support.
+# -----------------------------------------------------------------------------
+# blog_log
+# -----------------------------------------------------------------------------
+# Core logging function with timestamp, level, and color support.
+# Outputs to both terminal (with colors) and log file (plain text).
+# Automatically initializes logging system on first use.
+#
+# Usage:
+#   blog_log <level> <message>
+#
+# Arguments:
+#   level - Log level: INFO, WARN, ERROR, DEBUG, SUCCESS (required)
+#   message - Log message text (required)
+#
+# Returns:
+#   0 - Always succeeds
+#
+# Side Effects:
+#   - Initializes logging if not already done
+#   - Writes to BLOG_LOG_FILE
+#   - Outputs colored text to terminal
+# -----------------------------------------------------------------------------
 blog_log() {
     local level="$1"
     local message="$2"
@@ -126,7 +175,25 @@ blog_log() {
     fi
 }
 
-# Logging level functions.
+# -----------------------------------------------------------------------------
+# blog_info / blog_warn / blog_error / blog_success / blog_debug
+# -----------------------------------------------------------------------------
+# Convenience wrappers for blog_log function with predefined log levels.
+# These functions provide simplified logging interface for common use cases.
+#
+# Usage:
+#   blog_info <message>
+#   blog_warn <message>
+#   blog_error <message>
+#   blog_success <message>
+#   blog_debug <message>  # Only logs when BLOG_VERBOSE=true
+#
+# Arguments:
+#   message - Log message text (required)
+#
+# Returns:
+#   0 - Always succeeds
+# -----------------------------------------------------------------------------
 blog_info() { blog_log "INFO" "$1"; }
 blog_warn() { blog_log "WARN" "$1"; }
 blog_error() { blog_log "ERROR" "$1"; }
@@ -139,9 +206,23 @@ blog_debug() {
 # ++++++++++++++++++++++ Security checks and validation ++++++++++++++++++++++ #
 # ============================================================================ #
 
-# Validates that we're running in the allowed blog directory.
-# This prevents the script from running in unauthorized locations.
-# NOTE: Only called when blog functions are actually used.
+# -----------------------------------------------------------------------------
+# blog_validate_location
+# -----------------------------------------------------------------------------
+# Validates that the script is running within the allowed blog directory.
+# This security check prevents unauthorized execution in system directories
+# or locations outside the designated blog workspace.
+#
+# Usage:
+#   blog_validate_location
+#
+# Returns:
+#   0 - Current directory is within allowed blog root
+#   1 - Directory validation failed or unsupported platform
+#
+# Dependencies:
+#   ALLOWED_BLOG_ROOT - Must be set by platform detection
+# -----------------------------------------------------------------------------
 blog_validate_location() {
     if [[ -z "$ALLOWED_BLOG_ROOT" ]]; then
         blog_error "Unsupported operating system: $PLATFORM"
@@ -169,8 +250,24 @@ blog_validate_location() {
     esac
 }
 
-# Validates paths for security (prevents path traversal and injection attacks).
-# Args: $1=path, $2=description
+# -----------------------------------------------------------------------------
+# blog_validate_path
+# -----------------------------------------------------------------------------
+# Validates file paths for security vulnerabilities.
+# Prevents path traversal attacks, command injection, and enforces
+# absolute path requirements for all file operations.
+#
+# Usage:
+#   blog_validate_path <path> <description>
+#
+# Arguments:
+#   path - File or directory path to validate (required)
+#   description - Human-readable path description for error messages (required)
+#
+# Returns:
+#   0 - Path is valid and secure
+#   1 - Path contains dangerous characters or is not absolute
+# -----------------------------------------------------------------------------
 blog_validate_path() {
     local path="$1"
     local description="$2"
@@ -197,8 +294,22 @@ blog_validate_path() {
 # Configuration file path.
 BLOG_CONFIG_FILE="${ALLOWED_BLOG_ROOT}/blog_config.conf"
 
-# Sets default configuration values.
-# These can be overridden by the configuration file or environment variables.
+# -----------------------------------------------------------------------------
+# blog_set_defaults
+# -----------------------------------------------------------------------------
+# Establishes default configuration values for all script variables.
+# These defaults can be overridden by the configuration file or environment
+# variables, providing a flexible three-tier configuration system.
+#
+# Usage:
+#   blog_set_defaults
+#
+# Returns:
+#   0 - Always succeeds
+#
+# Side Effects:
+#   - Sets all BLOG_* global variables with platform-specific defaults
+# -----------------------------------------------------------------------------
 blog_set_defaults() {
     # Main directories.
     BLOG_DIR="${BLOG_DIR:-$ALLOWED_BLOG_ROOT/CS-Topics}"
@@ -229,8 +340,24 @@ blog_set_defaults() {
     BLOG_CHANGE_DETECTION="${BLOG_CHANGE_DETECTION:-git}"
 }
 
-# Loads configuration from file and validates all paths.
-# Returns: 0 on success, 1 on failure.
+# -----------------------------------------------------------------------------
+# blog_load_config
+# -----------------------------------------------------------------------------
+# Loads configuration from file and validates all critical paths.
+# If configuration file doesn't exist, creates a template with defaults.
+# Performs security validation on all loaded paths.
+#
+# Usage:
+#   blog_load_config
+#
+# Returns:
+#   0 - Configuration loaded and validated successfully
+#   1 - Path validation failed
+#
+# Side Effects:
+#   - Sources BLOG_CONFIG_FILE if it exists
+#   - Creates config template if file missing
+# -----------------------------------------------------------------------------
 blog_load_config() {
     blog_set_defaults
 
@@ -249,7 +376,23 @@ blog_load_config() {
     blog_validate_path "$BLOG_REPO_PATH" "BLOG_REPO_PATH" || return 1
 }
 
+# -----------------------------------------------------------------------------
+# blog_create_config_template
+# -----------------------------------------------------------------------------
 # Creates a configuration template file with platform-specific defaults.
+# Generates a ready-to-use config file with all available settings documented.
+#
+# Usage:
+#   blog_create_config_template
+#
+# Returns:
+#   0 - Template created successfully or in dry-run mode
+#   1 - Not applicable (function always succeeds)
+#
+# Side Effects:
+#   - Creates BLOG_CONFIG_FILE with default values
+#   - Respects BLOG_DRY_RUN mode
+# -----------------------------------------------------------------------------
 blog_create_config_template() {
     if [[ "$BLOG_DRY_RUN" == "true" ]]; then
         blog_info "[DRY-RUN] Creating configuration template"
@@ -298,9 +441,27 @@ EOF
 # ++++++++++++++++++++++++ Backup and recovery system ++++++++++++++++++++++++ #
 # ============================================================================ #
 
-# Creates a timestamped backup of a directory.
-# Args: $1=source_directory, $2=backup_name
-# Returns: backup path on success, empty string on failure.
+# -----------------------------------------------------------------------------
+# blog_create_backup
+# -----------------------------------------------------------------------------
+# Creates a timestamped backup of a directory for disaster recovery.
+# Uses cp with recursive copy to preserve directory structure and permissions.
+#
+# Usage:
+#   blog_create_backup <source_directory> <backup_name>
+#
+# Arguments:
+#   source_directory - Directory to backup (required)
+#   backup_name - Descriptive name for backup (required)
+#
+# Returns:
+#   0 - Backup created successfully
+#   1 - Source directory doesn't exist or copy failed
+#
+# Side Effects:
+#   - Creates BLOG_BACKUP_DIR if needed
+#   - Outputs backup path to stdout on success
+# -----------------------------------------------------------------------------
 blog_create_backup() {
     local source_dir="$1"
     local backup_name="$2"
@@ -329,7 +490,24 @@ blog_create_backup() {
     fi
 }
 
-# Cleans up old backup directories, keeping only the most recent ones.
+# -----------------------------------------------------------------------------
+# blog_cleanup_backups
+# -----------------------------------------------------------------------------
+# Removes old backup directories, retaining only the most recent ones.
+# Uses BLOG_KEEP_BACKUPS setting to determine retention count.
+#
+# Usage:
+#   blog_cleanup_backups
+#
+# Returns:
+#   0 - Always succeeds
+#
+# Side Effects:
+#   - Deletes oldest backup directories exceeding retention limit
+#
+# Dependencies:
+#   BLOG_KEEP_BACKUPS - Number of backups to retain
+# -----------------------------------------------------------------------------
 blog_cleanup_backups() {
     if [[ "$BLOG_DRY_RUN" == "true" ]]; then
         blog_info "[DRY-RUN] Cleaning old backups (keeping last $BLOG_KEEP_BACKUPS)"
@@ -351,9 +529,22 @@ blog_cleanup_backups() {
 # +++++++++++++++++++++++++++++ System utilities +++++++++++++++++++++++++++++ #
 # ============================================================================ #
 
-# Checks if a command exists in PATH.
-# Args: $1=command_name
-# Returns: 0 if found, 1 if not found.
+# -----------------------------------------------------------------------------
+# blog_check_command
+# -----------------------------------------------------------------------------
+# Verifies that a required command exists in the system PATH.
+# Logs error if command is not found.
+#
+# Usage:
+#   blog_check_command <command_name>
+#
+# Arguments:
+#   command_name - Name of command to check (required)
+#
+# Returns:
+#   0 - Command found in PATH
+#   1 - Command not found
+# -----------------------------------------------------------------------------
 blog_check_command() {
     local cmd="$1"
     if ! command -v "$cmd" &>/dev/null; then
@@ -364,8 +555,25 @@ blog_check_command() {
     return 0
 }
 
-# Checks if a directory exists and optionally creates it.
-# Args: $1=directory, $2=description, $3=create_if_missing (optional, default: false).
+# -----------------------------------------------------------------------------
+# blog_check_dir
+# -----------------------------------------------------------------------------
+# Validates directory existence and optionally creates it if missing.
+# Supports auto-creation for cases where directory is expected to be created
+# during initialization.
+#
+# Usage:
+#   blog_check_dir <directory> <description> [create_if_missing]
+#
+# Arguments:
+#   directory - Directory path to check (required)
+#   description - Human-readable description for logging (required)
+#   create_if_missing - Create if doesn't exist: true/false (optional, default: false)
+#
+# Returns:
+#   0 - Directory exists or was created successfully
+#   1 - Directory doesn't exist and creation failed/disabled
+# -----------------------------------------------------------------------------
 blog_check_dir() {
     local dir="$1"
     local description="$2"
@@ -393,8 +601,22 @@ blog_check_dir() {
     return 0
 }
 
-# Checks if a file exists.
-# Args: $1=file_path, $2=description
+# -----------------------------------------------------------------------------
+# blog_check_file
+# -----------------------------------------------------------------------------
+# Validates that a required file exists at the specified path.
+#
+# Usage:
+#   blog_check_file <file_path> <description>
+#
+# Arguments:
+#   file_path - Path to file (required)
+#   description - Human-readable description for logging (required)
+#
+# Returns:
+#   0 - File exists
+#   1 - File not found
+# -----------------------------------------------------------------------------
 blog_check_file() {
     local file="$1"
     local description="$2"
@@ -408,8 +630,27 @@ blog_check_file() {
     return 0
 }
 
-# Executes a command with timeout support.
-# Args: $1=timeout_seconds, $2=description, $3...$n=command_and_args
+# -----------------------------------------------------------------------------
+# blog_run_with_timeout
+# -----------------------------------------------------------------------------
+# Executes a command with timeout protection to prevent hanging operations.
+# Falls back to execution without timeout if timeout command is unavailable.
+#
+# Usage:
+#   blog_run_with_timeout <timeout_seconds> <description> <command> [args...]
+#
+# Arguments:
+#   timeout_seconds - Maximum execution time in seconds (required)
+#   description - Human-readable operation description (required)
+#   command - Command to execute (required)
+#   args - Command arguments (optional)
+#
+# Returns:
+#   Exit code of the executed command
+#
+# Dependencies:
+#   timeout - GNU timeout command (optional, graceful degradation)
+# -----------------------------------------------------------------------------
 blog_run_with_timeout() {
     local timeout="$1"
     local description="$2"
@@ -437,8 +678,26 @@ blog_run_with_timeout() {
 # ++++++++++++++++++++++++ Git-based change detection ++++++++++++++++++++++++ #
 # ============================================================================ #
 
-# Detects changed files using Git status.
-# Returns: 0 if changes found, 1 if no changes, sets BLOG_CHANGED_FILES array.
+# -----------------------------------------------------------------------------
+# blog_detect_git_changes
+# -----------------------------------------------------------------------------
+# Detects changed markdown files using Git status output.
+# Parses git status --porcelain to identify modified, new, or deleted files
+# in the content/posts directory. More efficient than hash-based detection.
+#
+# Usage:
+#   blog_detect_git_changes
+#
+# Returns:
+#   0 - Changes detected or no Git repo (treats all as changed)
+#   1 - No changes detected
+#
+# Side Effects:
+#   - Sets BLOG_CHANGED_FILES array with list of changed markdown files
+#
+# Dependencies:
+#   git - Git version control system
+# -----------------------------------------------------------------------------
 blog_detect_git_changes() {
     local current_dir="$(pwd)"
     cd "$BLOG_REPO_PATH" || {
@@ -485,8 +744,28 @@ blog_detect_git_changes() {
     return 0
 }
 
-# Hash-based change detection (fallback method).
-# Returns: 0 on success, 1 on failure.
+# -----------------------------------------------------------------------------
+# blog_detect_hash_changes
+# -----------------------------------------------------------------------------
+# Detects file changes using SHA256 hash comparison (fallback method).
+# Generates hashes for all markdown files and compares with previous run.
+# More portable but slower than Git-based detection.
+#
+# Usage:
+#   blog_detect_hash_changes
+#
+# Returns:
+#   0 - Hash generation completed successfully
+#   1 - Python not available or hash generation failed
+#
+# Side Effects:
+#   - Creates/updates BLOG_HASH_FILE
+#   - Backs up previous hash file
+#
+# Dependencies:
+#   python3 - Python 3 interpreter
+#   BLOG_HASH_GENERATOR - Python script for hash generation
+# -----------------------------------------------------------------------------
 blog_detect_hash_changes() {
     blog_info "Using hash-based change detection"
 
@@ -521,7 +800,19 @@ blog_detect_hash_changes() {
 # +++++++++++++++++++++++++++ Main blog functions ++++++++++++++++++++++++++++ #
 # ============================================================================ #
 
-# Wrapper function to ensure location validation before any blog operation.
+# -----------------------------------------------------------------------------
+# _blog_ensure_valid_location
+# -----------------------------------------------------------------------------
+# Internal wrapper that validates location and loads configuration.
+# Called by all main blog functions to ensure security and proper setup.
+#
+# Usage:
+#   _blog_ensure_valid_location
+#
+# Returns:
+#   0 - Location valid and configuration loaded
+#   1 - Validation or configuration loading failed
+# -----------------------------------------------------------------------------
 _blog_ensure_valid_location() {
     if ! blog_validate_location; then
         return 1
@@ -533,9 +824,25 @@ _blog_ensure_valid_location() {
     return 0
 }
 
-# Creates a backup before synchronization.
-# Args: $1=destination_path
-# Returns: backup path on success, empty string if backup not needed or failed.
+# -----------------------------------------------------------------------------
+# blog_backup_before_sync
+# -----------------------------------------------------------------------------
+# Creates a backup before synchronization if destination contains data.
+# Prevents data loss during sync operations.
+#
+# Usage:
+#   blog_backup_before_sync <destination_path>
+#
+# Arguments:
+#   destination_path - Directory to backup before sync (required)
+#
+# Returns:
+#   0 - Always succeeds (backup is optional safety measure)
+#
+# Side Effects:
+#   - Outputs backup path to stdout if backup created
+#   - Outputs empty string if no backup needed
+# -----------------------------------------------------------------------------
 blog_backup_before_sync() {
     local dest_path="$1"
     local backup_path=""
@@ -550,8 +857,24 @@ blog_backup_before_sync() {
     echo "$backup_path"
 }
 
-# Initializes Git repository with remote origin.
-# Ensures the repository is properly set up for blog automation.
+# -----------------------------------------------------------------------------
+# blog_init_git
+# -----------------------------------------------------------------------------
+# Initializes Git repository with remote origin configuration.
+# Creates new repository if needed or verifies existing setup.
+# Ensures remote origin points to correct blog repository URL.
+#
+# Usage:
+#   blog_init_git
+#
+# Returns:
+#   0 - Git repository initialized and configured
+#   1 - Git initialization or remote configuration failed
+#
+# Dependencies:
+#   git - Git version control system
+#   BLOG_REPO_URL - Remote repository URL
+# -----------------------------------------------------------------------------
 blog_init_git() {
     blog_info "${C_BOLD}=== Git Initialization ===${C_RESET}"
 
@@ -591,8 +914,28 @@ blog_init_git() {
     return 0
 }
 
-# Synchronizes posts from Obsidian vault to Hugo content directory.
-# Uses rsync for efficient synchronization with backup protection.
+# -----------------------------------------------------------------------------
+# blog_sync_posts
+# -----------------------------------------------------------------------------
+# Synchronizes markdown posts from Obsidian vault to Hugo content directory.
+# Uses rsync for efficient file synchronization with --delete flag to mirror
+# source directory. Includes integrity verification post-sync.
+#
+# Usage:
+#   blog_sync_posts
+#
+# Returns:
+#   0 - Synchronization completed successfully
+#   1 - Source/destination validation failed or rsync failed
+#
+# Side Effects:
+#   - Creates destination directory if it doesn't exist
+#   - Deletes files in destination not present in source
+#   - Attempts recovery from backup on failure
+#
+# Dependencies:
+#   rsync - File synchronization tool
+# -----------------------------------------------------------------------------
 blog_sync_posts() {
     blog_info "${C_BOLD}=== Posts Synchronization ===${C_RESET}"
 
@@ -638,8 +981,23 @@ blog_sync_posts() {
     return 0
 }
 
-# Detects changes using the configured method (Git or hash-based).
-# This is the main change detection function.
+# -----------------------------------------------------------------------------
+# blog_detect_changes
+# -----------------------------------------------------------------------------
+# Main change detection orchestrator that delegates to Git or hash method.
+# Uses BLOG_CHANGE_DETECTION setting to determine which detection
+# method to use (git or hash).
+#
+# Usage:
+#   blog_detect_changes
+#
+# Returns:
+#   0 - Change detection completed (delegates to selected method)
+#   1 - Location validation failed
+#
+# Dependencies:
+#   BLOG_CHANGE_DETECTION - Detection method: 'git' or 'hash'
+# -----------------------------------------------------------------------------
 blog_detect_changes() {
     blog_info "${C_BOLD}=== Change Detection ===${C_RESET}"
 
@@ -661,8 +1019,26 @@ blog_detect_changes() {
     esac
 }
 
-# Updates frontmatter in markdown files using change detection.
-# Only processes files that have been modified since last run.
+# -----------------------------------------------------------------------------
+# blog_update_frontmatter
+# -----------------------------------------------------------------------------
+# Updates YAML frontmatter metadata in markdown files.
+# Intelligently processes only changed files (Git mode) or uses hash-based
+# detection to minimize unnecessary processing. Updates fields like date,
+# modified, tags, and other metadata.
+#
+# Usage:
+#   blog_update_frontmatter
+#
+# Returns:
+#   0 - Frontmatter update completed successfully
+#   1 - Python unavailable, script missing, or update failed
+#
+# Dependencies:
+#   python3 - Python 3 interpreter
+#   BLOG_FRONTMATTER_SCRIPT - Python script for frontmatter updates
+#   BLOG_CHANGED_FILES - Array of changed files (Git mode)
+# -----------------------------------------------------------------------------
 blog_update_frontmatter() {
     blog_info "${C_BOLD}=== Frontmatter Update ===${C_RESET}"
 
@@ -718,8 +1094,24 @@ blog_update_frontmatter() {
     return 0
 }
 
-# Processes images in markdown files.
-# Converts Obsidian-style image links to Hugo-compatible markdown.
+# -----------------------------------------------------------------------------
+# blog_process_images
+# -----------------------------------------------------------------------------
+# Processes and converts image links in markdown files.
+# Transforms Obsidian-style image references (![[image.png]]) to Hugo-compatible
+# markdown format (![alt](path/to/image.png)).
+#
+# Usage:
+#   blog_process_images
+#
+# Returns:
+#   0 - Image processing completed successfully
+#   1 - Python unavailable, script missing, or processing failed
+#
+# Dependencies:
+#   python3 - Python 3 interpreter
+#   BLOG_IMAGES_SCRIPT - Python script for image processing
+# -----------------------------------------------------------------------------
 blog_process_images() {
     blog_info "${C_BOLD}=== Image Processing ===${C_RESET}"
 
@@ -739,8 +1131,27 @@ blog_process_images() {
     fi
 }
 
-# Builds the Hugo static site.
-# Generates the final website in the 'public' directory.
+# -----------------------------------------------------------------------------
+# blog_build_hugo
+# -----------------------------------------------------------------------------
+# Builds the Hugo static site from markdown content.
+# Generates HTML, CSS, JavaScript, and assets in the 'public' directory
+# ready for deployment. Verifies build success by checking output directory.
+#
+# Usage:
+#   blog_build_hugo
+#
+# Returns:
+#   0 - Hugo build completed and public directory created
+#   1 - Hugo unavailable, build failed, or public directory missing
+#
+# Side Effects:
+#   - Creates/updates 'public' directory in BLOG_DIR
+#   - Reports count of generated files
+#
+# Dependencies:
+#   hugo - Hugo static site generator
+# -----------------------------------------------------------------------------
 blog_build_hugo() {
     blog_info "${C_BOLD}=== Hugo Site Build ===${C_RESET}"
 
@@ -775,8 +1186,27 @@ blog_build_hugo() {
     fi
 }
 
-# Commits all changes to the Git repository.
-# Creates a timestamped commit with all modifications.
+# -----------------------------------------------------------------------------
+# blog_commit_changes
+# -----------------------------------------------------------------------------
+# Commits all changes to the Git repository with timestamped message.
+# Stages all modified, new, and deleted files. Skips commit if working
+# directory is clean.
+#
+# Usage:
+#   blog_commit_changes
+#
+# Returns:
+#   0 - Changes committed or no changes to commit
+#   1 - Git repository not initialized or commit failed
+#
+# Side Effects:
+#   - Stages all changes with git add
+#   - Creates commit with platform-specific timestamp
+#
+# Dependencies:
+#   git - Git version control system
+# -----------------------------------------------------------------------------
 blog_commit_changes() {
     blog_info "${C_BOLD}=== Commit Changes ===${C_RESET}"
 
@@ -826,7 +1256,23 @@ blog_commit_changes() {
     return 0
 }
 
-# Pushes committed changes to the main branch on the remote repository.
+# -----------------------------------------------------------------------------
+# blog_push_main
+# -----------------------------------------------------------------------------
+# Pushes committed changes to the main branch on remote repository.
+# Ensures main branch exists and switches to it before pushing.
+# Creates main branch if it doesn't exist.
+#
+# Usage:
+#   blog_push_main
+#
+# Returns:
+#   0 - Push completed successfully
+#   1 - Branch creation/switch failed or push failed
+#
+# Dependencies:
+#   git - Git version control system
+# -----------------------------------------------------------------------------
 blog_push_main() {
     blog_info "${C_BOLD}=== Push to Main Branch ===${C_RESET}"
 
@@ -874,8 +1320,28 @@ blog_push_main() {
     fi
 }
 
-# Deploys the Hugo-generated public directory to the Hostinger branch.
-# Uses git subtree to create a deployment-specific branch.
+# -----------------------------------------------------------------------------
+# blog_deploy_hostinger
+# -----------------------------------------------------------------------------
+# Deploys Hugo-generated public directory to Hostinger hosting branch.
+# Uses git subtree to split public directory into separate deployment branch.
+# Force-pushes to hostinger branch for clean deployment.
+#
+# Usage:
+#   blog_deploy_hostinger
+#
+# Returns:
+#   0 - Deployment completed successfully
+#   1 - Public directory missing, subtree creation failed, or push failed
+#
+# Side Effects:
+#   - Creates temporary hostinger-deploy branch
+#   - Force-pushes to remote hostinger branch
+#   - Cleans up temporary branch after deployment
+#
+# Dependencies:
+#   git - Git version control system with subtree support
+# -----------------------------------------------------------------------------
 blog_deploy_hostinger() {
     blog_info "${C_BOLD}=== Deploy to Hostinger ===${C_RESET}"
 
@@ -937,8 +1403,25 @@ blog_deploy_hostinger() {
 # +++++++++++++++++++++++++ Orchestration functions ++++++++++++++++++++++++++ #
 # ============================================================================ #
 
-# Executes all blog automation steps in sequence.
-# Provides complete blog update workflow from sync to deployment.
+# -----------------------------------------------------------------------------
+# blog_run_all
+# -----------------------------------------------------------------------------
+# Orchestrates complete blog automation workflow from sync to deployment.
+# Executes all blog automation steps in sequence with timing and error tracking.
+# Stops on first error and reports which step failed.
+#
+# Usage:
+#   blog_run_all
+#
+# Returns:
+#   0 - All steps completed successfully
+#   1 - One or more steps failed
+#
+# Side Effects:
+#   - Executes all blog workflow functions in order
+#   - Cleans up old backups on success
+#   - Reports total execution time
+# -----------------------------------------------------------------------------
 blog_run_all() {
     blog_info "${C_BOLD}${C_MAGENTA}=== Starting Complete Blog Automation Process ===${C_RESET}"
 
@@ -991,8 +1474,23 @@ blog_run_all() {
 # ++++++++++++++++++++++++ Utility and help functions ++++++++++++++++++++++++ #
 # ============================================================================ #
 
-# Shows current system status and configuration.
-# Useful for debugging and system verification.
+# -----------------------------------------------------------------------------
+# blog_status
+# -----------------------------------------------------------------------------
+# Displays comprehensive system status and configuration information.
+# Shows platform details, paths, dependency checks, and location validation.
+# Useful for debugging, troubleshooting, and verifying setup.
+#
+# Usage:
+#   blog_status
+#
+# Returns:
+#   0 - Always succeeds (informational only)
+#
+# Side Effects:
+#   - Loads default configuration for display
+#   - Does not require location validation
+# -----------------------------------------------------------------------------
 blog_status() {
     blog_info "${C_BOLD}=== Blog Automation Status ===${C_RESET}"
 
@@ -1055,7 +1553,19 @@ blog_status() {
     fi
 }
 
-# Shows comprehensive help information.
+# -----------------------------------------------------------------------------
+# blog_help
+# -----------------------------------------------------------------------------
+# Displays comprehensive help information for blog automation script.
+# Shows usage examples, available functions, environment variables,
+# restrictions, and configuration file locations.
+#
+# Usage:
+#   blog_help
+#
+# Returns:
+#   0 - Always succeeds
+# -----------------------------------------------------------------------------
 blog_help() {
     cat << EOF
 ${C_BOLD}Blog Automation Script v$VERSION - System: $PLATFORM${C_RESET}
