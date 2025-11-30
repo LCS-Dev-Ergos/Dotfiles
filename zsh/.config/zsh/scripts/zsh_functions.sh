@@ -39,9 +39,9 @@ function weather() {
     local location="${1:-Bari}"
     local cache_file="/tmp/weather_${location}.cache"
     local current_time=$(date +%s)
-    local cache_age=3600 # 1 hour cache
+    local cache_age=3600 # 1 hour cache.
 
-    # Check if cache exists and is fresh
+    # Check if cache exists and is fresh.
     if [[ -f "$cache_file" ]]; then
         local file_time=$(stat -c %Y "$cache_file" 2>/dev/null || stat -f %m "$cache_file" 2>/dev/null)
         if [[ $((current_time - file_time)) -lt $cache_age ]]; then
@@ -50,7 +50,7 @@ function weather() {
         fi
     fi
 
-    # Fetch new data
+    # Fetch new data.
     if curl -s --fail --connect-timeout 5 "https://wttr.in/${location}?lang=it" >"$cache_file"; then
         cat "$cache_file"
     else
@@ -88,7 +88,9 @@ function bak() {
         return 1
     fi
 
+    # Check if file exists.
     if [[ -f "$1" ]]; then
+        # Create backup with timestamp.
         local backup_file="${1}.$(date +'%Y-%m-%d_%H-%M-%S').bak"
         if cp -p "$1" "$backup_file" 2>/dev/null; then
             echo "${C_GREEN}Backup created: ${backup_file}${C_RESET}"
@@ -126,7 +128,7 @@ function fkill() {
 
     local pid
     # Use ps to get processes, pipe to fzf for selection, and awk to get the PID.
-    # Added -r to read to prevent backslash interpretation
+    # Added -r to read to prevent backslash interpretation.
     pid=$(ps -ef | sed 1d | fzf -m --tac --header='Select process(es) to kill. Press CTRL-C to cancel' | awk '{print $2}')
 
     if [[ -n "$pid" ]]; then

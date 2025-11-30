@@ -43,9 +43,36 @@
 # When sourced by zsh during shell startup, expose helper commands and avoid changing shell options.
 if [[ -n "${ZSH_VERSION:-}" && "${BASH_SOURCE[0]:-}" != "$0" ]]; then
     UTM_UBUNTU_SCRIPT_PATH="${(%):-%N}"
+
+    # -------------------------------------------------------------------------
+    # utm_ubuntu_start
+    # -------------------------------------------------------------------------
+    # Wrapper to run the script via bash when sourced in zsh contexts.
+    #
+    # Usage:
+    #   utm_ubuntu_start [--no-login]
+    #
+    # Returns:
+    #   0 - Success
+    #
+    # Side Effects:
+    #   - Invokes the main script logic in a bash subprocess.
+    # -------------------------------------------------------------------------
     utm_ubuntu_start() {
         bash "${UTM_UBUNTU_SCRIPT_PATH}" "$@"
     }
+
+    # -------------------------------------------------------------------------
+    # utm_ubuntu_login
+    # -------------------------------------------------------------------------
+    # Opens an SSH session to the configured UTM guest.
+    #
+    # Usage:
+    #   utm_ubuntu_login
+    #
+    # Returns:
+    #   0 - Success if ssh command exits cleanly.
+    # -------------------------------------------------------------------------
     utm_ubuntu_login() {
         local ssh_host="${UTM_SSH_HOST:-Ubuntu.UTM}"
         ssh "${ssh_host}"
@@ -71,6 +98,8 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# +++++++++++++++++++++++++++++ LOCAL VARIABLES ++++++++++++++++++++++++++++++ #
+
 # VM name (as known by utmctl) and associated SSH host (configurable via env)
 VM_NAME="${VM_NAME:-Ubuntu}"
 SSH_HOST="${UTM_SSH_HOST:-${VM_NAME}.UTM}"
@@ -92,10 +121,65 @@ REMOTE_SUDO="${REMOTE_SUDO:-sudo -n}"
 
 START_CMD=("${UTMCTL_CMD}" start "${VM_NAME}")
 
+# -----------------------------------------------------------------------------
+# log
+# -----------------------------------------------------------------------------
+# Prints informational message to stdout.
+#
+# Usage:
+#   log "message"
+#
+# Returns:
+#   0 - Always succeeds.
+# -----------------------------------------------------------------------------
 log() { echo "$@"; }
+
+# -----------------------------------------------------------------------------
+# fail
+# -----------------------------------------------------------------------------
+# Prints error message to stderr and exits with status 1 (or provided code).
+#
+# Usage:
+#   fail "error message"
+#   fail "error message" 2  # Optional exit code
+#
+# Returns:
+#   Exits with provided status (default: 1)
+# -----------------------------------------------------------------------------
 fail() { echo "$@" >&2; exit 1; }
+
+# -----------------------------------------------------------------------------
+# require_command
+# -----------------------------------------------------------------------------
+# Ensures a required binary is available in PATH.
+#
+# Usage:
+#   require_command <command>
+#
+# Arguments:
+#   command - Command name to verify (required)
+#
+# Returns:
+#   0 - Command found.
+#   1 - Command missing (exits script via fail).
+# -----------------------------------------------------------------------------
 require_command() { command -v "$1" >/dev/null 2>&1 || fail "Required command not found: $1"; }
 
+# -----------------------------------------------------------------------------
+# describe_ssh_target
+# -----------------------------------------------------------------------------
+# Displays resolved SSH target details (host/port/user) for debugging.
+#
+# Usage:
+#   describe_ssh_target
+#
+# Returns:
+#   0 - On success or if ssh -G is unavailable.
+#
+# Side Effects:
+#   - Creates temporary file for ssh -G output.
+#   - Prints target info to stdout.
+# -----------------------------------------------------------------------------
 describe_ssh_target() {
     # Show the resolved ssh config (host, port, user) to help debugging connectivity.
     local ssh_info_file
@@ -112,6 +196,23 @@ describe_ssh_target() {
 
 FIRST_SSH_FAILURE_SHOWN=false
 LAST_SSH_ERROR=""
+
+# -----------------------------------------------------------------------------
+# is_vm_reachable
+# -----------------------------------------------------------------------------
+# Checks SSH connectivity to the VM and captures the last error.
+#
+# Usage:
+#   if is_vm_reachable; then ...; fi
+#
+# Returns:
+#   0 - SSH reachable.
+#   1 - SSH unreachable (LAST_SSH_ERROR populated).
+#
+# Side Effects:
+#   - Updates LAST_SSH_ERROR and FIRST_SSH_FAILURE_SHOWN flags.
+#   - May terminate script on host key mismatch.
+# -----------------------------------------------------------------------------
 is_vm_reachable() {
     local out
     if out=$(ssh "${SSH_OPTS[@]}" "${SSH_HOST}" exit 2>&1); then
@@ -132,6 +233,22 @@ is_vm_reachable() {
     return 1
 }
 
+# -----------------------------------------------------------------------------
+# start_vm_if_needed
+# -----------------------------------------------------------------------------
+# Starts the UTM VM if SSH is not yet reachable.
+#
+# Usage:
+#   start_vm_if_needed
+#
+# Returns:
+#   0 - VM already running or successfully started.
+#   1 - On start failure (script exits).
+#
+# Side Effects:
+#   - Invokes utmctl start.
+#   - Writes logs to stdout/stderr.
+# -----------------------------------------------------------------------------
 start_vm_if_needed() {
     log "Checking if the VM is already running (SSH check on ${SSH_HOST})..."
     if is_vm_reachable; then
@@ -153,6 +270,22 @@ start_vm_if_needed() {
     fi
 }
 
+# -----------------------------------------------------------------------------
+# wait_for_vm
+# -----------------------------------------------------------------------------
+# Waits until the VM accepts SSH connections or times out.
+#
+# Usage:
+#   wait_for_vm
+#
+# Returns:
+#   0 - VM reachable within timeout.
+#   1 - On timeout (script exits).
+#
+# Side Effects:
+#   - Prints progress dots.
+#   - Calls fail on timeout.
+# -----------------------------------------------------------------------------
 wait_for_vm() {
     log "Waiting for the VM to be available (SSH check on ${SSH_HOST})..."
     elapsed=0
@@ -168,6 +301,22 @@ wait_for_vm() {
     log "The VM is ready!"
 }
 
+# -----------------------------------------------------------------------------
+# mount_shared_directory
+# -----------------------------------------------------------------------------
+# Mounts the configured virtiofs shared directory inside the guest.
+#
+# Usage:
+#   mount_shared_directory
+#
+# Returns:
+#   0 - Mount succeeded or already mounted.
+#   1 - On mount failure (script exits).
+#
+# Side Effects:
+#   - Executes remote mkdir/mount via SSH and sudo.
+#   - Emits log output and failure messages.
+# ----------------------------------------------------------------------------
 mount_shared_directory() {
     log "Mounting the shared directory on the VM..."
     local mount_output
@@ -211,6 +360,25 @@ EOF
     fi
 }
 
+# -----------------------------------------------------------------------------
+# main
+# -----------------------------------------------------------------------------
+# Orchestrates VM start/wait, shared mount, and optional login.
+#
+# Usage:
+#   main "$@"
+#
+# Arguments:
+#   $@ - Script options (currently supports --no-login).
+#
+# Returns:
+#   0 - Success.
+#   1 - On failures during checks/mounts (script exits via fail).
+#
+# Side Effects:
+#   - Validates commands, starts VM, waits for SSH, mounts share.
+#   - Executes ssh login when AUTO_LOGIN is true.
+# -----------------------------------------------------------------------------
 main() {
     require_command "${UTMCTL_CMD}"
     require_command ssh

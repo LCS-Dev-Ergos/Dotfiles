@@ -42,11 +42,11 @@
 #   _toolchain_info_init_colors
 #
 # Returns:
-#   0 - Always succeeds
+#   0 - Always succeeds.
 #
 # Side Effects:
 #   - Sets global color variables: C_RESET, C_BOLD, C_RED, C_GREEN, etc.
-#   - Temporarily disables VERBOSE and SOURCE_TRACE options
+#   - Temporarily disables VERBOSE and SOURCE_TRACE options.
 # -----------------------------------------------------------------------------
 _toolchain_info_init_colors() {
     # Preserve xtrace state.
@@ -88,12 +88,8 @@ _toolchain_info_init_colors() {
 #   0 - Always succeeds
 #
 # Side Effects:
-#   - Outputs platform string to stdout
-#   - Temporarily disables VERBOSE and SOURCE_TRACE options
-#
-# Dependencies:
-#   uname - System information utility
-#   lsb_release - Linux distribution info (optional)
+#   - Outputs platform string to stdout.
+#   - Temporarily disables VERBOSE and SOURCE_TRACE options.
 # -----------------------------------------------------------------------------
 _toolchain_detect_platform() {
     # Preserve xtrace state.
@@ -126,11 +122,11 @@ _toolchain_detect_platform() {
 #   filtered_path=$(_toolchain_path_without_ccache)
 #
 # Returns:
-#   0 - Always succeeds
+#   0 - Always succeeds.
 #
 # Side Effects:
-#   - Outputs filtered PATH to stdout (colon-separated)
-#   - Temporarily disables VERBOSE and SOURCE_TRACE options
+#   - Outputs filtered PATH to stdout (colon-separated).
+#   - Temporarily disables VERBOSE and SOURCE_TRACE options.
 # -----------------------------------------------------------------------------
 _toolchain_path_without_ccache() {
     # Preserve xtrace state.
@@ -158,19 +154,19 @@ _toolchain_path_without_ccache() {
 #   real_path=$(_toolchain_portable_realpath <target>)
 #
 # Arguments:
-#   target - File or symlink path to resolve (required)
+#   target - File or symlink path to resolve (required).
 #
 # Returns:
-#   0 - Always succeeds (returns original path if resolution fails)
+#   0 - Always succeeds (returns original path if resolution fails).
 #
 # Side Effects:
-#   - Outputs resolved path to stdout
-#   - Temporarily disables VERBOSE and SOURCE_TRACE options
+#   - Outputs resolved path to stdout.
+#   - Temporarily disables VERBOSE and SOURCE_TRACE options.
 #
 # Dependencies:
-#   realpath - GNU coreutils (preferred, optional)
-#   python3 - Python 3 interpreter (fallback, optional)
-#   readlink - Symlink reader (fallback, optional)
+#   realpath - GNU coreutils (preferred, optional).
+#   python3 - Python 3 interpreter (fallback, optional).
+#   readlink - Symlink reader (fallback, optional).
 # -----------------------------------------------------------------------------
 _toolchain_portable_realpath() {
     # Preserve xtrace state.
@@ -212,16 +208,16 @@ PY
 #   binary=$(_toolchain_find_in_path <name> [search_path])
 #
 # Arguments:
-#   name - Binary name to search for (required)
-#   search_path - Colon-separated path list (optional, default: $PATH)
+#   name - Binary name to search for (required).
+#   search_path - Colon-separated path list (optional, default: $PATH).
 #
 # Returns:
-#   0 - Binary found (outputs path to stdout)
-#   1 - Binary not found
+#   0 - Binary found (outputs path to stdout).
+#   1 - Binary not found.
 #
 # Side Effects:
-#   - Outputs binary path to stdout on success
-#   - Temporarily disables VERBOSE and SOURCE_TRACE options
+#   - Outputs binary path to stdout on success.
+#   - Temporarily disables VERBOSE and SOURCE_TRACE options.
 # -----------------------------------------------------------------------------
 _toolchain_find_in_path() {
     # Preserve xtrace state.
@@ -249,18 +245,18 @@ _toolchain_find_in_path() {
 #   real_compiler=$(_toolchain_resolve_real_compiler <compiler_path>)
 #
 # Arguments:
-#   compiler_path - Compiler binary path to resolve (required)
+#   compiler_path - Compiler binary path to resolve (required).
 #
 # Returns:
-#   0 - Always succeeds
+#   0 - Always succeeds.
 #
 # Side Effects:
-#   - Outputs resolved compiler path to stdout
-#   - Preserves xtrace state
+#   - Outputs resolved compiler path to stdout.
+#   - Preserves xtrace state.
 #
 # Dependencies:
-#   _toolchain_portable_realpath - Path resolution function
-#   _toolchain_path_without_ccache - ccache filter function
+#   _toolchain_portable_realpath - Path resolution function.
+#   _toolchain_path_without_ccache - ccache filter function.
 # -----------------------------------------------------------------------------
 _toolchain_resolve_real_compiler() {
     # Preserve xtrace state.
@@ -311,15 +307,15 @@ _toolchain_resolve_real_compiler() {
 #   vendor=$(_toolchain_vendor_for_gcc <version_info> <compiler_path>)
 #
 # Arguments:
-#   version_info - Output from compiler --version (required)
-#   compiler_path - Full path to compiler binary (required)
+#   version_info - Output from compiler --version (required).
+#   compiler_path - Full path to compiler binary (required).
 #
 # Returns:
-#   0 - Always succeeds
+#   0 - Always succeeds.
 #
 # Side Effects:
-#   - Outputs vendor string to stdout
-#   - Temporarily disables VERBOSE and SOURCE_TRACE options
+#   - Outputs vendor string to stdout.
+#   - Temporarily disables VERBOSE and SOURCE_TRACE options.
 # -----------------------------------------------------------------------------
 _toolchain_vendor_for_gcc() {
     # Preserve xtrace state.
@@ -353,15 +349,15 @@ _toolchain_vendor_for_gcc() {
 #   vendor=$(_toolchain_vendor_for_clang <version_info> <compiler_path>)
 #
 # Arguments:
-#   version_info - Output from compiler --version (required)
-#   compiler_path - Full path to compiler binary (required)
+#   version_info - Output from compiler --version (required).
+#   compiler_path - Full path to compiler binary (required).
 #
 # Returns:
-#   0 - Always succeeds
+#   0 - Always succeeds.
 #
 # Side Effects:
-#   - Outputs vendor string to stdout
-#   - Preserves xtrace state
+#   - Outputs vendor string to stdout.
+#   - Preserves xtrace state.
 # -----------------------------------------------------------------------------
 _toolchain_vendor_for_clang() {
     # Preserve xtrace state.
@@ -396,19 +392,14 @@ _toolchain_vendor_for_clang() {
 #   IFS='|' read -r type vendor version <<<"$details"
 #
 # Arguments:
-#   compiler_path - Full path to compiler binary (required)
+#   compiler_path - Full path to compiler binary (required).
 #
 # Returns:
-#   0 - Always succeeds
+#   0 - Always succeeds.
 #
 # Side Effects:
-#   - Outputs type|vendor|version to stdout
-#   - Preserves xtrace state
-#
-# Output Format:
-#   Clang|Apple|Apple clang version 15.0.0
-#   GCC|Homebrew GNU|gcc (Homebrew GCC 14.1.0)
-#   Unknown||Version information unavailable
+#   - Outputs type|vendor|version to stdout.
+#   - Preserves xtrace state.
 # -----------------------------------------------------------------------------
 _toolchain_compiler_details() {
     # Preserve xtrace state.
@@ -418,6 +409,7 @@ _toolchain_compiler_details() {
     local compiler_path="$1"
     local version_info toolchain_type="Unknown" vendor=""
 
+    # Get version information.
     if ! version_info=$("$compiler_path" --version 2>/dev/null | head -n 1); then
         version_info="Version information unavailable"
         printf "%s|%s|%s\n" "$toolchain_type" "$vendor" "$version_info"
@@ -426,6 +418,7 @@ _toolchain_compiler_details() {
 
     version_info="${version_info//$'\r'/}"
 
+    # Determine toolchain type and vendor.
     if [[ "$version_info" == *"Apple clang"* || "$version_info" == *"clang version"* ]]; then
         toolchain_type="Clang"
         vendor=$(_toolchain_vendor_for_clang "$version_info" "$compiler_path")
@@ -452,18 +445,18 @@ _toolchain_compiler_details() {
 #   TOOLCHAIN_INFO_DEBUG=1 get_toolchain_info  # Enable debug logging
 #
 # Returns:
-#   0 - Always succeeds
+#   0 - Always succeeds.
 #
 # Side Effects:
-#   - Prints formatted toolchain report to stdout
-#   - Reads environment variables: CC, CXX, TOOLCHAIN_INFO_DEBUG, PATH
+#   - Prints formatted toolchain report to stdout.
+#   - Reads environment variables: CC, CXX, TOOLCHAIN_INFO_DEBUG, PATH.
 #
 # Dependencies:
-#   _toolchain_info_init_colors - Color setup helper
-#   _toolchain_detect_platform - Platform identification helper
-#   _toolchain_resolve_real_compiler - Wrapper resolution helper
-#   _toolchain_compiler_details - Compiler info parser
-#   brew/find/command/uname - External utilities used for detection
+#   _toolchain_info_init_colors - Color setup helper.
+#   _toolchain_detect_platform - Platform identification helper.
+#   _toolchain_resolve_real_compiler - Wrapper resolution helper.
+#   _toolchain_compiler_details - Compiler info parser.
+#   brew/find/command/uname - External utilities used for detection.
 # -----------------------------------------------------------------------------
 get_toolchain_info() {
     # Preserve xtrace state.

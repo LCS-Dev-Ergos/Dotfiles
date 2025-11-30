@@ -105,11 +105,11 @@ BLOG_LOG_DIR="${BLOG_LOG_DIR:-$ALLOWED_BLOG_ROOT/logs}"
 #   _blog_init_logging
 #
 # Returns:
-#   0 - Always succeeds (uses stdout as fallback)
+#   0 - Always succeeds (uses stdout as fallback).
 #
 # Side Effects:
-#   - Creates BLOG_LOG_DIR if it doesn't exist
-#   - Sets BLOG_LOG_FILE global variable
+#   - Creates BLOG_LOG_DIR if it doesn't exist.
+#   - Sets BLOG_LOG_FILE global variable.
 # -----------------------------------------------------------------------------
 _blog_init_logging() {
     if [[ -z "$BLOG_LOG_FILE" ]]; then
@@ -132,16 +132,16 @@ _blog_init_logging() {
 #   blog_log <level> <message>
 #
 # Arguments:
-#   level - Log level: INFO, WARN, ERROR, DEBUG, SUCCESS (required)
-#   message - Log message text (required)
+#   level - Log level: INFO, WARN, ERROR, DEBUG, SUCCESS (required).
+#   message - Log message text (required).
 #
 # Returns:
-#   0 - Always succeeds
+#   0 - Always succeeds.
 #
 # Side Effects:
-#   - Initializes logging if not already done
-#   - Writes to BLOG_LOG_FILE
-#   - Outputs colored text to terminal
+#   - Initializes logging if not already done.
+#   - Writes to BLOG_LOG_FILE.
+#   - Outputs colored text to terminal.
 # -----------------------------------------------------------------------------
 blog_log() {
     local level="$1"
@@ -189,10 +189,10 @@ blog_log() {
 #   blog_debug <message>  # Only logs when BLOG_VERBOSE=true
 #
 # Arguments:
-#   message - Log message text (required)
+#   message - Log message text (required).
 #
 # Returns:
-#   0 - Always succeeds
+#   0 - Always succeeds.
 # -----------------------------------------------------------------------------
 blog_info() { blog_log "INFO" "$1"; }
 blog_warn() { blog_log "WARN" "$1"; }
@@ -217,11 +217,11 @@ blog_debug() {
 #   blog_validate_location
 #
 # Returns:
-#   0 - Current directory is within allowed blog root
-#   1 - Directory validation failed or unsupported platform
+#   0 - Current directory is within allowed blog root.
+#   1 - Directory validation failed or unsupported platform.
 #
 # Dependencies:
-#   ALLOWED_BLOG_ROOT - Must be set by platform detection
+#   ALLOWED_BLOG_ROOT - Must be set by platform detection.
 # -----------------------------------------------------------------------------
 blog_validate_location() {
     if [[ -z "$ALLOWED_BLOG_ROOT" ]]; then
@@ -261,12 +261,12 @@ blog_validate_location() {
 #   blog_validate_path <path> <description>
 #
 # Arguments:
-#   path - File or directory path to validate (required)
-#   description - Human-readable path description for error messages (required)
+#   path - File or directory path to validate (required).
+#   description - Human-readable path description for error messages (required).
 #
 # Returns:
-#   0 - Path is valid and secure
-#   1 - Path contains dangerous characters or is not absolute
+#   0 - Path is valid and secure.
+#   1 - Path contains dangerous characters or is not absolute.
 # -----------------------------------------------------------------------------
 blog_validate_path() {
     local path="$1"
@@ -305,10 +305,10 @@ BLOG_CONFIG_FILE="${ALLOWED_BLOG_ROOT}/blog_config.conf"
 #   blog_set_defaults
 #
 # Returns:
-#   0 - Always succeeds
+#   0 - Always succeeds.
 #
 # Side Effects:
-#   - Sets all BLOG_* global variables with platform-specific defaults
+#   - Sets all BLOG_* global variables with platform-specific defaults.
 # -----------------------------------------------------------------------------
 blog_set_defaults() {
     # Main directories.
@@ -351,12 +351,12 @@ blog_set_defaults() {
 #   blog_load_config
 #
 # Returns:
-#   0 - Configuration loaded and validated successfully
-#   1 - Path validation failed
+#   0 - Configuration loaded and validated successfully.
+#   1 - Path validation failed.
 #
 # Side Effects:
-#   - Sources BLOG_CONFIG_FILE if it exists
-#   - Creates config template if file missing
+#   - Sources BLOG_CONFIG_FILE if it exists.
+#   - Creates config template if file missing.
 # -----------------------------------------------------------------------------
 blog_load_config() {
     blog_set_defaults
@@ -386,12 +386,12 @@ blog_load_config() {
 #   blog_create_config_template
 #
 # Returns:
-#   0 - Template created successfully or in dry-run mode
-#   1 - Not applicable (function always succeeds)
+#   0 - Template created successfully or in dry-run mode.
+#   1 - Not applicable (function always succeeds).
 #
 # Side Effects:
-#   - Creates BLOG_CONFIG_FILE with default values
-#   - Respects BLOG_DRY_RUN mode
+#   - Creates BLOG_CONFIG_FILE with default values.
+#   - Respects BLOG_DRY_RUN mode.
 # -----------------------------------------------------------------------------
 blog_create_config_template() {
     if [[ "$BLOG_DRY_RUN" == "true" ]]; then
@@ -451,16 +451,16 @@ EOF
 #   blog_create_backup <source_directory> <backup_name>
 #
 # Arguments:
-#   source_directory - Directory to backup (required)
-#   backup_name - Descriptive name for backup (required)
+#   source_directory - Directory to backup (required).
+#   backup_name - Descriptive name for backup (required).
 #
 # Returns:
-#   0 - Backup created successfully
-#   1 - Source directory doesn't exist or copy failed
+#   0 - Backup created successfully.
+#   1 - Source directory doesn't exist or copy failed.
 #
 # Side Effects:
-#   - Creates BLOG_BACKUP_DIR if needed
-#   - Outputs backup path to stdout on success
+#   - Creates BLOG_BACKUP_DIR if needed.
+#   - Outputs backup path to stdout on success.
 # -----------------------------------------------------------------------------
 blog_create_backup() {
     local source_dir="$1"
@@ -500,13 +500,13 @@ blog_create_backup() {
 #   blog_cleanup_backups
 #
 # Returns:
-#   0 - Always succeeds
+#   0 - Always succeeds.
 #
 # Side Effects:
-#   - Deletes oldest backup directories exceeding retention limit
+#   - Deletes oldest backup directories exceeding retention limit.
 #
 # Dependencies:
-#   BLOG_KEEP_BACKUPS - Number of backups to retain
+#   BLOG_KEEP_BACKUPS - Number of backups to retain.
 # -----------------------------------------------------------------------------
 blog_cleanup_backups() {
     if [[ "$BLOG_DRY_RUN" == "true" ]]; then
@@ -539,11 +539,11 @@ blog_cleanup_backups() {
 #   blog_check_command <command_name>
 #
 # Arguments:
-#   command_name - Name of command to check (required)
+#   command_name - Name of command to check (required).
 #
 # Returns:
-#   0 - Command found in PATH
-#   1 - Command not found
+#   0 - Command found in PATH.
+#   1 - Command not found.
 # -----------------------------------------------------------------------------
 blog_check_command() {
     local cmd="$1"
@@ -566,13 +566,13 @@ blog_check_command() {
 #   blog_check_dir <directory> <description> [create_if_missing]
 #
 # Arguments:
-#   directory - Directory path to check (required)
-#   description - Human-readable description for logging (required)
-#   create_if_missing - Create if doesn't exist: true/false (optional, default: false)
+#   directory - Directory path to check (required).
+#   description - Human-readable description for logging (required).
+#   create_if_missing - Create if doesn't exist: true/false (optional, default: false).
 #
 # Returns:
-#   0 - Directory exists or was created successfully
-#   1 - Directory doesn't exist and creation failed/disabled
+#   0 - Directory exists or was created successfully.
+#   1 - Directory doesn't exist and creation failed/disabled.
 # -----------------------------------------------------------------------------
 blog_check_dir() {
     local dir="$1"
@@ -610,12 +610,12 @@ blog_check_dir() {
 #   blog_check_file <file_path> <description>
 #
 # Arguments:
-#   file_path - Path to file (required)
-#   description - Human-readable description for logging (required)
+#   file_path - Path to file (required).
+#   description - Human-readable description for logging (required).
 #
 # Returns:
-#   0 - File exists
-#   1 - File not found
+#   0 - File exists.
+#   1 - File not found.
 # -----------------------------------------------------------------------------
 blog_check_file() {
     local file="$1"
@@ -640,16 +640,16 @@ blog_check_file() {
 #   blog_run_with_timeout <timeout_seconds> <description> <command> [args...]
 #
 # Arguments:
-#   timeout_seconds - Maximum execution time in seconds (required)
-#   description - Human-readable operation description (required)
-#   command - Command to execute (required)
-#   args - Command arguments (optional)
+#   timeout_seconds - Maximum execution time in seconds (required).
+#   description - Human-readable operation description (required).
+#   command - Command to execute (required).
+#   args - Command arguments (optional).
 #
 # Returns:
-#   Exit code of the executed command
+#   Exit code of the executed command.
 #
 # Dependencies:
-#   timeout - GNU timeout command (optional, graceful degradation)
+#   timeout - GNU timeout command (optional, graceful degradation).
 # -----------------------------------------------------------------------------
 blog_run_with_timeout() {
     local timeout="$1"
@@ -689,14 +689,14 @@ blog_run_with_timeout() {
 #   blog_detect_git_changes
 #
 # Returns:
-#   0 - Changes detected or no Git repo (treats all as changed)
-#   1 - No changes detected
+#   0 - Changes detected or no Git repo (treats all as changed).
+#   1 - No changes detected.
 #
 # Side Effects:
-#   - Sets BLOG_CHANGED_FILES array with list of changed markdown files
+#   - Sets BLOG_CHANGED_FILES array with list of changed markdown files.
 #
 # Dependencies:
-#   git - Git version control system
+#   git - Git version control system.
 # -----------------------------------------------------------------------------
 blog_detect_git_changes() {
     local current_dir="$(pwd)"
@@ -755,16 +755,16 @@ blog_detect_git_changes() {
 #   blog_detect_hash_changes
 #
 # Returns:
-#   0 - Hash generation completed successfully
-#   1 - Python not available or hash generation failed
+#   0 - Hash generation completed successfully.
+#   1 - Python not available or hash generation failed.
 #
 # Side Effects:
-#   - Creates/updates BLOG_HASH_FILE
-#   - Backs up previous hash file
+#   - Creates/updates BLOG_HASH_FILE.
+#   - Backs up previous hash file.
 #
 # Dependencies:
-#   python3 - Python 3 interpreter
-#   BLOG_HASH_GENERATOR - Python script for hash generation
+#   python3 - Python 3 interpreter.
+#   BLOG_HASH_GENERATOR - Python script for hash generation.
 # -----------------------------------------------------------------------------
 blog_detect_hash_changes() {
     blog_info "Using hash-based change detection"
@@ -810,8 +810,8 @@ blog_detect_hash_changes() {
 #   _blog_ensure_valid_location
 #
 # Returns:
-#   0 - Location valid and configuration loaded
-#   1 - Validation or configuration loading failed
+#   0 - Location valid and configuration loaded.
+#   1 - Validation or configuration loading failed.
 # -----------------------------------------------------------------------------
 _blog_ensure_valid_location() {
     if ! blog_validate_location; then
@@ -834,14 +834,14 @@ _blog_ensure_valid_location() {
 #   blog_backup_before_sync <destination_path>
 #
 # Arguments:
-#   destination_path - Directory to backup before sync (required)
+#   destination_path - Directory to backup before sync (required).
 #
 # Returns:
-#   0 - Always succeeds (backup is optional safety measure)
+#   0 - Always succeeds (backup is optional safety measure).
 #
 # Side Effects:
-#   - Outputs backup path to stdout if backup created
-#   - Outputs empty string if no backup needed
+#   - Outputs backup path to stdout if backup created.
+#   - Outputs empty string if no backup needed.
 # -----------------------------------------------------------------------------
 blog_backup_before_sync() {
     local dest_path="$1"
@@ -868,24 +868,26 @@ blog_backup_before_sync() {
 #   blog_init_git
 #
 # Returns:
-#   0 - Git repository initialized and configured
-#   1 - Git initialization or remote configuration failed
+#   0 - Git repository initialized and configured.
+#   1 - Git initialization or remote configuration failed.
 #
 # Dependencies:
-#   git - Git version control system
-#   BLOG_REPO_URL - Remote repository URL
+#   git - Git version control system.
+#   BLOG_REPO_URL - Remote repository URL.
 # -----------------------------------------------------------------------------
 blog_init_git() {
     blog_info "${C_BOLD}=== Git Initialization ===${C_RESET}"
 
     _blog_ensure_valid_location || return 1
 
+    # Change to blog repository directory.
     local current_dir="$(pwd)"
     cd "$BLOG_REPO_PATH" || {
         blog_error "Cannot access: $BLOG_REPO_PATH"
         return 1
     }
 
+    # Initialize Git repository if not present.
     if [[ ! -d ".git" ]]; then
         blog_info "Initializing new Git repository"
         blog_run_with_timeout $BLOG_GIT_TIMEOUT "git init" git init || {
@@ -925,16 +927,16 @@ blog_init_git() {
 #   blog_sync_posts
 #
 # Returns:
-#   0 - Synchronization completed successfully
-#   1 - Source/destination validation failed or rsync failed
+#   0 - Synchronization completed successfully.
+#   1 - Source/destination validation failed or rsync failed.
 #
 # Side Effects:
-#   - Creates destination directory if it doesn't exist
-#   - Deletes files in destination not present in source
-#   - Attempts recovery from backup on failure
+#   - Creates destination directory if it doesn't exist.
+#   - Deletes files in destination not present in source.
+#   - Attempts recovery from backup on failure.
 #
 # Dependencies:
-#   rsync - File synchronization tool
+#   rsync - File synchronization tool.
 # -----------------------------------------------------------------------------
 blog_sync_posts() {
     blog_info "${C_BOLD}=== Posts Synchronization ===${C_RESET}"
@@ -992,17 +994,18 @@ blog_sync_posts() {
 #   blog_detect_changes
 #
 # Returns:
-#   0 - Change detection completed (delegates to selected method)
-#   1 - Location validation failed
+#   0 - Change detection completed (delegates to selected method).
+#   1 - Location validation failed.
 #
 # Dependencies:
-#   BLOG_CHANGE_DETECTION - Detection method: 'git' or 'hash'
+#   BLOG_CHANGE_DETECTION - Detection method: 'git' or 'hash'.
 # -----------------------------------------------------------------------------
 blog_detect_changes() {
     blog_info "${C_BOLD}=== Change Detection ===${C_RESET}"
 
     _blog_ensure_valid_location || return 1
 
+    # Determine detection method.
     case "$BLOG_CHANGE_DETECTION" in
         "git")
             blog_info "Using Git-based change detection"
@@ -1031,13 +1034,13 @@ blog_detect_changes() {
 #   blog_update_frontmatter
 #
 # Returns:
-#   0 - Frontmatter update completed successfully
-#   1 - Python unavailable, script missing, or update failed
+#   0 - Frontmatter update completed successfully.
+#   1 - Python unavailable, script missing, or update failed.
 #
 # Dependencies:
-#   python3 - Python 3 interpreter
-#   BLOG_FRONTMATTER_SCRIPT - Python script for frontmatter updates
-#   BLOG_CHANGED_FILES - Array of changed files (Git mode)
+#   python3 - Python 3 interpreter.
+#   BLOG_FRONTMATTER_SCRIPT - Python script for frontmatter updates.
+#   BLOG_CHANGED_FILES - Array of changed files (Git mode).
 # -----------------------------------------------------------------------------
 blog_update_frontmatter() {
     blog_info "${C_BOLD}=== Frontmatter Update ===${C_RESET}"
@@ -1105,12 +1108,12 @@ blog_update_frontmatter() {
 #   blog_process_images
 #
 # Returns:
-#   0 - Image processing completed successfully
-#   1 - Python unavailable, script missing, or processing failed
+#   0 - Image processing completed successfully.
+#   1 - Python unavailable, script missing, or processing failed.
 #
 # Dependencies:
-#   python3 - Python 3 interpreter
-#   BLOG_IMAGES_SCRIPT - Python script for image processing
+#   python3 - Python 3 interpreter.
+#   BLOG_IMAGES_SCRIPT - Python script for image processing.
 # -----------------------------------------------------------------------------
 blog_process_images() {
     blog_info "${C_BOLD}=== Image Processing ===${C_RESET}"
@@ -1142,15 +1145,12 @@ blog_process_images() {
 #   blog_build_hugo
 #
 # Returns:
-#   0 - Hugo build completed and public directory created
-#   1 - Hugo unavailable, build failed, or public directory missing
+#   0 - Hugo build completed and public directory created.
+#   1 - Hugo unavailable, build failed, or public directory missing.
 #
 # Side Effects:
-#   - Creates/updates 'public' directory in BLOG_DIR
-#   - Reports count of generated files
-#
-# Dependencies:
-#   hugo - Hugo static site generator
+#   - Creates/updates 'public' directory in BLOG_DIR.
+#   - Reports count of generated files.
 # -----------------------------------------------------------------------------
 blog_build_hugo() {
     blog_info "${C_BOLD}=== Hugo Site Build ===${C_RESET}"
@@ -1197,15 +1197,12 @@ blog_build_hugo() {
 #   blog_commit_changes
 #
 # Returns:
-#   0 - Changes committed or no changes to commit
-#   1 - Git repository not initialized or commit failed
+#   0 - Changes committed or no changes to commit.
+#   1 - Git repository not initialized or commit failed.
 #
 # Side Effects:
-#   - Stages all changes with git add
-#   - Creates commit with platform-specific timestamp
-#
-# Dependencies:
-#   git - Git version control system
+#   - Stages all changes with git add.
+#   - Creates commit with platform-specific timestamp.
 # -----------------------------------------------------------------------------
 blog_commit_changes() {
     blog_info "${C_BOLD}=== Commit Changes ===${C_RESET}"
@@ -1267,11 +1264,8 @@ blog_commit_changes() {
 #   blog_push_main
 #
 # Returns:
-#   0 - Push completed successfully
-#   1 - Branch creation/switch failed or push failed
-#
-# Dependencies:
-#   git - Git version control system
+#   0 - Push completed successfully.
+#   1 - Branch creation/switch failed or push failed.
 # -----------------------------------------------------------------------------
 blog_push_main() {
     blog_info "${C_BOLD}=== Push to Main Branch ===${C_RESET}"
@@ -1331,16 +1325,16 @@ blog_push_main() {
 #   blog_deploy_hostinger
 #
 # Returns:
-#   0 - Deployment completed successfully
-#   1 - Public directory missing, subtree creation failed, or push failed
+#   0 - Deployment completed successfully.
+#   1 - Public directory missing, subtree creation failed, or push failed.
 #
 # Side Effects:
-#   - Creates temporary hostinger-deploy branch
-#   - Force-pushes to remote hostinger branch
-#   - Cleans up temporary branch after deployment
+#   - Creates temporary hostinger-deploy branch.
+#   - Force-pushes to remote hostinger branch.
+#   - Cleans up temporary branch after deployment.
 #
 # Dependencies:
-#   git - Git version control system with subtree support
+#   git - Git version control system with subtree support.
 # -----------------------------------------------------------------------------
 blog_deploy_hostinger() {
     blog_info "${C_BOLD}=== Deploy to Hostinger ===${C_RESET}"
@@ -1414,13 +1408,13 @@ blog_deploy_hostinger() {
 #   blog_run_all
 #
 # Returns:
-#   0 - All steps completed successfully
-#   1 - One or more steps failed
+#   0 - All steps completed successfully.
+#   1 - One or more steps failed.
 #
 # Side Effects:
-#   - Executes all blog workflow functions in order
-#   - Cleans up old backups on success
-#   - Reports total execution time
+#   - Executes all blog workflow functions in order.
+#   - Cleans up old backups on success.
+#   - Reports total execution time.
 # -----------------------------------------------------------------------------
 blog_run_all() {
     blog_info "${C_BOLD}${C_MAGENTA}=== Starting Complete Blog Automation Process ===${C_RESET}"
@@ -1485,11 +1479,11 @@ blog_run_all() {
 #   blog_status
 #
 # Returns:
-#   0 - Always succeeds (informational only)
+#   0 - Always succeeds (informational only).
 #
 # Side Effects:
-#   - Loads default configuration for display
-#   - Does not require location validation
+#   - Loads default configuration for display.
+#   - Does not require location validation.
 # -----------------------------------------------------------------------------
 blog_status() {
     blog_info "${C_BOLD}=== Blog Automation Status ===${C_RESET}"
@@ -1564,7 +1558,7 @@ blog_status() {
 #   blog_help
 #
 # Returns:
-#   0 - Always succeeds
+#   0 - Always succeeds.
 # -----------------------------------------------------------------------------
 blog_help() {
     cat << EOF

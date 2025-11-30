@@ -82,14 +82,11 @@ _toolchain_init_colors() {
 #   _toolchain_detect_platform
 #
 # Returns:
-#   0 - Always succeeds
+#   0 - Always succeeds.
 #
 # Side Effects:
-#   - Sets TOOLCHAIN_OS global variable
-#   - Sets TOOLCHAIN_DISTRO for Arch Linux detection
-#
-# Dependencies:
-#   uname - System information utility
+#   - Sets TOOLCHAIN_OS global variable.
+#   - Sets TOOLCHAIN_DISTRO for Arch Linux detection.
 # -----------------------------------------------------------------------------
 _toolchain_detect_platform() {
     if [[ -n "${TOOLCHAIN_OS:-}" ]]; then
@@ -140,14 +137,14 @@ fi
 #   _toolchain_log <level> <message...>
 #
 # Arguments:
-#   level - Log level: info, ok, warn, error (required)
-#   message - Log message text, supports multiple arguments (required)
+#   level - Log level: info, ok, warn, error (required).
+#   message - Log message text, supports multiple arguments (required).
 #
 # Returns:
-#   0 - Always succeeds
+#   0 - Always succeeds.
 #
 # Side Effects:
-#   - Outputs to stdout for info/ok, stderr for warn/error
+#   - Outputs to stdout for info/ok, stderr for warn/error.
 # -----------------------------------------------------------------------------
 _toolchain_log() {
     local level="$1"
@@ -170,14 +167,14 @@ _toolchain_log() {
 #   _toolchain_restore_var <name> <original_value>
 #
 # Arguments:
-#   name - Environment variable name (required)
-#   original_value - Original value or "__TOOLCHAIN_UNSET__" sentinel (required)
+#   name - Environment variable name (required).
+#   original_value - Original value or "__TOOLCHAIN_UNSET__" sentinel (required).
 #
 # Returns:
-#   0 - Always succeeds
+#   0 - Always succeeds.
 #
 # Side Effects:
-#   - Exports variable with original value or unsets it
+#   - Exports variable with original value or unsets it.
 # -----------------------------------------------------------------------------
 _toolchain_restore_var() {
     local name="$1" value="$2"
@@ -198,10 +195,10 @@ _toolchain_restore_var() {
 #   _toolchain_reset_env_to_original
 #
 # Returns:
-#   0 - Always succeeds
+#   0 - Always succeeds.
 #
 # Side Effects:
-#   - Restores or unsets compiler environment variables
+#   - Restores or unsets compiler environment variables.
 # -----------------------------------------------------------------------------
 _toolchain_reset_env_to_original() {
     _toolchain_restore_var LDFLAGS "$TOOLCHAIN_ORIGINAL_LDFLAGS"
@@ -221,14 +218,14 @@ _toolchain_reset_env_to_original() {
 #   _toolchain_set_path <bin_dir>
 #
 # Arguments:
-#   bin_dir - Toolchain binary directory or empty to restore (required)
+#   bin_dir - Toolchain binary directory or empty to restore (required).
 #
 # Returns:
-#   0 - Always succeeds
+#   0 - Always succeeds.
 #
 # Side Effects:
-#   - Exports PATH with bin_dir prepended
-#   - Sets TOOLCHAIN_ACTIVE_BIN global variable
+#   - Exports PATH with bin_dir prepended.
+#   - Sets TOOLCHAIN_ACTIVE_BIN global variable.
 # -----------------------------------------------------------------------------
 _toolchain_set_path() {
     local bin_dir="$1"
@@ -255,14 +252,14 @@ _toolchain_set_path() {
 #   prefix=$(_toolchain_get_homebrew_prefix)
 #
 # Returns:
-#   0 - Homebrew prefix found (outputs path to stdout)
-#   1 - Homebrew not found
+#   0 - Homebrew prefix found (outputs path to stdout).
+#   1 - Homebrew not found.
 #
 # Side Effects:
-#   - Outputs Homebrew prefix path to stdout on success
+#   - Outputs Homebrew prefix path to stdout on success.
 #
 # Dependencies:
-#   brew - Homebrew package manager (optional)
+#   brew - Homebrew package manager (optional).
 # -----------------------------------------------------------------------------
 _toolchain_get_homebrew_prefix() {
     if [[ -n "${HOMEBREW_PREFIX:-}" && -d "${HOMEBREW_PREFIX}" ]]; then
@@ -300,18 +297,18 @@ _toolchain_get_homebrew_prefix() {
 #   binary_path=$(_toolchain_find_best_binary <base_name> [extra_dirs...])
 #
 # Arguments:
-#   base_name - Base binary name (e.g., "gcc", "clang") (required)
-#   extra_dirs - Additional directories to search (optional)
+#   base_name - Base binary name (e.g., "gcc", "clang") (required).
+#   extra_dirs - Additional directories to search (optional).
 #
 # Returns:
-#   0 - Binary found (outputs path to stdout)
-#   1 - Binary not found (outputs nothing)
+#   0 - Binary found (outputs path to stdout).
+#   1 - Binary not found (outputs nothing).
 #
 # Side Effects:
-#   - Outputs binary path to stdout on success
+#   - Outputs binary path to stdout on success.
 #
 # Dependencies:
-#   find - File search utility
+#   find - File search utility.
 # -----------------------------------------------------------------------------
 _toolchain_find_best_binary() {
     local base="$1"
@@ -333,7 +330,7 @@ _toolchain_find_best_binary() {
             fallback="$dir/$base"
         fi
 
-        # Prefer versioned binaries (e.g., clang-17, gcc-14) without relying on shell globbing.
+        # Prefer versioned binaries (e.g., clang-20, gcc-14) without relying on shell globbing.
         while IFS= read -r candidate_path; do
             ver_str="${candidate_path##*-}"
             case "$ver_str" in
@@ -375,11 +372,11 @@ _toolchain_find_best_binary() {
 #   llvm_dir=$(_toolchain_select_llvm_bin_dir)
 #
 # Returns:
-#   0 - LLVM directory found (outputs path to stdout)
-#   1 - LLVM not found (outputs nothing)
+#   0 - LLVM directory found (outputs path to stdout).
+#   1 - LLVM not found (outputs nothing).
 #
 # Side Effects:
-#   - Outputs LLVM bin directory path to stdout on success
+#   - Outputs LLVM bin directory path to stdout on success.
 # -----------------------------------------------------------------------------
 _toolchain_select_llvm_bin_dir() {
     local -a candidates=()
@@ -433,11 +430,11 @@ _toolchain_select_llvm_bin_dir() {
 #   gcc_dir=$(_toolchain_select_gcc_bin_dir)
 #
 # Returns:
-#   0 - GCC directory found (outputs path to stdout)
-#   1 - GCC not found
+#   0 - GCC directory found (outputs path to stdout).
+#   1 - GCC not found (outputs nothing).
 #
 # Side Effects:
-#   - Outputs GCC bin directory path to stdout on success
+#   - Outputs GCC bin directory path to stdout on success.
 # -----------------------------------------------------------------------------
 _toolchain_select_gcc_bin_dir() {
     if [[ "$TOOLCHAIN_OS" == "macOS" ]]; then
@@ -475,14 +472,14 @@ _toolchain_select_gcc_bin_dir() {
 #   _toolchain_verify_compiler <compiler>
 #
 # Arguments:
-#   compiler - Compiler binary name or path (required)
+#   compiler - Compiler binary name or path (required).
 #
 # Returns:
-#   0 - Compiler found and working
-#   1 - Compiler not found or not functional
+#   0 - Compiler found and working.
+#   1 - Compiler not found or not functional.
 #
 # Side Effects:
-#   - Logs compiler version or warning message
+#   - Logs compiler version or warning message.
 # -----------------------------------------------------------------------------
 _toolchain_verify_compiler() {
     local compiler="$1"
@@ -512,21 +509,21 @@ _toolchain_verify_compiler() {
 #   use_llvm
 #
 # Returns:
-#   0 - LLVM toolchain activated successfully
-#   1 - LLVM toolchain not found
+#   0 - LLVM toolchain activated successfully.
+#   1 - LLVM toolchain not found.
 #
 # Side Effects:
-#   - Modifies PATH to prioritize LLVM bin directory
-#   - Exports CC=clang, CXX=clang++
-#   - Sets LDFLAGS and CPPFLAGS on macOS for Homebrew LLVM
-#   - Resets other compiler environment variables to original state
-#   - Displays activation status and compiler versions
+#   - Modifies PATH to prioritize LLVM bin directory.
+#   - Exports CC=clang, CXX=clang++.
+#   - Sets LDFLAGS and CPPFLAGS on macOS for Homebrew LLVM.
+#   - Resets other compiler environment variables to original state.
+#   - Displays activation status and compiler versions.
 #
 # Environment Variables Modified:
-#   PATH, CC, CXX, LDFLAGS (macOS), CPPFLAGS (macOS)
+#   PATH, CC, CXX, LDFLAGS (macOS), CPPFLAGS (macOS).
 #
 # Dependencies:
-#   clang, clang++ - LLVM compiler binaries
+#   clang, clang++ - LLVM compiler binaries.
 # -----------------------------------------------------------------------------
 use_llvm() {
     _toolchain_init_colors
@@ -582,20 +579,20 @@ use_llvm() {
 #   use_gnu
 #
 # Returns:
-#   0 - GCC toolchain activated successfully
-#   1 - GCC toolchain not found
+#   0 - GCC toolchain activated successfully.
+#   1 - GCC toolchain not found.
 #
 # Side Effects:
-#   - Modifies PATH to prioritize GCC bin directory
-#   - Exports CC=gcc, CXX=g++
-#   - Resets other compiler environment variables to original state
-#   - Displays activation status and compiler versions
+#   - Modifies PATH to prioritize GCC bin directory.
+#   - Exports CC=gcc, CXX=g++.
+#   - Resets other compiler environment variables to original state.
+#   - Displays activation status and compiler versions.
 #
 # Environment Variables Modified:
-#   PATH, CC, CXX
+#   PATH, CC, CXX.
 #
 # Dependencies:
-#   gcc, g++ - GNU compiler collection binaries
+#   gcc, g++ - GNU compiler collection binaries.
 # -----------------------------------------------------------------------------
 use_gnu() {
     _toolchain_init_colors
@@ -641,16 +638,16 @@ use_gnu() {
 #   use_system
 #
 # Returns:
-#   0 - System toolchain restored successfully
-#   1 - Original PATH not available (shell restart required)
+#   0 - System toolchain restored successfully.
+#   1 - Original PATH not available (shell restart required).
 #
 # Side Effects:
-#   - Restores PATH to original value
-#   - Resets CC, CXX, LDFLAGS, CPPFLAGS, PKG_CONFIG_PATH to original state
-#   - Displays system compiler information
+#   - Restores PATH to original value.
+#   - Resets CC, CXX, LDFLAGS, CPPFLAGS, PKG_CONFIG_PATH to original state.
+#   - Displays system compiler information.
 #
 # Environment Variables Modified:
-#   PATH, CC, CXX, LDFLAGS, CPPFLAGS, PKG_CONFIG_PATH
+#   PATH, CC, CXX, LDFLAGS, CPPFLAGS, PKG_CONFIG_PATH.
 # -----------------------------------------------------------------------------
 use_system() {
     _toolchain_init_colors

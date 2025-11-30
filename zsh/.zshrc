@@ -224,10 +224,10 @@ unsetopt xtrace verbose
 
 # +++++++++++++++++++++++++++ PROMPT CONFIGURATION +++++++++++++++++++++++++++ #
 # Prompt priority (cross-platform):
-#   1. Starship      - Modern, fast, cross-platform (preferred)
-#   2. Oh-My-Posh    - macOS/Windows fallback
-#   3. PowerLevel10k - Linux fallback
-#   4. Minimal       - Basic fallback (always works)
+#   1. Starship      - Modern, fast, cross-platform (preferred).
+#   2. Oh-My-Posh    - macOS/Windows fallback.
+#   3. PowerLevel10k - Linux fallback.
+#   4. Minimal       - Basic fallback (always works).
 
 # Enable prompt substitution globally.
 setopt PROMPT_SUBST
@@ -245,7 +245,7 @@ setopt PROMPT_SUBST
 # -----------------------------------------------------------------------------
 _init_starship_prompt() {
     # Guard: prevent re-initialization (allows re-sourcing .zshrc safely).
-    [[ -n "${_STARSHIP_INIT_DONE-}" ]] && return 0
+    [[ -n "${_STARSHIP_STATE[init_done]-}" ]] && return 0
 
     setopt PROMPT_SUBST
     autoload -Uz add-zsh-hook
@@ -257,164 +257,212 @@ _init_starship_prompt() {
         return 1
     fi
 
-    # ------ Transient Prompt Setup ------ #
-    # Reference: https://gist.github.com/subnut/3af65306fbecd35fe2dda81f59acf2b2
+    # --------------------------- State Management ----------------------------
+    # Use a single global associative array to avoid namespace pollution.
+    # Keys:
+    #   init_done       : Flag to prevent re-init.
+    #   need_newline    : Boolean (0/1), true if next prompt needs a spacer.
+    #   first_prompt    : Boolean (0/1), true if this is the first prompt.
+    #   transient_on    : Boolean (0/1), master switch for transient mode.
+    #   last_cmd        : The last executed command string.
+    #   prompt_full     : Stashed original PROMPT.
+    #   rprompt_full    : Stashed original RPROMPT.
+    #   prompt2_full    : Stashed original PROMPT2.
+    # -------------------------------------------------------------------------
+    typeset -gA _STARSHIP_STATE
+    _STARSHIP_STATE[init_done]=1
+    _STARSHIP_STATE[need_newline]=0
+    _STARSHIP_STATE[first_prompt]=1
+    _STARSHIP_STATE[transient_on]=1  # Default: Enabled
 
     # Stash original prompts (Starship sets these once at init).
-    typeset -g _STARSHIP_PROMPT_FULL="$PROMPT"
-    typeset -g _STARSHIP_RPROMPT_FULL="$RPROMPT"
-    typeset -g _STARSHIP_PROMPT2_FULL="${PROMPT2-}"
+    _STARSHIP_STATE[prompt_full]="$PROMPT"
+    _STARSHIP_STATE[rprompt_full]="$RPROMPT"
+    _STARSHIP_STATE[prompt2_full]="${PROMPT2-}"
 
     # Minimal transient prompt: truncated path + chevron.
     # Format: %(4~|…/%3~|%~) = show "…/last/3/dirs" if depth > 4, else full path.
     typeset -g _STARSHIP_TRANSIENT_PROMPT='%B%F{purple}%(4~|…/%3~|%~)%f%b %B%F{green}❯%f%b '
 
-    # ------- Smart Newline State -------- #
-    # Track last command, first prompt state, and whether to emit a spacer line.
-    typeset -g _STARSHIP_LAST_CMD=
-    typeset -gi _STARSHIP_NEED_NEWLINE=0
-    unset _STARSHIP_FIRST_PROMPT_DONE  # Must be unset, not empty.
-
     # ---------- Register Hooks ---------- #
-    # Order matters: newline first, then restore prompt.
+    # preexec: Record command to decide on newlines.
     add-zsh-hook preexec _starship_record_cmd
-    add-zsh-hook precmd _starship_smart_newline
-    add-zsh-hook precmd _starship_restore_prompt
+    # precmd: Handle newlines and restore full prompt.
+    add-zsh-hook precmd _starship_precmd
 
     # ------- Register ZLE Widgets ------- #
-    # Preserve existing zle-line-finish widget if present.
-    typeset -g _STARSHIP_PREV_LINE_FINISH=
-    if [[ -n "${widgets[zle-line-finish]-}" ]]; then
-        _STARSHIP_PREV_LINE_FINISH="${widgets[zle-line-finish]#user:}"
-        [[ "$_STARSHIP_PREV_LINE_FINISH" == "_starship_line_finish" ]] && _STARSHIP_PREV_LINE_FINISH=
-    fi
-    zle -N zle-line-finish _starship_line_finish
+    # Wrap zle-line-finish to trigger transient effect on Enter.
+    _starship_wrap_widget "zle-line-finish" "_starship_line_finish"
 
-    # Preserve existing clear-screen widget and wrap it.
-    typeset -g _STARSHIP_PREV_CLEAR_SCREEN=
-    if [[ -n "${widgets[clear-screen]-}" ]]; then
-        _STARSHIP_PREV_CLEAR_SCREEN="${widgets[clear-screen]#user:}"
-        [[ "$_STARSHIP_PREV_CLEAR_SCREEN" == "_starship_clear_screen" ]] && _STARSHIP_PREV_CLEAR_SCREEN=".clear-screen"
-    fi
-    zle -N clear-screen _starship_clear_screen
+    # Wrap clear-screen to reset newline state.
+    _starship_wrap_widget "clear-screen" "_starship_clear_screen"
 
-    _STARSHIP_INIT_DONE=1
+    # Register custom widgets.
+    zle -N toggle-transient-prompt _starship_toggle_transient
+    zle -N reset-prompt-state _starship_reset_state
+
     return 0
+}
+
+# +++++++++++++++++++++++++++++ Helper Functions +++++++++++++++++++++++++++++ #
+# -----------------------------------------------------------------------------
+# _starship_wrap_widget <widget_name> <wrapper_function>
+# -----------------------------------------------------------------------------
+# Safely wraps a ZLE widget, preserving any existing user or builtin widget.
+#
+# Arguments:
+#   $1 - Name of the widget to wrap (e.g., "zle-line-finish").
+#   $2 - Name of the wrapper function.
+# -----------------------------------------------------------------------------
+_starship_wrap_widget() {
+    local widget="$1"
+    local wrapper="$2"
+
+    # Save previous widget if it exists.
+    if [[ -n "${widgets[$widget]-}" ]]; then
+        local prev="${widgets[$widget]}"
+        if [[ "$prev" == user:* ]]; then
+            _STARSHIP_STATE[prev_$widget]="${prev#user:}"
+        elif [[ "$prev" == builtin:* ]]; then
+            _STARSHIP_STATE[prev_$widget]=".${prev#builtin:}"
+        fi
+    fi
+
+    zle -N "$widget" "$wrapper"
 }
 
 # -----------------------------------------------------------------------------
 # _starship_record_cmd <command>
 # -----------------------------------------------------------------------------
-# Record the executed command for smart newline logic.
-# Called by preexec hook before each command execution.
-#
-# Arguments:
-#   $1 - The command string being executed
+# Hook: preexec
+# Records the command being executed to determine if a newline is needed later.
 # -----------------------------------------------------------------------------
 _starship_record_cmd() {
     # Store command with leading whitespace trimmed.
-    _STARSHIP_LAST_CMD="${1#"${1%%[![:space:]]*}"}"
+    local cmd="${1#"${1%%[![:space:]]*}"}"
+    _STARSHIP_STATE[last_cmd]="$cmd"
 }
 
 # -----------------------------------------------------------------------------
-# _starship_smart_newline
+# _starship_precmd
 # -----------------------------------------------------------------------------
-# Print a blank line before the prompt for visual separation.
-# Called by precmd hook before each prompt display.
-#
-# Behavior:
-#   - Skips newline for first prompt after shell start.
-#   - Skips newline after clear/cls/reset commands.
-#   - Prints newline for all other cases.
+# Hook: precmd
+# 1. Handles "Smart Newline" logic (printing a spacer line).
+# 2. Restores the full Starship prompt for the new command line.
 # -----------------------------------------------------------------------------
-_starship_smart_newline() {
-    # First prompt: mark as seen, reset state, and do not print a spacer.
-    if [[ -z "${_STARSHIP_FIRST_PROMPT_DONE+x}" ]]; then
-        _STARSHIP_FIRST_PROMPT_DONE=1
-        _STARSHIP_NEED_NEWLINE=0
-        _STARSHIP_LAST_CMD=
-        return 0
+_starship_precmd() {
+    # 1. Smart Newline Logic
+    if [[ -n "${_STARSHIP_STATE[first_prompt]}" ]]; then
+        # First prompt after shell start: no newline.
+        unset "_STARSHIP_STATE[first_prompt]"
+        _STARSHIP_STATE[need_newline]=0
+    elif (( _STARSHIP_STATE[need_newline] )); then
+        # Print spacer line if requested.
+        print ""
     fi
 
-    # Emit spacer line only when requested by the submitted command.
-    (( _STARSHIP_NEED_NEWLINE )) && print ""
+    # Reset state for next cycle.
+    _STARSHIP_STATE[need_newline]=0
 
-    # Reset state for the next command cycle.
-    _STARSHIP_NEED_NEWLINE=0
-    _STARSHIP_LAST_CMD=
-}
-
-# -----------------------------------------------------------------------------
-# _starship_restore_prompt
-# -----------------------------------------------------------------------------
-# Restore full Starship prompt before displaying. Called by precmd hook after
-# smart newline logic.
-#
-# This ensures the full prompt is shown for the current command line,
-# while previous command lines show the transient (minimal) prompt.
-# -----------------------------------------------------------------------------
-_starship_restore_prompt() {
-    PROMPT="$_STARSHIP_PROMPT_FULL"
-    RPROMPT="$_STARSHIP_RPROMPT_FULL"
-    PROMPT2="$_STARSHIP_PROMPT2_FULL"
+    # 2. Restore Full Prompt.
+    PROMPT="${_STARSHIP_STATE[prompt_full]}"
+    RPROMPT="${_STARSHIP_STATE[rprompt_full]}"
+    PROMPT2="${_STARSHIP_STATE[prompt2_full]}"
 }
 
 # -----------------------------------------------------------------------------
 # _starship_line_finish
 # -----------------------------------------------------------------------------
-# Switch to transient prompt after command submission.
-# Called by zle-line-finish widget when user presses Enter.
-#
-# This replaces the full prompt with a minimal version, keeping
-# scrollback clean and readable.
+# Widget: zle-line-finish
+# Called when the user accepts a command line (presses Enter).
+# 1. Determines if the *next* prompt needs a newline spacer.
+# 2. Replaces the *current* prompt with the transient (minimal) version.
 # -----------------------------------------------------------------------------
 _starship_line_finish() {
-    # Determine if the next prompt should include a spacer line.
     local cmd="${BUFFER:-}"
-    cmd="${cmd#"${cmd%%[![:space:]]*}"}"
-    _STARSHIP_LAST_CMD="$cmd"
-    case "${cmd:-}" in
-        "" )
-            _STARSHIP_NEED_NEWLINE=1
-            ;;
-        clear|clear\ *|cls|cls\ *|reset|reset\ *|c|c\ *)
-            _STARSHIP_NEED_NEWLINE=0
-            ;;
-        * )
-            _STARSHIP_NEED_NEWLINE=1
-            ;;
-    esac
-    unset cmd
+    cmd="${cmd#"${cmd%%[![:space:]]*}"}" # Trim leading whitespace
 
-    # Chain to previous widget if exists.
-    if [[ -n "$_STARSHIP_PREV_LINE_FINISH" ]]; then
-        "$_STARSHIP_PREV_LINE_FINISH" "$@"
+    # Determine if newline is needed for next prompt.
+    if [[ -z "$cmd" ]]; then
+        # Empty command: usually want a newline to separate blocks.
+        _STARSHIP_STATE[need_newline]=1
+    else
+        case "$cmd" in
+            # Commands that clear the screen shouldn't have a newline after.
+            clear|clear\ *|cls|cls\ *|reset|reset\ *|c|c\ *)
+                _STARSHIP_STATE[need_newline]=0
+                ;;
+            *)
+                _STARSHIP_STATE[need_newline]=1
+                ;;
+        esac
     fi
 
-    # Apply transient prompt.
-    PROMPT="$_STARSHIP_TRANSIENT_PROMPT"
-    RPROMPT=
-    zle .reset-prompt
+    # Call previous widget if it existed (chaining).
+    local prev="${_STARSHIP_STATE[prev_zle-line-finish]-}"
+    if [[ -n "$prev" ]]; then
+        "$prev" "$@"
+    fi
+
+    # Apply transient prompt ONLY if enabled.
+    if (( _STARSHIP_STATE[transient_on] )); then
+        PROMPT="$_STARSHIP_TRANSIENT_PROMPT"
+        RPROMPT=
+        zle .reset-prompt
+    fi
 }
 
 # -----------------------------------------------------------------------------
 # _starship_clear_screen
 # -----------------------------------------------------------------------------
-# Track clears triggered via widgets (e.g., Ctrl+L) to skip the next newline.
+# Widget: clear-screen (Ctrl+L)
+# Ensures that clearing the screen doesn't leave a "need newline" state.
 # -----------------------------------------------------------------------------
 _starship_clear_screen() {
-    _STARSHIP_NEED_NEWLINE=0
-    _STARSHIP_LAST_CMD="clear-screen"
+    _STARSHIP_STATE[need_newline]=0
 
-    if [[ -n "${_STARSHIP_PREV_CLEAR_SCREEN:-}" ]]; then
-        if [[ "${_STARSHIP_PREV_CLEAR_SCREEN[1]}" == "." ]]; then
-            zle "$_STARSHIP_PREV_CLEAR_SCREEN"
+    local prev="${_STARSHIP_STATE[prev_clear-screen]-}"
+    if [[ -n "$prev" ]]; then
+        if [[ "$prev" == .* ]]; then
+            zle "$prev"
         else
-            "$_STARSHIP_PREV_CLEAR_SCREEN" "$@"
+            "$prev" "$@"
         fi
     else
         zle .clear-screen
     fi
+}
+
+# -----------------------------------------------------------------------------
+# _starship_toggle_transient
+# -----------------------------------------------------------------------------
+# Widget: toggle-transient-prompt
+# Toggles the transient prompt behavior on/off.
+# Usage: bindkey '^[t' toggle-transient-prompt
+# -----------------------------------------------------------------------------
+_starship_toggle_transient() {
+    if (( _STARSHIP_STATE[transient_on] )); then
+        _STARSHIP_STATE[transient_on]=0
+        zle -M "Transient prompt: DISABLED"
+    else
+        _STARSHIP_STATE[transient_on]=1
+        zle -M "Transient prompt: ENABLED"
+    fi
+}
+
+# -----------------------------------------------------------------------------
+# _starship_reset_state
+# -----------------------------------------------------------------------------
+# Function: reset-prompt-state
+# Resets internal state in case of desync or glitches.
+# -----------------------------------------------------------------------------
+_starship_reset_state() {
+    _STARSHIP_STATE[need_newline]=0
+    _STARSHIP_STATE[first_prompt]=0
+    _STARSHIP_STATE[transient_on]=1
+    PROMPT="${_STARSHIP_STATE[prompt_full]}"
+    RPROMPT="${_STARSHIP_STATE[rprompt_full]}"
+    zle -M "Prompt state reset."
 }
 
 # ============================================================================ #
@@ -595,8 +643,8 @@ _vi_set_cursor() {
 # Update cursor shape based on current vi keymap.
 #
 # Shapes:
-#   vicmd (normal mode)  → steady block (2)
-#   viins (insert mode)  → blinking block (1)
+#   vicmd (normal mode)  → steady block (2).
+#   viins (insert mode)  → blinking block (1).
 # -----------------------------------------------------------------------------
 _vi_cursor_for_keymap() {
     case "${KEYMAP:-viins}" in
@@ -682,9 +730,9 @@ fi
 # Runs once on first precmd hook, then removes itself.
 #
 # Initializes:
-#   - fzf: Fuzzy finder shell integration
-#   - zoxide: Smarter cd command
-#   - direnv: Directory-specific environment loading
+#   - fzf: Fuzzy finder shell integration.
+#   - zoxide: Smarter cd command.
+#   - direnv: Directory-specific environment loading.
 #
 # Returns:
 #   0 - Tools initialized or already initialized.
@@ -828,7 +876,7 @@ export BAT_THEME=tokyonight_night
 #   1 - fzf not available or no file selected.
 #
 # Dependencies:
-#   fzf - Fuzzy finder
+#   fzf - Fuzzy finder.
 # -----------------------------------------------------------------------------
 cdf() {
     if ! command -v fzf >/dev/null 2>&1; then
@@ -1051,10 +1099,10 @@ elif [[ "$PLATFORM" == 'Linux' ]]; then
     # Suggests packages containing the missing command.
     #
     # Arguments:
-    #   $1 - Command name that was not found
+    #   $1 - Command name that was not found.
     #
     # Returns:
-    #   127 - Standard exit code for command not found
+    #   127 - Standard exit code for command not found.
     # -------------------------------------------------------------------------
     function command_not_found_handler {
       local purple='\e[1;35m' bright='\e[0;1m' green='\e[1;32m' reset='\e[0m'
@@ -1095,7 +1143,7 @@ elif [[ "$PLATFORM" == 'Linux' ]]; then
     #   in <package1> [package2] [package3] ...
     #
     # Arguments:
-    #   package1, package2, ... - Package names to install
+    #   package1, package2, ... - Package names to install.
     #
     # Returns:
     #   0 - All packages installed successfully.
@@ -1401,7 +1449,7 @@ fi
 #   User:         ~/00_ENV/miniforge3/bin/conda
 #
 # Configuration:
-#   - Disables conda's prompt modification (changeps1 false)
+#   - Disables conda's prompt modification (changeps1 false).
 # -----------------------------------------------------------------------------
 __conda_init() {
     local conda_path=""
@@ -1454,8 +1502,7 @@ fi
 # ----- FNM (Fast Node Manager) ----- #
 if command -v fnm &>/dev/null; then
 
-    # Declare a command counter specific to this session.
-    # Integer variable for the session.
+    # Declare a command counter (of integer type) specific to this session.
     typeset -i FNM_CMD_COUNTER=0
 
     # -------------------------------------------------------------------------
@@ -1465,12 +1512,12 @@ if command -v fnm &>/dev/null; then
     # Updates symlink timestamp every 30 commands to prevent cleanup.
     #
     # Called by:
-    #   precmd hook on every command
+    #   precmd hook on every command.
     #
     # Behavior:
-    #   - Increments command counter
-    #   - Updates timestamp when counter exceeds 30
-    #   - Resets counter after update
+    #   - Increments command counter.
+    #   - Updates timestamp when counter exceeds 30.
+    #   - Resets counter after update.
     # -------------------------------------------------------------------------
     _fnm_update_timestamp() {
         # Increment the counter on every command.
@@ -1547,18 +1594,18 @@ fi
 # Ensures consistent PATH priority across shell sessions and removes duplicates.
 #
 # Priority order:
-#   1. Dynamic shims (pyenv, etc.)
-#   2. Static language bins (SDKMAN, opam, etc.)
-#   3. FNM current session
-#   4. Homebrew/system tools
-#   5. User and app-specific paths
-#   6. Leftover paths from original PATH
+#   1. Dynamic shims (pyenv, etc.).
+#   2. Static language bins (SDKMAN, opam, etc.).
+#   3. FNM current session.
+#   4. Homebrew/system tools.
+#   5. User and app-specific paths.
+#   6. Leftover paths from original PATH.
 #
 # Behavior:
-#   - Filters non-existent directories
-#   - Removes FNM orphaned session directories
-#   - Preserves VS Code and other dynamically added paths
-#   - Removes duplicates via typeset -U
+#   - Filters non-existent directories.
+#   - Removes FNM orphaned session directories.
+#   - Preserves VS Code and other dynamically added paths.
+#   - Removes duplicates via typeset -U.
 # -----------------------------------------------------------------------------
 build_final_path() {
     # Store original PATH for debugging.
