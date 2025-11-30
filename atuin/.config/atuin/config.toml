@@ -1,21 +1,96 @@
+# Atuin Configuration
+# https://docs.atuin.sh/configuration/config/
+
+# Theme
 [theme]
 name = "tokyonight"
 
+# UI Settings
 [ui]
 inline_height = 20
 show_preview = true
+show_help = true
+show_tabs = true
+invert = false
+style = "auto"
 
+# Search Configuration
 [search]
 filter_mode = "global"
 search_mode = "fuzzy"
 exit_mode = "return-original"
+# Enable workspace filtering for git repositories
+workspaces = true
 
+# Statistics
 [stats]
-common_subcommands = [ "cargo", "go", "git", "npm", "yarn", "pnpm", "kubectl" ]
-common_prefix = [ "sudo" ]
+common_subcommands = [
+    "cargo",
+    "docker",
+    "git",
+    "go",
+    "jj",
+    "kubectl",
+    "nix",
+    "npm",
+    "pnpm",
+    "systemctl",
+    "tmux",
+    "yarn",
+]
+common_prefix = ["sudo"]
+# Ignore trivial commands from stats
+ignored_commands = ["cd", "ls", "ll", "la", "exit", "clear"]
 
+# Sync Settings
 [sync]
 records = true
+auto_sync = true
+sync_frequency = "10m"
 
+# Preview
 [preview]
 strategy = "auto"
+max_preview_height = 4
+
+# History Filtering
+history_filter = [
+    "^secret",
+    "^export.*SECRET",
+    "^export.*TOKEN",
+    "^export.*PASSWORD",
+    "^export.*API_KEY",
+    ".*--password.*",
+    ".*--token.*",
+]
+
+# Directory-based filtering (optional)
+cwd_filter = [
+    # "^/private",
+    # "^/tmp",
+]
+
+# Key Bindings
+[keys]
+scroll_exits = true
+exit_past_line_start = true
+accept_past_line_end = true
+
+# Security
+secrets_filter = true
+enter_accept = true
+
+# Performance
+network_timeout = 5
+network_connect_timeout = 5
+local_timeout = 5
+
+# Behavior
+update_check = true
+word_jump_mode = "emacs"
+word_chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+scroll_context_lines = 1
+
+# Keymap
+keymap_mode = "auto"
+keymap_cursor = { emacs = "blink-block", vim_insert = "blink-block", vim_normal = "steady-block" }
