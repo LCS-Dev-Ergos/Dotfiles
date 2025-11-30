@@ -1,6 +1,10 @@
 # Tokyo Night Theme for Atuin
 # https://docs.atuin.sh/guide/theming/
 
+[theme]
+name = "tokyo-night"
+parent = "default"
+
 [colors]
 # Base colors
 Base = "#c0caf5"           # Foreground
@@ -12,6 +16,6 @@ AlertWarn = "#e0af68"      # Yellow - warnings
 AlertError = "#f7768e"     # Red - errors
 
 # Guidance and emphasis
-Guidance = "#9ece6a"       # Green - helpful hints
+Guidance = "#73daca"       # Green - helpful hints
 Important = "#bb9af7"      # Purple - important information
 Title = "#7dcfff"          # Cyan - section titles
