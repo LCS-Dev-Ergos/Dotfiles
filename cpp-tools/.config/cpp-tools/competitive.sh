@@ -510,7 +510,6 @@ function cppdelete() {
     fi
 
     # Check for multiple input files (numbered pattern).
-    # Use Zsh globbing instead of find
     local -a input_files=( input_cases/"${problem_name}".*.in(N) )
     for input_file in "${input_files[@]}"; do
         echo "  - Input file: ${C_CYAN}$input_file${C_RESET}"

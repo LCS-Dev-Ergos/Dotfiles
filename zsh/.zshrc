@@ -1368,7 +1368,8 @@ fi
 
 # ----------- Docker CLI  ----------- #
 if [[ -d "$HOME/.docker/completions" ]]; then
-    fpath=("$HOME/.docker/completions" $fpath)
+    # Add custom completions directory
+    fpath=("/Users/lcs-dev/Dotfiles/zsh/.config/zsh/completions" "$HOME/.docker/completions" $fpath)
 fi
 autoload -Uz compinit
 # Use -C only if the dump file exists, otherwise do a full init.

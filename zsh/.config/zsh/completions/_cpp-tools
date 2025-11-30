@@ -1,0 +1,62 @@
+#compdef cppbuild cpprun cppgo cppnew cppconf cppjudge cppstress cppsubmit cpptestsubmit cppfull cppwatch cppdelete cppforcego
+
+# Zsh completion for cpp-tools (competitive.sh)
+
+_cpp_targets() {
+    local -a targets
+    # Find .cpp, .cc, .cxx files and strip extensions
+    targets=( *.(cpp|cc|cxx)(N:r) )
+    _describe 'target' targets
+}
+
+_cpp_templates() {
+    local -a templates
+    local template_dir="$HOME/Dotfiles/cpp-tools/templates"
+    if [[ -d "$template_dir" ]]; then
+        templates=( "$template_dir"/*.hpp(N:t:r) )
+        _describe 'template' templates
+    fi
+}
+
+_cpp_compilers() {
+    local -a compilers
+    compilers=(gcc clang auto)
+    _describe 'compiler' compilers
+}
+
+_cpp_build_types() {
+    local -a build_types
+    build_types=(Debug Release Sanitize)
+    _describe 'build type' build_types
+}
+
+local context state state_descr line
+typeset -A opt_args
+
+case "$service" in
+    cppbuild|cpprun|cppjudge|cppsubmit|cpptestsubmit|cppfull|cppwatch|cppdelete|cppforcego)
+        _arguments \
+            '1:target:_cpp_targets' \
+            '2:input file:_files'
+        ;;
+    cppgo)
+        _arguments \
+            '1:target:_cpp_targets' \
+            '2:input file:_files'
+        ;;
+    cppstress)
+        _arguments \
+            '1:target:_cpp_targets' \
+            '2:iterations:(10 100 1000)'
+        ;;
+    cppnew)
+        _arguments \
+            '1:problem name:' \
+            '2:template:_cpp_templates'
+        ;;
+    cppconf)
+        _arguments \
+            '1:build type:_cpp_build_types' \
+            '2:compiler:_cpp_compilers'
+        ;;
+esac

@@ -8,11 +8,33 @@
 # Get weather information for a specified location.
 # Usage: weather <city> (e.g., weather Rome).
 function weather() {
-    local location="${1:-Bari}" # Default to Bari if no location is provided.
-    # Add error handling for network issues.
-    if ! curl -s --fail --connect-timeout 5 "https://wttr.in/${location}?lang=it" 2>/dev/null; then
+    local location="${1:-Bari}"
+    local cache_file="/tmp/weather_${location}.cache"
+    local current_time=$(date +%s)
+    local cache_age=3600 # 1 hour cache
+
+    # Check if cache exists and is fresh
+    if [[ -f "$cache_file" ]]; then
+        local file_time=$(stat -c %Y "$cache_file" 2>/dev/null || stat -f %m "$cache_file" 2>/dev/null)
+        if [[ $((current_time - file_time)) -lt $cache_age ]]; then
+            cat "$cache_file"
+            return 0
+        fi
+    fi
+
+    # Fetch new data
+    if curl -s --fail --connect-timeout 5 "https://wttr.in/${location}?lang=it" > "$cache_file"; then
+        cat "$cache_file"
+    else
         echo "${C_RED}Error: Unable to fetch weather data. Check your internet connection.${C_RESET}" >&2
-        return 1
+        # If fetch fails but we have old cache, show it with a warning
+        if [[ -f "$cache_file" ]]; then
+            echo "${C_YELLOW}(Showing cached data)${C_RESET}"
+            cat "$cache_file"
+        else
+            rm -f "$cache_file"
+            return 1
+        fi
     fi
 }
 
@@ -50,12 +72,14 @@ function fkill() {
 
     local pid
     # Use ps to get processes, pipe to fzf for selection, and awk to get the PID.
+    # Added -r to read to prevent backslash interpretation
     pid=$(ps -ef | sed 1d | fzf -m --tac --header='Select process(es) to kill. Press CTRL-C to cancel' | awk '{print $2}')
 
     if [[ -n "$pid" ]]; then
         # Kill the selected process(es) with SIGTERM (15) by default, or specified signal.
         local signal="${1:-15}"
-        echo "$pid" | xargs kill -${signal} 2>/dev/null
+        # Use quotes to handle multiple PIDs correctly
+        echo "$pid" | xargs kill -"${signal}" 2>/dev/null
         if [[ $? -eq 0 ]]; then
             echo "${C_GREEN}Process(es) with PID(s): $pid killed with signal ${signal}.${C_RESET}"
         else
@@ -72,10 +96,32 @@ function fkill() {
 # Requires Python to be installed.
 # Usage: serve [port]
 function serve() {
-    local port="${1:-8000}"
+    local port="8000"
+    local bind_address="127.0.0.1"
+    local public_mode=false
+
+    # Parse arguments
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --public)
+                public_mode=true
+                bind_address="0.0.0.0"
+                shift
+                ;;
+            *)
+                if [[ "$1" =~ ^[0-9]+$ ]]; then
+                    port="$1"
+                else
+                    echo "${C_RED}Error: Invalid argument '$1'. Usage: serve [port] [--public]${C_RESET}" >&2
+                    return 1
+                fi
+                shift
+                ;;
+        esac
+    done
 
     # Validate port number.
-    if ! [[ "$port" =~ ^[0-9]+$ ]] || [[ $port -lt 1 || $port -gt 65535 ]]; then
+    if [[ $port -lt 1 || $port -gt 65535 ]]; then
         echo "${C_RED}Error: Invalid port number. Use a number between 1 and 65535.${C_RESET}" >&2
         return 1
     fi
@@ -84,24 +130,37 @@ function serve() {
     if lsof -Pi :$port -sTCP:LISTEN -t >/dev/null 2>&1; then
         echo "${C_YELLOW}Warning: Port $port is already in use.${C_RESET}" >&2
         echo -n "Choose another port or press Enter to continue anyway: "
-        read new_port
+        read -r new_port
         if [[ -n "$new_port" ]]; then
             port="$new_port"
         fi
     fi
 
-    local ip=$(ipconfig getifaddr en0 2>/dev/null || hostname -I | awk '{print $1}' 2>/dev/null || echo "127.0.0.1")
-    echo "${C_CYAN}Serving current directory on http://${ip}:${port}${C_RESET}"
+    local url_msg
+    if [[ "$public_mode" == true ]]; then
+        local ip=$(ipconfig getifaddr en0 2>/dev/null || hostname -I | awk '{print $1}' 2>/dev/null || echo "127.0.0.1")
+        url_msg="http://${ip}:${port} (Public)"
+    else
+        url_msg="http://localhost:${port} (Local only)"
+    fi
+
+    echo "${C_CYAN}Serving current directory on ${url_msg}${C_RESET}"
     echo "${C_CYAN}Press Ctrl+C to stop the server${C_RESET}"
 
     # Python 3.
     if command -v python3 &>/dev/null; then
-        python3 -m http.server "$port"
+        python3 -m http.server "$port" --bind "$bind_address"
         return
     fi
     # Python 2 (fallback).
     if command -v python &>/dev/null; then
-        python -m SimpleHTTPServer "$port"
+        if [[ "$public_mode" == true ]]; then
+             python -m SimpleHTTPServer "$port"
+        else
+             # Python 2 SimpleHTTPServer doesn't support --bind easily without a custom script
+             echo "${C_YELLOW}Warning: Python 2 SimpleHTTPServer binds to all interfaces by default.${C_RESET}"
+             python -m SimpleHTTPServer "$port"
+        fi
         return
     fi
 
@@ -131,9 +190,18 @@ function portscan() {
 
     echo "${C_CYAN}Scanning ports $start_port-$end_port on $host...${C_RESET}"
 
-    for port in $(seq $start_port $end_port); do
-        (echo >/dev/tcp/$host/$port) &>/dev/null && echo "${C_GREEN}Port $port: OPEN${C_RESET}"
-    done
+    # Use nc (netcat) if available for faster scanning
+    if command -v nc >/dev/null 2>&1; then
+        # -z: zero-I/O mode (scanning)
+        # -v: verbose (to see output)
+        # -w 1: timeout 1 second
+        nc -z -v -w 1 "$host" "$start_port"-"$end_port" 2>&1 | grep "succeeded" | sed "s/^/${C_GREEN}/;s/$/${C_RESET}/"
+    else
+        # Fallback to pure bash/zsh method
+        for port in $(seq "$start_port" "$end_port"); do
+            (echo >/dev/tcp/"$host"/"$port") &>/dev/null && echo "${C_GREEN}Port $port: OPEN${C_RESET}"
+        done
+    fi
 }
 
 # ---------------------------- fzf File Previewer ---------------------------- #
@@ -1192,6 +1260,89 @@ function clang_format_link() {
         echo "${C_RED}Error: Failed to create symbolic link.${C_RESET}" >&2
         return 1
     fi
+}
+
+
+# --------------------------- Make Directory & CD ---------------------------- #
+# Create a directory and change into it immediately.
+# Usage: mkcd <directory>
+function mkcd() {
+    if [[ -z "$1" ]]; then
+        echo "${C_YELLOW}Usage: mkcd <directory>${C_RESET}" >&2
+        return 1
+    fi
+    mkdir -p "$1" && cd "$1" || return 1
+}
+
+# ---------------------------- Up Directory Navigation ----------------------- #
+# Go up N directories.
+# Usage: up [n]
+function up() {
+    local d=""
+    local limit="${1:-1}"
+
+    # Validate input
+    if ! [[ "$limit" =~ ^[0-9]+$ ]]; then
+        echo "${C_RED}Error: Argument must be a positive integer.${C_RESET}" >&2
+        return 1
+    fi
+
+    for ((i = 1; i <= limit; i++)); do
+        d="../$d"
+    done
+
+    # Perform cd
+    if ! cd "$d"; then
+        echo "${C_RED}Error: Cannot go up $limit directories.${C_RESET}" >&2
+        return 1
+    fi
+}
+
+# ----------------------------- Public IP Info ------------------------------- #
+# Get public IP address and information.
+# Usage: myip
+function myip() {
+    echo "${C_CYAN}Fetching public IP info...${C_RESET}"
+    curl -s "https://ipinfo.io/json" | \
+    grep -E '"ip"|"city"|"region"|"country"|"org"' | \
+    sed 's/^  //;s/[",]//g' | \
+    awk -F: '{printf "%s${C_GREEN}%s${C_RESET}\n", $1 ": ", $2}'
+}
+
+# ----------------------------- Command Cheat Sheet -------------------------- #
+# Get a cheat sheet for a command using cheat.sh.
+# Usage: cheat <command>
+function cheat() {
+    if [[ -z "$1" ]]; then
+        echo "${C_YELLOW}Usage: cheat <command>${C_RESET}" >&2
+        return 1
+    fi
+    curl -s "cheat.sh/$1" | less -R
+}
+
+# ----------------------------- Tree View ------------------------------------ #
+# Tree view respecting gitignore.
+# Usage: tre [dir]
+function tre() {
+    if command -v eza >/dev/null 2>&1; then
+        eza --tree --git-ignore --color=always "${1:-.}"
+    elif command -v tree >/dev/null 2>&1; then
+        tree -C --gitignore "${1:-.}"
+    else
+        echo "${C_RED}Error: Neither 'eza' nor 'tree' is installed.${C_RESET}" >&2
+        return 1
+    fi
+}
+
+# ----------------------------- QR Code Generator ---------------------------- #
+# Generate a QR code in the terminal.
+# Usage: qr <text>
+function qr() {
+    if [[ -z "$1" ]]; then
+        echo "${C_YELLOW}Usage: qr <text>${C_RESET}" >&2
+        return 1
+    fi
+    curl -sF-="\<-" qrenco.de <<<"$1"
 }
 
 # +++++++++++++++++++++++++++++++ END OF FILE ++++++++++++++++++++++++++++++++ #
