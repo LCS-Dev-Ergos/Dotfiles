@@ -297,16 +297,16 @@ get_toolchain_info() {
             IFS='|' read -r wrapper_type wrapper_vendor wrapper_version <<<"$wrapper_details"
             IFS='|' read -r real_type real_vendor real_version <<<"$real_details"
 
-                printf "%s◆ %-10s%s %s%s%s\n" "$C_GREEN" "$compiler" "$C_RESET" "$C_CYAN" "$cpath" "$C_RESET"
+            printf "%s◆ %-10s%s %s%s%s\n" "$C_GREEN" "$compiler" "$C_RESET" "$C_CYAN" "$cpath" "$C_RESET"
 
-                local has_wrapper=false
-                if [[ "$cpath" == *"/ccache/"* || "$cpath" == *"ccache/bin"* ]]; then
-                    printf "  ├─ %sWrapper:%s ccache (caching)\n" "$C_YELLOW" "$C_RESET"
-                    has_wrapper=true
-                elif [[ "$cpath" != "$real_cpath" ]]; then
-                    printf "  ├─ %sSymlink:%s → %s%s%s\n" "$C_YELLOW" "$C_RESET" "$C_CYAN" "$real_cpath" "$C_RESET"
-                    has_wrapper=true
-                fi
+            local has_wrapper=false
+            if [[ "$cpath" == *"/ccache/"* || "$cpath" == *"ccache/bin"* ]]; then
+                printf "  ├─ %sWrapper:%s ccache (caching)\n" "$C_YELLOW" "$C_RESET"
+                has_wrapper=true
+            elif [[ "$cpath" != "$real_cpath" ]]; then
+                printf "  ├─ %sSymlink:%s → %s%s%s\n" "$C_YELLOW" "$C_RESET" "$C_CYAN" "$real_cpath" "$C_RESET"
+                has_wrapper=true
+            fi
 
             if [[ "$has_wrapper" == true ]]; then
                 printf "  └─ %sReal compiler:%s %s %s\n" "$C_BLUE" "$C_RESET" "$real_vendor" "$real_type"
