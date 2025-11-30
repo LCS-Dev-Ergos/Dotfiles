@@ -23,7 +23,7 @@ function weather() {
     fi
 
     # Fetch new data
-    if curl -s --fail --connect-timeout 5 "https://wttr.in/${location}?lang=it" > "$cache_file"; then
+    if curl -s --fail --connect-timeout 5 "https://wttr.in/${location}?lang=it" >"$cache_file"; then
         cat "$cache_file"
     else
         echo "${C_RED}Error: Unable to fetch weather data. Check your internet connection.${C_RESET}" >&2
@@ -103,20 +103,20 @@ function serve() {
     # Parse arguments
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --public)
-                public_mode=true
-                bind_address="0.0.0.0"
-                shift
-                ;;
-            *)
-                if [[ "$1" =~ ^[0-9]+$ ]]; then
-                    port="$1"
-                else
-                    echo "${C_RED}Error: Invalid argument '$1'. Usage: serve [port] [--public]${C_RESET}" >&2
-                    return 1
-                fi
-                shift
-                ;;
+        --public)
+            public_mode=true
+            bind_address="0.0.0.0"
+            shift
+            ;;
+        *)
+            if [[ "$1" =~ ^[0-9]+$ ]]; then
+                port="$1"
+            else
+                echo "${C_RED}Error: Invalid argument '$1'. Usage: serve [port] [--public]${C_RESET}" >&2
+                return 1
+            fi
+            shift
+            ;;
         esac
     done
 
@@ -155,11 +155,11 @@ function serve() {
     # Python 2 (fallback).
     if command -v python &>/dev/null; then
         if [[ "$public_mode" == true ]]; then
-             python -m SimpleHTTPServer "$port"
+            python -m SimpleHTTPServer "$port"
         else
-             # Python 2 SimpleHTTPServer doesn't support --bind easily without a custom script
-             echo "${C_YELLOW}Warning: Python 2 SimpleHTTPServer binds to all interfaces by default.${C_RESET}"
-             python -m SimpleHTTPServer "$port"
+            # Python 2 SimpleHTTPServer doesn't support --bind easily without a custom script
+            echo "${C_YELLOW}Warning: Python 2 SimpleHTTPServer binds to all interfaces by default.${C_RESET}"
+            python -m SimpleHTTPServer "$port"
         fi
         return
     fi
@@ -1262,7 +1262,6 @@ function clang_format_link() {
     fi
 }
 
-
 # --------------------------- Make Directory & CD ---------------------------- #
 # Create a directory and change into it immediately.
 # Usage: mkcd <directory>
@@ -1303,10 +1302,10 @@ function up() {
 # Usage: myip
 function myip() {
     echo "${C_CYAN}Fetching public IP info...${C_RESET}"
-    curl -s "https://ipinfo.io/json" | \
-    grep -E '"ip"|"city"|"region"|"country"|"org"' | \
-    sed 's/^  //;s/[",]//g' | \
-    awk -F: '{printf "%s${C_GREEN}%s${C_RESET}\n", $1 ": ", $2}'
+    curl -s "https://ipinfo.io/json" |
+        grep -E '"ip"|"city"|"region"|"country"|"org"' |
+        sed 's/^  //;s/[",]//g' |
+        awk -F: -v color="${C_GREEN}" -v reset="${C_RESET}" '{printf "%s%s%s%s\n", $1 ":", color, $2, reset}'
 }
 
 # ----------------------------- Command Cheat Sheet -------------------------- #
