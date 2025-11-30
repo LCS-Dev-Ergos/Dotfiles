@@ -163,6 +163,8 @@ _toolchain_vendor_for_gcc() {
     local version_info="$1" compiler_path="$2"
     if [[ "$version_info" == *"Homebrew"* ]]; then
         echo "Homebrew GNU"
+    elif [[ "$compiler_path" == /opt/homebrew/Cellar/gcc/* ]]; then
+        echo "Homebrew GNU"
     elif [[ "$version_info" == *"Ubuntu"* ]]; then
         echo "GNU (Ubuntu)"
     elif [[ "$version_info" == *"Debian"* ]]; then
@@ -216,7 +218,7 @@ _toolchain_compiler_details() {
     if [[ "$version_info" == *"Apple clang"* || "$version_info" == *"clang version"* ]]; then
         toolchain_type="Clang"
         vendor=$(_toolchain_vendor_for_clang "$version_info" "$compiler_path")
-    elif [[ "$version_info" == *"(GCC)"* || "$version_info" == *"gcc version"* ]]; then
+    elif [[ "$version_info" == *"(GCC)"* || "$version_info" == *"gcc version"* || "$version_info" == *"Homebrew GCC"* ]]; then
         toolchain_type="GCC"
         vendor=$(_toolchain_vendor_for_gcc "$version_info" "$compiler_path")
     fi
