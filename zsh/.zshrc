@@ -909,6 +909,8 @@ if [[ "$PLATFORM" == 'macOS' ]]; then
   alias lock="pmset displaysleepnow"
   alias battery="pmset -g batt"
   alias emptytrash="osascript -e 'tell application \"Finder\" to empty trash'"
+  alias checkds='find . -name ".DS_Store" -type f -print'
+  alias rmds='find . -name ".DS_Store" -type f -delete'
 
 elif [[ "$PLATFORM" == 'Linux' ]]; then
   # --------- Linux utilities ---------- #

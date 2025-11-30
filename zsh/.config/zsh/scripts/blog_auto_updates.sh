@@ -533,6 +533,23 @@ _blog_ensure_valid_location() {
     return 0
 }
 
+# Creates a backup before synchronization.
+# Args: $1=destination_path
+# Returns: backup path on success, empty string if backup not needed or failed.
+blog_backup_before_sync() {
+    local dest_path="$1"
+    local backup_path=""
+
+    if [[ -d "$dest_path" ]] && [[ "$(ls -A "$dest_path" 2>/dev/null)" ]]; then
+        backup_path=$(blog_create_backup "$dest_path" "posts_sync")
+        if [[ -z "$backup_path" ]]; then
+            blog_warn "Backup failed, continuing anyway"
+        fi
+    fi
+
+    echo "$backup_path"
+}
+
 # Initializes Git repository with remote origin.
 # Ensures the repository is properly set up for blog automation.
 blog_init_git() {
@@ -585,13 +602,7 @@ blog_sync_posts() {
     blog_check_dir "$BLOG_DEST_PATH" "Destination" true || return 1
 
     # Create backup before synchronization.
-    # local backup_path=""
-    # if [[ -d "$BLOG_DEST_PATH" ]] && [[ "$(ls -A "$BLOG_DEST_PATH" 2>/dev/null)" ]]; then
-    #     backup_path=$(blog_create_backup "$BLOG_DEST_PATH" "posts_sync")
-    #     if [[ -z "$backup_path" ]]; then
-    #         blog_warn "Backup failed, continuing anyway"
-    #     fi
-    # fi
+    # local backup_path=$(blog_backup_before_sync "$BLOG_DEST_PATH")
 
     blog_info "Synchronizing: $BLOG_SOURCE_PATH -> $BLOG_DEST_PATH"
 
