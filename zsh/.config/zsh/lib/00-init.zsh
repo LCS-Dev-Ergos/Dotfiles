@@ -41,9 +41,8 @@ fi
 if [[ "$TERM_PROGRAM" == "vscode" ]]; then
   # shellcheck source=/dev/null
   if command -v code >/dev/null 2>&1; then
-    # Only attempt to source if the command succeeds
-    local shell_integration
-    shell_integration="$(code --locate-shell-integration-path zsh 2>/dev/null)"
+    # Only attempt to source if the command succeeds.
+    local shell_integration="$(code --locate-shell-integration-path zsh 2>/dev/null)"
     if [[ -n "$shell_integration" && -f "$shell_integration" ]]; then
       . "$shell_integration"
     fi
