@@ -42,16 +42,46 @@
 #
 # ============================================================================ #
 
-# Configuration directory
-ZSH_CONFIG_DIR="${ZDOTDIR:-$HOME/.config/zsh}"
+# -----------------------------------------------------------------------------
+# Configuration directory: robustly determine the configuration directory.
+# We look for the 'lib' directory to confirm we have the right place.
+# -----------------------------------------------------------------------------
+# 1. Try "ZDOTDIR".
+if [[ -n "$ZDOTDIR" && -d "$ZDOTDIR/lib" ]]; then
+    ZSH_CONFIG_DIR="$ZDOTDIR"
+# 2. Try Standard XDG location.
+elif [[ -d "$HOME/.config/zsh/lib" ]]; then
+    ZSH_CONFIG_DIR="$HOME/.config/zsh"
+else
+    # 3. Try relative to this file (for symlinks or direct sourcing).
+    local current_dir="${${(%):-%x}:A:h}"
+
+    if [[ -d "$current_dir/lib" ]]; then
+        ZSH_CONFIG_DIR="$current_dir"
+    elif [[ -d "$current_dir/.config/zsh/lib" ]]; then
+        ZSH_CONFIG_DIR="$current_dir/.config/zsh"
+    # 4. Fallback to HOME if nothing else works (last resort).
+    else
+        ZSH_CONFIG_DIR="$HOME/.config/zsh"
+    fi
+fi
 
 # +++++++++++++++++++++++++ LOAD CORE MODULES ++++++++++++++++++++++++++++++++ #
 
 # Load modules in priority order.
 # Note: Order is critical - do not rearrange without understanding dependencies.
-for config_module in "$ZSH_CONFIG_DIR/lib/"*.zsh(N); do
-    source "$config_module"
-done
+# Use an array to capture the files first to check if any exist.
+typeset -a config_modules
+config_modules=("$ZSH_CONFIG_DIR/lib/"*.zsh(N))
+
+if (( ${#config_modules} == 0 )); then
+    echo "⚠️  Warning: No Zsh configuration modules found in $ZSH_CONFIG_DIR/lib/"
+    echo "   Please check your ZSH_CONFIG_DIR setting."
+else
+    for config_module in "${config_modules[@]}"; do
+        source "$config_module"
+    done
+fi
 
 # ++++++++++++++++++++++++++ EXTERNAL SCRIPTS ++++++++++++++++++++++++++++++++ #
 

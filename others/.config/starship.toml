@@ -198,7 +198,7 @@ truncate_to_repo = true
 truncation_symbol = '…/'
 read_only = ' 󰌾'
 read_only_style = 'red'
-home_symbol = ' '
+home_symbol = '  '
 use_os_path_sep = true
 
 [directory.substitutions]

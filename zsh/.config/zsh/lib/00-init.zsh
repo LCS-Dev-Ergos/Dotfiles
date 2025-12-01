@@ -28,14 +28,23 @@ setopt LOCAL_TRAPS
 # If ZPROFILE_HAS_RUN variable doesn't exist, we're in a non-login shell
 # (e.g., VS Code). Load our base configuration to ensure clean PATH setup.
 if [[ -z "$ZPROFILE_HAS_RUN" ]]; then
-    source "${ZDOTDIR:-$HOME}/.zprofile"
+    if [[ -f "${ZDOTDIR:-$HOME}/.zprofile" ]]; then
+        source "${ZDOTDIR:-$HOME}/.zprofile"
+    fi
 fi
 
 # Enables the advanced features of VS Code's integrated terminal.
 # Must be in .zshrc because it is run for each new interactive shell.
 if [[ "$TERM_PROGRAM" == "vscode" ]]; then
     # shellcheck source=/dev/null
-    command -v code >/dev/null 2>&1 && . "$(code --locate-shell-integration-path zsh)"
+    if command -v code >/dev/null 2>&1; then
+        # Only attempt to source if the command succeeds
+        local shell_integration
+        shell_integration="$(code --locate-shell-integration-path zsh 2>/dev/null)"
+        if [[ -n "$shell_integration" && -f "$shell_integration" ]]; then
+            . "$shell_integration"
+        fi
+    fi
 fi
 
 # ============================================================================ #

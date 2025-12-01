@@ -35,7 +35,7 @@ build_final_path() {
 
     # Version-specific Ruby gems bin (only when Ruby and GEM_HOME are available).
     local ruby_user_bin=""
-    if [[ -n "$GEM_HOME" ]]; then
+    if [[ -n "${GEM_HOME-}" ]]; then
         # Use glob expansion to find the version directory without spawning Ruby.
         # Looks for "$GEM_HOME/ruby/*/bin".
         local -a ruby_dirs=("$GEM_HOME"/ruby/*/bin(N))
