@@ -108,6 +108,36 @@ else
     #   PATH      - Adds $JAVA_HOME/bin
     # -------------------------------------------------------------------------
     setup_java_home_fallback() {
+        # Cache file location
+        local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
+        local cache_file="$cache_dir/java_home"
+
+        # Check if cache exists and is less than 7 days old
+        if [[ -f "$cache_file" ]]; then
+            # Check modification time (macOS/Linux compatible)
+            local cache_valid=false
+            if [[ "$PLATFORM" == 'macOS' ]]; then
+                # stat -f %m returns modification time in seconds
+                local mtime=$(stat -f %m "$cache_file")
+                local now=$(date +%s)
+                # 604800 seconds = 7 days
+                if (( now - mtime < 604800 )); then
+                    cache_valid=true
+                fi
+            else
+                # Linux find -mtime -7
+                if [[ -n $(find "$cache_file" -mtime -7 2>/dev/null) ]]; then
+                    cache_valid=true
+                fi
+            fi
+
+            if $cache_valid; then
+                source "$cache_file"
+                return
+            fi
+        fi
+
+        # Fallback to manual detection if cache is invalid or doesn't exist.
         if [[ "$PLATFORM" == 'macOS' ]]; then
             # On macOS, use the system-provided utility.
             if [[ -x "/usr/libexec/java_home" ]]; then
@@ -146,6 +176,13 @@ else
                 echo "${C_YELLOW}⚠️ Warning: Unable to automatically determine JAVA_HOME and SDKMAN! is not installed.${C_RESET}"
                 echo "   ${C_YELLOW}Please install Java and/or SDKMAN!, or set JAVA_HOME manually.${C_RESET}"
             fi
+        fi
+
+        # Save to cache if JAVA_HOME was found
+        if [[ -n "$JAVA_HOME" ]]; then
+            mkdir -p "$cache_dir"
+            echo "export JAVA_HOME='$JAVA_HOME'" > "$cache_file"
+            echo "export PATH='\$JAVA_HOME/bin:\$PATH'" >> "$cache_file"
         fi
     }
     # Execute the fallback function.
@@ -264,8 +301,8 @@ if command -v fnm &>/dev/null; then
     _fnm_update_timestamp() {
         # Increment the counter on every command.
         ((FNM_CMD_COUNTER++))
-        # Only update if the counter has exceeded 30.
-        if ((FNM_CMD_COUNTER > 30)); then
+        # Only update if the counter has exceeded 100 (reduced frequency).
+        if ((FNM_CMD_COUNTER > 100)); then
             if [ -n "$FNM_MULTISHELL_PATH" ] && [ -L "$FNM_MULTISHELL_PATH" ]; then
                 # Update the timestamp of the link.
                 touch -h "$FNM_MULTISHELL_PATH" 2>/dev/null

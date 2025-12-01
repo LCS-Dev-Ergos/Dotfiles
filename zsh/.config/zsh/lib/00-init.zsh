@@ -18,6 +18,9 @@
 #
 # ============================================================================ #
 
+# Profiling (uncomment to debug startup time).
+zmodload zsh/zprof
+
 # Fail on pipe errors.
 set -o pipefail
 
