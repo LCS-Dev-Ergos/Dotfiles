@@ -121,7 +121,7 @@ else
                 local mtime=$(stat -f %m "$cache_file")
                 local now=$(date +%s)
                 # 604800 seconds = 7 days
-                if (( now - mtime < 604800 )); then
+                if ((now - mtime < 604800)); then
                     cache_valid=true
                 fi
             else
@@ -181,8 +181,8 @@ else
         # Save to cache if JAVA_HOME was found
         if [[ -n "$JAVA_HOME" ]]; then
             mkdir -p "$cache_dir"
-            echo "export JAVA_HOME='$JAVA_HOME'" > "$cache_file"
-            echo "export PATH='\$JAVA_HOME/bin:\$PATH'" >> "$cache_file"
+            echo "export JAVA_HOME='$JAVA_HOME'" >"$cache_file"
+            echo "export PATH='\$JAVA_HOME/bin:\$PATH'" >>"$cache_file"
         fi
     }
     # Execute the fallback function.
@@ -288,7 +288,7 @@ if command -v fnm &>/dev/null; then
     # _fnm_update_timestamp
     # -------------------------------------------------------------------------
     # Heartbeat function to keep fnm multishell session alive.
-    # Updates symlink timestamp every 30 commands to prevent cleanup.
+    # Updates symlink timestamp every 50 commands to prevent cleanup.
     #
     # Called by:
     #   precmd hook on every command.
@@ -301,8 +301,8 @@ if command -v fnm &>/dev/null; then
     _fnm_update_timestamp() {
         # Increment the counter on every command.
         ((FNM_CMD_COUNTER++))
-        # Only update if the counter has exceeded 100 (reduced frequency).
-        if ((FNM_CMD_COUNTER > 100)); then
+        # Only update if the counter has exceeded 50 (reduced frequency).
+        if ((FNM_CMD_COUNTER > 50)); then
             if [ -n "$FNM_MULTISHELL_PATH" ] && [ -L "$FNM_MULTISHELL_PATH" ]; then
                 # Update the timestamp of the link.
                 touch -h "$FNM_MULTISHELL_PATH" 2>/dev/null
