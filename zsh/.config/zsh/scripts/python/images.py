@@ -137,10 +137,10 @@ class ImagesProcessor:
         Validate image name for security and compatibility.
 
         Args:
-            image_name: Name of the image file
+            image_name: Name of the image file.
 
         Returns:
-            True if valid, False otherwise
+            True if valid, False otherwise.
         """
         # Check for path traversal attempts.
         if "/" in image_name or "\\" in image_name or ".." in image_name:
@@ -166,10 +166,10 @@ class ImagesProcessor:
         Process a single image reference.
 
         Args:
-            image_name: Original image name from Obsidian
+            image_name: Original image name from Obsidian.
 
         Returns:
-            Tuple of (markdown_replacement, success_flag)
+            Tuple of (markdown_replacement, success_flag).
         """
         # Validate image name.
         if not self.validate_image_name(image_name):
@@ -235,14 +235,14 @@ class ImagesProcessor:
         Process a single markdown file for image references.
 
         Args:
-            file_path: Path to the markdown file
+            file_path: Path to the markdown file.
 
         Returns:
-            True if successful, False otherwise
+            True if successful, False otherwise.
         """
         filename = os.path.basename(file_path)
 
-        # Check file accessibility
+        # Check file accessibility.
         if not os.access(file_path, os.R_OK):
             logger.warning(f"Cannot read file {file_path}. Skipping.")
             return False
@@ -328,7 +328,7 @@ class ImagesProcessor:
         Process all markdown files in the posts directory.
 
         Returns:
-            True if all files processed successfully, False otherwise
+            True if all files processed successfully, False otherwise.
         """
         start_time = time.time()
 
@@ -385,7 +385,7 @@ class ImagesProcessor:
         Remove orphaned images from static directory that are no longer referenced.
 
         Returns:
-            Number of orphaned images removed
+            Number of orphaned images removed.
         """
         logger.info("Checking for orphaned images...")
 
@@ -484,3 +484,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# ============================================================================ #
+# End of images.py

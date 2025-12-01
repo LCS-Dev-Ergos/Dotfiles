@@ -1,6 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+# ============================================================================ #
+"""
+FNM Symlink Cleanup Utility:
+Removes stale symbolic links from the FNM (Fast Node Manager) multishells
+directory. A link is considered stale if both the link itself and its target
+have been inactive for more than 24 hours. Designed for periodic execution
+via cron or systemd timer.
+
+Author: XtremeXSPC
+Version: 1.0.0
+"""
+# ============================================================================ #
+
 import pathlib
 import sys
 import time
@@ -56,3 +69,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# ============================================================================ #
+# End of fnm_cleanup.py

@@ -40,7 +40,7 @@ common_subcommands = [
 ]
 common_prefix = ["sudo"]
 # Ignore trivial commands from stats
-ignored_commands = ["cd", "ls", "ll", "la", "exit", "c", "clear"]
+ignored_commands = ["cd", "ls", "ll", "la", "exit", "c", "clear","reload"]
 
 # Sync Settings
 [sync]

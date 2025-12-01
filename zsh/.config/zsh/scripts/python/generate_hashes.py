@@ -61,7 +61,8 @@ def save_hashes(hash_file, hashes):
     Save file paths and their corresponding hashes to a file.
     Args:
         hash_file (str): The path to the file where the hashes will be saved.
-        hashes (dict): A dictionary where keys are file paths and values are their corresponding hashes.
+        hashes (dict): A dictionary where keys are file paths and values are their
+        corresponding hashes.
     """
     with open(hash_file, "w", encoding="utf-8") as f:
         for file_path, file_hash in hashes.items():
@@ -90,13 +91,13 @@ def update_hashes(directory):
                 current_hash = calculate_hash(file_path)
                 current_hashes[file_path] = current_hash
 
-    # Remove hashes of files that are no longer present
+    # Remove hashes of files that are no longer present.
     updated_hashes = {**existing_hashes, **current_hashes}
     for file_path in list(updated_hashes.keys()):
         if file_path not in current_hashes:
             del updated_hashes[file_path]
 
-    # Save updated hashes
+    # Save updated hashes.
     save_hashes(HASH_FILE, updated_hashes)
     return updated_hashes
 
@@ -113,3 +114,6 @@ if __name__ == "__main__":
 
     updated_hashes = update_hashes(directory)
     print(f"Updated hashes for {len(updated_hashes)} files.")
+
+# ============================================================================ #
+# End of generate_hashes.py

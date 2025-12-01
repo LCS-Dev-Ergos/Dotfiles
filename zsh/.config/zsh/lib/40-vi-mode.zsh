@@ -44,7 +44,7 @@ export KEYTIMEOUT=1
 #   $1 - Cursor shape number (1-6, see table above)
 # -----------------------------------------------------------------------------
 _vi_set_cursor() {
-    printf '\e[%d q' "$1"
+  printf '\e[%d q' "$1"
 }
 
 # -----------------------------------------------------------------------------
@@ -57,10 +57,10 @@ _vi_set_cursor() {
 #   viins (insert mode)  → blinking block (1).
 # -----------------------------------------------------------------------------
 _vi_cursor_for_keymap() {
-    case "${KEYMAP:-viins}" in
+  case "${KEYMAP:-viins}" in
     vicmd) _vi_set_cursor 2 ;; # Normal: steady block.
     *) _vi_set_cursor 1 ;;     # Insert: blinking block.
-    esac
+  esac
 }
 
 # +++++++++++++++++++++++++++++++ ZLE Widgets ++++++++++++++++++++++++++++++++ #
@@ -72,8 +72,8 @@ _vi_cursor_for_keymap() {
 # Called by zle-line-init widget when a new command line starts.
 # -----------------------------------------------------------------------------
 _vi_line_init() {
-    zle -K viins
-    _vi_cursor_for_keymap
+  zle -K viins
+  _vi_cursor_for_keymap
 }
 
 # -----------------------------------------------------------------------------
@@ -88,24 +88,24 @@ _vi_line_init() {
 # Capture existing widget before overwriting.
 typeset -g _VI_PREV_KEYMAP_SELECT=
 if [[ -n "${widgets[zle - keymap - select]-}" ]]; then
-    _vi_current="${widgets[zle - keymap - select]#user:}"
-    # Prevent self-reference loop.
-    [[ "$_vi_current" != "_vi_keymap_select" ]] && _VI_PREV_KEYMAP_SELECT="$_vi_current"
-    unset _vi_current
+  _vi_current="${widgets[zle - keymap - select]#user:}"
+  # Prevent self-reference loop.
+  [[ "$_vi_current" != "_vi_keymap_select" ]] && _VI_PREV_KEYMAP_SELECT="$_vi_current"
+  unset _vi_current
 fi
 
 _vi_keymap_select() {
-    # Chain to previous widget (e.g., Starship's indicator).
-    if [[ -n "$_VI_PREV_KEYMAP_SELECT" ]]; then
-        if [[ "$_VI_PREV_KEYMAP_SELECT" == "starship_zle-keymap-select-wrapped" ]]; then
-            # Starship uses a wrapper function.
-            (($ + functions[starship_zle - keymap - select])) && starship_zle-keymap-select "$@"
-        else
-            "$_VI_PREV_KEYMAP_SELECT" "$@"
-        fi
+  # Chain to previous widget (e.g., Starship's indicator).
+  if [[ -n "$_VI_PREV_KEYMAP_SELECT" ]]; then
+    if [[ "$_VI_PREV_KEYMAP_SELECT" == "starship_zle-keymap-select-wrapped" ]]; then
+      # Starship uses a wrapper function.
+      (($ + functions[starship_zle - keymap - select])) && starship_zle-keymap-select "$@"
+    else
+      "$_VI_PREV_KEYMAP_SELECT" "$@"
     fi
+  fi
 
-    _vi_cursor_for_keymap
+  _vi_cursor_for_keymap
 }
 
 # Register vi mode widgets.
@@ -121,12 +121,12 @@ zle -N zle-keymap-select _vi_keymap_select
 # Bound to Ctrl+O. Only available on macOS (requires pbcopy).
 # -----------------------------------------------------------------------------
 if command -v pbcopy >/dev/null 2>&1; then
-    _vi_copy_cwd() {
-        print -rn -- "$PWD" | pbcopy
-        zle -M "Copied: $PWD"
-    }
-    zle -N _vi_copy_cwd
-    bindkey '^O' _vi_copy_cwd
+  _vi_copy_cwd() {
+    print -rn -- "$PWD" | pbcopy
+    zle -M "Copied: $PWD"
+  }
+  zle -N _vi_copy_cwd
+  bindkey '^O' _vi_copy_cwd
 fi
 
 #============================================================================= #

@@ -32,13 +32,13 @@ alias fabric="fabric-ai"
 # 'fabric --pattern summarize').
 # -----------------------------------------------------------------------------
 if command -v fabric >/dev/null 2>&1; then
-    local fabric_patterns_dir="$HOME/.config/fabric/patterns"
-    if [[ -d "$fabric_patterns_dir" ]]; then
-        for pattern_file in "$fabric_patterns_dir"/*; do
-            local pattern_name="$(basename "$pattern_file")"
-            alias "${pattern_name}=fabric --pattern ${pattern_name}"
-        done
-    fi
+  local fabric_patterns_dir="$HOME/.config/fabric/patterns"
+  if [[ -d "$fabric_patterns_dir" ]]; then
+    for pattern_file in "$fabric_patterns_dir"/*; do
+      local pattern_name="$(basename "$pattern_file")"
+      alias "${pattern_name}=fabric --pattern ${pattern_name}"
+    done
+  fi
 fi
 
 # -----------------------------------------------------------------------------
@@ -57,19 +57,19 @@ fi
 #   yt -t https://www.youtube.com/watch?v=dQw4w9WgXcQ | fabric --pattern summarize
 # -----------------------------------------------------------------------------
 yt() {
-    if [[ "$#" -eq 0 ]] || [[ "$#" -gt 2 ]]; then
-        echo "${C_RED}Usage: yt [-t | --timestamps] <youtube-link>${C_RESET}" >&2
-        return 1
-    fi
+  if [[ "$#" -eq 0 ]] || [[ "$#" -gt 2 ]]; then
+    echo "${C_RED}Usage: yt [-t | --timestamps] <youtube-link>${C_RESET}" >&2
+    return 1
+  fi
 
-    local transcript_flag="--transcript"
-    if [[ "$1" == "-t" ]] || [[ "$1" == "--timestamps" ]]; then
-        transcript_flag="--transcript-with-timestamps"
-        shift
-    fi
+  local transcript_flag="--transcript"
+  if [[ "$1" == "-t" ]] || [[ "$1" == "--timestamps" ]]; then
+    transcript_flag="--transcript-with-timestamps"
+    shift
+  fi
 
-    local video_link="$1"
-    fabric -y "$video_link" $transcript_flag
+  local video_link="$1"
+  fabric -y "$video_link" $transcript_flag
 }
 
 # -----------------------------------------------------------------------------
@@ -98,28 +98,28 @@ yt() {
 #   yt <url> | extract_wisdom "Video Summary"
 # -----------------------------------------------------------------------------
 if command -v fabric >/dev/null 2>&1; then
-    local fabric_patterns_dir="$HOME/.config/fabric/patterns"
-    if [[ -d "$fabric_patterns_dir" ]]; then
-        # Create output directory if it doesn't exist
-        [[ ! -d "$FABRIC_OUTPUT_DIR" ]] && mkdir -p "$FABRIC_OUTPUT_DIR"
+  local fabric_patterns_dir="$HOME/.config/fabric/patterns"
+  if [[ -d "$fabric_patterns_dir" ]]; then
+    # Create output directory if it doesn't exist
+    [[ ! -d "$FABRIC_OUTPUT_DIR" ]] && mkdir -p "$FABRIC_OUTPUT_DIR"
 
-        for pattern_file in "$fabric_patterns_dir"/*; do
-            [[ ! -f "$pattern_file" ]] && continue
-            local pattern_name=$(basename "$pattern_file")
+    for pattern_file in "$fabric_patterns_dir"/*; do
+      [[ ! -f "$pattern_file" ]] && continue
+      local pattern_name=$(basename "$pattern_file")
 
-            # Validate pattern name (security: prevent injection)
-            if [[ ! "$pattern_name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-                continue
-            fi
+      # Validate pattern name (security: prevent injection)
+      if [[ ! "$pattern_name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        continue
+      fi
 
-            # Remove previous alias to replace with function
-            unalias "$pattern_name" 2>/dev/null
+      # Remove previous alias to replace with function
+      unalias "$pattern_name" 2>/dev/null
 
-            # Create wrapper function (safer than eval)
-            # We use a factory function to properly capture pattern_name
-            _fabric_create_pattern_function() {
-                local pname="$1"
-                eval "function ${pname}() {
+      # Create wrapper function (safer than eval)
+      # We use a factory function to properly capture pattern_name
+      _fabric_create_pattern_function() {
+        local pname="$1"
+        eval "function ${pname}() {
                     local title=\"\$1\"
                     local date_stamp=\"\$(date +'%Y-%m-%d')\"
 
@@ -147,14 +147,14 @@ if command -v fabric >/dev/null 2>&1; then
                         fabric --pattern \"${pname}\" --stream
                     fi
                 }"
-            }
+      }
 
-            _fabric_create_pattern_function "$pattern_name"
-        done
+      _fabric_create_pattern_function "$pattern_name"
+    done
 
-        # Clean up factory function
-        unset -f _fabric_create_pattern_function
-    fi
+    # Clean up factory function
+    unset -f _fabric_create_pattern_function
+  fi
 fi
 
 # -----------------------------------------------------------------------------
@@ -167,9 +167,9 @@ fi
 #   fabric-update
 # -----------------------------------------------------------------------------
 fabric-update() {
-    echo "${C_CYAN}Updating Fabric patterns...${C_RESET}"
-    fabric --update
-    echo "${C_GREEN}Fabric patterns updated successfully.${C_RESET}"
+  echo "${C_CYAN}Updating Fabric patterns...${C_RESET}"
+  fabric --update
+  echo "${C_GREEN}Fabric patterns updated successfully.${C_RESET}"
 }
 
 # -----------------------------------------------------------------------------
@@ -181,8 +181,8 @@ fabric-update() {
 #   fabric-list
 # -----------------------------------------------------------------------------
 fabric-list() {
-    echo "${C_CYAN}Available Fabric patterns:${C_RESET}"
-    fabric --list
+  echo "${C_CYAN}Available Fabric patterns:${C_RESET}"
+  fabric --list
 }
 
 # ============================================================================ #
