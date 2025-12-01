@@ -5,4 +5,3 @@ end
 # Added by LM Studio CLI (lms)
 set -gx PATH $PATH /Users/lcs-dev/.lmstudio/bin
 # End of LM Studio CLI section
-

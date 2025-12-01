@@ -232,6 +232,29 @@ function y() {
 	rm -f -- "$tmp"
 }
 
+# -----------------------------------------------------------------------------
+# _init_ghostty
+# -----------------------------------------------------------------------------
+# Initialize Ghostty shell integration and alias.
+# Uses GHOSTTY_RESOURCES_DIR to source integration script if available.
+# Creates a 'ghostty' alias to avoid adding the full path to PATH.
+# -----------------------------------------------------------------------------
+_init_ghostty() {
+    # 1. Shell Integration (if running inside Ghostty)
+    if [[ -n "${GHOSTTY_RESOURCES_DIR}" ]]; then
+        if [[ -f "${GHOSTTY_RESOURCES_DIR}/shell-integration/zsh/ghostty-integration" ]]; then
+            source "${GHOSTTY_RESOURCES_DIR}/shell-integration/zsh/ghostty-integration"
+        fi
+    fi
+
+    # 2. Command Alias (available everywhere)
+    # Allows running 'ghostty' without polluting PATH.
+    if [[ -x "/Applications/Ghostty.app/Contents/MacOS/ghostty" ]]; then
+        alias ghostty="/Applications/Ghostty.app/Contents/MacOS/ghostty"
+    fi
+}
+_init_ghostty
+
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ #
 
 # Unset options to restore default behavior.
@@ -923,7 +946,6 @@ alias mv="mv -i"
 
 # Tools
 alias ranger="TERM=screen-256color ranger"
-alias clang-format="clang-format -style=file:\$CLANG_FORMAT_CONFIG"
 alias fnm-clean='echo "${C_CYAN}Cleaning up orphaned fnm sessions...${C_RESET}" &&
 rm -rf ~/.local/state/fnm_multishells/* && echo "${C_GREEN}Cleanup completed.${C_RESET}"'
 
@@ -946,6 +968,11 @@ if command -v thefuck >/dev/null 2>&1; then
     }
     alias fk=fuck
 fi
+
+# ------------ Dev. Tools ------------ #
+
+alias redis-start="/opt/homebrew/opt/redis/bin/redis-server /opt/homebrew/etc/redis.conf"
+alias clang-format="clang-format -style=file:\$CLANG_FORMAT_CONFIG"
 
 # ---------- C Compilation ----------- #
 # Determine include path dynamically based on platform.
@@ -1045,7 +1072,8 @@ if [[ "$PLATFORM" == 'macOS' ]]; then
     command brew "$@"
     if [[ $* =~ "upgrade" ]] || [[ $* =~ "update" ]] || [[ $* =~ "outdated" ]]; then
       # Ensure sketchybar is available before calling it.
-      command -v sketchybar >/dev/null 2>&1 && sketchybar --trigger brew_update
+      # Run asynchronously (&!) to avoid blocking the terminal if sketchybar hangs.
+      command -v sketchybar >/dev/null 2>&1 && sketchybar --trigger brew_update &!
     fi
   }
 
@@ -1254,8 +1282,8 @@ fi
 # ----- OS-specific environment variables ----- #
 if [[ "$PLATFORM" == 'macOS' ]]; then
     # Force the use of system binaries to avoid conflicts.
-    export LD=/usr/bin/ld
-    export AR=/usr/bin/ar
+    export LD="/usr/bin/ld"
+    export AR="/usr/bin/ar"
     # Activate these flags if you intend to use Homebrew's LLVM.
     export CPATH="/opt/homebrew/include"
     export LDFLAGS="-L/opt/homebrew/opt/llvm/lib"
@@ -1263,13 +1291,13 @@ if [[ "$PLATFORM" == 'macOS' ]]; then
 
     # GO Language.
     export GOROOT="/usr/local/go"
-    export GOPATH=$HOME/00_ENV/go
+    export GOPATH="$HOME/.go"
 
     # Android Home for Platform Tools.
     export ANDROID_HOME="$HOME/Library/Android/Sdk"
 
     # Ruby Gems.
-    export GEM_HOME=$HOME/.gem
+    export GEM_HOME="$HOME/.gem"
 fi
 
 if [[ "$PLATFORM" == 'Linux' && "$ARCH_LINUX" == true ]]; then
@@ -1468,7 +1496,7 @@ fi
 #
 # Paths checked:
 #   Linux (Arch): /opt/miniconda3/bin/conda
-#   User:         ~/00_ENV/miniforge3/bin/conda
+#   User:         ~/.miniforge3/bin/conda
 #
 # Configuration:
 #   - Disables conda's prompt modification (changeps1 false).
@@ -1479,8 +1507,8 @@ __conda_init() {
     if [[ "$PLATFORM" == 'Linux' && -f "/opt/miniconda3/bin/conda" ]]; then
         conda_path="/opt/miniconda3/bin/conda"
         # User path (macOS or other Linux).
-    elif [[ -f "$HOME/00_ENV/miniforge3/bin/conda" ]]; then
-        conda_path="$HOME/00_ENV/miniforge3/bin/conda"
+    elif [[ -f "$HOME/.miniforge3/bin/conda" ]]; then
+        conda_path="$HOME/.miniforge3/bin/conda"
     fi
 
     if [[ -n "$conda_path" ]]; then
@@ -1507,7 +1535,7 @@ unset -f __conda_init
 
 # ------------ Perl CPAN ------------ #
 # Only run if the local::lib directory exists.
-local_perl_dir="$HOME/00_ENV/perl5"
+local_perl_dir="$HOME/.perl5"
 if [[ -d "$local_perl_dir" ]]; then
     if command -v perl >/dev/null 2>&1; then
         eval "$(perl -I"$local_perl_dir/lib/perl5" -Mlocal::lib="$local_perl_dir")" 2>/dev/null
@@ -1630,13 +1658,13 @@ fi
 #   - Removes duplicates via typeset -U.
 # -----------------------------------------------------------------------------
 build_final_path() {
-    # Store original PATH for debugging.
+    # Store original PATH for debugging and fallback.
     local original_path="$PATH"
 
     # Version-specific Ruby gems bin (only when Ruby and GEM_HOME are available).
     local ruby_user_bin=""
     if [[ -n "$GEM_HOME" ]]; then
-        # Use glob expansion to find the version directory without spawning ruby.
+        # Use glob expansion to find the version directory without spawning Ruby.
         # Looks for "$GEM_HOME/ruby/*/bin".
         local -a ruby_dirs=("$GEM_HOME"/ruby/*/bin(N))
         if (( ${#ruby_dirs} )); then
@@ -1649,12 +1677,15 @@ build_final_path() {
     if [[ "$PLATFORM" == 'macOS' ]]; then
         path_template=(
             # ----- DYNAMIC SHIMS (TOP PRIORITY) ------ #
+            "$HOME/.rbenv/shims"
             "$HOME/.pyenv/shims"
 
             # ----- STATIC SHIMS & LANGUAGE BINS ------ #
             "$PYENV_ROOT/bin"
             "$HOME/.opam/ocaml-compiler/bin"
             "$HOME/.sdkman/candidates/java/current/bin"
+            "$HOME/.sdkman/candidates/maven/current/bin"
+            "$HOME/.sdkman/candidates/kotlin/current/bin"
 
             # ------ FNM (Current session only) ------- #
             "$FNM_MULTISHELL_PATH/bin"
@@ -1665,40 +1696,52 @@ build_final_path() {
             "/opt/homebrew/opt/llvm/bin"
             "/opt/homebrew/opt/ccache/libexec"
 
-            # ---------------- Podman ----------------- #
+            # ------------- Container VM -------------- #
             "/opt/podman/bin"
+            "$HOME/.rd/bin"
+            "$HOME/.orbstack/bin"
 
             # ------------- System Tools -------------- #
             "/usr/local/bin" "/usr/bin" "/bin"
             "/usr/sbin" "/sbin"
 
-            # ------ User and App-Specific Paths ------ #
-            "$HOME/.local/bin"
+            # --------- Functional Languages ---------- #
             "$HOME/.nix-profile/bin" "/nix/var/nix/profiles/default/bin"
+            "$HOME/Library/Application Support/Coursier/bin"
             "$HOME/.ghcup/bin" "$HOME/.cabal/bin"
             "$HOME/.cargo/bin"
+            "$HOME/.elan/bin"
+
+            # ------ User and App-Specific Paths ------ #
             "$HOME/.ada/bin"
             "$HOME/.flutter/bin"
-            "$HOME/Library/Application Support/Coursier/bin"
-            "$HOME/00_ENV/perl5/bin"
-            "$HOME/00_ENV/miniforge3/condabin" "$HOME/00_ENV/miniforge3/bin"
-            "$GEM_HOME/bin" "$ruby_user_bin"
+            "$HOME/.local/bin"
+            "$HOME/.perl5/bin"
             "$GOPATH/bin" "$GOROOT/bin"
-            "$ANDROID_HOME/platform-tools" "$ANDROID_HOME/cmdline-tools/latest/bin"
+            "$GEM_HOME/bin" "$ruby_user_bin"
+            "$HOME/.miniforge3/condabin" "$HOME/.miniforge3/bin"
+            "$ANDROID_HOME/platform-tools"
+            "$ANDROID_HOME/cmdline-tools/latest/bin"
+
+            # --------------- AI Tools ---------------- #
+            "$HOME/.antigravity/antigravity/bin"
+            "$HOME/.lmstudio/bin"
+            "$HOME/.opencode/bin"
 
             # -------------- Other Paths -------------- #
             "$HOME/.config/emacs/bin"
             "$HOME/.wakatime"
+            "$HOME/.lcs-bin"
+            "$HOME/Library/Application Support/JetBrains/Toolbox/scripts"
             "/usr/local/mysql/bin"
             "/opt/homebrew/opt/ncurses/bin"
             "/Library/TeX/texbin"
             "/usr/local/texlive/2025/bin/universal-darwin"
-            "$HOME/Library/Application Support/JetBrains/Toolbox/scripts"
-            "$HOME/.lcs-bin"
         )
     elif [[ "$PLATFORM" == 'Linux' ]]; then
         path_template=(
             # ----- DYNAMIC SHIMS (TOP PRIORITY) ------ #
+            "$HOME/.rbenv/shims"
             "$HOME/.pyenv/shims"
 
             # ----- STATIC SHIMS & LANGUAGE BINS ------ #
@@ -1716,18 +1759,26 @@ build_final_path() {
             # --------------- Linuxbrew --------------- #
             "/home/linuxbrew/.linuxbrew/bin" "/home/linuxbrew/.linuxbrew/sbin"
 
-            # ------ User and App-Specific Paths ------ #
-            "$HOME/.local/bin"
+            # --------- Functional Languages ---------- #
             "$HOME/.nix-profile/bin" "/nix/var/nix/profiles/default/bin"
             "$HOME/.ghcup/bin" "$HOME/.cabal/bin"
             "$HOME/.cargo/bin"
+
+            # ------ User and App-Specific Paths ------ #
+            "$ruby_user_bin"
             "$HOME/.ada/bin"
             "$HOME/.flutter/bin"
             "$HOME/.elan/bin"
-            "$ruby_user_bin"
+            "$HOME/.local/bin"
             "$GOPATH/bin" "$GOROOT/bin"
-            "$ANDROID_HOME/platform-tools" "$ANDROID_HOME/cmdline-tools/latest/bin"
+            "$ANDROID_HOME/platform-tools"
+            "$ANDROID_HOME/cmdline-tools/latest/bin"
             "$HOME/.local/share/JetBrains/Toolbox/scripts"
+
+            # --------------- AI Tools ---------------- #
+            "$HOME/.antigravity/antigravity/bin"
+            "$HOME/.lmstudio/bin"
+            "$HOME/.opencode/bin"
 
             # -------------- Other Paths -------------- #
             "$HOME/.config/emacs/bin"
@@ -1736,46 +1787,60 @@ build_final_path() {
         )
     fi
 
-    # Create new PATH with only existing directories.
+    # -------------------------------------------------------------------------
+    # Path Reconstruction Logic
+    # -------------------------------------------------------------------------
+    # 1. Start with an empty array.
+    # 2. Use an associative array 'seen' for O(1) duplicate detection.
+    # 3. Add paths from 'path_template' (priority list).
+    # 4. Append any remaining paths from 'original_path' (dynamic additions).
+    # -------------------------------------------------------------------------
+
     local -a new_path_array=()
-    for dir in "${path_template[@]}"; do
-        if [[ -n "$dir" && -d "$dir" ]]; then
+    local -A seen
+
+    # Helper to add a directory to the new path if valid and not seen.
+    _add_to_path() {
+        local dir="$1"
+        # Check if directory exists and hasn't been added yet.
+        if [[ -d "$dir" ]] && [[ -z "${seen[$dir]}" ]]; then
+            # Filter out unwanted paths (e.g., Ghostty injection).
+            if [[ "$dir" == *"/Ghostty.app/"* ]]; then
+                return
+            fi
+
+            # Skip FNM orphan directories (safety check).
+            if [[ "$dir" == *"fnm_multishells"* && "${dir}" != "${FNM_MULTISHELL_PATH}/bin" ]]; then
+                return
+            fi
+
             new_path_array+=("$dir")
+            seen[$dir]=1
         fi
+    }
+
+    # 1. Add prioritized paths from template.
+    for dir in "${path_template[@]}"; do
+        _add_to_path "$dir"
     done
 
-    # Add any directories from original PATH that weren't in template
-    # (like VS Code extensions, etc.).
-    # shellcheck disable=SC2296
+    # 2. Add remaining paths from original PATH (e.g., VS Code extensions).
+    # Split original PATH by colon.
     local -a original_path_array=("${(@s/:/)original_path}")
     for dir in "${original_path_array[@]}"; do
-        if [[ -n "$dir" && -d "$dir" ]]; then
-            # Check if this directory is already in our new path.
-            local found=false
-            for existing in "${new_path_array[@]}"; do
-                if [[ "$dir" == "$existing" ]]; then
-                    found=true
-                    break
-                fi
-            done
-
-            # Skip FNM orphan directories.
-            if [[ "$dir" == *"fnm_multishells"* && "${dir}" != "${FNM_MULTISHELL_PATH}/bin" ]]; then
-                continue
-            fi
-
-            if [[ "$found" == false ]]; then
-                new_path_array+=("$dir")
-            fi
-        fi
+        _add_to_path "$dir"
     done
 
     # Convert array to PATH string.
     local IFS=':'
     export PATH="${new_path_array[*]}"
 
-    # Remove duplicates using typeset -U.
-    typeset -U PATH
+    # Cleanup helper.
+    unset -f _add_to_path
+
+    # Deduplicate other important path arrays. PATH is already deduplicated
+    # by the logic above, but -gU ensures it stays unique globally.
+    typeset -gU PATH fpath manpath
 }
 
 # Run the PATH rebuilding function.
@@ -1787,14 +1852,11 @@ unset -f build_final_path
 # ============================================================================ #
 
 # LM Studio CLI (lms) - Cross-platform compatible.
-if [[ -d "$HOME/.lmstudio/bin" ]]; then
-    export PATH="$PATH:$HOME/.lmstudio/bin"
-fi
-
-# opencode - Cross-platform compatible.
-if [[ -d "$HOME/.opencode/bin" ]]; then
-    export PATH="$HOME/.opencode/bin:$PATH"
-fi
-
-# Added by Antigravity
-export PATH="/Users/lcs-dev/.antigravity/antigravity/bin:$PATH"
+# if [[ -d "$HOME/.lmstudio/bin" ]]; then
+#     export PATH="$PATH:$HOME/.lmstudio/bin"
+# fi
+#
+# # opencode - Cross-platform compatible.
+# if [[ -d "$HOME/.opencode/bin" ]]; then
+#     export PATH="$HOME/.opencode/bin:$PATH"
+# fi
