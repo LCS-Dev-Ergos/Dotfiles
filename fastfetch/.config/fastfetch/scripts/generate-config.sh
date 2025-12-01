@@ -3,47 +3,47 @@
 
 # Determine OS icon
 case $(uname -s) in
-Darwin)
+  Darwin)
     OS_ICON='  󰀵'
     ;;
-Linux)
+  Linux)
     if [ -f /etc/os-release ]; then
-        # shellcheck source=/dev/null
-        . /etc/os-release
-        case $ID in
+      # shellcheck source=/dev/null
+      . /etc/os-release
+      case $ID in
         arch | archlinux)
-            OS_ICON='  󰣇'
-            ;;
+          OS_ICON='  󰣇'
+          ;;
         ubuntu)
-            OS_ICON='  '
-            ;;
+          OS_ICON='  '
+          ;;
         debian)
-            OS_ICON='  '
-            ;;
+          OS_ICON='  '
+          ;;
         fedora)
-            OS_ICON='  '
-            ;;
+          OS_ICON='  '
+          ;;
         centos)
-            OS_ICON='  '
-            ;;
+          OS_ICON='  '
+          ;;
         gentoo)
-            OS_ICON='  '
-            ;;
+          OS_ICON='  '
+          ;;
         nixos)
-            OS_ICON='  '
-            ;;
+          OS_ICON='  '
+          ;;
         *)
-            OS_ICON='  '
-            ;;
-        esac
+          OS_ICON='  '
+          ;;
+      esac
     else
-        OS_ICON='  '
+      OS_ICON='  '
     fi
     ;;
-*BSD)
+  *BSD)
     OS_ICON='  '
     ;;
-*)
+  *)
     OS_ICON='  '
     ;;
 esac

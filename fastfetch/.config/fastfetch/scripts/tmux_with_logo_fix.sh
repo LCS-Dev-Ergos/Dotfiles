@@ -5,8 +5,8 @@ image=$(find "${XDG_CONFIG_HOME:-$HOME/.config}/fastfetch/pngs/" -name "*.png" |
 
 # Check if an image was found
 if [[ -z "$image" ]]; then
-    echo "No images found in the configured directory" >&2
-    exit 1
+  echo "No images found in the configured directory" >&2
+  exit 1
 fi
 
 # Calculating dimensions and positioning
@@ -22,9 +22,9 @@ image_y=$((lines / 2 - 9))
 
 # Visualize the image with Kitty
 kitty +kitten icat \
-    --silent \
-    --place "${image_width}x${image_height}@${image_x}x${image_y}" \
-    "$image"
+  --silent \
+  --place "${image_width}x${image_height}@${image_x}x${image_y}" \
+  "$image"
 
 # Use Kitty to display the image
 kitty +kitten icat --align left --silent "$image"

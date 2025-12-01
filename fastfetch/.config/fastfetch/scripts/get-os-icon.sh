@@ -2,14 +2,14 @@
 # Returns just the icon for the current OS
 
 case $(uname -s) in
-Darwin)
+  Darwin)
     echo ' 󰀵 '
     ;;
-Linux)
+  Linux)
     if [ -f /etc/os-release ]; then
-        # shellcheck source=/dev/null
-        . /etc/os-release
-        case $ID in
+      # shellcheck source=/dev/null
+      . /etc/os-release
+      case $ID in
         arch | archlinux) echo ' 󰣇 ' ;;
         ubuntu) echo '  ' ;;
         debian) echo '  ' ;;
@@ -18,15 +18,15 @@ Linux)
         gentoo) echo '  ' ;;
         nixos) echo '  ' ;;
         *) echo '  ' ;;
-        esac
+      esac
     else
-        echo '  '
+      echo '  '
     fi
     ;;
-*BSD)
+  *BSD)
     echo '  '
     ;;
-*)
+  *)
     echo '  '
     ;;
 esac
