@@ -1064,5 +1064,200 @@ function qr() {
     curl -sF-="\<-" qrenco.de <<<"$1"
 }
 
+# -----------------------------------------------------------------------------
+# dirsize
+# -----------------------------------------------------------------------------
+# Calculate and display directory sizes in descending order with pagination.
+# Uses Nushell for table rendering if available, falls back to column formatting.
+# Only scans immediate subdirectories (depth=1) for performance and safety.
+#
+# Usage:
+#   dirsize [directory] [options]
+#
+# Arguments:
+#   directory - Target directory to analyze (default: current directory).
+#
+# Options:
+#   -n, --limit NUM     Results per page (default: 25).
+#   -a, --all           Include files, not just directories.
+#   -h, --help          Show help message.
+#
+# Returns:
+#   0 - Size analysis completed successfully.
+#   1 - Invalid arguments or directory not found.
+# -----------------------------------------------------------------------------
+function dirsize() {
+    local target_dir="."
+    local limit=25
+    local include_files=false
+    local show_help=false
+
+    # Parse arguments.
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+        -n | --limit)
+            if [[ -z "$2" ]] || ! [[ "$2" =~ ^[0-9]+$ ]]; then
+                echo "${C_RED}Error: --limit requires a positive number.${C_RESET}" >&2
+                return 1
+            fi
+            limit="$2"
+            shift 2
+            ;;
+        -a | --all)
+            include_files=true
+            shift
+            ;;
+        -h | --help)
+            show_help=true
+            shift
+            ;;
+        -*)
+            echo "${C_RED}Error: Unknown option '$1'${C_RESET}" >&2
+            echo "Use 'dirsize --help' for usage information." >&2
+            return 1
+            ;;
+        *)
+            target_dir="$1"
+            shift
+            ;;
+        esac
+    done
+
+    # Show help.
+    if [[ "$show_help" == true ]]; then
+        cat <<EOF
+${C_CYAN}dirsize - Directory Size Analyzer${C_RESET}
+
+${C_YELLOW}Usage:${C_RESET}
+  dirsize [directory] [options]
+
+${C_YELLOW}Arguments:${C_RESET}
+  directory             Target directory (default: current directory)
+
+${C_YELLOW}Options:${C_RESET}
+  -n, --limit NUM      Results per page (default: 25)
+  -a, --all           Include files in addition to directories
+  -h, --help          Show this help message
+
+${C_YELLOW}Examples:${C_RESET}
+  dirsize                    # Analyze current directory
+  dirsize ~/Projects         # Analyze specific directory
+  dirsize -n 50             # Show 50 results per page
+  dirsize --all             # Include files in analysis
+EOF
+        return 0
+    fi
+
+    # Validate target directory.
+    if [[ ! -d "$target_dir" ]]; then
+        echo "${C_RED}Error: Directory '$target_dir' not found.${C_RESET}" >&2
+        return 1
+    fi
+
+    # Convert to absolute path for display.
+    target_dir=$(cd "$target_dir" && pwd)
+
+    echo "${C_CYAN}Analyzing: ${target_dir}${C_RESET}"
+    echo "${C_YELLOW}Calculating sizes...${C_RESET}"
+
+    # Build find command based on options.
+    # Use -exec du -sh {} + to pass multiple arguments to a single du process.
+    # This significantly reduces process creation overhead.
+    local find_cmd
+    if [[ "$include_files" == true ]]; then
+        find_cmd="find \"$target_dir\" -mindepth 1 -maxdepth 1 -exec du -sh {} +"
+    else
+        find_cmd="find \"$target_dir\" -mindepth 1 -maxdepth 1 -type d -exec du -sh {} +"
+    fi
+
+    # Create temporary file for results.
+    local temp_file=$(mktemp)
+    trap "rm -f '$temp_file'" EXIT INT TERM
+
+    # Calculate sizes and store in temp file.
+    # Read du output: size path
+    eval "$find_cmd" 2>/dev/null | while read -r size path; do
+        if [[ -e "$path" ]]; then
+            local type="dir"
+            [[ -f "$path" ]] && type="file"
+            local name=${path:t}
+
+            # Store as: size|type|name
+            echo "${size}|${type}|${name}"
+        fi
+    done | sort -rh >"$temp_file"
+
+    # Check if any results were found.
+    if [[ ! -s "$temp_file" ]]; then
+        echo "${C_YELLOW}No items found in directory.${C_RESET}"
+        return 0
+    fi
+
+    local total_items=$(wc -l <"$temp_file" | tr -d ' ')
+    echo "${C_GREEN}Found ${total_items} items${C_RESET}"
+    echo ""
+
+    # Function to display results using Nushell or fallback formatting.
+    local offset=0
+    while [[ $offset -lt $total_items ]]; do
+        local remaining=$((total_items - offset))
+        local to_show=$((remaining < limit ? remaining : limit))
+
+        # Extract current page of results.
+        local page_data=$(tail -n +$((offset + 1)) "$temp_file" | head -n "$to_show")
+
+        # Try to use Nushell for table rendering.
+        if command -v nu >/dev/null 2>&1; then
+            # Convert to JSON for Nushell.
+            local json_data="["
+            local first=true
+
+            while IFS='|' read -r size type name; do
+                if [[ "$first" == true ]]; then
+                    first=false
+                else
+                    json_data+=","
+                fi
+                # Escape special characters in name.
+                name=$(printf '%s' "$name" | sed 's/"/\\"/g')
+                json_data+="{\"size\":\"$size\",\"type\":\"$type\",\"name\":\"$name\"}"
+            done <<< "$page_data"
+            json_data+="]"
+
+            # Pipe to Nushell for rendering.
+            # Use environment variable to pass data to avoid pipeline issues.
+            DIRSIZE_DATA="$json_data" nu -c '$env.DIRSIZE_DATA | from json | table --width 100'
+        else
+            # Fallback to column-based formatting.
+            echo "${C_CYAN}Size      Type  Name${C_RESET}"
+            echo "${C_CYAN}─────────────────────────────────────────────────────────${C_RESET}"
+
+            echo "$page_data" | while IFS='|' read -r size type name; do
+                printf "%-9s %-5s %s\n" "$size" "$type" "$name"
+            done
+        fi
+
+        offset=$((offset + to_show))
+
+        # Ask if user wants to continue.
+        if [[ $offset -lt $total_items ]]; then
+            echo ""
+            echo -n "${C_YELLOW}Show next ${limit}? [y/N] ${C_RESET}"
+            read -r response
+            if [[ ! "$response" =~ ^[Yy]$ ]]; then
+                echo "${C_CYAN}Stopped at ${offset}/${total_items} items.${C_RESET}"
+                break
+            fi
+            echo ""
+        fi
+    done
+
+    echo ""
+    echo "${C_GREEN}Total items displayed: ${offset}/${total_items}${C_RESET}"
+}
+
+# Create alias for dirsize.
+alias ds='dirsize'
+
 # ============================================================================ #
 # End of script.

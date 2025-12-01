@@ -84,8 +84,9 @@ JETBRAINS_IDEs="CLion|CLion-EAP|DataGrip|DataGrip-EAP|GoLand-EAP|IntelliJ IDEA|I
 
 yabai -m rule --add \
     app="^($JETBRAINS_IDEs)$" \
-    title="^(.*Configurations?.*|.*Debug.*|.*Delete.*|.*devices?.*|.*Files?.*|.*Installations?.*|.*Errors?.*\
-             |.*Licenses?.*|.*Lines?.*|.*Log.*|.*JetBrains.*|.*Move.*|.*Plugins?.*|.*Projects?.*|.*Rename.* \
+    title="^(.*Commands?.*|.*Configurations?.*|.*Debug.*|.*Delete.*|.*devices?.*| \
+             |.*Errors?.*|.*Files?.*|.*Installations?.*|.*JetBrains.*|.*Licenses?.*| \
+             |.*Lines?.*|.*Log.*|.*Move.*|.*Plugins?.*|.*Projects?.*|.*Rename.*| \
              |.*Resources?.*|.*Tip of the Day.*|.*Updates?.*|.*Welcome.*)$" \
     manage=off
 
@@ -93,10 +94,25 @@ yabai -m rule --add \
 yabai -m rule --add \
     label="Android Studio" \
     app="^.*Android Studio.*$" \
-    title="^(.*About.*|.*Add?.*|.*Android.*|.*Commits?.*|.*Configurations?.*|.*Convert.*|.*Debug.*|.*Delete.* \
-             |.*Device.*|.*Directory.*|.*Errors?.*|.*Files?.*|.*Git.*|.*Gradle.*|.*Icons?.*|.*Inspections?.*|.*Injections?.* \
-             |.*Installations?.*|.*JetBrains.*|.*Languages?.*|.*Lines?.*|.*Log.*|.*Move.*|.*Plugins?.*|.*Process?.*|.*Projects?.*|.*Provide?.* \
-             |.*Rename.*|.*Resources?.*|.*SDK.*|.*Select?.*|.*Studio.*|.*Tip of the Day.*|.*Updates?.*|.*Welcome.*|.*devices?.*)$" \
+    title="^(.*About.*|.*Add?.*|.*Android.*|.*Commits?.*|.*Configurations?.*| \
+             |.*Convert.*|.*Debug.*|.*Delete.*|.*Device.*|.*devices?.*|.*Directory.*| \
+             |.*Errors?.*|.*Files?.*|.*Git.*|.*Gradle.*|.*Icons?.*|.*Injections?.*| \
+             |.*Inspections?.*|.*Installations?.*|.*JetBrains.*|.*Languages?.*| \
+             |.*Lines?.*|.*Log.*|.*Move.*|.*Plugins?.*|.*Process?.*|.*Projects?.*| \
+             |.*Provide?.*|.*Rename.*|.*Resources?.*|.*SDK.*|.*Select?.*|.*Studio.*| \
+             |.*Tip of the Day.*|.*Updates?.*|.*Welcome.*)$" \
+    manage=off
+
+# +++++++++++++++++++++++++++++++ DataSpell ++++++++++++++++++++++++++++++++++ #
+yabai -m rule --add \
+    label="DataSpell" \
+    app="^.*DataSpell.*$" \
+    title="^(.*Commands?.*|.*Configurations?.*|.*Console.*|.*Data.*| \
+             |.*DataSpell.*|.*Debug.*|.*Delete.*|.*devices?.*|.*Errors?.*| \
+             |.*Files?.*|.*Installations?.*|.*JetBrains.*|.*Jupyter.*| \
+             |.*Licenses?.*|.*Lines?.*|.*Log.*|.*Manage.*|.*Move.*|.*Notebook.*| \
+             |.*Plugins?.*|.*Projects?.*|.*Python.*|.*Rename.*|.*Packages?.*| \
+             |.*Resources?.*|.*Settings.*|.*Tip of the Day.*|.*Updates?.*|.*Welcome.*)$" \
     manage=off
 
 # +++++++++++++++++++++++++++++++++ Eclipse +++++++++++++++++++++++++++++++++ #

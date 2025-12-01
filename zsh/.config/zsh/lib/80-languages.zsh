@@ -104,28 +104,28 @@ else
     #   Linux: update-alternatives, archlinux-java, or /usr/lib/jvm search
     #
     # Sets:
-    #   JAVA_HOME - Java installation directory
-    #   PATH      - Adds $JAVA_HOME/bin
+    #   JAVA_HOME - Java installation directory.
+    #   PATH      - Adds $JAVA_HOME/bin.
     # -------------------------------------------------------------------------
     setup_java_home_fallback() {
-        # Cache file location
+        # Cache file location.
         local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
         local cache_file="$cache_dir/java_home"
 
-        # Check if cache exists and is less than 7 days old
+        # Check if cache exists and is less than 7 days old.
         if [[ -f "$cache_file" ]]; then
-            # Check modification time (macOS/Linux compatible)
+            # Check modification time (macOS/Linux compatible).
             local cache_valid=false
             if [[ "$PLATFORM" == 'macOS' ]]; then
-                # stat -f %m returns modification time in seconds
+                # stat -f %m returns modification time in seconds.
                 local mtime=$(stat -f %m "$cache_file")
                 local now=$(date +%s)
-                # 604800 seconds = 7 days
+                # 604800 seconds = 7 days.
                 if ((now - mtime < 604800)); then
                     cache_valid=true
                 fi
             else
-                # Linux find -mtime -7
+                # Linux find -mtime -7.
                 if [[ -n $(find "$cache_file" -mtime -7 2>/dev/null) ]]; then
                     cache_valid=true
                 fi
@@ -178,7 +178,7 @@ else
             fi
         fi
 
-        # Save to cache if JAVA_HOME was found
+        # Save to cache if JAVA_HOME was found.
         if [[ -n "$JAVA_HOME" ]]; then
             mkdir -p "$cache_dir"
             echo "export JAVA_HOME='$JAVA_HOME'" >"$cache_file"
