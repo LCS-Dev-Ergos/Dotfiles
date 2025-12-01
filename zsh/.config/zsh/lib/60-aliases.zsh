@@ -46,14 +46,14 @@ alias mv="mv -i"
 #   fzf - Fuzzy finder.
 # -----------------------------------------------------------------------------
 cdf() {
-    if ! command -v fzf >/dev/null 2>&1; then
-        echo "${C_YELLOW}fzf is required for cdf${C_RESET}" >&2
-        return 1
-    fi
-    local target
-    target=$(fzf --select-1 --exit-0)
-    [[ -z "$target" ]] && return 1
-    cd -- "$(dirname -- "$target")"
+  if ! command -v fzf >/dev/null 2>&1; then
+    echo "${C_YELLOW}fzf is required for cdf${C_RESET}" >&2
+    return 1
+  fi
+  local target
+  target=$(fzf --select-1 --exit-0)
+  [[ -z "$target" ]] && return 1
+  cd -- "$(dirname -- "$target")"
 }
 
 # ++++++++++++++++++++++++++++ DEVELOPMENT TOOLS +++++++++++++++++++++++++++++ #
@@ -69,11 +69,11 @@ rm -rf ~/.local/state/fnm_multishells/* && echo "${C_GREEN}Cleanup completed.${C
 # ---------- C Include Path ---------- #
 # Determine include path dynamically based on platform.
 if [[ "$PLATFORM" == 'macOS' ]] && [[ -d "/opt/homebrew/include" ]]; then
-    C_INCLUDE_PATH="-I/opt/homebrew/include"
+  C_INCLUDE_PATH="-I/opt/homebrew/include"
 elif [[ -d "/usr/local/include" ]]; then
-    C_INCLUDE_PATH="-I/usr/local/include"
+  C_INCLUDE_PATH="-I/usr/local/include"
 else
-    C_INCLUDE_PATH=""
+  C_INCLUDE_PATH=""
 fi
 
 # Toolchain Information Alias.
@@ -105,14 +105,14 @@ alias qc-debug="clang -std=c23 -g -O0 -Wall $C_INCLUDE_PATH"
 # --------- C++ Compilation ---------- #
 # Determine LLVM library path dynamically.
 if [[ "$PLATFORM" == 'macOS' ]] && command -v brew >/dev/null 2>&1; then
-    LLVM_PREFIX=$(brew --prefix llvm 2>/dev/null)
-    if [[ -n "$LLVM_PREFIX" && -d "$LLVM_PREFIX/lib/c++" ]]; then
-        CPP_LIB_PATH="-L$LLVM_PREFIX/lib/c++ -lc++"
-    else
-        CPP_LIB_PATH="-lc++"
-    fi
-else
+  LLVM_PREFIX=$(brew --prefix llvm 2>/dev/null)
+  if [[ -n "$LLVM_PREFIX" && -d "$LLVM_PREFIX/lib/c++" ]]; then
+    CPP_LIB_PATH="-L$LLVM_PREFIX/lib/c++ -lc++"
+  else
     CPP_LIB_PATH="-lc++"
+  fi
+else
+  CPP_LIB_PATH="-lc++"
 fi
 
 # Default C++ Compilation Alias.
@@ -174,9 +174,9 @@ alias fastfetch='~/.config/fastfetch/scripts/fastfetch-dynamic.sh'
 
 # Default 'ls' alias (may be overridden below based on platform).
 if command -v eza >/dev/null 2>&1; then
-    alias ls="eza --color=auto --long --git --icons=auto"
-    alias ll="eza -lha --icons=auto --sort=name --group-directories-first"
-    alias l="eza -lh --icons=auto"
+  alias ls="eza --color=auto --long --git --icons=auto"
+  alias ll="eza -lha --icons=auto --sort=name --group-directories-first"
+  alias l="eza -lh --icons=auto"
 fi
 
 # +++++++++++++++++++++++++++ THEFUCK INTEGRATION ++++++++++++++++++++++++++++ #
@@ -198,19 +198,19 @@ fi
 #   underlying command (raw command) once instead.
 # -----------------------------------------------------------------------------
 if command -v thefuck >/dev/null 2>&1; then
-    # Lazy load thefuck to save startup time.
-    fuck() {
-        unset -f fuck
-        eval "$(thefuck --alias 2>/dev/null)"
-        # The alias is now defined, invoke it.
-        eval "$functions[fuck]" "$@"
-        # Check if alias was created successfully.
-        if alias fuck >/dev/null 2>&1; then
-            # Invoke the alias.
-            PYTHONIOENCODING=utf-8 thefuck $(fc -ln -1 | tail -n 1) && fc -R
-        fi
-    }
-    alias fk=fuck
+  # Lazy load thefuck to save startup time.
+  fuck() {
+    unset -f fuck
+    eval "$(thefuck --alias 2>/dev/null)"
+    # The alias is now defined, invoke it.
+    eval "$functions[fuck]" "$@"
+    # Check if alias was created successfully.
+    if alias fuck >/dev/null 2>&1; then
+      # Invoke the alias.
+      PYTHONIOENCODING=utf-8 thefuck $(fc -ln -1 | tail -n 1) && fc -R
+    fi
+  }
+  alias fk=fuck
 fi
 
 # ++++++++++++++++++++++++ PLATFORM-SPECIFIC ALIASES +++++++++++++++++++++++++ #
