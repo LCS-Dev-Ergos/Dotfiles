@@ -69,14 +69,14 @@ fi
 # +++++++++++++++++++++++++ LOAD CORE MODULES ++++++++++++++++++++++++++++++++ #
 
 # Load modules in priority order.
-# Note: Order is critical - do not rearrange without understanding dependencies.
+# Note: Order is critical - Do not rearrange without understanding dependencies.
 # Use an array to capture the files first to check if any exist.
 typeset -a config_modules
 config_modules=("$ZSH_CONFIG_DIR/lib/"*.zsh(N))
 
 if (( ${#config_modules} == 0 )); then
     echo "⚠️  Warning: No Zsh configuration modules found in $ZSH_CONFIG_DIR/lib/"
-    echo "   Please check your ZSH_CONFIG_DIR setting."
+    echo "    Please check your ZSH_CONFIG_DIR setting."
 else
     for config_module in "${config_modules[@]}"; do
         source "$config_module"

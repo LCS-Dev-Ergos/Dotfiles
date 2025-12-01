@@ -1,7 +1,11 @@
-#compdef cppbuild cpprun cppgo cppnew cppconf cppjudge cppstress cppsubmit cpptestsubmit cppfull cppwatch cppdelete cppforcego
-
+# shellcheck shell=zsh
+# -----------------------------------------------------------------------------
+# compdef cppbuild cpprun cppgo cppnew cppconf cppjudge cppstress cppsubmit
+# cpptestsubmit cppfull cppwatch cppdelete cppforcego
+# -----------------------------------------------------------------------------
+#
 # Zsh completion for cpp-tools (competitive.sh)
-
+# -----------------------------------------------------------------------------
 _cpp_targets() {
     local -a targets
     # Find .cpp, .cc, .cxx files and strip extensions
@@ -60,3 +64,4 @@ case "$service" in
             '2:compiler:_cpp_compilers'
         ;;
 esac
+# -----------------------------------------------------------------------------
