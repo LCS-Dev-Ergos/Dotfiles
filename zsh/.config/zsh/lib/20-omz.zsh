@@ -65,8 +65,7 @@ _ensure_plugin_installed() {
 
   if [[ ! -d "$plugin_dir" ]]; then
     echo "${C_YELLOW}Installing missing plugin: $plugin_name${C_RESET}"
-    git clone --depth=1 "$repo_url" "$plugin_dir" 2>/dev/null
-    if [[ $? -eq 0 ]]; then
+    if git clone --depth=1 "$repo_url" "$plugin_dir" 2>/dev/null; then
       echo "${C_GREEN}✓ Successfully installed $plugin_name${C_RESET}"
     else
       echo "${C_RED}✗ Failed to install $plugin_name${C_RESET}"
@@ -84,6 +83,8 @@ if [[ "$PLATFORM" == "macOS" ]]; then
   _ensure_plugin_installed "you-should-use" "https://github.com/MichaelAquilina/zsh-you-should-use"
   _ensure_plugin_installed "zsh-bat" "https://github.com/fdellwing/zsh-bat"
 fi
+
+unfunction _ensure_plugin_installed 2>/dev/null
 # -----------------------------------------------------------------------------
 
 # Check for plugin availability on Arch Linux.

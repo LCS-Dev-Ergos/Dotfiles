@@ -17,6 +17,13 @@
 #
 # ============================================================================ #
 
+# Precompute shared volume path before use in later sections.
+if [[ "$PLATFORM" == 'macOS' ]]; then
+  export LCS_Data="/Volumes/LCS.Data"
+elif [[ "$PLATFORM" == 'Linux' && "$ARCH_LINUX" == true ]]; then
+  export LCS_Data="/LCS.Data"
+fi
+
 # -------- JVM & Build Tools --------- #
 # JVM: Performance optimization flags for local development.
 export JAVA_TOOL_OPTIONS="-XX:+UseG1GC -XX:MaxRAMPercentage=75.0 -XX:+TieredCompilation"
@@ -53,13 +60,6 @@ if [[ "$PLATFORM" == "Linux" ]]; then
   export CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1
 fi
 
-# --------------- Blog --------------- #
-# Blog directories and scripts.
-export BLOG_POSTS_DIR="$LCS_Data/Blog/CS-Topics/content/posts/"
-export BLOG_STATIC_IMAGES_DIR="$LCS_Data/Blog/CS-Topics/static/images"
-export IMAGES_SCRIPT_PATH="$LCS_Data/Blog/Automatic-Updates/images.py"
-export OBSIDIAN_ATTACHMENTS_DIR="$HOME/Documents/Obsidian-Vault/XSPC-Vault/Blog/images"
-
 # -------- OS-specific environment variables -------- #
 if [[ "$PLATFORM" == 'macOS' ]]; then
   # Force the use of system binaries to avoid conflicts.
@@ -80,11 +80,12 @@ if [[ "$PLATFORM" == 'macOS' ]]; then
   # Ruby Gems.
   export GEM_HOME="$HOME/.gem"
 
-  # ------------ Directories (macOS) ------------- #
   # LCS.Data Volume.
-  export LCS_Data="/Volumes/LCS.Data"
   if [[ ! -d "$LCS_Data" ]]; then
-    echo "${C_YELLOW}⚠️ Warning: LCS.Data volume is not mounted${C_RESET}"
+    if [[ -t 1 ]] && [[ -z "${ZSH_SILENCE_LCS_DATA_WARN:-}" ]] && [[ -z "${LCS_DATA_WARNED:-}" ]]; then
+      echo "${C_YELLOW}⚠️ Warning: LCS.Data volume is not mounted${C_RESET}"
+      LCS_DATA_WARNED=1
+    fi
   fi
 fi
 
@@ -109,12 +110,22 @@ if [[ "$PLATFORM" == 'Linux' && "$ARCH_LINUX" == true ]]; then
     unset go_bin go_path
   fi
 
-  # ------------ Directories (Linux) ------------- #
   # LCS.Data Volume.
-  export LCS_Data="/LCS.Data"
   if [[ ! -d "$LCS_Data" ]]; then
-    echo "${C_YELLOW}⚠️ Warning: LCS.Data volume does not appear to be mounted in $LCS_Data${C_RESET}"
+    if [[ -t 1 ]] && [[ -z "${ZSH_SILENCE_LCS_DATA_WARN:-}" ]] && [[ -z "${LCS_DATA_WARNED:-}" ]]; then
+      echo "${C_YELLOW}⚠️ Warning: LCS.Data volume does not appear to be mounted in $LCS_Data${C_RESET}"
+      LCS_DATA_WARNED=1
+    fi
   fi
 fi
+
+# --------------- Blog --------------- #
+# Blog directories and scripts.
+if [[ -n "${LCS_Data:-}" ]]; then
+  export BLOG_POSTS_DIR="$LCS_Data/Blog/CS-Topics/content/posts/"
+  export BLOG_STATIC_IMAGES_DIR="$LCS_Data/Blog/CS-Topics/static/images"
+  export IMAGES_SCRIPT_PATH="$LCS_Data/Blog/Automatic-Updates/images.py"
+fi
+export OBSIDIAN_ATTACHMENTS_DIR="$HOME/Documents/Obsidian-Vault/XSPC-Vault/Blog/images"
 
 # ============================================================================ #

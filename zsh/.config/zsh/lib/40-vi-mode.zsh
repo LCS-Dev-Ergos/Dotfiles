@@ -97,52 +97,16 @@ _vi_line_init() {
 
 # Capture existing widget before overwriting.
 typeset -g _VI_PREV_KEYMAP_SELECT=
-if [[ -n "${widgets[zle-keymap-select]-}" ]]; then
-  _vi_current="${widgets[zle-keymap-select]#user:}"
-  # Prevent self-reference or recursion with other wrappers (kitty, p10k, etc.).
-  case "$_vi_current" in
-      _vi_keymap_select| \
-        _ksi_zle_keymap_select| \
-        kitty_zle_keymap_select| \
-        kitty_keymap_select| \
-        p10k_zle-keymap-select| \
-      powerlevel10k_zle_keymap_select)
-      ;;
-    *)
-      _VI_PREV_KEYMAP_SELECT="$_vi_current"
-      ;;
-  esac
-  unset _vi_current
+if [[ -n "${widgets["zle-keymap-select"]-}" ]]; then
+  local prev="${widgets["zle-keymap-select"]#user:}"
+  # Prevent self-reference loops.
+  [[ "$prev" != "_vi_keymap_select" ]] && _VI_PREV_KEYMAP_SELECT="$prev"
 fi
 
-typeset -gi _VI_KEYMAP_DEPTH=0
-
 _vi_keymap_select() {
-  (( _VI_KEYMAP_DEPTH++ ))
-  # Hard stop to avoid recursive wrapper loops.
-  if (( _VI_KEYMAP_DEPTH > 1 )); then
-    (( _VI_KEYMAP_DEPTH-- ))
-    return 0
-  fi
-
-  # Chain to previous widget (e.g., Starship's indicator).
-  if [[ -n "$_VI_PREV_KEYMAP_SELECT" ]]; then
-    if [[ "$_VI_PREV_KEYMAP_SELECT" == "starship_zle-keymap-select-wrapped" ]]; then
-      # Starship uses a wrapper function.
-      ((${+functions[starship_zle-keymap-select]})) && starship_zle-keymap-select "$@"
-      elif [[ "$_VI_PREV_KEYMAP_SELECT" != "_vi_keymap_select" && \
-        "$_VI_PREV_KEYMAP_SELECT" != "_ksi_zle_keymap_select" && \
-        "$_VI_PREV_KEYMAP_SELECT" != "kitty_zle_keymap_select" && \
-        "$_VI_PREV_KEYMAP_SELECT" != "kitty_keymap_select" && \
-        "$_VI_PREV_KEYMAP_SELECT" != "p10k_zle-keymap-select" && \
-        "$_VI_PREV_KEYMAP_SELECT" != "powerlevel10k_zle_keymap_select" ]]; then
-      "$_VI_PREV_KEYMAP_SELECT" "$@"
-    fi
-  fi
-
+  # Chain to previous widget (if it exists).
+  [[ -n "$_VI_PREV_KEYMAP_SELECT" ]] && "$_VI_PREV_KEYMAP_SELECT" "$@"
   _vi_cursor_for_keymap
-
-  (( _VI_KEYMAP_DEPTH-- ))
 }
 
 # Register vi mode widgets.

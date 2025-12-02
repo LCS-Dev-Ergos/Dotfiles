@@ -40,7 +40,8 @@
 # -----------------------------------------------------------------------------
 _cache_completion() {
   local cmd="$1"
-  local generate_cmd="$2"
+  shift
+  local -a generate_cmd=("$@")
   local cache_file="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/completions/_$cmd"
 
   # Check if cache exists and is less than 7 days old.
@@ -66,18 +67,18 @@ _cache_completion() {
 
   # Generate completion.
   mkdir -p "$(dirname "$cache_file")"
-  eval "$generate_cmd" >"$cache_file" 2>/dev/null
+  "${generate_cmd[@]}" >"$cache_file" 2>/dev/null
   source "$cache_file"
 }
 
 # ------------ ngrok ---------------- #
 if command -v ngrok >/dev/null 2>&1; then
-  _cache_completion "ngrok" "ngrok completion"
+  _cache_completion ngrok ngrok completion
 fi
 
 # ----------- Angular CLI ----------- #
 if command -v ng >/dev/null 2>&1; then
-  _cache_completion "ng" "ng completion script"
+  _cache_completion ng ng completion script
 fi
 
 # ----------- Docker CLI  ----------- #

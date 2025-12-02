@@ -18,8 +18,8 @@
 #
 # ============================================================================ #
 
-# Profiling (uncomment to debug startup time).
-zmodload zsh/zprof
+# Profiling (enable by exporting ZSH_PROFILE=1 before starting the shell).
+[[ -n "${ZSH_PROFILE:-}" ]] && zmodload zsh/zprof
 
 # Fail on pipe errors.
 set -o pipefail
@@ -42,7 +42,7 @@ if [[ "$TERM_PROGRAM" == "vscode" ]]; then
   # shellcheck source=/dev/null
   if command -v code >/dev/null 2>&1; then
     # Only attempt to source if the command succeeds.
-    local shell_integration="$(code --locate-shell-integration-path zsh 2>/dev/null)"
+    typeset shell_integration="$(code --locate-shell-integration-path zsh 2>/dev/null)"
     if [[ -n "$shell_integration" && -f "$shell_integration" ]]; then
       . "$shell_integration"
     fi

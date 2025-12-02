@@ -32,10 +32,10 @@ alias fabric="fabric-ai"
 # 'fabric --pattern summarize').
 # -----------------------------------------------------------------------------
 if command -v fabric >/dev/null 2>&1; then
-  local fabric_patterns_dir="$HOME/.config/fabric/patterns"
+  typeset fabric_patterns_dir="$HOME/.config/fabric/patterns"
   if [[ -d "$fabric_patterns_dir" ]]; then
     for pattern_file in "$fabric_patterns_dir"/*; do
-      local pattern_name="$(basename "$pattern_file")"
+      typeset pattern_name="$(basename "$pattern_file")"
       alias "${pattern_name}=fabric --pattern ${pattern_name}"
     done
   fi
@@ -98,14 +98,14 @@ yt() {
 #   yt <url> | extract_wisdom "Video Summary"
 # -----------------------------------------------------------------------------
 if command -v fabric >/dev/null 2>&1; then
-  local fabric_patterns_dir="$HOME/.config/fabric/patterns"
+  typeset fabric_patterns_dir="$HOME/.config/fabric/patterns"
   if [[ -d "$fabric_patterns_dir" ]]; then
     # Create output directory if it doesn't exist
     [[ ! -d "$FABRIC_OUTPUT_DIR" ]] && mkdir -p "$FABRIC_OUTPUT_DIR"
 
     for pattern_file in "$fabric_patterns_dir"/*; do
       [[ ! -f "$pattern_file" ]] && continue
-      local pattern_name=$(basename "$pattern_file")
+      typeset pattern_name=$(basename "$pattern_file")
 
       # Validate pattern name (security: prevent injection)
       if [[ ! "$pattern_name" =~ ^[a-zA-Z0-9_-]+$ ]]; then

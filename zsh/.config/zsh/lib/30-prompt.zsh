@@ -11,10 +11,14 @@
 #   4. Minimal       - Basic fallback (always works).
 #
 # Features:
-#   - Transient prompt support (Starship).
-#   - Smart newline insertion.
-#   - Vi mode indicators.
+#   - Transient prompt support (Starship) using Powerlevel10k technique.
+#   - Consistent newline spacing between prompts.
+#   - Ctrl+C handling.
 #   - Platform-aware initialization.
+#
+# Implementation based on:
+#   - https://gist.github.com/subnut/3af65306fbecd35fe2dda81f59acf2b2
+#   - https://github.com/romkatv/powerlevel10k/issues/888
 #
 # ============================================================================ #
 
@@ -26,241 +30,185 @@ setopt PROMPT_SUBST
 # -----------------------------------------------------------------------------
 # _init_starship_prompt
 # -----------------------------------------------------------------------------
-# Initialize Starship prompt with transient prompt and smart newline features:
-#   - Transient prompt: Shows minimal prompt for previous commands.
-#   - Smart newline: Adds visual separation between commands.
+# Initialize Starship prompt with transient prompt feature.
+#
+# The transient prompt technique uses zle -F with a file descriptor to schedule
+# prompt restoration. This is the same approach used by Powerlevel10k.
+#
+# Flow:
+#   1. User presses Enter -> zle-line-finish fires.
+#   2. Apply transient prompt, open fd to /dev/null, register zle -F callback.
+#   3. Command executes.
+#   4. zle -F callback fires (fd is readable), restores full prompt.
+#   5. precmd runs, prompt is already correct.
 #
 # Returns:
 #   0 - Success.
 #   1 - Starship not available or initialization failed.
 # -----------------------------------------------------------------------------
 _init_starship_prompt() {
-  # Note: We allow re-initialization to support re-sourcing .zshrc.
+  # Require /dev/null and zsh/system module.
+  [[ -c /dev/null ]] || return 1
+  zmodload zsh/system || return 1
 
   setopt PROMPT_SUBST
-  autoload -Uz add-zsh-hook
 
-  # Initialize Starship and verify.
+  # Initialize Starship.
   eval "$(starship init zsh)"
   if [[ -z "$PROMPT" ]]; then
     print "Warning: Starship failed to initialize" >&2
     return 1
   fi
 
-  # --------------------------- State Management ----------------------------
-  # Use a single global associative array to avoid namespace pollution.
-  # Keys:
-  #   init_done       : Flag to prevent re-init.
-  #   need_newline    : Boolean (0/1), true if next prompt needs a spacer.
-  #   first_prompt    : Boolean (0/1), true if this is the first prompt.
-  #   transient_on    : Boolean (0/1), master switch for transient mode.
-  #   last_cmd        : The last executed command string.
-  #   prompt_full     : Stashed original PROMPT.
-  #   rprompt_full    : Stashed original RPROMPT.
-  #   prompt2_full    : Stashed original PROMPT2.
-  # -------------------------------------------------------------------------
-  typeset -gA _STARSHIP_STATE
-  _STARSHIP_STATE[init_done]=1
-  _STARSHIP_STATE[need_newline]=0
-  _STARSHIP_STATE[first_prompt]=1
+  # ------------------------- Configuration Variables -------------------------
+  # File descriptor for async callback (0 = not active).
+  typeset -gi _tp_fd=0
 
-  # Default: Enabled (preserve if already set during reload).
-  if [[ -z "${_STARSHIP_STATE[transient_on]-}" ]]; then
-    _STARSHIP_STATE[transient_on]=1
-  fi
+  # Newline variable: empty on first prompt, "\n" after first command.
+  # Embedded in PROMPT for dynamic spacing.
+  typeset -g _tp_newline=
 
-  # Stash original prompts (Starship sets these once at init).
-  _STARSHIP_STATE[prompt_full]="$PROMPT"
-  _STARSHIP_STATE[rprompt_full]="$RPROMPT"
-  _STARSHIP_STATE[prompt2_full]="${PROMPT2-}"
+  # Master switch for transient prompt (1=enabled, 0=disabled).
+  typeset -gi _tp_enabled=1
 
-  # Minimal transient prompt: truncated path + chevron.
-  # Format: %(4~|…/%3~|%~) = show "…/last/3/dirs" if depth > 4, else full path.
-  typeset -g _STARSHIP_TRANSIENT_PROMPT='%B%F{purple}%(4~|…/%3~|%~)%f%b %B%F{green}❯%f%b '
+  # Transient prompt string (minimal version shown for past commands).
+  # Format: truncated path + green chevron.
+  typeset -g _tp_transient='%B%F{cyan}%(4~|…/%2~|%~)%f%b %B%F{green}❯%f%b '
 
-  # ---------- Register Hooks ---------- #
-  # preexec: Record command to decide on newlines.
-  add-zsh-hook preexec _starship_record_cmd
-  # precmd: Handle newlines and restore full prompt.
-  add-zsh-hook precmd _starship_precmd
+  # Store original prompts from Starship.
+  typeset -g _tp_prompt_orig="$PROMPT"
+  typeset -g _tp_rprompt_orig="$RPROMPT"
 
-  # ------- Register ZLE Widgets ------- #
-  # Wrap zle-line-finish to trigger transient effect on Enter.
-  _starship_wrap_widget "zle-line-finish" "_starship_line_finish"
+  # --------------------------- Build Final Prompt ----------------------------
+  # Wrap original prompt with dynamic newline prefix.
+  # The $_tp_newline variable controls spacing between prompts.
+  _tp_set_prompt() {
+    PROMPT='${_tp_newline}'"${_tp_prompt_orig}"
+    RPROMPT="${_tp_rprompt_orig}"
+  }
+  _tp_set_prompt
 
-  # Wrap clear-screen to reset newline state.
-  _starship_wrap_widget "clear-screen" "_starship_clear_screen"
+  # ------------------------- Widget: zle-line-finish -------------------------
+  # Called when user presses Enter. Applies transient prompt and schedules
+  # restoration via file descriptor callback.
+  zle -N zle-line-finish _tp_zle_line_finish
+  _tp_zle_line_finish() {
+    # Skip if transient prompt is disabled.
+    (( _tp_enabled )) || return 0
 
-  # Register custom widgets.
-  zle -N toggle-transient-prompt _starship_toggle_transient
-  zle -N reset-prompt-state _starship_reset_state
+    # Skip if fd is already active (prevents double-trigger).
+    (( _tp_fd )) && return 0
 
-  # Optional: Bind toggle widget to Ctrl+T.
-  # bindkey '^T' toggle-transient-prompt
+    # Open /dev/null and register callback. The fd becomes readable immediately,
+    # so the callback fires on the next event loop iteration.
+    sysopen -r -o cloexec -u _tp_fd /dev/null || return 0
+    zle -F $_tp_fd _tp_restore_prompt
+
+    # Apply transient prompt and refresh display.
+    # zle check ensures we're in line editor context.
+    if zle; then
+      PROMPT="$_tp_transient"
+      RPROMPT=
+      zle reset-prompt
+      zle -R
+    fi
+  }
+
+  # --------------------------- Widget: send-break ----------------------------
+  # Called on Ctrl+C. Apply transient prompt before breaking.
+  zle -N send-break _tp_send_break
+  _tp_send_break() {
+    _tp_zle_line_finish
+    zle .send-break
+  }
+
+  # -------------------------- Widget: clear-screen ---------------------------
+  # Called on Ctrl+L. Reset newline state so next prompt has no leading space.
+  zle -N clear-screen _tp_clear_screen
+  _tp_clear_screen() {
+    _tp_newline=
+    zle .clear-screen
+  }
+
+  # ------------------------ Callback: Restore Prompt -------------------------
+  # Called via zle -F when fd becomes readable (after command execution).
+  # Restores the full Starship prompt.
+  _tp_restore_prompt() {
+    # Close and unregister fd.
+    local fd=$1
+    exec {fd}>&-
+    zle -F $fd
+    _tp_fd=0
+
+    # Restore full prompt.
+    _tp_set_prompt
+
+    # Refresh if in line editor context.
+    if zle; then
+      zle reset-prompt
+      zle -R
+    fi
+  }
+
+  # ------------------------------ Preexec Hook -------------------------------
+  # Detects screen-clearing commands and sets flag to skip newline.
+  (( ${+preexec_functions} )) || typeset -ga preexec_functions
+  preexec_functions+=(_tp_preexec)
+
+  # Flag: 1 = skip newline on next precmd
+  typeset -gi _tp_skip_newline=0
+
+  _tp_preexec() {
+    # Extract first word of command
+    local cmd="${1%% *}"
+    case "$cmd" in
+      clear|cls|reset|c) _tp_skip_newline=1 ;;
+    esac
+  }
+
+  # ------------------------------- Precmd Hook -------------------------------
+  # Sets _tp_newline after first prompt, respecting clear commands.
+  (( ${+precmd_functions} )) || typeset -ga precmd_functions
+  (( ${#precmd_functions} )) || precmd_functions=(true)
+  precmd_functions+=(_tp_precmd)
+
+  # First precmd: don't set newline yet.
+  _tp_precmd() {
+    TRAPINT() {
+      zle && _tp_zle_line_finish
+      return $(( 128 + $1 ))
+    }
+
+    # After first run, redefine with newline logic.
+    _tp_precmd() {
+      TRAPINT() {
+        zle && _tp_zle_line_finish
+        return $(( 128 + $1 ))
+      }
+
+      if (( _tp_skip_newline )); then
+        _tp_newline=
+        _tp_skip_newline=0
+      else
+        _tp_newline=$'\n'
+      fi
+    }
+  }
+
+  # ----------------------------- Toggle Function -----------------------------
+  # Widget to toggle transient prompt on/off.
+  zle -N toggle-transient-prompt _tp_toggle
+  _tp_toggle() {
+    if (( _tp_enabled )); then
+      _tp_enabled=0
+      zle -M "Transient prompt: OFF"
+    else
+      _tp_enabled=1
+      zle -M "Transient prompt: ON"
+    fi
+  }
 
   return 0
-}
-
-# +++++++++++++++++++++++++++++ Helper Functions +++++++++++++++++++++++++++++ #
-
-# -----------------------------------------------------------------------------
-# _starship_wrap_widget <widget_name> <wrapper_function>
-# -----------------------------------------------------------------------------
-# Safely wraps a ZLE widget, preserving any existing user or builtin widget.
-#
-# Arguments:
-#   $1 - Name of the widget to wrap (e.g., "zle-line-finish").
-#   $2 - Name of the wrapper function.
-# -----------------------------------------------------------------------------
-_starship_wrap_widget() {
-  local widget="$1"
-  local wrapper="$2"
-
-  # Save previous widget if it exists.
-  if [[ -n "${widgets[$widget]-}" ]]; then
-    local prev="${widgets[$widget]}"
-    if [[ "$prev" == user:* ]]; then
-      _STARSHIP_STATE[prev_$widget]="${prev#user:}"
-    elif [[ "$prev" == builtin:* ]]; then
-      _STARSHIP_STATE[prev_$widget]=".${prev#builtin:}"
-    fi
-  fi
-
-  zle -N "$widget" "$wrapper"
-}
-
-# -----------------------------------------------------------------------------
-# _starship_record_cmd <command>
-# -----------------------------------------------------------------------------
-# Hook: preexec
-# Records the command being executed to determine if a newline is needed later.
-# -----------------------------------------------------------------------------
-_starship_record_cmd() {
-  # Store command with leading whitespace trimmed.
-  local cmd="${1#"${1%%[![:space:]]*}"}"
-  _STARSHIP_STATE[last_cmd]="$cmd"
-}
-
-# -----------------------------------------------------------------------------
-# _starship_precmd
-# -----------------------------------------------------------------------------
-# Hook: precmd
-# 1. Handles "Smart Newline" logic (printing a spacer line).
-# 2. Restores the full Starship prompt for the new command line.
-# -----------------------------------------------------------------------------
-_starship_precmd() {
-  # 1. Smart Newline Logic
-  if [[ -n "${_STARSHIP_STATE[first_prompt]}" ]]; then
-    # First prompt after shell start: no newline.
-    unset "_STARSHIP_STATE[first_prompt]"
-    _STARSHIP_STATE[need_newline]=0
-  elif (( _STARSHIP_STATE[need_newline] )); then
-    # Print spacer line if requested.
-    print ""
-  fi
-
-  # Reset state for next cycle.
-  _STARSHIP_STATE[need_newline]=0
-
-  # 2. Restore Full Prompt.
-  PROMPT="${_STARSHIP_STATE[prompt_full]}"
-  RPROMPT="${_STARSHIP_STATE[rprompt_full]}"
-  PROMPT2="${_STARSHIP_STATE[prompt2_full]}"
-}
-
-# -----------------------------------------------------------------------------
-# _starship_line_finish
-# -----------------------------------------------------------------------------
-# Widget: zle-line-finish
-# Called when the user accepts a command line (presses Enter).
-# 1. Determines if the *next* prompt needs a newline spacer.
-# 2. Replaces the *current* prompt with the transient (minimal) version.
-# -----------------------------------------------------------------------------
-_starship_line_finish() {
-  local cmd="${BUFFER:-}"
-  cmd="${cmd#"${cmd%%[![:space:]]*}"}" # Trim leading whitespace
-
-  # Determine if newline is needed for next prompt.
-  if [[ -z "$cmd" ]]; then
-    # Empty command: usually want a newline to separate blocks.
-    _STARSHIP_STATE[need_newline]=1
-  else
-    case "$cmd" in
-        # Commands that clear the screen shouldn't have a newline after.
-      clear|clear\ *|cls|cls\ *|reset|reset\ *|c|c\ *)
-        _STARSHIP_STATE[need_newline]=0
-        ;;
-      *)
-        _STARSHIP_STATE[need_newline]=1
-        ;;
-    esac
-  fi
-
-  # Call previous widget if it existed (chaining).
-  local prev="${_STARSHIP_STATE[prev_zle-line-finish]-}"
-  if [[ -n "$prev" ]]; then
-    "$prev" "$@"
-  fi
-
-  # Apply transient prompt ONLY if enabled.
-  if (( _STARSHIP_STATE[transient_on] )); then
-    PROMPT="$_STARSHIP_TRANSIENT_PROMPT"
-    RPROMPT=
-    zle .reset-prompt
-  fi
-}
-
-# -----------------------------------------------------------------------------
-# _starship_clear_screen
-# -----------------------------------------------------------------------------
-# Widget: clear-screen (Ctrl+L)
-# Ensures that clearing the screen doesn't leave a "need newline" state.
-# -----------------------------------------------------------------------------
-_starship_clear_screen() {
-  _STARSHIP_STATE[need_newline]=0
-
-  local prev="${_STARSHIP_STATE[prev_clear-screen]-}"
-  if [[ -n "$prev" ]]; then
-    if [[ "$prev" == .* ]]; then
-      zle "$prev"
-    else
-      "$prev" "$@"
-    fi
-  else
-    zle .clear-screen
-  fi
-}
-
-# -----------------------------------------------------------------------------
-# _starship_toggle_transient
-# -----------------------------------------------------------------------------
-# Widget: toggle-transient-prompt
-# Toggles the transient prompt behavior on/off.
-# Usage: bindkey '^[t' toggle-transient-prompt
-# -----------------------------------------------------------------------------
-_starship_toggle_transient() {
-  if (( _STARSHIP_STATE[transient_on] )); then
-    _STARSHIP_STATE[transient_on]=0
-    zle -M "Transient prompt: DISABLED"
-  else
-    _STARSHIP_STATE[transient_on]=1
-    zle -M "Transient prompt: ENABLED"
-  fi
-}
-
-# -----------------------------------------------------------------------------
-# _starship_reset_state
-# -----------------------------------------------------------------------------
-# Function: reset-prompt-state
-# Resets internal state in case of desync or glitches.
-# -----------------------------------------------------------------------------
-_starship_reset_state() {
-  _STARSHIP_STATE[need_newline]=0
-  _STARSHIP_STATE[first_prompt]=0
-  _STARSHIP_STATE[transient_on]=1
-  PROMPT="${_STARSHIP_STATE[prompt_full]}"
-  RPROMPT="${_STARSHIP_STATE[rprompt_full]}"
-  zle -M "Prompt state reset."
 }
 
 # ++++++++++++++++++++++++++++++++ OH-MY-POSH ++++++++++++++++++++++++++++++++ #
@@ -309,7 +257,6 @@ _init_p10k_prompt() {
     "${ZDOTDIR:-$HOME}/.oh-my-zsh/custom/themes/powerlevel10k/powerlevel10k.zsh-theme"
   )
 
-  # Try loading PowerLevel10k from known locations.
   for p10k_theme in "${p10k_locations[@]}"; do
     if [[ -f "$p10k_theme" ]]; then
       if ! source "$p10k_theme"; then
@@ -334,8 +281,6 @@ _init_p10k_prompt() {
 # Format:
 #   Left:  user@host:path #/$
 #   Right: HH:MM:SS (dimmed)
-#
-# Exit code colors prompt symbol green (success) or red (failure).
 # -----------------------------------------------------------------------------
 _init_minimal_prompt() {
   setopt PROMPT_SUBST
@@ -348,7 +293,6 @@ _init_minimal_prompt() {
 # ============================================================================ #
 
 # Initialize prompt system in priority order.
-# Wrapped in anonymous function for local scope.
 () {
   # Priority 1: Starship.
   if command -v starship >/dev/null 2>&1; then
@@ -369,7 +313,7 @@ _init_minimal_prompt() {
     [[ "${PLATFORM:-}" == "Linux" ]] && print "PowerLevel10k not found" >&2
   fi
 
-  # Priority 4: Minimal (always succeeds).
+  # Priority 4: Minimal.
   print "Using minimal prompt" >&2
   _init_minimal_prompt
 }

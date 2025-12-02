@@ -71,6 +71,7 @@ _init_ghostty() {
   fi
 }
 _init_ghostty
+unfunction _init_ghostty 2>/dev/null
 
 # ++++++++++++++++++++++++++++ LAZY-LOADED TOOLS +++++++++++++++++++++++++++++ #
 
@@ -89,7 +90,8 @@ _init_ghostty
 #   0 - Tools initialized or already initialized.
 # -----------------------------------------------------------------------------
 _tools_lazy_init() {
-  [[ -n "${_TOOLS_LAZY_INIT_DONE-}" ]] && return
+  # Remove hook before running to avoid re-entry races.
+  add-zsh-hook -d precmd _tools_lazy_init
 
   if command -v fzf >/dev/null 2>&1; then
     eval "$(fzf --zsh 2>/dev/null)" || echo "${C_YELLOW}Warning: fzf init failed.${C_RESET}"
@@ -103,8 +105,8 @@ _tools_lazy_init() {
     eval "$(direnv hook zsh 2>/dev/null)" || echo "${C_YELLOW}Warning: direnv init failed.${C_RESET}"
   fi
 
-  _TOOLS_LAZY_INIT_DONE=1
-  add-zsh-hook -d precmd _tools_lazy_init 2>/dev/null
+  # Self-destruct after first run.
+  unfunction _tools_lazy_init 2>/dev/null
 }
 add-zsh-hook precmd _tools_lazy_init
 

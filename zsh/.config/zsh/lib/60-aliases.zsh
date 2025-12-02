@@ -263,11 +263,13 @@ if [[ "$PLATFORM" == 'macOS' ]]; then
   # ---------------------------------------------------------------------------
   function brew() {
     command brew "$@"
-    if [[ $* =~ "upgrade" ]] || [[ $* =~ "update" ]] || [[ $* =~ "outdated" ]]; then
-      # Ensure sketchybar is available before calling it.
-      # Run asynchronously (&!) to avoid blocking the terminal if sketchybar hangs.
-      command -v sketchybar >/dev/null 2>&1 && sketchybar --trigger brew_update &!
-    fi
+    case "${1:-}" in
+      upgrade|update|outdated)
+        # Ensure sketchybar is available before calling it.
+        # Run asynchronously (&!) to avoid blocking the terminal if sketchybar hangs.
+        command -v sketchybar >/dev/null 2>&1 && sketchybar --trigger brew_update &!
+        ;;
+    esac
   }
 
   # --------- macOS utilities ---------- #

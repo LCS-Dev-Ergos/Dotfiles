@@ -87,11 +87,7 @@ export DUNE_CACHE_TRANSPORT=direct                                              
 if [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]]; then
   # SDKMAN! found. Let it manage everything.
   export SDKMAN_DIR="$HOME/.sdkman"
-  if [[ -f "$HOME/.sdkman/bin/sdkman-init.sh" ]]; then
-    source "$HOME/.sdkman/bin/sdkman-init.sh"
-  else
-    echo "${C_YELLOW}Warning: SDKMAN init script not found.${C_RESET}"
-  fi
+  source "$HOME/.sdkman/bin/sdkman-init.sh"
 else
   # -------------------------------------------------------------------------
   # setup_java_home_fallback
