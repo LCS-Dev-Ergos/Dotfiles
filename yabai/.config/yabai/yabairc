@@ -130,6 +130,17 @@ yabai -m rule --add label="VNC Viewer" \
     title="^(.*VNC.*|.*Viewer.*|.*RealVNC.*)$" \
     manage=off
 
+# Exclude Rancher Desktop/OrbStack preference windows from tiling
+yabai -m rule --add label="Rancher Desktop Preferences" \
+    app="^Rancher Desktop$" \
+    title="^Rancher Desktop - Preferences$" \
+    manage=off
+
+yabai -m rule --add label="OrbStack Preferences" \
+    app="^OrbStack$" \
+    title="^(General.*|System.*|Network.*|Storage.*|Machine.*|Docker.*|Kubernetes.*)$" \
+    manage=off
+
 # =========================== End Disabling Rules =========================== #
 
 # =============================== Other Stuff =============================== #

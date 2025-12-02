@@ -212,3 +212,54 @@ fi
 export BAT_THEME=tokyonight_night
 
 # ============================================================================ #
+# ++++++++++++++++++++++++++++++++ YABAI TOOLS +++++++++++++++++++++++++++++++ #
+# ============================================================================ #
+
+# -----------------------------------------------------------------------------#
+# yabai_windows_table
+# -----------------------------------------------------------------------------#
+# Print a table of all windows across spaces/displays using yabai metadata.
+# Tries Nushell for nice formatting, falls back to jq, then raw JSON.
+# -----------------------------------------------------------------------------#
+yabai_windows_table() {
+  if ! command -v yabai >/dev/null 2>&1; then
+    echo "yabai not found in PATH" >&2
+    return 1
+  fi
+
+  local json
+  json="$(yabai -m query --windows 2>/dev/null)" || {
+    echo "failed to query yabai windows" >&2
+    return 1
+  }
+
+  if [[ -z "$json" ]]; then
+    echo "no windows reported by yabai"
+    return 0
+  fi
+
+  if command -v nu >/dev/null 2>&1; then
+    # Nushell pretty table
+    printf '%s\n' "$json" | nu --stdin -c '
+      from json
+      | select display space app title id
+      | sort-by display space app title
+      | table -w 160
+    '
+    return $?
+  fi
+
+  if command -v jq >/dev/null 2>&1; then
+    printf "%-7s %-7s %-30s %-14s %s\n" "display" "space" "app" "window_id" "title"
+    echo "$json" | jq -r '.[] | [.display, .space, .app, .id, .title] | @tsv' |
+    while IFS=$'\t' read -r d s a i t; do
+      printf "%-7s %-7s %-30s %-14s %s\n" "$d" "$s" "$a" "$i" "$t"
+    done
+    return 0
+  fi
+
+  # Last resort: raw JSON
+  echo "$json"
+}
+
+# ============================================================================ #

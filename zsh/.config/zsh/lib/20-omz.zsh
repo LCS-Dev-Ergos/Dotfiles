@@ -90,6 +90,11 @@ fi
 if [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" == true ]]; then
   # Make sure the ZSH_CUSTOM path is set correctly for Arch Linux.
   ZSH_CUSTOM="/usr/share/oh-my-zsh/custom"
+
+  # Arch package ships "you-should-use" outside Oh-My-Zsh paths; source it manually.
+  if [[ -f /usr/share/zsh/plugins/zsh-you-should-use/you-should-use.plugin.zsh ]]; then
+    source /usr/share/zsh/plugins/zsh-you-should-use/you-should-use.plugin.zsh
+  fi
 fi
 
 # --------------------------- Plugin Configuration --------------------------- #
