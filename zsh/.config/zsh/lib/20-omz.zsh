@@ -128,8 +128,7 @@ elif [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" == true ]]; then
   plugins+=(
     fzf
     zsh-256color
-    zsh-autopair
-    you-should-use
+    # zsh-autopair
     zsh-autosuggestions
     zsh-history-substring-search
     zsh-syntax-highlighting
