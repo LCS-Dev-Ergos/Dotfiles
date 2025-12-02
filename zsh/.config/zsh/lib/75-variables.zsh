@@ -93,6 +93,9 @@ if [[ "$PLATFORM" == 'Linux' && "$ARCH_LINUX" == true ]]; then
   export ELECTRON_OZONE_PLATFORM_HINT="wayland"
   export NATIVE_WAYLAND="1"
 
+  # Docker Context for "Docker Desktop".
+  export DOCKER_CONTEXT='desktop-linux'
+
   # GO Language.
   if command -v go >/dev/null 2>&1; then
     export GOPATH="$HOME/go"

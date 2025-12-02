@@ -171,16 +171,41 @@ alias reload="source ~/.zshrc"
 alias edit="$EDITOR ~/.zshrc"
 alias fastfetch='~/.config/fastfetch/scripts/fastfetch-dynamic.sh'
 
-# ---------- Kitty Terminal ---------- #
-alias kreload='kill -SIGUSR1 $KITTY_PID'
-alias kedit='$EDITOR ~/.config/kitty/kitty.conf'
-
 # Default 'ls' alias (may be overridden below based on platform).
 if command -v eza >/dev/null 2>&1; then
   alias ls="eza --color=auto --long --git --icons=auto"
   alias ll="eza -lha --icons=auto --sort=name --group-directories-first"
   alias l="eza -lh --icons=auto"
 fi
+
+# ++++++++++++++++++++++++++++++ kitty Terminal ++++++++++++++++++++++++++++++ #
+
+# -----------------------------------------------------------------------------
+# kreload
+# -----------------------------------------------------------------------------
+# Reload Kitty configuration without restarting the terminal.
+# Uses SIGUSR1 signal to trigger live reload.
+#
+# Returns:
+#   0 - Configuration reloaded successfully.
+#   1 - Not running in Kitty or reload failed.
+# -----------------------------------------------------------------------------
+kreload() {
+  if [[ -z "$KITTY_PID" ]]; then
+    echo "${C_RED}Error: Not running in Kitty terminal${C_RESET}" >&2
+    return 1
+  fi
+
+  if kill -SIGUSR1 "$KITTY_PID" 2>/dev/null; then
+    echo "${C_GREEN}Kitty configuration reloaded${C_RESET}"
+    return 0
+  else
+    echo "${C_RED}Error: Failed to reload Kitty configuration${C_RESET}" >&2
+    return 1
+  fi
+}
+
+alias kedit='$EDITOR ~/.config/kitty/kitty.conf'
 
 # +++++++++++++++++++++++++++ THEFUCK INTEGRATION ++++++++++++++++++++++++++++ #
 
