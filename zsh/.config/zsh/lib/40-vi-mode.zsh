@@ -115,18 +115,34 @@ if [[ -n "${widgets[zle-keymap-select]-}" ]]; then
   unset _vi_current
 fi
 
+typeset -gi _VI_KEYMAP_DEPTH=0
+
 _vi_keymap_select() {
+  (( _VI_KEYMAP_DEPTH++ ))
+  # Hard stop to avoid recursive wrapper loops.
+  if (( _VI_KEYMAP_DEPTH > 1 )); then
+    (( _VI_KEYMAP_DEPTH-- ))
+    return 0
+  fi
+
   # Chain to previous widget (e.g., Starship's indicator).
   if [[ -n "$_VI_PREV_KEYMAP_SELECT" ]]; then
     if [[ "$_VI_PREV_KEYMAP_SELECT" == "starship_zle-keymap-select-wrapped" ]]; then
       # Starship uses a wrapper function.
       ((${+functions[starship_zle-keymap-select]})) && starship_zle-keymap-select "$@"
-    else
+      elif [[ "$_VI_PREV_KEYMAP_SELECT" != "_vi_keymap_select" && \
+        "$_VI_PREV_KEYMAP_SELECT" != "_ksi_zle_keymap_select" && \
+        "$_VI_PREV_KEYMAP_SELECT" != "kitty_zle_keymap_select" && \
+        "$_VI_PREV_KEYMAP_SELECT" != "kitty_keymap_select" && \
+        "$_VI_PREV_KEYMAP_SELECT" != "p10k_zle-keymap-select" && \
+        "$_VI_PREV_KEYMAP_SELECT" != "powerlevel10k_zle_keymap_select" ]]; then
       "$_VI_PREV_KEYMAP_SELECT" "$@"
     fi
   fi
 
   _vi_cursor_for_keymap
+
+  (( _VI_KEYMAP_DEPTH-- ))
 }
 
 # Register vi mode widgets.
