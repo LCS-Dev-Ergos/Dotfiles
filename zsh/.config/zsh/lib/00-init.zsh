@@ -107,11 +107,12 @@ elif [[ "$PLATFORM" == "macOS" ]]; then
 fi
 
 # ---------------------------- Terminal Variables ---------------------------- #
-if [[ "$TERM" == "xterm-kitty" ]]; then
-  export TERM=xterm-kitty
-else
-  export TERM=xterm-256color
-fi
+# Respect the terminal-provided TERM. Only force kitty when actually in kitty.
+case "$TERM" in
+  xterm-kitty) export TERM=xterm-kitty ;;     # running in Kitty
+  xterm-ghostty) export TERM=xterm-ghostty ;; # running in Ghostty
+  *) export TERM=xterm-256color ;;            # sensible default
+esac
 
 autoload -Uz add-zsh-hook
 

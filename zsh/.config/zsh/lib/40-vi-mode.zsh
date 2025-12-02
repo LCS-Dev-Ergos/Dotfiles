@@ -99,8 +99,19 @@ _vi_line_init() {
 typeset -g _VI_PREV_KEYMAP_SELECT=
 if [[ -n "${widgets[zle-keymap-select]-}" ]]; then
   _vi_current="${widgets[zle-keymap-select]#user:}"
-  # Prevent self-reference loop.
-  [[ "$_vi_current" != "_vi_keymap_select" ]] && _VI_PREV_KEYMAP_SELECT="$_vi_current"
+  # Prevent self-reference or recursion with other wrappers (kitty, p10k, etc.).
+  case "$_vi_current" in
+      _vi_keymap_select|
+      _ksi_zle_keymap_select|
+      kitty_zle_keymap_select|
+      kitty_keymap_select|
+      p10k_zle-keymap-select|
+    powerlevel10k_zle_keymap_select)
+      ;;
+    *)
+      _VI_PREV_KEYMAP_SELECT="$_vi_current"
+      ;;
+  esac
   unset _vi_current
 fi
 
