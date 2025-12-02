@@ -161,7 +161,6 @@ alias gclean="git clean -fd"
 
 alias c="clear"
 alias md="mkdir -p"
-alias count="wc -l"
 alias size="du -sh"
 alias size-all="du -sh .[^.]* * 2>/dev/null"
 alias biggest="du -hs * | sort -hr | head -10"

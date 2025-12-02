@@ -59,17 +59,17 @@ _vi_set_cursor() {
 # Update cursor shape based on current vi keymap.
 #
 # Shapes:
-#   vicmd (normal mode)  → steady block (2).
-#   viins (insert mode)  → blinking block (1).
-#   visual (visual mode) → steady underline (4).
-#   viopp (operator pending) → blinking underline (3).
+#   vicmd (normal mode)      -> steady block (2).
+#   viins (insert mode)      -> blinking block (1).
+#   visual (visual mode)     -> steady underline (4).
+#   viopp (operator pending) -> blinking underline (3).
 # -----------------------------------------------------------------------------
 _vi_cursor_for_keymap() {
   case "${KEYMAP:-viins}" in
-    vicmd) _vi_set_cursor 2 ;; # Normal: steady block.
+    vicmd) _vi_set_cursor 2 ;;  # Normal: steady block.
     visual) _vi_set_cursor 4 ;; # Visual: steady underline.
-    viopp) _vi_set_cursor 3 ;; # Operator pending: blinking underline.
-    *) _vi_set_cursor 1 ;;     # Insert: blinking block.
+    viopp) _vi_set_cursor 3 ;;  # Operator pending: blinking underline.
+    *) _vi_set_cursor 1 ;;      # Insert: blinking block.
   esac
 }
 

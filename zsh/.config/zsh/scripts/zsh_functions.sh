@@ -1100,5 +1100,162 @@ function dirsize() {
 # Create alias for dirsize.
 alias ds='dirsize'
 
+# -----------------------------------------------------------------------------
+# count
+# -----------------------------------------------------------------------------
+# Count files and directories in a specified location with detailed breakdown.
+# Distinguishes between regular files, directories, symlinks, and hidden items.
+# Supports recursive counting with safety limits to prevent long scans.
+#
+# Usage:
+#   count [directory] [options]
+#
+# Arguments:
+#   directory - Target directory to count (default: current directory).
+#
+# Options:
+#   -r, --recursive  Count recursively (depth limit: 5 levels).
+#   -a, --all        Show all item types including symlinks.
+#   -h, --help       Show help message.
+#
+# Returns:
+#   0 - Count completed successfully.
+#   1 - Invalid arguments or directory not found.
+# -----------------------------------------------------------------------------
+function count() {
+  local target="."
+  local recursive=0
+  local show_all=0
+  local max_depth=1
+
+  # Parse arguments.
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -r | --recursive)
+        recursive=1
+        max_depth=5
+        shift
+        ;;
+      -a | --all)
+        show_all=1
+        shift
+        ;;
+      -h | --help)
+        echo "${C_CYAN}Usage: count [directory] [options]${C_RESET}"
+        echo ""
+        echo "Options:"
+        echo "  -r, --recursive  Count recursively (max depth: 5)"
+        echo "  -a, --all        Show all item types including symlinks"
+        echo "  -h, --help       Show this help message"
+        echo ""
+        echo "Examples:"
+        echo "  count              Count items in current directory"
+        echo "  count /tmp         Count items in /tmp"
+        echo "  count -r           Count recursively"
+        echo "  count -a /var/log  Count all types in /var/log"
+        return 0
+        ;;
+      -*)
+        echo "${C_RED}Error: Unknown option '$1'${C_RESET}" >&2
+        echo "Use 'count --help' for usage information." >&2
+        return 1
+        ;;
+      *)
+        target="$1"
+        shift
+        ;;
+    esac
+  done
+
+  # Validate target exists before proceeding.
+  if [[ ! -e "$target" ]]; then
+    echo "${C_RED}Error: '$target' does not exist${C_RESET}" >&2
+    return 1
+  fi
+
+  if [[ ! -d "$target" ]]; then
+    echo "${C_RED}Error: '$target' is not a directory${C_RESET}" >&2
+    return 1
+  fi
+
+  if [[ ! -r "$target" ]]; then
+    echo "${C_RED}Error: No read permission for '$target'${C_RESET}" >&2
+    return 1
+  fi
+
+  # Convert target to absolute canonical path.
+  # The -P flag resolves all symbolic links in the path to their real locations.
+  local canonical_path
+  canonical_path="$(cd -P "$target" 2>/dev/null && pwd)" || {
+    echo "${C_RED}Error: Cannot access '$target'${C_RESET}" >&2
+    return 1
+  }
+
+  # Require explicit '/' argument when scanning root to prevent accidents.
+  if [[ "$target" == "." && "$canonical_path" == "/" ]]; then
+    echo "${C_RED}Error: Refusing to scan root directory. Specify '/' explicitly if intended.${C_RESET}" >&2
+    return 1
+  fi
+
+  # Initialize counters for different item types.
+  local files=0
+  local dirs=0
+  local hidden=0
+  local symlinks=0
+  local total=0
+
+  # Retrieve file type information for all items in a single find traversal.
+  # The -printf '%y\n' outputs one character per entry: f=file, d=directory, l=symlink.
+  local find_output
+  find_output=$(find "$canonical_path" -mindepth 1 -maxdepth "$max_depth" \
+    -printf '%y\n' 2>/dev/null)
+
+  # Parse find output and increment appropriate counters.
+  # Using shell built-ins avoids spawning external processes like grep/wc.
+  local line
+  while IFS= read -r line; do
+    case "$line" in
+      f) ((files++)) ;;
+      d) ((dirs++)) ;;
+      l) ((symlinks++)) ;;
+    esac
+  done <<<"$find_output"
+
+  # Count hidden items (names starting with dot).
+  # Using printf with character count is more efficient than piping to wc -l.
+  hidden=$(find "$canonical_path" -mindepth 1 -maxdepth "$max_depth" \
+    -name '.*' -printf '.' 2>/dev/null | wc -c)
+
+  # Calculate total.
+  total=$((files + dirs + symlinks))
+
+  # Display results with formatted output.
+  echo ""
+  echo "${C_CYAN}═══════════════════════════════════════════════════${C_RESET}"
+  if [[ $recursive -eq 1 ]]; then
+    echo "${C_CYAN}Directory Count (Recursive, max depth: $max_depth)${C_RESET}"
+  else
+    echo "${C_CYAN}Directory Count (Non-recursive)${C_RESET}"
+  fi
+  echo "${C_CYAN}═══════════════════════════════════════════════════${C_RESET}"
+  echo ""
+  printf "${C_YELLOW}%-15s${C_RESET} %s\n" "Location:" "$canonical_path"
+  echo ""
+  printf "${C_GREEN}%-15s${C_RESET} %'6d\n" "Files:" "$files"
+  printf "${C_GREEN}%-15s${C_RESET} %'6d\n" "Directories:" "$dirs"
+
+  # Always show symlinks if there are any, or if --all flag is used.
+  if [[ $show_all -eq 1 ]] || [[ $symlinks -gt 0 ]]; then
+    printf "${C_MAGENTA}%-15s${C_RESET} %'6d\n" "Symlinks:" "$symlinks"
+  fi
+
+  printf "${C_BLUE}%-15s${C_RESET} %'6d\n" "Hidden:" "$hidden"
+
+  echo "${C_CYAN}───────────────────────────────────────────────────${C_RESET}"
+  printf "${C_YELLOW}%-15s${C_RESET} %'6d\n" "Total:" "$total"
+  echo "${C_CYAN}═══════════════════════════════════════════════════${C_RESET}"
+  echo ""
+}
+
 # ============================================================================ #
 # End of script.
