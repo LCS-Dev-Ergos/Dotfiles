@@ -398,7 +398,7 @@ detect_folders = []
 [scala]
 disabled = false
 style = 'bold red'
-symbol = '󰳞 '
+symbol = ' '
 format = '[$symbol$version]($style) '
 detect_extensions = ['sbt', 'scala']
 detect_files = ['.scalaenv', '.sbtenv', 'build.sbt']
@@ -475,7 +475,7 @@ detect_folders = ['_opam', 'esy.lock']
 [erlang]
 disabled = false
 style = 'bold red'
-symbol = '󰟹 '
+symbol = ' '
 format = '[$symbol$version]($style) '
 detect_extensions = []
 detect_files = ['rebar.config', 'erlang.mk']
@@ -493,7 +493,7 @@ detect_folders = []
 [nim]
 disabled = false
 style = 'bold yellow'
-symbol = '󰆥 '
+symbol = ' '
 format = '[$symbol$version]($style) '
 detect_extensions = ['nim', 'nims', 'nimble']
 detect_files = ['nim.cfg']
@@ -511,17 +511,27 @@ detect_folders = []
 [c]
 disabled = false
 style = 'bold blue'
-symbol = '󰙱 '
+symbol = ' '
 format = '[$symbol$version(-$name)]($style) '
 detect_extensions = ['c', 'h']
 detect_files = []
 detect_folders = []
 commands = [['cc', '--version'], ['gcc', '--version'], ['clang', '--version']]
 
+[cpp]
+disabled = false
+style = 'bold blue'
+symbol = ' '
+format = '[$symbol$version(-$name)]($style) '
+detect_extensions = ['cc', 'cpp', 'tpp', 'hpp','cxx', 'hxx', 'c++', 'h++']
+detect_files = []
+detect_folders = []
+commands = [['cc', '--version'], ['g++', '--version'], ['clang++', '--version']]
+
 [cmake]
 disabled = false
 style = 'bold blue'
-symbol = '△ '
+symbol = ' '
 format = '[$symbol$version]($style) '
 detect_extensions = []
 detect_files = ['CMakeLists.txt', 'CMakeCache.txt']
@@ -539,7 +549,7 @@ detect_folders = []
 [crystal]
 disabled = false
 style = 'bold red'
-symbol = '🔮 '
+symbol = ' '
 format = '[$symbol$version]($style) '
 detect_extensions = ['cr']
 detect_files = ['shard.yml']
@@ -557,7 +567,7 @@ detect_folders = []
 [dart]
 disabled = false
 style = 'bold blue'
-symbol = '󰆥 '
+symbol = ' '
 format = '[$symbol$version]($style) '
 detect_extensions = ['dart']
 detect_files = ['pubspec.yaml', 'pubspec.yml', 'pubspec.lock']
@@ -575,7 +585,7 @@ detect_folders = []
 [elm]
 disabled = false
 style = 'bold cyan'
-symbol = '󰗁 '
+symbol = ' '
 format = '[$symbol$version]($style) '
 detect_extensions = ['elm']
 detect_files = ['elm.json', 'elm-package.json', '.elm-version']
@@ -584,7 +594,7 @@ detect_folders = ['elm-stuff']
 [fennel]
 disabled = false
 style = 'bold green'
-symbol = '🧅 '
+symbol = ' '
 format = '[$symbol$version]($style) '
 detect_extensions = ['fnl']
 detect_files = []
@@ -635,15 +645,6 @@ impure_msg = 'impure'
 pure_msg = 'pure'
 unknown_msg = ''
 heuristic = false
-
-[opa]
-disabled = false
-style = 'bold blue'
-symbol = '🪖  '
-format = '[$symbol$version]($style) '
-detect_extensions = ['rego']
-detect_files = []
-detect_folders = []
 
 [perl]
 disabled = false
@@ -697,15 +698,6 @@ format = '[$symbol$version]($style) '
 detect_extensions = ['R', 'Rd', 'Rmd', 'Rproj', 'Rsx']
 detect_files = ['.Rprofile']
 detect_folders = ['.Rproj.user']
-
-[red]
-disabled = false
-style = 'bold red'
-symbol = '🔴 '
-format = '[$symbol$version]($style) '
-detect_extensions = ['red', 'reds']
-detect_files = []
-detect_folders = []
 
 [solidity]
 disabled = false
@@ -990,12 +982,12 @@ recognize_signal_code = true
 
 [character]
 disabled = false
-success_symbol = '[󰅂](bold green)'
-error_symbol = '[󰅂](bold red)'
-vimcmd_symbol = '[󰅁](bold green)'
-vimcmd_visual_symbol = '[󰅁](bold yellow)'
-vimcmd_replace_symbol = '[󰅁](bold purple)'
-vimcmd_replace_one_symbol = '[󰅁](bold purple)'
+success_symbol = '[](bold green)'
+error_symbol = '[](bold red)'
+vimcmd_symbol = '[](bold yellow)'
+vimcmd_visual_symbol = '[](bold cyan)'
+vimcmd_replace_symbol = '[](bold purple)'
+vimcmd_replace_one_symbol = '[](bold purple)'
 format = '$symbol '
 
 # ────────────────────────────────────────────────────────────────────────────

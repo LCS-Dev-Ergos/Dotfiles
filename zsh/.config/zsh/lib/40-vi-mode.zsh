@@ -61,10 +61,14 @@ _vi_set_cursor() {
 # Shapes:
 #   vicmd (normal mode)  → steady block (2).
 #   viins (insert mode)  → blinking block (1).
+#   visual (visual mode) → steady underline (4).
+#   viopp (operator pending) → blinking underline (3).
 # -----------------------------------------------------------------------------
 _vi_cursor_for_keymap() {
   case "${KEYMAP:-viins}" in
     vicmd) _vi_set_cursor 2 ;; # Normal: steady block.
+    visual) _vi_set_cursor 4 ;; # Visual: steady underline.
+    viopp) _vi_set_cursor 3 ;; # Operator pending: blinking underline.
     *) _vi_set_cursor 1 ;;     # Insert: blinking block.
   esac
 }
@@ -93,8 +97,8 @@ _vi_line_init() {
 
 # Capture existing widget before overwriting.
 typeset -g _VI_PREV_KEYMAP_SELECT=
-if [[ -n "${widgets[zle - keymap - select]-}" ]]; then
-  _vi_current="${widgets[zle - keymap - select]#user:}"
+if [[ -n "${widgets[zle-keymap-select]-}" ]]; then
+  _vi_current="${widgets[zle-keymap-select]#user:}"
   # Prevent self-reference loop.
   [[ "$_vi_current" != "_vi_keymap_select" ]] && _VI_PREV_KEYMAP_SELECT="$_vi_current"
   unset _vi_current
@@ -105,7 +109,7 @@ _vi_keymap_select() {
   if [[ -n "$_VI_PREV_KEYMAP_SELECT" ]]; then
     if [[ "$_VI_PREV_KEYMAP_SELECT" == "starship_zle-keymap-select-wrapped" ]]; then
       # Starship uses a wrapper function.
-      (($ + functions[starship_zle - keymap - select])) && starship_zle-keymap-select "$@"
+      ((${+functions[starship_zle-keymap-select]})) && starship_zle-keymap-select "$@"
     else
       "$_VI_PREV_KEYMAP_SELECT" "$@"
     fi
