@@ -171,6 +171,10 @@ alias reload="source ~/.zshrc"
 alias edit="$EDITOR ~/.zshrc"
 alias fastfetch='~/.config/fastfetch/scripts/fastfetch-dynamic.sh'
 
+# ---------- Kitty Terminal ---------- #
+alias kreload='kill -SIGUSR1 $KITTY_PID'
+alias kedit='$EDITOR ~/.config/kitty/kitty.conf'
+
 # Default 'ls' alias (may be overridden below based on platform).
 if command -v eza >/dev/null 2>&1; then
   alias ls="eza --color=auto --long --git --icons=auto"
