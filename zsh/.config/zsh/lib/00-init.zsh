@@ -99,7 +99,7 @@ fi
 # Conditional startup commands based on platform.
 if [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" == true ]]; then
   # Arch Linux specific startup commands.
-  command -v fastfetch >/dev/null 2>&1 && fastfetch
+  # command -v fastfetch >/dev/null 2>&1 && fastfetch
 elif [[ "$PLATFORM" == "macOS" ]]; then
   # macOS specific startup command.
   # command -v fastfetch >/dev/null 2>&1 && fastfetch

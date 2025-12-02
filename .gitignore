@@ -34,6 +34,9 @@
 .emacs.desktop
 .emacs.desktop.lock
 
+# Genkit
+.genkit/
+
 # Build files
 /build/
 *.o

@@ -1205,26 +1205,21 @@ function count() {
   local total=0
 
   # Retrieve file type information for all items in a single find traversal.
-  # The -printf '%y\n' outputs one character per entry: f=file, d=directory, l=symlink.
-  local find_output
-  find_output=$(find "$canonical_path" -mindepth 1 -maxdepth "$max_depth" \
-    -printf '%y\n' 2>/dev/null)
-
-  # Parse find output and increment appropriate counters.
-  # Using shell built-ins avoids spawning external processes like grep/wc.
-  local line
-  while IFS= read -r line; do
-    case "$line" in
-      f) ((files++)) ;;
-      d) ((dirs++)) ;;
-      l) ((symlinks++)) ;;
-    esac
-  done <<<"$find_output"
+  # BSD find (macOS) doesn't support -printf, so we use a portable approach.
+  local item
+  while IFS= read -r item; do
+    if [[ -L "$item" ]]; then
+      ((symlinks++))
+    elif [[ -f "$item" ]]; then
+      ((files++))
+    elif [[ -d "$item" ]]; then
+      ((dirs++))
+    fi
+  done < <(find "$canonical_path" -mindepth 1 -maxdepth "$max_depth" 2>/dev/null)
 
   # Count hidden items (names starting with dot).
-  # Using printf with character count is more efficient than piping to wc -l.
   hidden=$(find "$canonical_path" -mindepth 1 -maxdepth "$max_depth" \
-    -name '.*' -printf '.' 2>/dev/null | wc -c)
+    -name '.*' 2>/dev/null | wc -l | tr -d ' ')
 
   # Calculate total.
   total=$((files + dirs + symlinks))

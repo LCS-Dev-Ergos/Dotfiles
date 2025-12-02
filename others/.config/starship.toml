@@ -114,8 +114,8 @@ continuation_prompt = '[∙](bold bright-black) '
 # Disable automatic newline before prompt
 add_newline = false
 
-# Command timeout in milliseconds
-command_timeout = 1000
+# Command timeout in milliseconds (increased for large repos)
+command_timeout = 2500
 
 # Active color palette
 palette = 'tokyo-night'
@@ -267,7 +267,7 @@ staged = '+${count}'
 renamed = '»${count}'
 deleted = '✘${count}'
 typechanged = '󰦒${count}'
-ignore_submodules = false
+ignore_submodules = true
 windows_starship = '/mnt/c/Program Files/starship/bin/starship.exe'
 
 [hg_branch]
@@ -353,7 +353,7 @@ disabled = false
 ignore_base = false
 truncation_length = 1
 format = '[$symbol$environment]($style) '
-symbol = '󰔱 '
+symbol = ' '
 style = 'bold green'
 detect_env_vars = ['!PIXI_ENVIRONMENT_NAME']
 
