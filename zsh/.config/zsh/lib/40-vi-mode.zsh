@@ -46,12 +46,13 @@ export KEYTIMEOUT=1
 # Note: VSCode's integrated terminal has limited cursor control support.
 # We skip cursor changes in VSCode to avoid rendering issues.
 # -----------------------------------------------------------------------------
-_vi_set_cursor() {
-  # Skip cursor changes in VSCode terminal.
-  [[ -n "$VSCODE_INJECTION" ]] && return 0
-
-  printf '\e[%d q' "$1"
-}
+if [[ -n "$VSCODE_INJECTION" ]]; then
+  _vi_set_cursor() { :; }
+else
+  _vi_set_cursor() {
+    printf '\e[%d q' "$1"
+  }
+fi
 
 # -----------------------------------------------------------------------------
 # _vi_cursor_for_keymap
