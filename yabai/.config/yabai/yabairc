@@ -9,8 +9,8 @@
 sudo yabai --load-sa
 yabai -m signal --add event=dock_did_restart action="sudo yabai --load-sa"
 yabai -m signal --add event=window_focused action="sketchybar --trigger window_focus"
-# yabai -m signal --add label="flash_focus"       \
-#                       event="window_focused"    \
+# yabai -m signal --add label="flash_focus"     \
+#                       event="window_focused"  \
 #                       action="yabai -m window \$YABAI_WINDOW_ID --opacity 0.9 &&           \
 #                       sleep \$(yabai -m config window_opacity_duration) && yabai -m window \
 #                       \$YABAI_WINDOW_ID --opacity 0.0"
@@ -128,6 +128,13 @@ yabai -m rule --add \
 yabai -m rule --add label="VNC Viewer" \
     app="^VNC Viewer$" \
     title="^(.*VNC.*|.*Viewer.*|.*RealVNC.*)$" \
+    manage=off
+
+# Exclude GIMP transient/context dialogs (About / Welcome, etc.)
+GIMP_APP="GIMP|GIMP-2\\..*|GNU Image Manipulation Program"
+yabai -m rule --add label="GIMP Popups" \
+    app="^(${GIMP_APP})$" \
+    title="^(.*About.*|.*Export.*|.*Merge.*|.*Welcome.*|.*Quit.*|.*Save.*)$" \
     manage=off
 
 # Exclude Rancher Desktop/OrbStack preference windows from tiling

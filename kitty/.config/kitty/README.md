@@ -10,6 +10,7 @@ This is an optimized Kitty terminal configuration with advanced features, profes
 - [Window Management](#window-management)
 - [Keyboard Shortcuts](#keyboard-shortcuts)
 - [Advanced Features](#advanced-features)
+- [Sessions](#sessions)
 - [Shell Integration](#shell-integration)
 - [Troubleshooting](#troubleshooting)
 
@@ -63,6 +64,17 @@ sync_to_monitor yes     # Prevents screen tearing
 - Foreground: `#a9b1d6`
 - Cursor: `#c0caf5`
 - Selection: `#28344a`
+- Tab Bar: `#16161e` with powerline style
+
+**Tab Bar Styling**:
+
+- Active tab: Bold cyan (`#7dcfff`) on elevated background (`#1f2335`)
+- Inactive tabs: Lighter gray (`#787c99`) with fade effect on main background
+- Tab bar background: Elevated dark (`#1f2335`) with increased margins for visibility
+- Session indicator: Bright cyan (`#7dcfff`)
+- Process name: Teal (`#73daca`)
+- Title: Yellow-orange (`#e0af68`)
+- Separator color: Blue accent (`#7aa2f7`)
 
 **Alternative Theme**: Gruvbox Material (commented out)
 
@@ -106,6 +118,23 @@ dynamic_background_opacity yes   # Adjustable at runtime
 | `Cmd+Shift+]` | Focus next window                 |
 | `Cmd+Shift+R` | Start interactive window resizing |
 
+#### Tmux-Style Window Navigation
+
+Navigate between windows using `Ctrl+A` prefix (similar to tmux):
+
+| Shortcut            | Action               |
+| ------------------- | -------------------- |
+| `Ctrl+A` then `1-9` | Jump to window 1-9   |
+| `Ctrl+A` then `0`   | Jump to window 10    |
+| `Ctrl+A` then `N`   | Next window          |
+| `Ctrl+A` then `P`   | Previous window      |
+| `Ctrl+A` then `C`   | Create new window    |
+| `Ctrl+A` then `W`   | Close current window |
+
+**Usage**: Press `Ctrl+A`, release, then press the window key.
+
+**Alternative**: Use `Ctrl+Shift+1-9` for direct window access without prefix.
+
 #### Layout Management
 
 | Shortcut          | Action                                        |
@@ -128,6 +157,25 @@ dynamic_background_opacity yes   # Adjustable at runtime
 | `Ctrl+Shift+Q`          | Close current tab            |
 | `Ctrl+Shift+Right/Left` | Navigate between tabs        |
 | `Ctrl+Shift+./,`        | Move tab forward/backward    |
+
+#### Tmux-Style Tab Navigation
+
+Navigate between tabs using `Ctrl+A + Shift` prefix (similar to tmux window navigation):
+
+| Shortcut                  | Action            |
+| ------------------------- | ----------------- |
+| `Ctrl+A` then `Shift+1-9` | Jump to tab 1-9   |
+| `Ctrl+A` then `Shift+N`   | Next tab          |
+| `Ctrl+A` then `Shift+P`   | Previous tab      |
+| `Ctrl+A` then `Shift+T`   | Create new tab    |
+| `Ctrl+A` then `Shift+W`   | Close current tab |
+
+**Usage**: Press `Ctrl+A`, release, then press `Shift` + key.
+
+**Note**:
+
+- Windows (panes): `Ctrl+A` + `1-9` (lowercase)
+- Tabs: `Ctrl+A` + `Shift+1-9` (uppercase)
 
 #### Text Navigation
 
@@ -244,6 +292,176 @@ Opens an interactive overlay to search through scrollback history.
 | ------------- | ---------------------- |
 | `Cmd+Shift+Z` | Toggle fullscreen      |
 | `Cmd+Shift+M` | Toggle window maximize |
+
+---
+
+### Sessions
+
+Kitty sessions provide a native alternative to tmux for managing project workspaces. Sessions define reusable terminal layouts with predefined windows, tabs, and working directories.
+
+#### Session Overview
+
+Sessions are text-based configuration files (`.kitty-session`) that specify:
+
+- Window layouts (tall, grid, stack, etc.)
+- Tab organization
+- Working directories
+- Commands to execute on startup
+- Window titles and focus
+
+**Key Advantages over Tmux**:
+
+- Native integration with Kitty (no external multiplexer overhead)
+- Instant context switching between projects
+- Visual session indicators in tab bar (Tokyo Night blue: `#7aa2f7`)
+- Seamless integration with Kitty's window management
+- Portable, relocatable session files
+
+#### Available Sessions
+
+| Session File               | Description                                        | Keymap          |
+| -------------------------- | -------------------------------------------------- | --------------- |
+| `dotfiles.kitty-session`   | Dotfiles management with config editing            | `Cmd+Shift+S>D` |
+| `dev-python.kitty-session` | Python development with REPL, testing, virtualenvs | `Cmd+Shift+S>P` |
+| `dev-java.kitty-session`   | Java development with Maven/Gradle, JUnit          | `Cmd+Shift+S>J` |
+| `dev-rust.kitty-session`   | Rust development with Cargo, Clippy, benchmarks    | `Cmd+Shift+S>R` |
+| `dev-cpp.kitty-session`    | C/C++ development with sanitizers, Valgrind        | `Cmd+Shift+S>C` |
+| `ssh-dev.kitty-session`    | SSH remote server connections and monitoring       | `Cmd+Shift+S>H` |
+| `monitoring.kitty-session` | System monitoring, logs, and service management    | `Cmd+Shift+S>M` |
+
+#### Session Management Keybindings
+
+**Session Switching** (prefix: `Cmd+Shift+S`):
+
+| Shortcut               | Action                             |
+| ---------------------- | ---------------------------------- |
+| `Cmd+Shift+S` then `D` | Switch to Dotfiles session         |
+| `Cmd+Shift+S` then `P` | Switch to Python development       |
+| `Cmd+Shift+S` then `J` | Switch to Java development         |
+| `Cmd+Shift+S` then `R` | Switch to Rust development         |
+| `Cmd+Shift+S` then `C` | Switch to C/C++ development        |
+| `Cmd+Shift+S` then `H` | Switch to SSH remote connections   |
+| `Cmd+Shift+S` then `M` | Switch to Monitoring session       |
+| `Cmd+Shift+S` then `L` | Jump to previous session (Last)    |
+| `Cmd+Shift+S` then `X` | Close current session              |
+| `Cmd+Shift+S` then `S` | Save current session (relocatable) |
+
+**Usage**: Press `Cmd+Shift+S`, release, then press the session key.
+
+#### Session Styling
+
+Sessions are visually indicated in the tab bar with Tokyo Night colors:
+
+- **Session name**: Blue (`#7aa2f7`) prefix before tab title
+- **Tab filtering**: Only tabs from current session are displayed
+- **Maximum session name length**: 20 characters
+
+Example tab title format:
+
+```text
+dotfiles 1: (nvim) kitty.conf
+```
+
+Where `dotfiles` is the session indicator in blue.
+
+#### Session File Locations
+
+All session files are stored in:
+
+```bash
+~/.config/kitty/sessions/
+```
+
+#### Creating Custom Sessions
+
+Session files use declarative syntax:
+
+```conf
+# Basic layout
+layout tall
+cd ~/my-project
+
+# Create windows
+launch --title "Editor" --cwd=current zsh
+launch --title "Build" --cwd=current zsh
+launch --title "Tests" --cwd=current zsh
+
+# Set initial focus
+focus
+
+# Create new tab
+new_tab Testing
+cd ~/my-project/tests
+launch --title "Test Runner" --cwd=current zsh
+
+# Focus first tab
+focus_tab 1
+```
+
+**Key directives**:
+
+- `layout [name]` - Set window layout (tall, grid, stack, etc.)
+- `cd [path]` - Change working directory
+- `launch [options]` - Create new window
+- `new_tab [title]` - Create new tab
+- `focus` - Focus the previously created window
+- `focus_tab [index]` - Set active tab (1-indexed)
+
+#### Launching Sessions
+
+**From keyboard**: Use the keybindings above
+
+**From command line**:
+
+```bash
+kitty --session ~/.config/kitty/sessions/dev-python.kitty-session
+```
+
+**Automatically on startup** (in `kitty.conf`):
+
+```conf
+startup_session ~/.config/kitty/sessions/dotfiles.kitty-session
+```
+
+#### Saving Sessions
+
+Save your current workspace as a session:
+
+```bash
+# Press Cmd+Shift+S then S
+# Or use kitty @ command:
+kitty @ save-as-session --use-foreground-process --relocatable ~/my-session.kitty-session
+```
+
+**Options**:
+
+- `--relocatable` - Use relative paths for portability
+- `--use-foreground-process` - Preserve running programs (requires shell integration)
+- `--base-dir [path]` - Save to specific directory
+- `--match [pattern]` - Filter which windows to save
+
+#### Customizing Session Paths
+
+Edit session files to point to your project directories:
+
+```bash
+# Edit C++ session to use your project path
+cd ~/.config/kitty/sessions/
+vim dev-cpp.kitty-session
+```
+
+Change the `cd` directives to your actual project locations:
+
+```diff
+- cd ~/Projects/cpp
++ cd /path/to/your/cpp/project
+```
+
+#### Session Documentation
+
+For comprehensive session features, see:
+
+- [Official Sessions Documentation](https://sw.kovidgoyal.net/kitty/sessions/)
 
 ---
 
@@ -422,6 +640,52 @@ brew install fzf
 
 ---
 
-**Last Updated**: 2025-12-02
+## Custom Tab Bar
+
+### Features
+
+Powerline-styled tab bar with live system widgets using Tokyo Night colors:
+
+- **Battery Status**: Shows charging icon () or standard battery icon () with percentage
+- **Date Display**: Current date with calendar icon () in format "DD Mon YYYY"
+- **Time Display**: Current time with clock icon () in 24-hour format
+
+### Implementation
+
+File: [`tab_bar.py`](tab_bar.py)
+
+The tab bar uses:
+
+- `draw_tab_with_powerline()` for native Kitty tab rendering
+- macOS-compatible system calls (`pmset` for battery)
+- Automatic cell dropping if terminal width insufficient
+- 2-second refresh interval for live updates
+
+### Widget Configuration
+
+Toggle widgets in [`tab_bar.py`](tab_bar.py#L27-L30):
+
+```python
+SHOW_BATTERY = True  # Battery percentage and charging status
+SHOW_DATE = True     # Current date
+SHOW_CLOCK = True    # Current time
+```
+
+### Powerline Separators
+
+- First widget:  (powerline separator from default bg to tab bg)
+- Subsequent widgets:  (thin separator within tab bg)
+
+### Color Scheme
+
+Widgets use colors from `draw_data` for theme consistency:
+
+- Background: `draw_data.inactive_bg`
+- Foreground: `draw_data.inactive_fg`
+- Default background: `draw_data.default_bg`
+
+---
+
+**Last Updated**: 2025-12-03
 **Author**: LCS.Dev
 **Optimized by**: Claude (Anthropic)

@@ -1,0 +1,49 @@
+# ============================================================================ #
+# SSH Development Session
+# ============================================================================ #
+# Workspace for remote server connections and development
+
+layout tall
+
+# Main SSH connection
+launch --title "SSH-Primary" --cwd=current zsh
+
+# Secondary connection (same server, different session)
+launch --title "SSH-Secondary" --cwd=current zsh
+
+# Local terminal for file transfers/monitoring
+launch --title "Local" --cwd=current zsh
+
+focus
+
+# ------------------------------- Servers Tab -------------------------------- #
+
+new_tab Servers
+layout grid
+
+# Production server
+launch --title "Production" --cwd=current zsh
+
+# Staging server
+launch --title "Staging" --cwd=current zsh
+
+# Development server
+launch --title "Development" --cwd=current zsh
+
+# Database server
+launch --title "Database" --cwd=current zsh
+
+focus
+
+# ----------------------------- Monitoring Tab ------------------------------- #
+
+new_tab Monitoring
+layout vertical
+
+# Server logs
+launch --title "Logs" --cwd=current zsh
+
+# Resource monitoring (htop/btop)
+launch --title "Resources" --cwd=current zsh
+
+focus_tab 1

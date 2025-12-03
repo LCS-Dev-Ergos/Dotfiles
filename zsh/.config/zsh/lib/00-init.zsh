@@ -106,6 +106,9 @@ elif [[ "$PLATFORM" == "macOS" ]]; then
   true # placeholder.
 fi
 
+# Disable auto-setting of terminal title to prevent flickering in Kitty.
+DISABLE_AUTO_TITLE="true"
+
 # ---------------------------- Terminal Variables ---------------------------- #
 # Respect the terminal-provided TERM. Only force kitty when actually in kitty.
 case "$TERM" in
