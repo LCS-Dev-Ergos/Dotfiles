@@ -1,0 +1,52 @@
+# ============================================================================ #
+# Dotfiles Management Session
+# ============================================================================ #
+# Workspace for managing and editing dotfiles configuration
+
+layout tall
+cd ~/Dotfiles
+
+# Main editor window
+launch --title "Editor" --cwd=current zsh
+
+# Git operations and status
+launch --title "Git" --cwd=current zsh
+
+# Preview/Testing window
+launch --title "Preview" --cwd=current zsh
+
+focus
+
+# -------------------------------- Config Tab -------------------------------- #
+
+new_tab Config-Files
+layout grid
+
+# Kitty configuration
+cd ~/Dotfiles/kitty/.config/kitty
+launch --title "Kitty" --cwd=current zsh
+
+# Zsh configuration
+cd ~/Dotfiles/zsh
+launch --title "Zsh" --cwd=current zsh
+
+# Fastfetch configuration
+cd ~/Dotfiles/fastfetch/.config/fastfetch
+launch --title "Fastfetch" --cwd=current zsh
+
+focus
+
+# ------------------------------- Scripts Tab -------------------------------- #
+
+new_tab Scripts
+layout tall
+
+cd ~/Dotfiles
+
+# Scripts editing
+launch --title "Scripts" --cwd=current zsh
+
+# Testing/Execution
+launch --title "Test" --cwd=current zsh
+
+focus_tab 1

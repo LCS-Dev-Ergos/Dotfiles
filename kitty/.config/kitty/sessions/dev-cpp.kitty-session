@@ -1,0 +1,54 @@
+# ============================================================================ #
+# C/C++ Development Session
+# ============================================================================ #
+# Workspace for C/C++ projects with CMake/Make integration
+
+layout tall
+cd /Volumes/LCS.Data/AlgoDataStruct
+
+# Main editor
+launch --title "Editor" --cwd=current zsh
+
+# Build system (CMake/Make)
+launch --title "Build" --cwd=current zsh
+
+# Compiler output/Debugging
+launch --title "Debug" --cwd=current zsh
+
+focus
+
+# ------------------------------- Test Tab ----------------------------------- #
+
+new_tab Testing
+layout tall
+
+cd /Volumes/LCS.Data/AlgoDataStruct
+
+# Test execution (GTest/Catch2)
+launch --title "Tests" --cwd=current zsh
+
+# Sanitizers (ASan/UBSan/TSan)
+launch --title "Sanitizers" --cwd=current zsh
+
+focus
+
+# ------------------------- Analysis/Tools Tab ------------------------------- #
+
+new_tab Analysis
+layout grid
+
+cd /Volumes/LCS.Data/AlgoDataStruct
+
+# Valgrind/Memory profiling
+launch --title "Valgrind" --cwd=current zsh
+
+# Static analysis (clang-tidy/cppcheck)
+launch --title "Static-Analysis" --cwd=current zsh
+
+# Performance profiling
+launch --title "Profiling" --cwd=current zsh
+
+# Compilation database
+launch --title "Compile-Commands" --cwd=current zsh
+
+focus_tab 1

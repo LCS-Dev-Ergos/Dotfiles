@@ -1,0 +1,48 @@
+# ============================================================================ #
+# Java Development Session
+# ============================================================================ #
+# Workspace for Java/Maven/Gradle projects
+
+layout tall
+cd /Volumes/LCS.Data/Java-Projects
+
+# Main editor
+launch --title "Editor" --cwd=current zsh
+
+# Build output
+launch --title "Build" --cwd=current zsh
+
+# Application logs
+launch --title "Logs" --cwd=current zsh
+
+focus
+
+# ------------------------------- Test Tab ----------------------------------- #
+
+new_tab Testing
+layout tall
+
+cd /Volumes/LCS.Data/Java-Projects
+
+# Test execution
+launch --title "JUnit" --cwd=current zsh
+
+# Test coverage/reports
+launch --title "Coverage" --cwd=current zsh
+
+focus
+
+# ---------------------------- Build Tools Tab ------------------------------- #
+
+new_tab Build-Tools
+layout vertical
+
+cd /Volumes/LCS.Data/Java-Projects
+
+# Maven/Gradle
+launch --title "Maven" --cwd=current zsh
+
+# Dependencies
+launch --title "Dependencies" --cwd=current zsh
+
+focus_tab 1

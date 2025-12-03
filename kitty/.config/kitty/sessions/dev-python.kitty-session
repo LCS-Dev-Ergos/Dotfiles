@@ -1,0 +1,48 @@
+# ============================================================================ #
+# Python Development Session
+# ============================================================================ #
+# Workspace for Python projects with testing and debugging
+
+layout tall
+cd /Volumes/LCS.Data/Data-Analysis
+
+# Main editor
+launch --title "Editor" --cwd=current zsh
+
+# Python REPL/Testing
+launch --title "REPL" --cwd=current zsh
+
+# Tests runner
+launch --title "Tests" --cwd=current zsh
+
+focus
+
+# ------------------------------- Debug Tab ---------------------------------- #
+
+new_tab Debug
+layout stack
+
+cd /Volumes/LCS.Data/Data-Analysis
+
+# Debugger/Logs
+launch --title "Debug" --cwd=current zsh
+
+# Virtual environment management
+launch --title "Venv" --cwd=current zsh
+
+focus
+
+# ----------------------------- Package Tab ---------------------------------- #
+
+new_tab Dependencies
+layout vertical
+
+cd /Volumes/LCS.Data/Data-Analysis
+
+# Package management
+launch --title "Pip/Poetry" --cwd=current zsh
+
+# Requirements
+launch --title "Requirements" --cwd=current zsh
+
+focus_tab 1

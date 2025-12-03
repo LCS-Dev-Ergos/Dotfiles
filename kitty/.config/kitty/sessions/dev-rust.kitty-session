@@ -1,0 +1,48 @@
+# ============================================================================ #
+# Rust Development Session
+# ============================================================================ #
+# Workspace for Rust projects with Cargo integration
+
+layout tall
+cd /Volumes/LCS.Data/Rust-Projects
+
+# Main editor
+launch --title "Editor" --cwd=current zsh
+
+# Cargo build/check
+launch --title "Cargo" --cwd=current zsh
+
+# Application output
+launch --title "Run" --cwd=current zsh
+
+focus
+
+# ------------------------------- Test Tab ----------------------------------- #
+
+new_tab Testing
+layout tall
+
+cd /Volumes/LCS.Data/Rust-Projects
+
+# Test execution
+launch --title "Tests" --cwd=current zsh
+
+# Benchmarks
+launch --title "Bench" --cwd=current zsh
+
+focus
+
+# --------------------------- Clippy/Format Tab ------------------------------ #
+
+new_tab Linting
+layout vertical
+
+cd /Volumes/LCS.Data/Rust-Projects
+
+# Clippy linter
+launch --title "Clippy" --cwd=current zsh
+
+# Rustfmt
+launch --title "Format" --cwd=current zsh
+
+focus_tab 1

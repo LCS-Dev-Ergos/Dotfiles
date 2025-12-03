@@ -1,0 +1,46 @@
+# ============================================================================ #
+# System Monitoring Session
+# ============================================================================ #
+# Workspace for system monitoring and administration
+
+layout grid
+
+# System resources monitor
+launch --title "Top" --cwd=current zsh
+
+# Network monitoring
+launch --title "Network" --cwd=current zsh
+
+# Disk usage
+launch --title "Disk" --cwd=current zsh
+
+# Process viewer
+launch --title "Processes" --cwd=current zsh
+
+focus
+
+# ------------------------------- Logs Tab ----------------------------------- #
+
+new_tab Logs
+layout vertical
+
+# System logs
+launch --title "System" --cwd=current zsh
+
+# Application logs
+launch --title "Apps" --cwd=current zsh
+
+focus
+
+# ---------------------------- Services Tab ---------------------------------- #
+
+new_tab Services
+layout tall
+
+# Service status
+launch --title "Status" --cwd=current zsh
+
+# Service control
+launch --title "Control" --cwd=current zsh
+
+focus_tab 1

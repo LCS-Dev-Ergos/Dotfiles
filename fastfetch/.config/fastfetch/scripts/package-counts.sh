@@ -15,7 +15,7 @@ if command -v pacman >/dev/null 2>&1; then
 
   parts=""
   [[ ${official_count:-0} -gt 0 ]] && parts=" ${official_count} (pacman)"
-  [[ ${aur_count:-0} -gt 0 ]] && parts="${parts}${parts:+, } ${aur_count} (aur)"
+  [[ ${aur_count:-0} -gt 0 ]] && parts="${parts}${parts:+,} ${aur_count} (aur)"
   [[ -n "$parts" ]] && group_parts[arch]="$parts"
 fi
 
