@@ -95,17 +95,32 @@ _vi_line_init() {
 # Chains to previous widget (e.g., Starship's) to preserve functionality.
 # -----------------------------------------------------------------------------
 
-# Capture existing widget before overwriting.
+# Capture existing widget before overwriting on every load, so reloads stay in sync.
 typeset -g _VI_PREV_KEYMAP_SELECT=
-if [[ -n "${widgets["zle-keymap-select"]-}" ]]; then
-  local prev="${widgets["zle-keymap-select"]#user:}"
-  # Prevent self-reference loops.
-  [[ "$prev" != "_vi_keymap_select" ]] && _VI_PREV_KEYMAP_SELECT="$prev"
-fi
+typeset -gi _VI_IN_KEYMAP=0
+
+() {
+  local keyName="zle-keymap-select"
+  # Check if a previous zle-keymap-select widget exists.
+  if [[ -n "${widgets[$keyName]-}" ]]; then
+    typeset prev="${widgets[$keyName]#user:}"
+    # Prevent self-reference loops.
+    [[ "$prev" != "_vi_keymap_select" ]] && _VI_PREV_KEYMAP_SELECT="$prev"
+  fi
+}
 
 _vi_keymap_select() {
+  # Prevent recursion when prev chains back into us.
+  if ((_VI_IN_KEYMAP)); then
+    _vi_cursor_for_keymap
+    return
+  fi
+
+  _VI_IN_KEYMAP=1
   # Chain to previous widget (if it exists).
   [[ -n "$_VI_PREV_KEYMAP_SELECT" ]] && "$_VI_PREV_KEYMAP_SELECT" "$@"
+  _VI_IN_KEYMAP=0
+
   _vi_cursor_for_keymap
 }
 
