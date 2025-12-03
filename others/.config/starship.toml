@@ -115,7 +115,7 @@ continuation_prompt = '[∙](bold bright-black) '
 add_newline = false
 
 # Command timeout in milliseconds (increased for large repos)
-command_timeout = 2500
+command_timeout = 2000
 
 # Active color palette
 palette = 'tokyo-night'
@@ -443,7 +443,7 @@ detect_files = ['Project.toml', 'Manifest.toml']
 detect_folders = []
 
 [dotnet]
-disabled = false
+disabled = true
 style = 'bold teal'
 symbol = '󰪮 '
 format = '[$symbol($version )(🎯 $tfm )]($style)'
@@ -482,7 +482,7 @@ detect_files = ['rebar.config', 'erlang.mk']
 detect_folders = []
 
 [elixir]
-disabled = false
+disabled = true
 style = 'bold purple'
 symbol = '󰜹 '
 format = '[$symbol$version \($otp_version\)]($style) '
@@ -537,17 +537,8 @@ detect_extensions = []
 detect_files = ['CMakeLists.txt', 'CMakeCache.txt']
 detect_folders = []
 
-[cobol]
-disabled = false
-style = 'bold blue'
-symbol = '⚙️ '
-format = '[$symbol$version]($style) '
-detect_extensions = ['cbl', 'cob', 'CBL', 'COB']
-detect_files = []
-detect_folders = []
-
 [crystal]
-disabled = false
+disabled = true
 style = 'bold red'
 symbol = ' '
 format = '[$symbol$version]($style) '
@@ -556,7 +547,7 @@ detect_files = ['shard.yml']
 detect_folders = []
 
 [daml]
-disabled = false
+disabled = true
 style = 'bold cyan'
 symbol = 'Λ '
 format = '[$symbol$version]($style) '
@@ -574,7 +565,7 @@ detect_files = ['pubspec.yaml', 'pubspec.yml', 'pubspec.lock']
 detect_folders = ['.dart_tool']
 
 [deno]
-disabled = false
+disabled = true
 style = 'bold green'
 symbol = '🦕 '
 format = '[$symbol$version]($style) '
@@ -583,7 +574,7 @@ detect_files = ['deno.json', 'deno.jsonc', 'deno.lock']
 detect_folders = []
 
 [elm]
-disabled = false
+disabled = true
 style = 'bold cyan'
 symbol = ' '
 format = '[$symbol$version]($style) '
@@ -592,7 +583,7 @@ detect_files = ['elm.json', 'elm-package.json', '.elm-version']
 detect_folders = ['elm-stuff']
 
 [fennel]
-disabled = false
+disabled = true
 style = 'bold green'
 symbol = ' '
 format = '[$symbol$version]($style) '
@@ -601,7 +592,7 @@ detect_files = []
 detect_folders = []
 
 [gleam]
-disabled = false
+disabled = true
 style = 'bold purple'
 symbol = '⭐ '
 format = '[$symbol$version]($style) '
@@ -620,7 +611,7 @@ detect_folders = ['gradle']
 recursive = false
 
 [haxe]
-disabled = false
+disabled = true
 style = 'bold orange'
 symbol = '⌘ '
 format = '[$symbol$version]($style) '
@@ -673,7 +664,7 @@ detect_files = ['spago.dhall', 'spago.yaml', 'spago.lock']
 detect_folders = []
 
 [quarto]
-disabled = false
+disabled = true
 style = 'bold blue'
 symbol = '⨁ '
 format = '[$symbol$version]($style) '
@@ -682,7 +673,7 @@ detect_files = ['_quarto.yml']
 detect_folders = []
 
 [raku]
-disabled = false
+disabled = true
 style = 'bold purple'
 symbol = '🦋 '
 format = '[$symbol$version-$vm_version]($style) '
@@ -793,7 +784,7 @@ detect_files = ['docker-compose.yml', 'docker-compose.yaml', 'Dockerfile']
 detect_folders = []
 
 [aws]
-disabled = false
+disabled = true
 style = 'bold yellow'
 symbol = '󰸏 '
 format = '[$symbol($profile )(\($region\) )(\[$duration\] )]($style)'
@@ -811,7 +802,7 @@ eu-central-1 = 'de'
 CompanyGroupFrobozzOnCallAccess = 'Frobozz'
 
 [gcloud]
-disabled = false
+disabled = true
 style = 'bold blue'
 symbol = '󱇶 '
 format = '[$symbol$account(@$domain)(\($region\))]($style) '
@@ -826,7 +817,7 @@ europe-west1 = 'ew1'
 very-long-project-name = 'vlpn'
 
 [azure]
-disabled = false
+disabled = true
 style = 'bold blue'
 symbol = '󰠅 '
 format = '[$symbol($subscription)( \($username\))]($style) '
@@ -896,8 +887,8 @@ style = 'blue bold'
 # ────────────────────────────────────────────────────────────────────────────
 
 [memory_usage]
-disabled = true
-threshold = 75
+disabled = false
+threshold = 65
 style = 'bold dimmed white'
 symbol = '󰍛 '
 format = '$symbol[$ram( | $swap)]($style) '
@@ -933,7 +924,7 @@ symbol = '󰜎'
 format = '[$symbol$number]($style) '
 
 [sudo]
-disabled = false
+disabled = true
 style = 'bold red'
 symbol = '󰚌 '
 format = '[as $symbol]($style)'
@@ -968,7 +959,7 @@ use_12hr = false
 disabled = false
 style = 'bold red'
 symbol = '󰅙'
-success_symbol = ''
+success_symbol = ''
 not_executable_symbol = '🚫'
 not_found_symbol = '🔍'
 sigint_symbol = '󰜺'
@@ -1065,19 +1056,6 @@ purple = '#bb9af7'
 gray = '#414868'
 black = '#15161e'
 white = '#a9b1d6'
-
-[palettes.nord]
-dark_blue = '#5E81AC'
-blue = '#81A1C1'
-teal = '#88C0D0'
-red = '#BF616A'
-orange = '#D08770'
-green = '#A3BE8C'
-yellow = '#EBCB8B'
-purple = '#B48EAD'
-gray = '#434C5E'
-black = '#2E3440'
-white = '#D8DEE9'
 
 [palettes.catppuccin-mocha]
 rosewater = '#f5e0dc'
