@@ -21,90 +21,155 @@
     },
     {
       "type": "custom",
-      "format": "┌────────────────────────────────────────────────┐"
+      "format": "┌─────────────────── System ───────────────────┐",
+      "outputColor": "cyan"
     },
     {
-      "type": "os",
-      "key": "  OS",
-      "keyColor": "red"
-    },
-    {
-      "type": "kernel",
-      "key": "   Kernel",
-      "keyColor": "red"
-    },
-    {
-      "type": "command",
-      "key": "   Packages",
-      "keyColor": "blue",
-      "text": "printed=0; first=1; indent=${FASTFETCH_INDENT:-$'\\033[40C'}\nprint_line(){ if (( first )); then printf '\\n'; first=0; fi; printf '%s  · %s\\n' \"$indent\" \"$1\"; printed=1; }\nif command -v pacman >/dev/null 2>&1 && command -v paru >/dev/null 2>&1; then print_line \"pacman/paru: $(pacman -Qq 2>/dev/null | wc -l | awk '{print $1}')\"; elif command -v pacman >/dev/null 2>&1; then print_line \"pacman: $(pacman -Qq 2>/dev/null | wc -l | awk '{print $1}')\"; fi\nif command -v flatpak >/dev/null 2>&1; then print_line \"flatpak: $(flatpak list --app 2>/dev/null | wc -l | awk '{print $1}')\"; fi\nif command -v snap >/dev/null 2>&1; then print_line \"snap: $(snap list 2>/dev/null | wc -l | awk '{print $1}')\"; fi\nif command -v brew >/dev/null 2>&1; then brew_count=$(brew list 2>/dev/null | wc -l | awk '{print $1}'); cask_count=$(brew list --cask 2>/dev/null | wc -l | awk '{print $1}'); print_line \"brew: $brew_count · brew cask: $cask_count\"; fi\nif command -v nix-env >/dev/null 2>&1 && [[ -d /nix/var/nix/profiles/per-user/${USER:-$(whoami)} ]]; then print_line \"nix-user: $(nix-env -q 2>/dev/null | wc -l | awk '{print $1}')\"; fi\nif [[ -d /run/current-system/sw/bin ]]; then print_line \"nix-system: $(ls -1 /run/current-system/sw/bin 2>/dev/null | wc -l | awk '{print $1}')\"; fi\nif (( printed == 0 )); then printf '\\n%s  none\\n' \"$indent\"; fi"
-    },
-    {
-      "type": "display",
-      "key": "  󰹑 Display",
-      "keyColor": "green",
-      "compactType": "original"
-    },
-    {
-      "type": "wm",
-      "key": "   WM",
-      "keyColor": "yellow"
-    },
-    {
-      "type": "terminal",
-      "key": "   Terminal",
-      "keyColor": "yellow"
-    },
-    {
-      "type": "custom",
-      "format": "└────────────────────────────────────────────────┘"
-    },
-    "break",
-    {
-      "type": "title",
-      "key": "  "
-    },
-    {
-      "type": "custom",
-      "format": "┌────────────────────────────────────────────────┐"
+      "type": "host",
+      "key": "│ ┌ Host",
+      "keyColor": "cyan"
     },
     {
       "type": "cpu",
       "format": "{1}",
-      "key": "   CPU",
-      "keyColor": "blue"
+      "key": "│ ├  CPU",
+      "keyColor": "red"
     },
     {
       "type": "gpu",
       "format": "{2}",
-      "key": "   GPU",
-      "keyColor": "blue"
+      "key": "│ ├  GPU",
+      "keyColor": "red"
     },
     {
       "type": "gpu",
       "format": "{3}",
-      "key": "   GPU Driver",
-      "keyColor": "magenta"
+      "key": "│ ├  GPU Driver",
+      "keyColor": "red"
     },
     {
       "type": "memory",
-      "key": "  󰍛 Memory",
+      "key": "│ ├󰍛  Memory",
+      "keyColor": "red"
+    },
+    {
+      "type": "disk",
+      "key": "│ ├  Disk",
+      "folders": "/",
+      "format": "{size-used} / {size-total} ({size-percentage})",
       "keyColor": "magenta"
     },
     {
+      "type": "swap",
+      "key": "│ ├󱘸  Swap",
+      "keyColor": "magenta"
+    },
+    {
+      "type": "display",
+      "key": "│ └󰹑  Display",
+      "keyColor": "magenta",
+      "format": "{name} {width}x{height} @ {refresh-rate}Hz",
+      "compactType": "original"
+    },
+    {
+      "type": "custom",
+      "format": "└──────────────────────────────────────────────┘",
+      "outputColor": "cyan"
+    },
+    "break",
+    {
+      "type": "custom",
+      "format": "┌────────────────── Software ──────────────────┐",
+      "outputColor": "cyan"
+    },
+    {
+      "type": "os",
+      "key": "  OS",
+      "keyColor": "cyan"
+    },
+    {
+      "type": "kernel",
+      "key": "│ ├  Kernel",
+      "keyColor": "cyan"
+    },
+    {
+      "type": "wm",
+      "key": "│ ├  WM",
+      "keyColor": "green"
+    },
+    {
+      "type": "shell",
+      "key": "│ ├  Shell",
+      "keyColor": "green"
+    },
+    {
+      "type": "de",
+      "key": " DE ",
+      "keyColor": "yellow"
+    },
+    {
+      "type": "lm",
+      "key": "│ ├ ",
+      "keyColor": "yellow"
+    },
+    {
+      "type": "terminal",
+      "key": "│ ├  Terminal",
+      "keyColor": "yellow"
+    },
+    {
+      "type": "terminalfont",
+      "key": "│ └  Font",
+      "keyColor": "yellow"
+    },
+    {
+      "type": "custom",
+      "format": "└──────────────────────────────────────────────┘",
+      "outputColor": "cyan"
+    },
+    "break",
+    {
+      "type": "custom",
+      "format": "┌────────────── Package Managers ──────────────┐",
+      "outputColor": "cyan"
+    },
+    {
       "type": "command",
-      "key": "  󱦟 OS Age",
+      "key": "    Packages",
       "keyColor": "red",
+      "text": "\"${XDG_CONFIG_HOME:-$HOME/.config}/fastfetch/scripts/package-counts.sh\""
+    },
+    {
+      "type": "custom",
+      "format": "└──────────────────────────────────────────────┘",
+      "outputColor": "cyan"
+    },
+    "break",
+    {
+      "type": "custom",
+      "format": "┌──────────────── Uptime / Age ────────────────┐",
+      "outputColor": "cyan"
+    },
+    {
+      "type": "command",
+      "key": "│ ┌󱦟  OS Age",
+      "keyColor": "blue",
       "text": "if [ \"$(uname)\" = \"Darwin\" ]; then birth=$(stat -f %B / 2>/dev/null); else birth=$(stat -c %W / 2>/dev/null); fi; if [ -z \"$birth\" ] || [ \"$birth\" -le 0 ]; then echo unknown; else days=$(( ( $(date +%s) - birth ) / 86400 )); echo \"$days days\"; fi"
     },
     {
       "type": "uptime",
-      "key": "  󱫐 Uptime",
-      "keyColor": "red"
+      "key": "│ ├󱫐  Uptime",
+      "keyColor": "blue"
+    },
+    {
+      "type": "localip",
+      "key": "│ └󰩠  IP",
+      "keyColor": "blue"
     },
     {
       "type": "custom",
-      "format": "└────────────────────────────────────────────────┘"
+      "format": "└──────────────────────────────────────────────┘",
+      "outputColor": "cyan"
     },
     {
       "type": "colors",

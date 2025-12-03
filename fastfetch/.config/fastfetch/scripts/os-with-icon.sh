@@ -1,9 +1,9 @@
 #!/bin/sh
-# Get OS info without recursive fastfetch call
+# -----------------------------------------------------------------------------
+# Get OS info without recursive fastfetch call.
 
 case $(uname -s) in
   Darwin)
-    # macOS
     if command -v sw_vers >/dev/null 2>&1; then
       VERSION=$(sw_vers -productVersion)
       BUILD=$(sw_vers -buildVersion)

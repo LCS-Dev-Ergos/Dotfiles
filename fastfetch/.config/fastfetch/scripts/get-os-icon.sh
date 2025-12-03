@@ -1,9 +1,10 @@
 #!/bin/sh
-# Returns just the icon for the current OS
+# -----------------------------------------------------------------------------
+# Returns just the icon for the current OS.
 
 case $(uname -s) in
   Darwin)
-    echo ' 󰀵 '
+    echo '  '
     ;;
   Linux)
     if [ -f /etc/os-release ]; then
