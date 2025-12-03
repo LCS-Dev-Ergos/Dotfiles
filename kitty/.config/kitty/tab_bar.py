@@ -30,7 +30,7 @@ ICON_CALENDAR = ""
 ICON_CPU = ""
 ICON_WINDOW = ""
 ICON_LAYOUT = ""
-ICON_CUSTOM = "  "
+ICON_CUSTOM = " LCS.Dev 󰔃"
 
 # Powerline symbols.
 SEPARATOR_SYMBOL = ""
