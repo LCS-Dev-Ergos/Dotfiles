@@ -887,7 +887,7 @@ style = 'blue bold'
 # ────────────────────────────────────────────────────────────────────────────
 
 [memory_usage]
-disabled = false
+disabled = true
 threshold = 65
 style = 'bold dimmed white'
 symbol = '󰍛 '
@@ -959,7 +959,7 @@ use_12hr = false
 disabled = false
 style = 'bold red'
 symbol = '󰅙'
-success_symbol = ''
+success_symbol = ''
 not_executable_symbol = '🚫'
 not_found_symbol = '🔍'
 sigint_symbol = '󰜺'

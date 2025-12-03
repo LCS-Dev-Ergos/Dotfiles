@@ -153,6 +153,8 @@ _init_starship_prompt() {
   # ------------------------------ Preexec Hook -------------------------------
   # Detects screen-clearing commands and sets flag to skip newline.
   (( ${+preexec_functions} )) || typeset -ga preexec_functions
+  # Avoid duplicate registrations when re-sourcing.
+  preexec_functions=(${(@)preexec_functions:#_tp_preexec})
   preexec_functions+=(_tp_preexec)
 
   # Flag: 1 = skip newline on next precmd
@@ -170,6 +172,8 @@ _init_starship_prompt() {
   # Sets _tp_newline after first prompt, respecting clear commands.
   (( ${+precmd_functions} )) || typeset -ga precmd_functions
   (( ${#precmd_functions} )) || precmd_functions=(true)
+  # Avoid duplicate registrations when re-sourcing.
+  precmd_functions=(${(@)precmd_functions:#_tp_precmd})
   precmd_functions+=(_tp_precmd)
 
   # First precmd: don't set newline yet.
