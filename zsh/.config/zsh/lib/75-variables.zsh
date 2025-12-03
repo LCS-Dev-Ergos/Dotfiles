@@ -95,7 +95,7 @@ if [[ "$PLATFORM" == 'Linux' && "$ARCH_LINUX" == true ]]; then
   export NATIVE_WAYLAND="1"
 
   # Docker Context for "Docker Desktop".
-  export DOCKER_CONTEXT='desktop-linux'
+  export DOCKER_CONTEXT='default'
 
   # GO Language.
   if command -v go >/dev/null 2>&1; then
