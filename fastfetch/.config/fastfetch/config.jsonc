@@ -108,11 +108,6 @@
       "keyColor": "yellow"
     },
     {
-      "type": "lm",
-      "key": "│ ├ ",
-      "keyColor": "yellow"
-    },
-    {
       "type": "terminal",
       "key": "│ ├  Terminal",
       "keyColor": "yellow"
@@ -135,7 +130,7 @@
     },
     {
       "type": "command",
-      "key": "    Packages",
+      "key": "  ┌  Packages",
       "keyColor": "red",
       "text": "\"${XDG_CONFIG_HOME:-$HOME/.config}/fastfetch/scripts/package-counts.sh\""
     },
