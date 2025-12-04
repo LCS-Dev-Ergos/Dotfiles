@@ -21,14 +21,14 @@
 #
 # ============================================================================ #
 
-# ++++++++++++++++++++++++++++++++++ ATUIN +++++++++++++++++++++++++++++++++++ #
+# ================================== ATUIN =================================== #
 
 # Initialize Atuin (Magical Shell History).
 if command -v atuin >/dev/null 2>&1; then
   eval "$(atuin init zsh)"
 fi
 
-# +++++++++++++++++++++++++++++++++++ YAZI +++++++++++++++++++++++++++++++++++ #
+# =================================== YAZI =================================== #
 
 # -----------------------------------------------------------------------------
 # y
@@ -47,33 +47,7 @@ function y() {
   rm -f -- "$tmp"
 }
 
-# +++++++++++++++++++++++++++++++++ GHOSTTY ++++++++++++++++++++++++++++++++++ #
-
-# -----------------------------------------------------------------------------
-# _init_ghostty
-# -----------------------------------------------------------------------------
-# Initialize Ghostty shell integration and alias.
-# Uses GHOSTTY_RESOURCES_DIR to source integration script if available.
-# Creates a 'ghostty' alias to avoid adding the full path to PATH.
-# -----------------------------------------------------------------------------
-_init_ghostty() {
-  # 1. Shell Integration (if running inside Ghostty)
-  if [[ -n "${GHOSTTY_RESOURCES_DIR}" ]]; then
-    if [[ -f "${GHOSTTY_RESOURCES_DIR}/shell-integration/zsh/ghostty-integration" ]]; then
-      source "${GHOSTTY_RESOURCES_DIR}/shell-integration/zsh/ghostty-integration"
-    fi
-  fi
-
-  # 2. Command Alias (available everywhere)
-  # Allows running 'ghostty' without polluting PATH.
-  if [[ -x "/Applications/Ghostty.app/Contents/MacOS/ghostty" ]]; then
-    alias ghostty="/Applications/Ghostty.app/Contents/MacOS/ghostty"
-  fi
-}
-_init_ghostty
-unfunction _init_ghostty 2>/dev/null
-
-# ++++++++++++++++++++++++++++ LAZY-LOADED TOOLS +++++++++++++++++++++++++++++ #
+# ============================ LAZY-LOADED TOOLS ============================= #
 
 # -----------------------------------------------------------------------------
 # _tools_lazy_init
@@ -110,7 +84,7 @@ _tools_lazy_init() {
 }
 add-zsh-hook precmd _tools_lazy_init
 
-# ++++++++++++++++++++++++++++ FZF CONFIGURATION +++++++++++++++++++++++++++++ #
+# ============================ FZF CONFIGURATION ============================= #
 
 # -----------------------------------------------------------------------------
 # _gen_fzf_default_opts
@@ -213,9 +187,7 @@ fi
 # --------- Bat (better cat) --------- #
 export BAT_THEME=tokyonight_night
 
-# ============================================================================ #
-# ++++++++++++++++++++++++++++++++ YABAI TOOLS +++++++++++++++++++++++++++++++ #
-# ============================================================================ #
+# ================================ YABAI TOOLS =============================== #
 
 # -----------------------------------------------------------------------------#
 # yabai_windows_table
@@ -263,5 +235,144 @@ yabai_windows_table() {
   # Last resort: raw JSON
   echo "$json"
 }
+
+# ================================= GHOSTTY ================================== #
+
+# -----------------------------------------------------------------------------
+# _init_ghostty
+# -----------------------------------------------------------------------------
+# Initialize Ghostty shell integration and alias.
+# Uses GHOSTTY_RESOURCES_DIR to source integration script if available.
+# Creates a 'ghostty' alias to avoid adding the full path to PATH.
+# -----------------------------------------------------------------------------
+_init_ghostty() {
+  # 1. Shell Integration (if running inside Ghostty)
+  if [[ -n "${GHOSTTY_RESOURCES_DIR}" ]]; then
+    if [[ -f "${GHOSTTY_RESOURCES_DIR}/shell-integration/zsh/ghostty-integration" ]]; then
+      source "${GHOSTTY_RESOURCES_DIR}/shell-integration/zsh/ghostty-integration"
+    fi
+  fi
+
+  # 2. Command Alias (available everywhere)
+  # Allows running 'ghostty' without polluting PATH.
+  if [[ -x "/Applications/Ghostty.app/Contents/MacOS/ghostty" ]]; then
+    alias ghostty="/Applications/Ghostty.app/Contents/MacOS/ghostty"
+  fi
+}
+_init_ghostty
+unfunction _init_ghostty 2>/dev/null
+
+# ================================== KITTY =================================== #
+
+# -----------------------------------------------------------------------------
+# kitty_save_session
+# -----------------------------------------------------------------------------
+# Save the current kitty instance (all windows/tabs) into ~/.kitty-saved by
+# calling kitty's built-in remote-control action `save_as_session`. Behaves
+# like a simple “resurrect”: run inside kitty, then later start kitty with
+# `kitty --session ~/.kitty-saved/<name>.kitty-session`.
+#
+# Usage:
+#   kitty_save_session [name]   # default: session-YYYYMMDD-HHMMSS
+#
+# Env vars:
+#   KITTY_SAVE_DIR   Directory to store sessions (default: ~/.kitty-saved)
+#   KITTY_LISTEN_ON  Remote control socket (default: unix:/tmp/kitty)
+# -----------------------------------------------------------------------------
+kitty_save_session() {
+  if ! command -v kitty >/dev/null 2>&1; then
+    echo "kitty not in PATH" >&2
+    return 1
+  fi
+
+  # Prepare paths and names.
+  local save_dir="${KITTY_SAVE_DIR:-$HOME/.kitty-saved}"
+  local target="${KITTY_LISTEN_ON:-unix:/tmp/kitty}"
+  local name="${1:-session-$(date +%Y%m%d-%H%M%S)}"
+  local out_name="${name%.kitty-session}.kitty-session"
+  local out_path="$save_dir/$out_name"
+
+  mkdir -p -- "$save_dir" || return 1
+
+  # Try quick readiness check; fall back to plain ls if option unsupported.
+  if ! kitty @ --to "$target" --wait-for-ready 1 ls >/dev/null 2>&1 \
+    && ! kitty @ --to "$target" ls >/dev/null 2>&1; then
+    echo "kitty remote control not reachable at $target" >&2
+    return 1
+  fi
+
+  # Save session via remote control.
+  if ! kitty @ --to "$target" action save_as_session --save-only --base-dir "$save_dir" "$out_name"; then
+    echo "failed to save kitty session" >&2
+    return 1
+  fi
+
+  printf 'Saved kitty session to %s\n' "$out_path"
+}
+
+alias ksave='kitty_save_session'
+
+# -----------------------------------------------------------------------------
+# kitty_restore_session
+# -----------------------------------------------------------------------------
+# Restore a saved kitty session. Prefers switching the current kitty instance
+# via the goto_session action; if no RC socket is reachable, falls back to
+# launching a new kitty process with --session.
+#
+# Usage:
+#   kitty_restore_session [name]   # default: newest file in save dir
+# -----------------------------------------------------------------------------
+kitty_restore_session() {
+  if ! command -v kitty >/dev/null 2>&1; then
+    echo "kitty not in PATH" >&2
+    return 1
+  fi
+
+  local save_dir="${KITTY_SAVE_DIR:-$HOME/.kitty-saved}"
+  local target_file=""
+
+  # Check save dir exists.
+  if [[ ! -d "$save_dir" ]]; then
+    echo "No kitty session dir found at $save_dir" >&2
+    return 1
+  fi
+
+  # Determine target session file.
+  if [[ -n "${1:-}" ]]; then
+    target_file="$save_dir/${1%.kitty-session}.kitty-session"
+  elif command -v fzf >/dev/null 2>&1; then
+    target_file="$(find "$save_dir" -maxdepth 1 -type f -name '*.kitty-session' 2>/dev/null \
+      | fzf --prompt='kitty sessions> ' --tac)"
+    [[ -z "$target_file" ]] && return 1  # user cancelled
+  else
+    target_file="$(ls -1t "$save_dir"/*.kitty-session 2>/dev/null | head -n 1)"
+  fi
+
+  # Validate target file.
+  if [[ -z "$target_file" ]]; then
+    echo "no kitty session found in $save_dir" >&2
+    return 1
+  fi
+  if [[ ! -f "$target_file" ]]; then
+    echo "session file not found: $target_file" >&2
+    return 1
+  fi
+
+  local target="${KITTY_LISTEN_ON:-unix:/tmp/kitty}"
+  if kitty @ --to "$target" --wait-for-ready 1 ls >/dev/null 2>&1 \
+     || kitty @ --to "$target" ls >/dev/null 2>&1; then
+    # Switch session inside the running instance.
+    if ! kitty @ --to "$target" action goto_session "$target_file"; then
+      echo "failed to switch session via goto_session" >&2
+      return 1
+    fi
+  else
+    # Fallback: spawn new instance with the session.
+    kitty --session "$target_file" >/dev/null 2>&1 &
+    disown
+  fi
+}
+
+alias krest='kitty_restore_session'
 
 # ============================================================================ #
