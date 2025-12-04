@@ -54,11 +54,11 @@ sync_to_monitor yes     # Prevents screen tearing
 
 - **Font Family**: CaskaydiaCove Nerd Font Mono
 - **Font Size**: 14.5pt
-- **Nerd Fonts Support**: Full icon and symbol support
+- **Nerd Fonts Support**: Mappings are per-platform (`platform/macos.conf` | `platform/linux.conf`), so Linux can keep them disabled when the fonts aren’t installed.
 
 #### Color Scheme
 
-**Active Theme**: Tokyo Night Storm
+**Active Theme**: Tokyo Night Storm (`themes/tokyo-night.conf`; enable via `include ./themes/…` in `kitty.conf`)
 
 - Background: `#1a1b26`
 - Foreground: `#a9b1d6`
@@ -76,7 +76,7 @@ sync_to_monitor yes     # Prevents screen tearing
 - Title: Yellow-orange (`#e0af68`)
 - Separator color: Blue accent (`#7aa2f7`)
 
-**Alternative Theme**: Gruvbox Material (commented out)
+**Alternative Theme**: Gruvbox (see `themes/gruvbox.conf`; switch the `include` in `kitty.conf` to use it)
 
 #### Transparency
 
@@ -146,6 +146,9 @@ Navigate between windows using `Ctrl+A` prefix (similar to tmux):
 ---
 
 ### Keyboard Shortcuts
+
+**Platform note**  
+On Linux, shortcuts that use `Cmd` on macOS are mapped to `Super` (Windows key). Key letters stay the same; only the modifier changes. Common bindings (Ctrl/Alt/Shift) are identical across platforms.
 
 #### Tabs and Windows
 
