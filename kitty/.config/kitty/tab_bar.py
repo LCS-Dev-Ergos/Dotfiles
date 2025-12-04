@@ -30,7 +30,7 @@ ICON_CALENDAR = ""
 ICON_CPU = ""
 ICON_WINDOW = ""
 ICON_LAYOUT = ""
-ICON_CUSTOM = " LCS.Dev 󰔃"
+ICON_CUSTOM = " LCS.Dev 󰔃 "
 
 # Powerline symbols.
 SEPARATOR_SYMBOL = ""
@@ -191,7 +191,7 @@ def draw_tab(
     inactive_fg = as_rgb(color_as_int(opts.inactive_tab_foreground))
 
     # Custom Icon Colors.
-    icon_bg = as_rgb(color_as_int(opts.color4)) # Blue
+    icon_bg = as_rgb(color_as_int(opts.color16)) # Orange
     icon_fg = as_rgb(color_as_int(opts.color0))
 
     # Determine current tab background.
@@ -202,12 +202,12 @@ def draw_tab(
     # 1) First Tab Handling (Draw Custom Icon).
     # ------------------------------------------------------------------------
     if index == 1:
-        # Draw the custom icon block
+        # Draw the custom icon block.
         screen.cursor.bg = icon_bg
         screen.cursor.fg = icon_fg
         screen.draw(ICON_CUSTOM)
 
-        # Initialize previous background to the icon's background
+        # Initialize previous background to the icon's background.
         _prev_bg = icon_bg
 
     # ------------------------------------------------------------------------
@@ -219,8 +219,8 @@ def draw_tab(
         screen.cursor.bg = current_bg
         screen.draw(SEPARATOR_LEFT_HARD)
     else:
-        # Same background, use soft separator for visual break
-        screen.cursor.fg = inactive_fg # Use a lighter color for the separator
+        # Same background, use soft separator for visual break.
+        screen.cursor.fg = inactive_fg # Use a lighter color for the separator.
         screen.cursor.bg = current_bg
         screen.draw(f" {SEPARATOR_LEFT_SOFT}")
 
