@@ -350,11 +350,11 @@ kitty_restore_session() {
 
   # Validate target file.
   if [[ -z "$target_file" ]]; then
-    echo "no kitty session found in $save_dir" >&2
+    echo "No kitty session found in $save_dir" >&2
     return 1
   fi
   if [[ ! -f "$target_file" ]]; then
-    echo "session file not found: $target_file" >&2
+    echo "Session file not found: $target_file" >&2
     return 1
   fi
 
@@ -363,7 +363,7 @@ kitty_restore_session() {
      || kitty @ --to "$target" ls >/dev/null 2>&1; then
     # Switch session inside the running instance.
     if ! kitty @ --to "$target" action goto_session "$target_file"; then
-      echo "failed to switch session via goto_session" >&2
+      echo "Failed to switch session via goto_session" >&2
       return 1
     fi
   else
