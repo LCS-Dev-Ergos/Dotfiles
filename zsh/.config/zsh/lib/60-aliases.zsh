@@ -35,9 +35,6 @@ alias mv="mv -i"
 # Change directory to the parent folder of a file selected via fzf.
 # Interactive file picker that navigates to the containing directory.
 #
-# Usage:
-#   cdf
-#
 # Returns:
 #   0 - Successfully changed directory.
 #   1 - fzf not available or no file selected.
@@ -226,8 +223,6 @@ function stitle() {
 # fuck
 # -----------------------------------------------------------------------------
 # Lazy-load and create an alias for 'thefuck' command.
-# Usage:
-#   fuck <command> <args>
 #
 # Returns:
 #   Corrects mistyped commands.
@@ -267,9 +262,6 @@ if [[ "$PLATFORM" == 'macOS' ]]; then
   # ---------------------------------------------------------------------------
   # Homebrew wrapper that triggers sketchybar updates after package operations.
   # Automatically notifies sketchybar when packages are updated/upgraded.
-  #
-  # Usage:
-  #   brew <command> [arguments]
   #
   # Triggers:
   #   - Sends brew_update trigger to sketchybar after update/upgrade/outdated
