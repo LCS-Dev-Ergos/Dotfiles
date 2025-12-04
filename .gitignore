@@ -1,3 +1,6 @@
+# Ignore Claude AI configuration files
+.claude/
+
 # macOS system files
 .DS_Store
 .AppleDouble
