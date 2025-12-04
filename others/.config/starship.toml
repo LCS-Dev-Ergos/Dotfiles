@@ -115,7 +115,7 @@ continuation_prompt = '[∙](bold bright-black) '
 add_newline = false
 
 # Command timeout in milliseconds (increased for large repos)
-command_timeout = 800
+command_timeout = 1500
 
 # Timeout for file scanning in milliseconds
 scan_timeout = 10
