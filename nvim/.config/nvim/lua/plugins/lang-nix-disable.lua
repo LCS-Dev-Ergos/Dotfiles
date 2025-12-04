@@ -16,7 +16,7 @@ if uname == "Linux" then
     },
     -- Remove nil from Mason's ensure_installed list (if present).
     {
-      "williamboman/mason.nvim",
+      "mason-org/mason.nvim",
       opts = function(_, opts)
         local skip = { ["nil"] = true, nil_ls = true }
         opts.ensure_installed = vim.tbl_filter(function(pkg)
