@@ -355,7 +355,8 @@ elif [[ "$PLATFORM" == 'Linux' ]]; then
     #   127 - Standard exit code for command not found.
     # -------------------------------------------------------------------------
     function command_not_found_handler {
-      local purple='\e[1;35m' bright='\e[0;1m' green='\e[1;32m' reset='\e[0m'
+      # Use $'\e' so colors contain the real escape byte, not the literal "\e".
+      local purple=$'\e[1;35m' bright=$'\e[0;1m' green=$'\e[1;32m' reset=$'\e[0m'
       printf 'zsh: command not found: %s\n' "$1"
       # shellcheck disable=SC2296
       local entries=( "${(f)"$(/usr/bin/pacman -F --machinereadable -- "/usr/bin/$1")"}" )
