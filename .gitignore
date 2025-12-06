@@ -6,6 +6,9 @@
 .AppleDouble
 .LSOverride
 
+# VsCode settings
+.vscode/
+
 # Exclude debug directories
 *.dSYM/
 

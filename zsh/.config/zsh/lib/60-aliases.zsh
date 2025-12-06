@@ -343,38 +343,36 @@ elif [[ "$PLATFORM" == 'Linux' ]]; then
   # ------- Arch Linux Specific -------- #
   if [[ "$ARCH_LINUX" == true ]]; then
     # -------------------------------------------------------------------------
-    # command_not_found_handler
+    # command_not_found_handler (toggleable)
     # -------------------------------------------------------------------------
     # Arch Linux command not found handler using pacman file database.
-    # Suggests packages containing the missing command.
-    #
-    # Arguments:
-    #   $1 - Command name that was not found.
-    #
-    # Returns:
-    #   127 - Standard exit code for command not found.
-    # -------------------------------------------------------------------------
-    function command_not_found_handler {
-      # Use $'\e' so colors contain the real escape byte, not the literal "\e".
-      local purple=$'\e[1;35m' bright=$'\e[0;1m' green=$'\e[1;32m' reset=$'\e[0m'
-      printf 'zsh: command not found: %s\n' "$1"
-      # shellcheck disable=SC2296
-      local entries=( "${(f)"$(/usr/bin/pacman -F --machinereadable -- "/usr/bin/$1")"}" )
-      if (( ${#entries[@]} )); then
-        printf '%s may be found in the following packages:\n' "${bright}$1${reset}"
-        local pkg
-        for entry in "${entries[@]}" ; do
-          # shellcheck disable=SC2296
-          local fields=( "${(0)entry}" )
-          if [[ "$pkg" != "${fields[2]}" ]]; then
-            printf "${purple}%s/${bright}%s ${green}%s${reset}\n" "${fields[1]}" "${fields[2]}" "${fields[3]}"
-          fi
-          printf '    /%s\n' "${fields[4]}"
-          pkg="${fields[2]}"
-        done
-      fi
-      return 127
-    }
+    # Set ENABLE_CMD_NOT_FOUND=true to re-enable suggestions; defaults to off
+    # to avoid the lookup overhead when a typo occurs.
+    : "${ENABLE_CMD_NOT_FOUND:=false}"
+
+    if [[ "${ENABLE_CMD_NOT_FOUND}" == true ]]; then
+      function command_not_found_handler {
+        # Use $'\e' so colors contain the real escape byte, not the literal "\e".
+        local purple=$'\e[1;35m' bright=$'\e[0;1m' green=$'\e[1;32m' reset=$'\e[0m'
+        printf 'zsh: command not found: %s\n' "$1"
+        # shellcheck disable=SC2296
+        local entries=( "${(f)"$(/usr/bin/pacman -F --machinereadable -- "/usr/bin/$1")"}" )
+        if (( ${#entries[@]} )); then
+          printf '%s may be found in the following packages:\n' "${bright}$1${reset}"
+          local pkg
+          for entry in "${entries[@]}" ; do
+            # shellcheck disable=SC2296
+            local fields=( "${(0)entry}" )
+            if [[ "$pkg" != "${fields[2]}" ]]; then
+              printf "${purple}%s/${bright}%s ${green}%s${reset}\n" "${fields[1]}" "${fields[2]}" "${fields[3]}"
+            fi
+            printf '    /%s\n' "${fields[4]}"
+            pkg="${fields[2]}"
+          done
+        fi
+        return 127
+      }
+    fi
 
     # Automatic detection of AUR helper.
     if pacman -Qi yay &>/dev/null; then

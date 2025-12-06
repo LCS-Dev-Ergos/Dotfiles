@@ -135,13 +135,14 @@ build_final_path() {
       "$HOME/.nix-profile/bin" "/nix/var/nix/profiles/default/bin"
       "$HOME/.ghcup/bin" "$HOME/.cabal/bin"
       "$HOME/.cargo/bin"
+      "$HOME/.elan/bin"
 
       # ------ User and App-Specific Paths ------ #
       "$ruby_user_bin"
       "$HOME/.ada/bin"
       "$HOME/.flutter/bin"
-      "$HOME/.elan/bin"
       "$HOME/.local/bin"
+      "$HOME/.npm/bin"
       "$GOPATH/bin" "$GOROOT/bin"
       "$ANDROID_HOME/platform-tools"
       "$ANDROID_HOME/cmdline-tools/latest/bin"
