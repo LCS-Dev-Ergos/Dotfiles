@@ -1252,5 +1252,152 @@ function count() {
   echo ""
 }
 
+# -----------------------------------------------------------------------------
+# pdfrotate
+# -----------------------------------------------------------------------------
+# Rotate specific pages of a PDF file in-place without creating a new file.
+# Uses qpdf for safe, lossless rotation that preserves PDF structure and metadata.
+#
+# Usage:
+#   pdfrotate <file.pdf> <rotation> <pages>
+#
+# Arguments:
+#   file.pdf  - PDF file to rotate (required)
+#   rotation  - Rotation angle: left (90°), right (270°), or 180 (required)
+#   pages     - Page range: single (5), range (1-10), or all (default: all)
+#
+# Examples:
+#   pdfrotate doc.pdf right 1-5    Rotate pages 1-5 clockwise 90°
+#   pdfrotate doc.pdf left 3       Rotate page 3 counter-clockwise 90°
+#   pdfrotate doc.pdf 180 all      Rotate all pages 180°
+#   pdfrotate doc.pdf right        Rotate all pages clockwise 90°
+#
+# Returns:
+#   0 - Rotation completed successfully.
+#   1 - Invalid arguments, file not found, or rotation failed.
+# -----------------------------------------------------------------------------
+function pdfrotate() {
+  # Validate required tools.
+  if ! command -v qpdf >/dev/null 2>&1; then
+    echo "${C_RED}Error: qpdf is required for this function.${C_RESET}" >&2
+    echo "${C_YELLOW}Install it with: brew install qpdf${C_RESET}" >&2
+    return 1
+  fi
+
+  # Validate arguments.
+  if [[ $# -lt 2 ]]; then
+    echo "${C_YELLOW}Usage: pdfrotate <file.pdf> <rotation> [pages]${C_RESET}" >&2
+    echo ""
+    echo "Arguments:"
+    echo "  rotation  - left (90°), right (270°), or 180"
+    echo "  pages     - Page range: single (5), range (1-10), or all (default)"
+    echo ""
+    echo "Examples:"
+    echo "  pdfrotate doc.pdf right 1-5    Rotate pages 1-5 clockwise"
+    echo "  pdfrotate doc.pdf left 3       Rotate page 3 counter-clockwise"
+    echo "  pdfrotate doc.pdf 180          Rotate all pages 180°"
+    return 1
+  fi
+
+  local input_file="$1"
+  local rotation="$2"
+  local pages="${3:-all}"
+
+  # Validate input file.
+  if [[ ! -f "$input_file" ]]; then
+    echo "${C_RED}Error: File '$input_file' not found.${C_RESET}" >&2
+    return 1
+  fi
+
+  if [[ ! "$input_file" =~ \.pdf$ ]]; then
+    echo "${C_RED}Error: File must be a PDF (*.pdf).${C_RESET}" >&2
+    return 1
+  fi
+
+  if [[ ! -r "$input_file" || ! -w "$input_file" ]]; then
+    echo "${C_RED}Error: No read/write permission for '$input_file'.${C_RESET}" >&2
+    return 1
+  fi
+
+  # Convert rotation aliases to degrees.
+  local degrees
+  case "$rotation" in
+    left | l | 90)
+      degrees="+90"
+      ;;
+    right | r | 270)
+      degrees="+270"
+      ;;
+    180)
+      degrees="+180"
+      ;;
+    *)
+      echo "${C_RED}Error: Invalid rotation '$rotation'. Use: left, right, or 180.${C_RESET}" >&2
+      return 1
+      ;;
+  esac
+
+  # Validate page specification.
+  if [[ "$pages" != "all" && ! "$pages" =~ ^[0-9]+(-[0-9]+)?$ ]]; then
+    echo "${C_RED}Error: Invalid page specification '$pages'. Use: number, range (1-10), or 'all'.${C_RESET}" >&2
+    return 1
+  fi
+
+  # Create temporary backup file with timestamp.
+  local backup_file="${input_file}.backup.$(date +'%Y%m%d_%H%M%S').pdf"
+  if ! cp -p "$input_file" "$backup_file" 2>/dev/null; then
+    echo "${C_RED}Error: Failed to create backup file.${C_RESET}" >&2
+    return 1
+  fi
+
+  echo "${C_CYAN}Backup created: $(basename "$backup_file")${C_RESET}"
+
+  # Create temporary output file.
+  local temp_file="${input_file}.tmp.$$.pdf"
+
+  # Build qpdf rotation command.
+  local qpdf_cmd=("qpdf" "--rotate=${degrees}:${pages}" "$input_file" "$temp_file")
+
+  # Execute rotation.
+  echo "${C_CYAN}Rotating pages ${pages} by ${degrees}°...${C_RESET}"
+
+  if "${qpdf_cmd[@]}" 2>&1 | grep -v "^$"; then
+    # Check if rotation succeeded.
+    if [[ $? -eq 0 && -f "$temp_file" ]]; then
+      # Verify output is valid PDF.
+      if qpdf --check "$temp_file" >/dev/null 2>&1; then
+        # Replace original with rotated version.
+        if mv "$temp_file" "$input_file" 2>/dev/null; then
+          echo "${C_GREEN}Successfully rotated '$input_file'${C_RESET}"
+          echo "${C_YELLOW}Backup available at: $(basename "$backup_file")${C_RESET}"
+          echo ""
+          echo "${C_BLUE}To restore original: mv \"$backup_file\" \"$input_file\"${C_RESET}"
+          return 0
+        else
+          echo "${C_RED}Error: Failed to replace original file.${C_RESET}" >&2
+          mv "$backup_file" "$input_file" 2>/dev/null
+          rm -f "$temp_file"
+          return 1
+        fi
+      else
+        echo "${C_RED}Error: Output PDF is corrupted. Original file preserved.${C_RESET}" >&2
+        rm -f "$temp_file"
+        rm -f "$backup_file"
+        return 1
+      fi
+    else
+      echo "${C_RED}Error: Rotation failed. Original file preserved.${C_RESET}" >&2
+      rm -f "$temp_file"
+      rm -f "$backup_file"
+      return 1
+    fi
+  else
+    echo "${C_RED}Error: qpdf command failed. Original file preserved.${C_RESET}" >&2
+    rm -f "$temp_file"
+    rm -f "$backup_file"
+    return 1
+  fi
+}
+
 # ============================================================================ #
 # End of script.
