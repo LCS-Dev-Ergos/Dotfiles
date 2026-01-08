@@ -226,23 +226,12 @@ else
     _load_completions
 fi
 
-__package_manager () { 
+__package_manager () {
     ${PM_COMMAND[@]} "$@"
 }
 
-alias c='clear' \
-    in='__package_manager install' \
-    un='__package_manager remove' \
-    up='__package_manager upgrade' \
-    pl='__package_manager search installed' \
-    pa='__package_manager search all' \
-    vc='code' \
-    fastfetch='fastfetch --logo-type kitty' \
-    ..='cd ..' \
-    ...='cd ../..' \
-    .3='cd ../../..' \
-    .4='cd ../../../..' \
-    .5='cd ../../../../..' \
-    mkdir='mkdir -p'
+# NOTE: Aliases removed to avoid conflicts with user's custom aliases in lib/60-aliases.zsh
+# The user's configuration is more sophisticated and platform-aware.
+# If you need to add HyDE-specific aliases, add them to user.zsh instead.
 
 

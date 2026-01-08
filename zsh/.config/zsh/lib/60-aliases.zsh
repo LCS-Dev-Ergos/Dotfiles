@@ -437,7 +437,7 @@ elif [[ "$PLATFORM" == 'Linux' ]]; then
     fi
 
     # Other aliases for Arch.
-    # command -v kitten >/dev/null 2>&1 && alias ssh='kitten ssh'
+    command -v kitten >/dev/null 2>&1 && alias kssh='kitten ssh'
     command -v code >/dev/null 2>&1 && alias vc='code'
   fi
 fi
