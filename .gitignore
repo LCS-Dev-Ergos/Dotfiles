@@ -64,6 +64,7 @@ nix-darwin/.config/nix-darwin/flake.lock
 nvim/.config/nvim/lazy-lock.json
 yazi/.config/yazi/flavors/tokyo-night.yazi/
 kitty/.config/kitty/theme.conf
+<<<<<<< Updated upstream
 zsh/.config/zsh/.zcompdump
 zsh/.config/zsh/.zcompdump-LCS-5.9
 zsh/.config/zsh/.zcompdump-LCS-5.9.zwc
