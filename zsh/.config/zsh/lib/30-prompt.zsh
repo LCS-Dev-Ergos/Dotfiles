@@ -22,6 +22,13 @@
 #
 # ============================================================================ #
 
+# On HyDE: this file is loaded only when "HYDE_ZSH_PROMPT!=1" (user wants lib/ prompt)
+# The guard below is a safety net for direct sourcing.
+if [[ "$HYDE_ENABLED" == "1" ]] && [[ "${HYDE_ZSH_PROMPT}" == "1" ]]; then
+    # HyDE's shell.zsh handles prompt instead
+    return 0
+fi
+
 # Enable prompt substitution globally.
 setopt PROMPT_SUBST
 

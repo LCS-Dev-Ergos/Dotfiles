@@ -70,17 +70,76 @@ fi
 
 # Load modules in priority order.
 # Note: Order is critical - Do not rearrange without understanding dependencies.
-# Use an array to capture the files first to check if any exist.
-typeset -a config_modules
-config_modules=("$ZSH_CONFIG_DIR/lib/"*.zsh(N))
 
-if (( ${#config_modules} == 0 )); then
-    echo "⚠️  Warning: No Zsh configuration modules found in $ZSH_CONFIG_DIR/lib/"
-    echo "    Please check your ZSH_CONFIG_DIR setting."
+# On HyDE systems, load user preferences FIRST to determine which modules to use
+# This allows user.zsh to set HYDE_ZSH_NO_PLUGINS and HYDE_ZSH_PROMPT
+if [[ "$HYDE_ENABLED" == "1" ]]; then
+    # Load user preferences before deciding what to load
+    if [[ -f "$HOME/.hyde.zshrc" ]]; then
+        source "$HOME/.hyde.zshrc"
+    elif [[ -f "$HOME/.user.zsh" ]]; then
+        source "$HOME/.user.zsh"
+    elif [[ -f "$ZSH_CONFIG_DIR/user.zsh" ]]; then
+        source "$ZSH_CONFIG_DIR/user.zsh"
+    fi
+fi
+
+# Determine which modules to load based on platform/environment and user prefs
+typeset -a config_modules
+
+if [[ "$HYDE_ENABLED" == "1" ]]; then
+    # -------------------------------------------------------------------------
+    # ARCH LINUX with HyDE
+    # -------------------------------------------------------------------------
+    # Check user preferences to decide which system handles OMZ/prompt:
+    #   - HYDE_ZSH_NO_PLUGINS=1 → use lib/20-omz.zsh (user's config)
+    #   - HYDE_ZSH_PROMPT=0     → use lib/30-prompt.zsh (user's config)
+
+    # Load base modules first
+    source "$ZSH_CONFIG_DIR/lib/00-init.zsh"
+    source "$ZSH_CONFIG_DIR/lib/10-history.zsh"
+
+    # OMZ: user's lib/ or HyDE's shell.zsh?
+    if [[ "${HYDE_ZSH_NO_PLUGINS}" == "1" ]]; then
+        # User wants their own OMZ config
+        source "$ZSH_CONFIG_DIR/lib/20-omz.zsh"
+    else
+        # HyDE handles OMZ - load shell.zsh (partial, just OMZ part)
+        [[ -f "$ZSH_CONFIG_DIR/conf.d/hyde/shell.zsh" ]] && \
+            source "$ZSH_CONFIG_DIR/conf.d/hyde/shell.zsh"
+    fi
+
+    # Prompt: user's lib/ or HyDE's shell.zsh?
+    if [[ "${HYDE_ZSH_PROMPT}" != "1" ]]; then
+        # User wants their own prompt config (with transient prompt)
+        source "$ZSH_CONFIG_DIR/lib/30-prompt.zsh"
+    fi
+    # If HYDE_ZSH_PROMPT=1, shell.zsh already loaded prompt
+
+    # Load remaining modules
+    source "$ZSH_CONFIG_DIR/lib/40-vi-mode.zsh"
+    source "$ZSH_CONFIG_DIR/lib/50-tools.zsh"
+    source "$ZSH_CONFIG_DIR/lib/60-aliases.zsh"
+    source "$ZSH_CONFIG_DIR/lib/70-fabric.zsh"
+    source "$ZSH_CONFIG_DIR/lib/75-variables.zsh"
+    source "$ZSH_CONFIG_DIR/lib/80-languages.zsh"
+    source "$ZSH_CONFIG_DIR/lib/85-completions.zsh"
+    source "$ZSH_CONFIG_DIR/lib/90-path.zsh"
 else
-    for config_module in "${config_modules[@]}"; do
-        source "$config_module"
-    done
+    # -------------------------------------------------------------------------
+    # macOS or non-HyDE Linux
+    # -------------------------------------------------------------------------
+    # Load ALL modules normally - no HyDE interference
+    config_modules=("$ZSH_CONFIG_DIR/lib/"*.zsh(N))
+
+    if (( ${#config_modules} == 0 )); then
+        echo "⚠️  Warning: No Zsh configuration modules found in $ZSH_CONFIG_DIR/lib/"
+        echo "    Please check your ZSH_CONFIG_DIR setting."
+    else
+        for config_module in "${config_modules[@]}"; do
+            source "$config_module"
+        done
+    fi
 fi
 
 # ++++++++++++++++++++++++++ EXTERNAL SCRIPTS ++++++++++++++++++++++++++++++++ #

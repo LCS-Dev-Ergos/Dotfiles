@@ -17,6 +17,13 @@
 #
 # ============================================================================ #
 
+# On HyDE: this file is loaded only when "HYDE_ZSH_NO_PLUGINS=1".
+# The guard below is a safety net for direct sourcing.
+if [[ "$HYDE_ENABLED" == "1" ]] && [[ "${HYDE_ZSH_NO_PLUGINS}" != "1" ]]; then
+    # HyDE's shell.zsh handles OMZ instead.
+    return 0
+fi
+
 # Path to Oh-My-Zsh installation (platform specific).
 if [[ "$PLATFORM" == "macOS" ]]; then
   export ZSH="$HOME/.oh-my-zsh"
@@ -74,7 +81,7 @@ _ensure_plugin_installed() {
   fi
 }
 
-# Auto-install required custom plugins if missing
+# Auto-install required custom plugins if missing.
 if [[ "$PLATFORM" == "macOS" ]]; then
   _ensure_plugin_installed "zsh-autosuggestions" "https://github.com/zsh-users/zsh-autosuggestions"
   _ensure_plugin_installed "zsh-history-substring-search" "https://github.com/zsh-users/zsh-history-substring-search"
