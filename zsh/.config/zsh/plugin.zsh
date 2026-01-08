@@ -5,7 +5,7 @@ return 1 # <--- Comment this line to disable HyDE's oh-my-zsh plugins and use th
 #! This file will not load, remove the return 1 line above to enable this file.
 #? Below is an example of how to set up Zsh plugins using Zinit
 
-# ================================================================
+# ============================================================================ #
 
 # Zinit plugin manager setup
 # This section ensures zinit is installed and sourced, which allows you to manage plugins efficiently.
@@ -37,8 +37,7 @@ zinit light zdharma-continuum/fast-syntax-highlighting
 zinit snippet https://gist.githubusercontent.com/hightemp/5071909/raw/
 
 # Plugin: z (rupa/z)
-# Enables quick directory jumping based on your usage history.
-# just like zoxide, but for zsh
+# Enables quick directory jumping based on your usage history, just like zoxide but for zsh.
 zinit light rupa/z
 
 # Plugin: zsh-completions
