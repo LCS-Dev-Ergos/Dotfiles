@@ -192,16 +192,35 @@ zsh_profile() {
     zdot="${ZDOTDIR:-$HOME}"
   fi
 
+  # Find a suitable time command (GNU time preferred for -p flag).
+  local time_cmd=""
+  if [[ -x /usr/bin/time ]]; then
+    time_cmd="/usr/bin/time -p"
+  elif command -v gtime >/dev/null 2>&1; then
+    time_cmd="gtime -p"
+  fi
+
+  # Helper to run timed command.
+  _zsh_profile_timed() {
+    if [[ -n "$time_cmd" ]]; then
+      command ${=time_cmd} env ZDOTDIR="$zdot" ZSH_FAST_START="$fast" "$zsh_bin" -i -c exit
+    else
+      # Fallback to zsh time builtin (less precise, different format).
+      TIMEFMT=$'real\t%*E\nuser\t%*U\nsys\t%*S'
+      time (env ZDOTDIR="$zdot" ZSH_FAST_START="$fast" "$zsh_bin" -i -c exit)
+    fi
+  }
+
   # Mode selection.
   case "$mode" in
     time|--time)
-      command /usr/bin/time -p env ZDOTDIR="$zdot" ZSH_FAST_START="$fast" "$zsh_bin" -i -c exit
+      _zsh_profile_timed
       ;;
     zprof|--zprof)
       env ZDOTDIR="$zdot" ZSH_PROFILE=1 ZSH_FAST_START="$fast" "$zsh_bin" -i -c 'zmodload zsh/zprof; zprof'
       ;;
     both|--both)
-      command /usr/bin/time -p env ZDOTDIR="$zdot" ZSH_FAST_START="$fast" "$zsh_bin" -i -c exit
+      _zsh_profile_timed
       env ZDOTDIR="$zdot" ZSH_PROFILE=1 ZSH_FAST_START="$fast" "$zsh_bin" -i -c 'zmodload zsh/zprof; zprof'
       ;;
     *)
