@@ -133,21 +133,21 @@ style = 'bold yellow'
 format = '[$symbol]($style) '
 
 [os.symbols]
-Macos = ''
-Linux = '󰌽'
-Windows = '󰖳'
-Arch = '󰣇'
-Ubuntu = '󰕈'
-Debian = '󰣚'
-Fedora = '󰣛'
-Alpine = '󰇥'
-Amazon = '󰸏'
-Android = '󰀲'
-Gentoo = '󰣨'
-NixOS = '󱄅'
-Raspbian = '󰐿'
-Redhat = '󱄛'
-RedHatEnterprise = '󱄛'
+Macos = ' '
+Linux = '󰌽 '
+Windows = '󰖳 '
+Arch = '󰣇 '
+Ubuntu = '󰕈 '
+Debian = '󰣚 '
+Fedora = '󰣛 '
+Alpine = '󰇥 '
+Amazon = '󰸏 '
+Android = '󰀲 '
+Gentoo = '󰣨 '
+NixOS = '󱄅 '
+Raspbian = '󰐿 '
+Redhat = '󱄛 '
+RedHatEnterprise = '󱄛 '
 
 [username]
 disabled = false
@@ -168,7 +168,7 @@ format = '[$ssh_symbol$hostname]($style) '
 [localip]
 ssh_only = true
 disabled = false
-format = '[\($localipv4\)](gray)'
+format = '[\($localipv4\)](gray) '
 
 [shlvl]
 disabled = true
@@ -199,9 +199,9 @@ format = '[$path]($style)[$read_only]($read_only_style) '
 truncation_length = 3
 truncate_to_repo = true
 truncation_symbol = '…/'
-read_only = ' 󰌾'
+read_only = '󰌾'
 read_only_style = 'red'
-home_symbol = '  '
+home_symbol = ' '
 use_os_path_sep = true
 
 [directory.substitutions]
@@ -298,9 +298,9 @@ symbol = '󰘬 '
 style = 'bold purple'
 format = '[$symbol$channel]($style) '
 
-# ────────────────────────────────────────────────────────────────────────────
-# PACKAGE MANAGERS
-# ────────────────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────────────── #
+# +++++++++++++++++++++++++++++ PACKAGE MANAGERS +++++++++++++++++++++++++++++ #
+# ──────────────────────────────────────────────────────────────────────────── #
 
 [package]
 disabled = false
