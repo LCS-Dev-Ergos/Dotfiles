@@ -138,14 +138,25 @@ if command -v fd >/dev/null 2>&1; then
   }
 fi
 
-# Source fzf-git.sh only if it exists.
-if [[ -f "$HOME/.config/fzf-git/fzf-git.sh" ]]; then
-  source "$HOME/.config/fzf-git/fzf-git.sh"
-else
-  # Check common Arch path as a fallback.
+# Source fzf-git.sh (deferred by default to improve startup time).
+_fzf_git_source() {
+  if [[ -f "$HOME/.config/fzf-git/fzf-git.sh" ]]; then
+    source "$HOME/.config/fzf-git/fzf-git.sh"
+    unfunction _fzf_git_source 2>/dev/null
+    return
+  fi
   if [[ "$PLATFORM" == "Linux" && -f "/usr/share/fzf/fzf-git.sh" ]]; then
     source "/usr/share/fzf/fzf-git.sh"
+    unfunction _fzf_git_source 2>/dev/null
   fi
+}
+
+if [[ "${ZSH_FAST_START:-}" == "1" ]]; then
+  : # skip during fast start.
+elif [[ "${ZSH_DEFER_FZF_GIT:-1}" == "1" ]]; then
+  _zsh_defer _fzf_git_source
+else
+  _fzf_git_source
 fi
 
 # FZF preview options (only if tools are available).
@@ -213,7 +224,7 @@ yabai_windows_table() {
   fi
 
   if command -v nu >/dev/null 2>&1; then
-    # Nushell pretty table
+    # Nushell pretty table.
     printf '%s\n' "$json" | nu --stdin -c '
       from json
       | select display space app title id
@@ -261,6 +272,31 @@ _init_ghostty() {
 }
 _init_ghostty
 unfunction _init_ghostty 2>/dev/null
+
+# =============================== ORBSTACK =================================== #
+
+# -----------------------------------------------------------------------------#
+# _orbstack_init
+# -----------------------------------------------------------------------------#
+# Initialize OrbStack shell integration (deferred by default).
+# This keeps startup fast while still enabling features when idle.
+# -----------------------------------------------------------------------------#
+_orbstack_init() {
+  [[ -n "${_ORBSTACK_INIT_DONE:-}" ]] && return 0
+  _ORBSTACK_INIT_DONE=1
+  source "$HOME/.orbstack/shell/init.zsh" 2>/dev/null || :
+  unfunction _orbstack_init 2>/dev/null
+}
+
+if [[ -f "$HOME/.orbstack/shell/init.zsh" ]]; then
+  if [[ "${ZSH_FAST_START:-}" == "1" ]]; then
+    : # skip during fast start.
+  elif [[ "${ZSH_DEFER_ORBSTACK:-1}" == "1" ]]; then
+    _zsh_defer _orbstack_init
+  else
+    _orbstack_init
+  fi
+fi
 
 # ================================== KITTY =================================== #
 

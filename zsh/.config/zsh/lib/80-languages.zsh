@@ -85,9 +85,25 @@ export DUNE_CACHE_TRANSPORT=direct                                              
 # -------------------- Java - Smart JAVA_HOME Management --------------------- #
 # First, prioritize SDKMAN! if it is installed.
 if [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]]; then
-  # SDKMAN! found. Let it manage everything.
+  # SDKMAN! found. Use a lazy init to avoid startup cost.
   export SDKMAN_DIR="$HOME/.sdkman"
-  source "$HOME/.sdkman/bin/sdkman-init.sh"
+
+  # Provide JAVA_HOME eagerly if possible (fast, avoids waiting for sdk init).
+  if [[ -z "${JAVA_HOME:-}" && -d "$SDKMAN_DIR/candidates/java/current" ]]; then
+    export JAVA_HOME="$SDKMAN_DIR/candidates/java/current"
+  fi
+
+  _sdkman_lazy_init() {
+    [[ -n "${_SDKMAN_LAZY_INIT:-}" ]] && return 0
+    _SDKMAN_LAZY_INIT=1
+    source "$SDKMAN_DIR/bin/sdkman-init.sh"
+  }
+
+  sdk() {
+    unfunction sdk 2>/dev/null
+    _sdkman_lazy_init
+    sdk "$@"
+  }
 else
   # -------------------------------------------------------------------------
   # setup_java_home_fallback
@@ -186,11 +202,24 @@ else
 fi
 
 # -------------- PyENV -------------- #
-if command -v pyenv >/dev/null 2>&1; then
+if [[ -d "$HOME/.pyenv" ]]; then
   export PYENV_ROOT="$HOME/.pyenv"
-  [[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
-  eval "$(pyenv init -)" 2>/dev/null || echo "${C_YELLOW}Warning: pyenv init failed.${C_RESET}"
-  eval "$(pyenv virtualenv-init -)" 2>/dev/null || echo "${C_YELLOW}Warning: pyenv virtualenv-init failed.${C_RESET}"
+  [[ -d "$PYENV_ROOT/bin" ]] && export PATH="$PYENV_ROOT/bin:$PATH"
+
+  if command -v pyenv >/dev/null 2>&1; then
+    _pyenv_lazy_init() {
+      [[ -n "${_PYENV_LAZY_INIT:-}" ]] && return 0
+      _PYENV_LAZY_INIT=1
+      eval "$(command pyenv init -)" 2>/dev/null || echo "${C_YELLOW}Warning: pyenv init failed.${C_RESET}"
+      eval "$(command pyenv virtualenv-init -)" 2>/dev/null || echo "${C_YELLOW}Warning: pyenv virtualenv-init failed.${C_RESET}"
+    }
+
+    pyenv() {
+      unfunction pyenv 2>/dev/null
+      _pyenv_lazy_init
+      pyenv "$@"
+    }
+  fi
 fi
 
 # ------------- Python -------------- #
@@ -221,7 +250,10 @@ export CARGO_INCREMENTAL=1
 # Configuration:
 #   - Disables conda's prompt modification (changeps1 false).
 # -----------------------------------------------------------------------------
-__conda_init() {
+_conda_lazy_init() {
+  [[ -n "${_CONDA_LAZY_INIT:-}" ]] && return 0
+  _CONDA_LAZY_INIT=1
+
   local conda_path=""
   # Arch specific path.
   if [[ "$PLATFORM" == 'Linux' && -f "/opt/miniconda3/bin/conda" ]]; then
@@ -236,7 +268,8 @@ __conda_init() {
     if [[ $? -eq 0 ]]; then
       eval "$__conda_setup"
     else
-      local conda_dir=$(dirname "$(dirname "$conda_path")")
+      local conda_dir
+      conda_dir=$(dirname "$(dirname "$conda_path")")
       if [[ -f "$conda_dir/etc/profile.d/conda.sh" ]]; then
         . "$conda_dir/etc/profile.d/conda.sh"
       else
@@ -245,12 +278,18 @@ __conda_init() {
     fi
     unset __conda_setup
 
-    # Disable conda's built-in prompt modification
+    # Disable conda's built-in prompt modification (runs on first use only).
     conda config --set changeps1 false 2>/dev/null
   fi
 }
-__conda_init
-unset -f __conda_init
+
+if [[ -f "/opt/miniconda3/bin/conda" || -f "$HOME/.miniforge3/bin/conda" ]]; then
+  conda() {
+    unfunction conda 2>/dev/null
+    _conda_lazy_init
+    conda "$@"
+  }
+fi
 # <<< Conda initialize <<<
 
 # ------------ Perl CPAN ------------ #
@@ -263,10 +302,23 @@ if [[ -d "$local_perl_dir" ]]; then
 fi
 
 # -------------- rbenv -------------- #
-if command -v rbenv >/dev/null 2>&1; then
+if [[ -d "$HOME/.rbenv" ]]; then
   export RBENV_ROOT="$HOME/.rbenv"
-  [[ -d $RBENV_ROOT/bin ]] && export PATH="$RBENV_ROOT/bin:$PATH"
-  eval "$(rbenv init - zsh)" 2>/dev/null || echo "${C_YELLOW}Warning: rbenv init failed.${C_RESET}"
+  [[ -d "$RBENV_ROOT/bin" ]] && export PATH="$RBENV_ROOT/bin:$PATH"
+
+  if command -v rbenv >/dev/null 2>&1; then
+    _rbenv_lazy_init() {
+      [[ -n "${_RBENV_LAZY_INIT:-}" ]] && return 0
+      _RBENV_LAZY_INIT=1
+      eval "$(command rbenv init - zsh)" 2>/dev/null || echo "${C_YELLOW}Warning: rbenv init failed.${C_RESET}"
+    }
+
+    rbenv() {
+      unfunction rbenv 2>/dev/null
+      _rbenv_lazy_init
+      rbenv "$@"
+    }
+  fi
 fi
 
 # ----- FNM (Fast Node Manager) ----- #
@@ -277,53 +329,87 @@ if command -v fnm &>/dev/null; then
   export NPM_CONFIG_AUDIT=false                   # Disable audit during install (run manually).
   export NODE_OPTIONS="--max-old-space-size=4096" # Increase V8 heap size.
 
-  # Declare a command counter (of integer type) specific to this session.
-  typeset -i FNM_CMD_COUNTER=0
+  _fnm_lazy_init() {
+    [[ -n "${_FNM_LAZY_INIT:-}" ]] && return 0
+    _FNM_LAZY_INIT=1
 
-  # -------------------------------------------------------------------------
-  # _fnm_update_timestamp
-  # -------------------------------------------------------------------------
-  # Heartbeat function to keep fnm multishell session alive.
-  # Updates symlink timestamp every 50 commands to prevent cleanup.
-  #
-  # Called by:
-  #   precmd hook on every command.
-  #
-  # Behavior:
-  #   - Increments command counter.
-  #   - Updates timestamp when counter exceeds 30.
-  #   - Resets counter after update.
-  # -------------------------------------------------------------------------
-  _fnm_update_timestamp() {
-    # Increment the counter on every command.
-    ((FNM_CMD_COUNTER++))
-    # Only update if the counter has exceeded 50 (reduced frequency).
-    if ((FNM_CMD_COUNTER > 50)); then
-      if [ -n "$FNM_MULTISHELL_PATH" ] && [ -L "$FNM_MULTISHELL_PATH" ]; then
-        # Update the timestamp of the link.
-        touch -h "$FNM_MULTISHELL_PATH" 2>/dev/null
+    # Declare a command counter (of integer type) specific to this session.
+    typeset -gi FNM_CMD_COUNTER=0
+
+    # -----------------------------------------------------------------------
+    # _fnm_update_timestamp
+    # -----------------------------------------------------------------------
+    # Heartbeat function to keep fnm multishell session alive.
+    # Updates symlink timestamp every 50 commands to prevent cleanup.
+    #
+    # Called by:
+    #   precmd hook on every command.
+    #
+    # Behavior:
+    #   - Increments command counter.
+    #   - Updates timestamp when counter exceeds 30.
+    #   - Resets counter after update.
+    # -----------------------------------------------------------------------
+    _fnm_update_timestamp() {
+      # Increment the counter on every command.
+      ((FNM_CMD_COUNTER++))
+      # Only update if the counter has exceeded 50 (reduced frequency).
+      if ((FNM_CMD_COUNTER > 50)); then
+        if [[ -n "$FNM_MULTISHELL_PATH" && -L "$FNM_MULTISHELL_PATH" ]]; then
+          touch -h "$FNM_MULTISHELL_PATH" 2>/dev/null
+        fi
+        # Reset the counter to zero.
+        FNM_CMD_COUNTER=0
       fi
-      # Reset the counter to zero.
-      FNM_CMD_COUNTER=0
+    }
+
+    # Set a global default version if it doesn't exist.
+    if ! command fnm default >/dev/null 2>&1; then
+      local latest_installed
+      latest_installed=$(command fnm list | grep -o 'v[0-9.]\+' | sort -V | tail -n 1)
+      if [[ -n "$latest_installed" ]]; then
+        command fnm default "$latest_installed"
+      fi
     fi
+
+    # Initialize fnm.
+    eval "$(command fnm env --use-on-cd --shell zsh)" 2>/dev/null || \
+      echo "${C_YELLOW}Warning: fnm env failed.${C_RESET}"
+
+    # Register the zsh hook to keep the session link fresh.
+    autoload -U add-zsh-hook
+    add-zsh-hook precmd _fnm_update_timestamp
   }
 
-  # Set a global default version if it doesn't exist.
-  if ! fnm default >/dev/null 2>&1; then
-    latest_installed=$(fnm list | grep -o 'v[0-9.]\+' | sort -V | tail -n 1)
-    if [ -n "$latest_installed" ]; then
-      fnm default "$latest_installed"
-    fi
-  fi
+  fnm() {
+    unfunction fnm 2>/dev/null
+    _fnm_lazy_init
+    fnm "$@"
+  }
 
-  # Initialize fnm.
-  if command -v fnm >/dev/null 2>&1; then
-    eval "$(fnm env --use-on-cd --shell zsh)" 2>/dev/null || echo "${C_YELLOW}Warning: fnm env failed.${C_RESET}"
-  fi
+  node() {
+    _fnm_lazy_init
+    unfunction node 2>/dev/null
+    command node "$@"
+  }
 
-  # Register the zsh hook to keep the session link fresh.
-  autoload -U add-zsh-hook
-  add-zsh-hook precmd _fnm_update_timestamp
+  npm() {
+    _fnm_lazy_init
+    unfunction npm 2>/dev/null
+    command npm "$@"
+  }
+
+  npx() {
+    _fnm_lazy_init
+    unfunction npx 2>/dev/null
+    command npx "$@"
+  }
+
+  corepack() {
+    _fnm_lazy_init
+    unfunction corepack 2>/dev/null
+    command corepack "$@"
+  }
 fi
 
 # ============================================================================ #

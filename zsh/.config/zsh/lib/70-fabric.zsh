@@ -25,23 +25,6 @@ export FABRIC_OUTPUT_DIR="$HOME/Documents/Obsidian-Vault/XSPC-Vault/Fabric"
 alias fabric="fabric-ai"
 
 # -----------------------------------------------------------------------------
-# Fabric Pattern Aliases
-# -----------------------------------------------------------------------------
-# Automatically creates command aliases for all installed Fabric patterns.
-# This allows you to run patterns directly (e.g., 'summarize' instead of
-# 'fabric --pattern summarize').
-# -----------------------------------------------------------------------------
-if command -v fabric >/dev/null 2>&1; then
-  typeset fabric_patterns_dir="$HOME/.config/fabric/patterns"
-  if [[ -d "$fabric_patterns_dir" ]]; then
-    for pattern_file in "$fabric_patterns_dir"/*; do
-      typeset pattern_name="$(basename "$pattern_file")"
-      alias "${pattern_name}=fabric --pattern ${pattern_name}"
-    done
-  fi
-fi
-
-# -----------------------------------------------------------------------------
 # yt - YouTube Transcript Fetcher
 # -----------------------------------------------------------------------------
 # Fetch YouTube video transcripts with optional timestamps.
@@ -57,29 +40,34 @@ fi
 #   yt -t https://www.youtube.com/watch?v=dQw4w9WgXcQ | fabric --pattern summarize
 # -----------------------------------------------------------------------------
 yt() {
+  # Validate arguments.
   if [[ "$#" -eq 0 ]] || [[ "$#" -gt 2 ]]; then
     echo "${C_RED}Usage: yt [-t | --timestamps] <youtube-link>${C_RESET}" >&2
     return 1
   fi
 
+  # Determine transcript flag.
   local transcript_flag="--transcript"
   if [[ "$1" == "-t" ]] || [[ "$1" == "--timestamps" ]]; then
     transcript_flag="--transcript-with-timestamps"
     shift
   fi
 
+  # Get the video link.
   local video_link="$1"
   fabric -y "$video_link" $transcript_flag
 }
 
 # -----------------------------------------------------------------------------
-# Obsidian Integration Functions
+# _fabric_lazy_init
 # -----------------------------------------------------------------------------
+# Build pattern aliases and Obsidian integration functions on demand.
+# Deferred by default to keep startup fast.
+#
 # Enhanced pattern execution with automatic Obsidian note creation.
 # When a title is provided, saves the output to a dated markdown file.
 # Without a title, streams the output directly to stdout.
 #
-# These functions override the basic pattern aliases created above.
 # For each pattern in ~/.config/fabric/patterns/, a function is created that:
 #   - With title: Saves to $FABRIC_OUTPUT_DIR/YYYY-MM-DD-title.md
 #   - Without title: Streams output directly
@@ -87,7 +75,6 @@ yt() {
 # Security:
 #   - Pattern names are validated (alphanumeric, dash, underscore only)
 #   - Titles are sanitized (path traversal prevention)
-#   - Uses function definition instead of eval
 #
 # Usage:
 #   <pattern-name> [title]
@@ -97,63 +84,76 @@ yt() {
 #   echo "Some text" | summarize        - Streams to stdout
 #   yt <url> | extract_wisdom "Video Summary"
 # -----------------------------------------------------------------------------
-if command -v fabric >/dev/null 2>&1; then
-  typeset fabric_patterns_dir="$HOME/.config/fabric/patterns"
-  if [[ -d "$fabric_patterns_dir" ]]; then
-    # Create output directory if it doesn't exist
-    [[ ! -d "$FABRIC_OUTPUT_DIR" ]] && mkdir -p "$FABRIC_OUTPUT_DIR"
+_fabric_lazy_init() {
+  setopt localoptions noxtrace noverbose
+  unfunction _fabric_lazy_init 2>/dev/null
 
-    for pattern_file in "$fabric_patterns_dir"/*; do
-      [[ ! -f "$pattern_file" ]] && continue
-      typeset pattern_name=$(basename "$pattern_file")
+  if ! command -v fabric >/dev/null 2>&1; then
+    return 0
+  fi
 
-      # Validate pattern name (security: prevent injection)
-      if [[ ! "$pattern_name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-        continue
+  local fabric_patterns_dir="$HOME/.config/fabric/patterns"
+  [[ -d "$fabric_patterns_dir" ]] || return 0
+
+  # Create output directory if it doesn't exist.
+  [[ ! -d "$FABRIC_OUTPUT_DIR" ]] && mkdir -p "$FABRIC_OUTPUT_DIR"
+
+  # Factory function to create pattern wrappers.
+  _fabric_create_pattern_function() {
+    local pname="$1"
+    eval "function ${pname}() {
+      local title=\"\$1\"
+      local date_stamp=\"\$(date +'%Y-%m-%d')\"
+
+      if [[ -n \"\$title\" ]]; then
+        # Sanitize title (security: prevent path traversal)
+        title=\"\${title//\\//_}\"
+        title=\"\${title//../_}\"
+
+        local output_path=\"\$FABRIC_OUTPUT_DIR/\${date_stamp}-\${title}.md\"
+
+        # Save to Obsidian vault with metadata
+        {
+          echo \"---\"
+          echo \"title: \$title\"
+          echo \"date: \$date_stamp\"
+          echo \"pattern: ${pname}\"
+          echo \"tags: [fabric, ${pname}]\"
+          echo \"---\"
+          echo \"\"
+          fabric --pattern \"${pname}\"
+        } > \"\$output_path\"
+        echo \"\${C_GREEN}Saved to: \$output_path\${C_RESET}\"
+      else
+        # Stream output directly
+        fabric --pattern \"${pname}\" --stream
       fi
+    }"
+  }
 
-      # Remove previous alias to replace with function
-      unalias "$pattern_name" 2>/dev/null
+  # Pattern aliases and functions.
+  for pattern_file in "$fabric_patterns_dir"/*; do
+    [[ ! -f "$pattern_file" ]] && continue
+    typeset pattern_name="$(basename "$pattern_file")"
 
-      # Create wrapper function (safer than eval)
-      # We use a factory function to properly capture pattern_name
-      _fabric_create_pattern_function() {
-        local pname="$1"
-        eval "function ${pname}() {
-                    local title=\"\$1\"
-                    local date_stamp=\"\$(date +'%Y-%m-%d')\"
+    # Validate pattern name (security: prevent injection).
+    [[ ! "$pattern_name" =~ ^[a-zA-Z0-9_-]+$ ]] && continue
 
-                    if [[ -n \"\$title\" ]]; then
-                        # Sanitize title (security: prevent path traversal)
-                        title=\"\${title//\\//_}\"
-                        title=\"\${title//../_}\"
+    # Remove any existing alias before creating function.
+    unalias "$pattern_name" 2>/dev/null
 
-                        local output_path=\"\$FABRIC_OUTPUT_DIR/\${date_stamp}-\${title}.md\"
+    _fabric_create_pattern_function "$pattern_name"
+  done
 
-                        # Save to Obsidian vault with metadata
-                        {
-                            echo \"---\"
-                            echo \"title: \$title\"
-                            echo \"date: \$date_stamp\"
-                            echo \"pattern: ${pname}\"
-                            echo \"tags: [fabric, ${pname}]\"
-                            echo \"---\"
-                            echo \"\"
-                            fabric --pattern \"${pname}\"
-                        } > \"\$output_path\"
-                        echo \"\${C_GREEN}Saved to: \$output_path\${C_RESET}\"
-                    else
-                        # Stream output directly
-                        fabric --pattern \"${pname}\" --stream
-                    fi
-                }"
-      }
+  unset -f _fabric_create_pattern_function
+}
 
-      _fabric_create_pattern_function "$pattern_name"
-    done
-
-    # Clean up factory function
-    unset -f _fabric_create_pattern_function
+# Initialize Fabric functions unless in fast start mode.
+if [[ "${ZSH_FAST_START:-}" != "1" ]]; then
+  if [[ "${ZSH_DEFER_FABRIC:-1}" == "1" ]] && typeset -f _zsh_defer >/dev/null 2>&1; then
+    _zsh_defer _fabric_lazy_init
+  else
+    _fabric_lazy_init
   fi
 fi
 

@@ -41,6 +41,9 @@ ZSH_CUSTOM=${ZSH_CUSTOM:-$HOME/.config/zsh}
 # Set name of the theme to load.
 ZSH_THEME=""
 
+# Skip compfix (compaudit) for faster startup. Set to false to re-enable.
+: ${ZSH_DISABLE_COMPFIX:=true}
+
 # -----------------------------------------------------------------------------
 # _ensure_plugin_installed
 # -----------------------------------------------------------------------------
@@ -146,9 +149,87 @@ fi
 # ZSH Cache.
 export ZSH_COMPDUMP="$ZSH/cache/.zcompdump-$HOST"
 
+# ---------------------------------------------------------------------------- #
+# ++++++++++++++++++++++++++ Oh My Zsh Integration +++++++++++++++++++++++++++ #
+# ---------------------------------------------------------------------------- #
+# This module provides an optimized compinit wrapper that reduces shell startup
+# time by caching completion dumps and performing full security checks only
+# periodically.
+#
+# CONFIGURATION:
+#   ZSH_COMPINIT_CHECK_HOURS    Hours between full compinit runs (default: 24).
+#   ZSH_COMPDUMP                Path to completion dump file.
+#   ZSH_DISABLE_COMPFIX         Skip insecure directory checks if "true".
+#   PLATFORM                    OS detection variable (e.g., "macOS").
+#
+# BEHAVIOR:
+#   - Fast path: If dump exists and is fresh (< N hours), reuse with -C flag.
+#   - Full path: Run complete compinit with security checks and update stamp.
+#   - Stamp file tracks last full compinit execution.
+#   - Automatically creates cache directory if missing.
+#
+# FUNCTIONS:
+#   _omz_compinit_periodic()    Core wrapper implementing periodic logic.
+#   compinit()                  Override that delegates to wrapper, then self-destructs.
+#
+# NOTES:
+#   - The compinit override unloads itself after first use.
+#   - Uses XDG_CACHE_HOME for stamp file storage.
+#   - Platform-specific stat commands for timestamp retrieval.
+#   - Silently handles missing directories and permissions errors.
+# ---------------------------------------------------------------------------- #
+# Reduce startup cost by running a full compinit only every N hours. Otherwise,
+# reuse the cached dump with -C.
+: "${ZSH_COMPINIT_CHECK_HOURS:=24}"
+_omz_compinit_periodic() {
+  setopt localoptions noxtrace noverbose
+  local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
+  local stamp_file="$cache_dir/compinit.last"
+  local now epoch_last age_hours
+
+  now=$(date +%s)
+  epoch_last=0
+  if [[ -f "$stamp_file" ]]; then
+    if [[ "${PLATFORM:-}" == "macOS" ]]; then
+      epoch_last=$(stat -f %m "$stamp_file" 2>/dev/null || echo 0)
+    else
+      epoch_last=$(stat -c %Y "$stamp_file" 2>/dev/null || echo 0)
+    fi
+  fi
+  age_hours=$(( (now - epoch_last) / 3600 ))
+
+  # Fast path: reuse dump and skip security checks.
+  if [[ -f "$ZSH_COMPDUMP" && $age_hours -lt ${ZSH_COMPINIT_CHECK_HOURS:-24} ]]; then
+    compinit -C -d "$ZSH_COMPDUMP"
+    return $?
+  fi
+
+  # Full init path.
+  local insecure_mode="-i"
+  [[ "$ZSH_DISABLE_COMPFIX" == true ]] && insecure_mode="-u"
+  compinit "$insecure_mode" -d "$ZSH_COMPDUMP"
+  local rc=$?
+
+  if (( rc == 0 )); then
+    mkdir -p "$cache_dir" 2>/dev/null
+    touch "$stamp_file" 2>/dev/null || : >| "$stamp_file"
+  fi
+  return $rc
+}
+
+# Override compinit to use periodic wrapper.
+compinit() {
+  unfunction compinit 2>/dev/null
+  autoload -Uz compinit
+  _omz_compinit_periodic
+  local rc=$?
+  unfunction _omz_compinit_periodic 2>/dev/null
+  return $rc
+}
+
 source "$ZSH/oh-my-zsh.sh"
 
-# ---------------------- History Substring Search ---------------------------- #
+# ------------------------- History Substring Search ------------------------- #
 # Keybindings for zsh-history-substring-search plugin.
 # Must be loaded AFTER oh-my-zsh.sh to work correctly.
 if [[ -n "${plugins[(r)zsh-history-substring-search]}" ]]; then

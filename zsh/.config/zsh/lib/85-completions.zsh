@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
 # shellcheck shell=zsh
 # ============================================================================ #
-# +++++++++++++++++++++++++ COMPLETION SYSTEMS +++++++++++++++++++++++++++++++ #
+# ++++++++++++++++++++++++++++ COMPLETION SYSTEMS ++++++++++++++++++++++++++++ #
 # ============================================================================ #
 #
 # Shell completion initialization for various tools.
@@ -13,7 +13,6 @@
 #   - Angular CLI
 #
 # Note: This module must load LATE to ensure all PATH modifications are complete.
-#
 # ============================================================================ #
 
 # On HyDE with user's lib/ config: compinit runs here.
@@ -80,14 +79,23 @@ _cache_completion() {
   source "$cache_file"
 }
 
-# ------------ ngrok ---------------- #
-if command -v ngrok >/dev/null 2>&1; then
-  _cache_completion ngrok ngrok completion
-fi
+# ---------- ngrok / Angular CLI (deferred) ---------- #
+_late_completions() {
+  if command -v ngrok >/dev/null 2>&1; then
+    _cache_completion ngrok ngrok completion
+  fi
+  if command -v ng >/dev/null 2>&1; then
+    _cache_completion ng ng completion script
+  fi
+  unfunction _late_completions 2>/dev/null
+}
 
-# ----------- Angular CLI ----------- #
-if command -v ng >/dev/null 2>&1; then
-  _cache_completion ng ng completion script
+if [[ "${ZSH_FAST_START:-}" == "1" ]]; then
+  : # skip during fast start.
+elif [[ "${ZSH_DEFER_COMPLETIONS:-1}" == "1" ]]; then
+  _zsh_defer _late_completions
+else
+  _late_completions
 fi
 
 # ----------- Docker CLI  ----------- #
@@ -97,11 +105,14 @@ if [[ -d "$HOME/.docker/completions" ]]; then
 fi
 
 autoload -Uz compinit
-# Use -C only if the dump file exists, otherwise do a full init.
-if [[ -f "$ZSH_COMPDUMP" ]]; then
-  compinit -C -d "$ZSH_COMPDUMP"
-else
-  compinit -d "$ZSH_COMPDUMP"
+# Avoid double compinit (OMZ already ran it).
+if (( ! ${+_comps} )); then
+  # Use -C only if the dump file exists, otherwise do a full init.
+  if [[ -f "$ZSH_COMPDUMP" ]]; then
+    compinit -C -d "$ZSH_COMPDUMP"
+  else
+    compinit -d "$ZSH_COMPDUMP"
+  fi
 fi
 
 # ============================================================================ #

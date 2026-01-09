@@ -119,6 +119,62 @@ esac
 
 autoload -Uz add-zsh-hook
 
+# -----------------------------------------------------------------------------#
+# _zsh_defer
+# -----------------------------------------------------------------------------#
+# Defer a function until ZLE is idle (after the first prompt is shown).
+# This helps shift non-critical startup work out of the hot path.
+# Usage:
+#   _zsh_defer function_name
+# -----------------------------------------------------------------------------#
+if [[ $- == *i* ]]; then
+  typeset -ga _ZSH_DEFER_TASKS=()
+  typeset -gi _ZSH_DEFER_ARMED=0
+
+  # Run deferred tasks.
+  _zsh_defer_run() {
+    local task
+    for task in "${_ZSH_DEFER_TASKS[@]}"; do
+      if typeset -f "$task" >/dev/null 2>&1; then
+        "$task"
+      fi
+    done
+    _ZSH_DEFER_TASKS=()
+  }
+
+  # File descriptor handler to run deferred tasks.
+  _zsh_defer_fdrun() {
+    local fd=$1
+    exec {fd}>&-
+    zle -F $fd
+    _zsh_defer_run
+  }
+
+  # Precmd hook to set up ZLE file descriptor.
+  _zsh_defer_precmd() {
+    add-zsh-hook -d precmd _zsh_defer_precmd
+    if ! zle; then
+      _zsh_defer_run
+      return
+    fi
+    zmodload zsh/system 2>/dev/null || { _zsh_defer_run; return; }
+    local fd
+    sysopen -r -o cloexec -u fd /dev/null || { _zsh_defer_run; return; }
+    zle -F $fd _zsh_defer_fdrun
+  }
+
+  # Function to defer tasks.
+  _zsh_defer() {
+    local task="$1"
+    [[ -z "$task" ]] && return 1
+    _ZSH_DEFER_TASKS+=("$task")
+    if (( ! _ZSH_DEFER_ARMED )); then
+      _ZSH_DEFER_ARMED=1
+      add-zsh-hook precmd _zsh_defer_precmd
+    fi
+  }
+fi
+
 # Unset options to restore default behavior.
 unsetopt xtrace verbose
 

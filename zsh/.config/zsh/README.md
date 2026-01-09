@@ -22,7 +22,9 @@ This directory contains the modular Zsh configuration, refactored from a monolit
 │   ├── 75-variables.zsh   # Global variables & exports
 │   ├── 80-languages.zsh   # Language managers (SDKMAN, pyenv, fnm)
 │   ├── 85-completions.zsh # Completion systems
-│   └── 90-path.zsh        # Final PATH assembly
+│   ├── 90-path.zsh        # Final PATH assembly
+│   ├── 95-lazy-scripts.zsh # Lazy loader for scripts/
+│   └── 96-lazy-cpp-tools.zsh # Lazy loader for cpp-tools/competitive.sh
 │
 ├── scripts/               # Custom user scripts (optional)
 └── README.md              # This file
@@ -45,7 +47,9 @@ The numeric order of modules is **critical** for proper functionality:
 9. **75-variables.zsh** - Global variables
 10. **80-languages.zsh** - Language managers
 11. **85-completions.zsh** - Completions
-12. **90-path.zsh** - Must be last: rebuilds final PATH
+12. **90-path.zsh** - Must be last among core modules: rebuilds final PATH
+13. **95-lazy-scripts.zsh** - Lazy loader for `scripts/` (on-demand)
+14. **96-lazy-cpp-tools.zsh** - Lazy loader for `cpp-tools/competitive.sh`
 
 ---
 
@@ -112,6 +116,24 @@ EOF
 # Reload
 source ~/.zshrc
 ```
+
+**Note:** scripts in `scripts/` are lazy-loaded by default. To eager-load them
+for debugging, start a shell with `ZSH_LAZY_SCRIPTS=0`. The C++ tools bundle
+(`cpp-tools/competitive.sh`) is also lazy-loaded; disable that via
+`ZSH_LAZY_CPP_TOOLS=0`.
+
+Language managers (SDKMAN, pyenv, conda, rbenv, fnm) are now initialized on
+first use; the first invocation of related commands may be slower.
+
+Performance toggles:
+- `ZSH_DISABLE_COMPFIX=true` skips compaudit (faster startup, less safety checks).
+- `ZSH_COMPINIT_CHECK_HOURS=24` controls how often a full `compinit` runs.
+- `ZSH_DEFER_FZF_GIT=1` defers `fzf-git.sh` loading until ZLE is idle.
+- `ZSH_DEFER_COMPLETIONS=1` defers ng/ngrok completion generation until idle.
+- `ZSH_DEFER_FABRIC=1` defers Fabric pattern loading until idle.
+- `ZSH_DEFER_ORBSTACK=1` defers OrbStack shell integration until idle.
+- `ZSH_LAZY_CPP_TOOLS=0` eager-loads `cpp-tools/competitive.sh`.
+- `ZSH_FAST_START=1` loads only a minimal module set + basic prompt.
 
 #### Temporarily Disable a Module
 

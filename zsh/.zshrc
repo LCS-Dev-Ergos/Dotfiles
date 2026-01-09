@@ -34,6 +34,8 @@
 #   80-languages.zsh    - Language managers (SDKMAN, pyenv, fnm, etc.).
 #   85-completions.zsh  - Completion systems.
 #   90-path.zsh         - Final PATH assembly and cleanup.
+#   95-lazy-scripts.zsh - Lazy loader for ~/.config/zsh/scripts.
+#   96-lazy-cpp-tools.zsh - Lazy loader for ~/.config/cpp-tools/competitive.sh.
 #
 # BENEFITS OF MODULAR ARCHITECTURE:
 #   - Maintainability: Each file has a single responsibility.
@@ -71,6 +73,22 @@ else
     else
         ZSH_CONFIG_DIR="$HOME/.config/zsh"
     fi
+fi
+
+# -----------------------------------------------------------------------------#
+# Fast start toggle: skip heavy modules for a minimal, quick shell.
+# Enable with: ZSH_FAST_START=1
+# -----------------------------------------------------------------------------#
+if [[ "${ZSH_FAST_START:-}" == "1" ]]; then
+    source "$ZSH_CONFIG_DIR/lib/00-init.zsh"
+    source "$ZSH_CONFIG_DIR/lib/10-history.zsh"
+    source "$ZSH_CONFIG_DIR/lib/40-vi-mode.zsh"
+    source "$ZSH_CONFIG_DIR/lib/60-aliases.zsh"
+    source "$ZSH_CONFIG_DIR/lib/75-variables.zsh"
+    source "$ZSH_CONFIG_DIR/lib/90-path.zsh"
+    PROMPT='%F{cyan}%n@%m%f:%F{yellow}%~%f %(?.%F{green}.%F{red})%#%f '
+    RPROMPT='%F{240}%D{%H:%M:%S}%f'
+    return
 fi
 
 # ++++++++++++++++++++++++++++ LOAD CORE MODULES +++++++++++++++++++++++++++++ #
@@ -132,6 +150,8 @@ if [[ "$HYDE_ENABLED" == "1" ]]; then
     source "$ZSH_CONFIG_DIR/lib/80-languages.zsh"
     source "$ZSH_CONFIG_DIR/lib/85-completions.zsh"
     source "$ZSH_CONFIG_DIR/lib/90-path.zsh"
+    [[ -f "$ZSH_CONFIG_DIR/lib/95-lazy-scripts.zsh" ]] && source "$ZSH_CONFIG_DIR/lib/95-lazy-scripts.zsh"
+    [[ -f "$ZSH_CONFIG_DIR/lib/96-lazy-cpp-tools.zsh" ]] && source "$ZSH_CONFIG_DIR/lib/96-lazy-cpp-tools.zsh"
 else
     # -------------------------------------------------------------------------
     # ++++++++++++++++++++++++ macOS or non-HyDE Linux ++++++++++++++++++++++++
@@ -151,20 +171,24 @@ fi
 
 # +++++++++++++++++++++++++++++ EXTERNAL SCRIPTS +++++++++++++++++++++++++++++ #
 
-# Load Competitive Programming tools.
-[[ -f "$HOME/.config/cpp-tools/competitive.sh" ]] \
-    && source "$HOME/.config/cpp-tools/competitive.sh"
+# Load Competitive Programming tools (eager load only if lazy disabled).
+if [[ "${ZSH_LAZY_CPP_TOOLS:-1}" != "1" ]]; then
+    [[ -f "$HOME/.config/cpp-tools/competitive.sh" ]] \
+        && source "$HOME/.config/cpp-tools/competitive.sh"
+fi
 
 # Load custom ZSH scripts from ~/.config/zsh/scripts/.
 # The (N) glob qualifier suppresses errors if no files match.
-if [[ -d "$ZSH_CONFIG_DIR/scripts" ]]; then
-    () {
-        setopt localoptions noxtrace noverbose
-        local script
-        for script in "$ZSH_CONFIG_DIR/scripts"/*.sh(N); do
-            [[ -r "$script" ]] && source "$script"
-        done
-    }
+if [[ "${ZSH_LAZY_SCRIPTS:-1}" != "1" ]]; then
+    if [[ -d "$ZSH_CONFIG_DIR/scripts" ]]; then
+        () {
+            setopt localoptions noxtrace noverbose
+            local script
+            for script in "$ZSH_CONFIG_DIR/scripts"/*.sh(N); do
+                [[ -r "$script" ]] && source "$script"
+            done
+        }
+    fi
 fi
 
 # ============================================================================ #
@@ -220,6 +244,12 @@ fi
 # 90-path.zsh:
 #   Final PATH assembly and cleanup. Rebuilds PATH in deterministic order with
 #   version manager shims at top priority. Removes duplicates and orphaned paths.
+#
+# 95-lazy-scripts.zsh:
+#   Lazy loader for ~/.config/zsh/scripts (on-demand sourcing).
+#
+# 96-lazy-cpp-tools.zsh:
+#   Lazy loader for ~/.config/cpp-tools/competitive.sh (on-demand sourcing).
 #
 # ============================================================================ #
 # End of ~/.zshrc

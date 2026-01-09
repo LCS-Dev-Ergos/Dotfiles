@@ -101,9 +101,13 @@ alias qc-debug="clang -std=c23 -g -O0 -Wall $C_INCLUDE_PATH"
 
 # --------- C++ Compilation ---------- #
 # Determine LLVM library path dynamically.
-if [[ "$PLATFORM" == 'macOS' ]] && command -v brew >/dev/null 2>&1; then
-  LLVM_PREFIX=$(brew --prefix llvm 2>/dev/null)
-  if [[ -n "$LLVM_PREFIX" && -d "$LLVM_PREFIX/lib/c++" ]]; then
+if [[ "$PLATFORM" == 'macOS' ]]; then
+  if [[ -d "/opt/homebrew/opt/llvm/lib/c++" ]]; then
+    LLVM_PREFIX="/opt/homebrew/opt/llvm"
+  elif [[ -d "/usr/local/opt/llvm/lib/c++" ]]; then
+    LLVM_PREFIX="/usr/local/opt/llvm"
+  fi
+  if [[ -n "${LLVM_PREFIX:-}" && -d "$LLVM_PREFIX/lib/c++" ]]; then
     CPP_LIB_PATH="-L$LLVM_PREFIX/lib/c++ -lc++"
   else
     CPP_LIB_PATH="-lc++"
@@ -167,6 +171,45 @@ alias ping="ping -c 5"
 alias reload="source ~/.zshrc"
 alias edit="$EDITOR ~/.zshrc"
 alias fastfetch='~/.config/fastfetch/scripts/fastfetch-dynamic.sh'
+
+# -----------------------------------------------------------------------------#
+# zsh_profile
+# -----------------------------------------------------------------------------#
+# Profile shell startup time and optionally show zprof output.
+#
+# Usage:
+#   zsh_profile            # timing only
+#   zsh_profile zprof      # zprof table
+#   zsh_profile both       # timing + zprof
+# -----------------------------------------------------------------------------#
+zsh_profile() {
+  local mode="${1:-time}"
+  local zdot="${ZSH_CONFIG_DIR:-${ZDOTDIR:-$HOME/.config/zsh}}"
+  local zsh_bin="${ZSH_PROFILE_ZSH_BIN:-$(command -v zsh)}"
+  local fast="${ZSH_PROFILE_FAST_START:-}"
+
+  if [[ ! -f "$zdot/.zshrc" ]]; then
+    zdot="${ZDOTDIR:-$HOME}"
+  fi
+
+  # Mode selection.
+  case "$mode" in
+    time|--time)
+      command /usr/bin/time -p env ZDOTDIR="$zdot" ZSH_FAST_START="$fast" "$zsh_bin" -i -c exit
+      ;;
+    zprof|--zprof)
+      env ZDOTDIR="$zdot" ZSH_PROFILE=1 ZSH_FAST_START="$fast" "$zsh_bin" -i -c 'zmodload zsh/zprof; zprof'
+      ;;
+    both|--both)
+      command /usr/bin/time -p env ZDOTDIR="$zdot" ZSH_FAST_START="$fast" "$zsh_bin" -i -c exit
+      env ZDOTDIR="$zdot" ZSH_PROFILE=1 ZSH_FAST_START="$fast" "$zsh_bin" -i -c 'zmodload zsh/zprof; zprof'
+      ;;
+    *)
+      echo "Usage: zsh_profile [time|zprof|both]" >&2
+      return 1
+      ;;
+  esac
+}
 
 # Default 'ls' alias (may be overridden below based on platform).
 if command -v eza >/dev/null 2>&1; then

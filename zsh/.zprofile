@@ -65,8 +65,7 @@ elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
 fi
 
 # ----------------- Toolchains ----------------- #
-# Added by OrbStack: command-line tools and integration
-source ~/.orbstack/shell/init.zsh 2>/dev/null || :
+# OrbStack integration is deferred in .zshrc for faster startup.
 
 # ----------------- Elan PATH ------------------ #
 export PATH="$HOME/.elan/bin:$PATH"
