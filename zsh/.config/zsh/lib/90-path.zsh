@@ -30,7 +30,8 @@
 # Ensures consistent PATH priority across shell sessions and removes duplicates.
 # -----------------------------------------------------------------------------
 build_final_path() {
-  # Store original PATH for debugging and fallback.
+  # Store original PATH for debugging and fallback (exported for inspection).
+  export PATH_BEFORE_BUILD="$PATH"
   local original_path="$PATH"
 
   # Version-specific Ruby gems bin (only when Ruby and GEM_HOME are available).
@@ -55,9 +56,10 @@ build_final_path() {
       # ----- STATIC SHIMS & LANGUAGE BINS ------ #
       "$PYENV_ROOT/bin"
       "$HOME/.opam/ocaml-compiler/bin"
-      "$HOME/.sdkman/candidates/java/current/bin"
-      "$HOME/.sdkman/candidates/maven/current/bin"
-      "$HOME/.sdkman/candidates/kotlin/current/bin"
+      "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/java/current/bin"
+      "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/maven/current/bin"
+      "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/kotlin/current/bin"
+      "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/gradle/current/bin"
 
       # ------ FNM (Current session only) ------- #
       "$FNM_MULTISHELL_PATH/bin"
@@ -118,7 +120,10 @@ build_final_path() {
 
       # ----- STATIC SHIMS & LANGUAGE BINS ------ #
       "$PYENV_ROOT/bin"
-      "$HOME/.sdkman/candidates/java/current/bin"
+      "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/java/current/bin"
+      "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/maven/current/bin"
+      "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/kotlin/current/bin"
+      "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/gradle/current/bin"
       "$HOME/.opam/ocaml-compiler/bin"
 
       # ------ FNM (Current session only) ------- #
@@ -138,12 +143,14 @@ build_final_path() {
       "$HOME/.elan/bin"
 
       # ------ User and App-Specific Paths ------ #
-      "$ruby_user_bin"
+      "$GEM_HOME/bin" "$ruby_user_bin"
       "$HOME/.ada/bin"
       "$HOME/.flutter/bin"
       "$HOME/.local/bin"
       "$HOME/.npm/bin"
+      "$HOME/.perl5/bin"
       "$GOPATH/bin" "$GOROOT/bin"
+      "/opt/miniconda3/condabin" "$HOME/.miniforge3/condabin" "$HOME/.miniforge3/bin"
       "$ANDROID_HOME/platform-tools"
       "$ANDROID_HOME/cmdline-tools/latest/bin"
       "$HOME/.local/share/JetBrains/Toolbox/scripts"

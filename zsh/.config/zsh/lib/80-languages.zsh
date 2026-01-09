@@ -230,9 +230,8 @@ export PIPENV_VENV_IN_PROJECT=1    # Store .venv in project directory.
 
 # --------------- Rust --------------- #
 # Rust: Parallel compilation and incremental builds.
-if command -v sysctl >/dev/null 2>&1; then
-  export CARGO_BUILD_JOBS=$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo "4")
-fi
+# macOS: sysctl -n hw.ncpu | Linux: nproc | Fallback: 4
+export CARGO_BUILD_JOBS=$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo "4")
 export CARGO_INCREMENTAL=1
 
 # -------------- CONDA --------------- #
