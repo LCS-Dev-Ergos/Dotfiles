@@ -21,7 +21,7 @@
 
 # +++++++++++++++++++++++ STATIC ENVIRONMENT MANAGERS ++++++++++++++++++++++++ #
 
-# --------------- Nix --------------- #
+# --------------- Nix ---------------- #
 # This setup is platform-aware. It checks for standard Nix installation
 # paths, which can differ between multi-user and single-user setups.
 if [[ "$PLATFORM" == 'macOS' ]] || [[ "$PLATFORM" == 'Linux' ]]; then
@@ -34,7 +34,7 @@ if [[ "$PLATFORM" == 'macOS' ]] || [[ "$PLATFORM" == 'Linux' ]]; then
   fi
 fi
 
-# ------- Homebrew / Linuxbrew ------ #
+# ------- Homebrew / Linuxbrew ------- #
 # This logic is now strictly separated by platform to avoid incorrect detection.
 if [[ "$PLATFORM" == 'macOS' ]]; then
   # On macOS, check for the Apple Silicon path first, then the Intel path.
@@ -65,10 +65,10 @@ elif [[ "$PLATFORM" == 'Linux' ]]; then
   fi
 fi
 
-# ------- Haskell (ghcup-env) ------- #
+# ------- Haskell (ghcup-env) -------- #
 [[ -f "$HOME/.ghcup/env" ]] && . "$HOME/.ghcup/env"
 
-# -------------- Opam --------------- #
+# --------------- Opam --------------- #
 # OCaml: Build and package manager optimization.
 export OPAMJOBS=$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo "4") # Parallel builds.
 export DUNE_CACHE=enabled                                                         # Enable Dune build cache.
@@ -105,9 +105,9 @@ if [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]]; then
     sdk "$@"
   }
 else
-  # -------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
   # setup_java_home_fallback
-  # -------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
   # Auto-detect and configure JAVA_HOME when SDKMAN is not available.
   # Platform-aware detection using system utilities and standard JVM paths.
   #
@@ -118,7 +118,7 @@ else
   # Sets:
   #   JAVA_HOME - Java installation directory.
   #   PATH      - Adds $JAVA_HOME/bin.
-  # -------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
   setup_java_home_fallback() {
     # Cache file location.
     local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
@@ -201,7 +201,7 @@ else
   setup_java_home_fallback
 fi
 
-# -------------- PyENV -------------- #
+# -------------- PyENV --------------- #
 if [[ -d "$HOME/.pyenv" ]]; then
   export PYENV_ROOT="$HOME/.pyenv"
   [[ -d "$PYENV_ROOT/bin" ]] && export PATH="$PYENV_ROOT/bin:$PATH"
@@ -222,20 +222,20 @@ if [[ -d "$HOME/.pyenv" ]]; then
   fi
 fi
 
-# ------------- Python -------------- #
+# -------------- Python -------------- #
 # Python: Bytecode caching and pip best practices.
 export PYTHONDONTWRITEBYTECODE=1   # Avoid .pyc files cluttering directories.
 export PIP_REQUIRE_VIRTUALENV=true # Safety: only allow pip in virtual environments.
 export PIPENV_VENV_IN_PROJECT=1    # Store .venv in project directory.
 
-# -------------- Rust --------------- #
+# --------------- Rust --------------- #
 # Rust: Parallel compilation and incremental builds.
 if command -v sysctl >/dev/null 2>&1; then
   export CARGO_BUILD_JOBS=$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo "4")
 fi
 export CARGO_INCREMENTAL=1
 
-# -------------- CONDA -------------- #
+# -------------- CONDA --------------- #
 # >>> Conda initialize >>>
 # -----------------------------------------------------------------------------
 # __conda_init
@@ -292,7 +292,7 @@ if [[ -f "/opt/miniconda3/bin/conda" || -f "$HOME/.miniforge3/bin/conda" ]]; the
 fi
 # <<< Conda initialize <<<
 
-# ------------ Perl CPAN ------------ #
+# ------------ Perl CPAN ------------- #
 # Only run if the local::lib directory exists.
 local_perl_dir="$HOME/.perl5"
 if [[ -d "$local_perl_dir" ]]; then
@@ -301,7 +301,7 @@ if [[ -d "$local_perl_dir" ]]; then
   fi
 fi
 
-# -------------- rbenv -------------- #
+# -------------- rbenv --------------- #
 if [[ -d "$HOME/.rbenv" ]]; then
   export RBENV_ROOT="$HOME/.rbenv"
   [[ -d "$RBENV_ROOT/bin" ]] && export PATH="$RBENV_ROOT/bin:$PATH"
@@ -329,84 +329,70 @@ if command -v fnm &>/dev/null; then
   export NPM_CONFIG_AUDIT=false                   # Disable audit during install (run manually).
   export NODE_OPTIONS="--max-old-space-size=4096" # Increase V8 heap size.
 
-  _fnm_lazy_init() {
-    [[ -n "${_FNM_LAZY_INIT:-}" ]] && return 0
-    _FNM_LAZY_INIT=1
+  # Set a global default version if it doesn't exist.
+  if ! command fnm default >/dev/null 2>&1; then
+    local latest_installed
+    latest_installed=$(command fnm list | grep -o 'v[0-9.]\+' | sort -V | tail -n 1)
+    if [[ -n "$latest_installed" ]]; then
+      command fnm default "$latest_installed" 2>/dev/null
+    fi
+  fi
+
+  # Initialize fnm environment immediately (fast, ~10ms).
+  # This sets FNM_MULTISHELL_PATH and adds fnm to PATH.
+  eval "$(command fnm env --use-on-cd --shell zsh)" 2>/dev/null || \
+    echo "${C_YELLOW}Warning: fnm env failed.${C_RESET}"
+
+  # ---------------------------------------------------------------------------
+  # _fnm_setup_heartbeat (lazy)
+  # ---------------------------------------------------------------------------
+  # Lazy-load the timestamp update mechanism on first node-related command.
+  # Keeps fnm multishell session alive by updating symlink timestamp.
+  # ---------------------------------------------------------------------------
+  _fnm_setup_heartbeat() {
+    [[ -n "${_FNM_HEARTBEAT_SETUP:-}" ]] && return 0
+    _FNM_HEARTBEAT_SETUP=1
 
     # Declare a command counter (of integer type) specific to this session.
     typeset -gi FNM_CMD_COUNTER=0
 
-    # -----------------------------------------------------------------------
-    # _fnm_update_timestamp
-    # -----------------------------------------------------------------------
     # Heartbeat function to keep fnm multishell session alive.
-    # Updates symlink timestamp every 50 commands to prevent cleanup.
-    #
-    # Called by:
-    #   precmd hook on every command.
-    #
-    # Behavior:
-    #   - Increments command counter.
-    #   - Updates timestamp when counter exceeds 30.
-    #   - Resets counter after update.
-    # -----------------------------------------------------------------------
     _fnm_update_timestamp() {
-      # Increment the counter on every command.
       ((FNM_CMD_COUNTER++))
-      # Only update if the counter has exceeded 50 (reduced frequency).
       if ((FNM_CMD_COUNTER > 50)); then
         if [[ -n "$FNM_MULTISHELL_PATH" && -L "$FNM_MULTISHELL_PATH" ]]; then
           touch -h "$FNM_MULTISHELL_PATH" 2>/dev/null
         fi
-        # Reset the counter to zero.
         FNM_CMD_COUNTER=0
       fi
     }
-
-    # Set a global default version if it doesn't exist.
-    if ! command fnm default >/dev/null 2>&1; then
-      local latest_installed
-      latest_installed=$(command fnm list | grep -o 'v[0-9.]\+' | sort -V | tail -n 1)
-      if [[ -n "$latest_installed" ]]; then
-        command fnm default "$latest_installed"
-      fi
-    fi
-
-    # Initialize fnm.
-    eval "$(command fnm env --use-on-cd --shell zsh)" 2>/dev/null || \
-      echo "${C_YELLOW}Warning: fnm env failed.${C_RESET}"
 
     # Register the zsh hook to keep the session link fresh.
     autoload -U add-zsh-hook
     add-zsh-hook precmd _fnm_update_timestamp
   }
 
-  fnm() {
-    unfunction fnm 2>/dev/null
-    _fnm_lazy_init
-    fnm "$@"
-  }
-
+  # Wrap node commands to ensure heartbeat is setup on first use.
   node() {
-    _fnm_lazy_init
+    _fnm_setup_heartbeat
     unfunction node 2>/dev/null
     command node "$@"
   }
 
   npm() {
-    _fnm_lazy_init
+    _fnm_setup_heartbeat
     unfunction npm 2>/dev/null
     command npm "$@"
   }
 
   npx() {
-    _fnm_lazy_init
+    _fnm_setup_heartbeat
     unfunction npx 2>/dev/null
     command npx "$@"
   }
 
   corepack() {
-    _fnm_lazy_init
+    _fnm_setup_heartbeat
     unfunction corepack 2>/dev/null
     command corepack "$@"
   }

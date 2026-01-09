@@ -15,7 +15,7 @@
 # Note: This module must load LATE to ensure all PATH modifications are complete.
 # ============================================================================ #
 
-# On HyDE with user's lib/ config: compinit runs here.
+# On HyDE with user's lib/config: compinit runs here.
 # On HyDE with shell.zsh: compinit already ran there.
 # This guard prevents double compinit when shell.zsh was loaded.
 if [[ "$HYDE_ENABLED" == "1" ]] && [[ "${HYDE_ZSH_NO_PLUGINS}" != "1" ]]; then
