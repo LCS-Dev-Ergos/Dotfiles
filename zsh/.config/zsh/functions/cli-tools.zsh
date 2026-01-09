@@ -46,9 +46,34 @@ if command -v bat &>/dev/null; then
   # Replace cat with bat (plain style, no paging).
   alias cat='bat --style=plain --paging=never --color=auto'
 
-  # Global alias to pipe --help through bat for colorized help output.
-  # Usage: command --help (automatically colorized).
-  alias -g -- --help='--help 2>&1 | bat --language=help --style=plain --paging=never --color=always'
+  # Smart help wrapper that uses bat for external commands only.
+  # Usage: h <command> - Shows help with syntax highlighting.
+  # Example: h git, h docker, h npm
+  h() {
+    if [[ $# -eq 0 ]]; then
+      echo "Usage: h <command>"
+      echo "Shows help for a command with syntax highlighting."
+      return 1
+    fi
+
+    local cmd="$1"
+    shift
+    local cmd_type
+    cmd_type=$(type -w "$cmd" 2>/dev/null | awk '{print $2}')
+
+    # Check if it's a shell function or builtin - use native help without bat.
+    if [[ "$cmd_type" == "function" || "$cmd_type" == "builtin" || "$cmd_type" == "alias" ]]; then
+      # For functions, call directly with literal --help string.
+      if [[ "$cmd_type" == "function" ]]; then
+        "$cmd" "${@}" --help
+      else
+        builtin "$cmd" --help "${@}" 2>&1
+      fi
+    else
+      # External command - pipe through bat for colorization.
+      command "$cmd" --help "${@}" 2>&1 | bat --language=help --style=plain --paging=never --color=always
+    fi
+  }
 
   # Bat with line numbers.
   alias batn='bat --style=numbers'
