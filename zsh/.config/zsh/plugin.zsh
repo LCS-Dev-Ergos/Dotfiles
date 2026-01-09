@@ -3,11 +3,11 @@
 return 1 # <--- Comment this line to disable HyDE's oh-my-zsh plugins and use the zinit examples below
 
 #! This file will not load, remove the return 1 line above to enable this file.
-#? Below is an example of how to set up Zsh plugins using Zinit
+#? Below is an example of how to set up Zsh plugins using Zinit.
 
 # ============================================================================ #
 
-# Zinit plugin manager setup
+# Zinit plugin manager setup.
 # This section ensures zinit is installed and sourced, which allows you to manage plugins efficiently.
 # Zinit is fast, flexible, and supports loading plugins, snippets, and more from GitHub and other sources.
 
@@ -16,7 +16,7 @@ ZINIT_HOME="${XDG_DATA_HOME:-${HOME}/.local/share}/zinit/zinit.git"
 [ ! -d $ZINIT_HOME/.git ] && git clone https://github.com/zdharma-continuum/zinit.git "$ZINIT_HOME"
 source "${ZINIT_HOME}/zinit.zsh"
 
-# Custom prompt
+# Custom prompt.
 # Loads your custom prompt configuration. Place this after plugins so it can use their features.
 zinit snippet $ZDOTDIR/prompt.zsh
 

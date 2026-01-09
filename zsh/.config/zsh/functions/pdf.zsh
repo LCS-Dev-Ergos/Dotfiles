@@ -1,18 +1,26 @@
-#!/bin/zsh
+#!/usr/bin/env zsh
 # shellcheck shell=zsh
 # ============================================================================ #
-# ++++++++++++++++++++++++++++++++ PDF UTILS +++++++++++++++++++++++++++++++++ #
+# ++++++++++++++++++++++++++++++ PDF UTILITIES +++++++++++++++++++++++++++++++ #
 # ============================================================================ #
 #
-# This file contains specialized utilities for PDF document manipulation:
-#   - Page extraction and document splitting.
-#   - DjVu to PDF conversion.
-#   - Bookmark copying between PDFs.
-#   - Metadata removal for privacy (single and batch processing).
+# Specialized utilities for PDF document manipulation.
+# All functions include dependency checking and platform-aware install hints.
 #
-# All functions include comprehensive error handling, input validation,
-# dependency checking, and platform-aware installation instructions.
-# Uses qpdf, exiftool, and ddjvu as core tools.
+# Functions:
+#   - pdfextract                 Extract page range from PDF.
+#   - pdfrotate                  Rotate specific pages.
+#   - djvu_to_pdf                Convert DjVu to PDF.
+#   - copy_pdf_bookmarks         Copy bookmarks between PDFs.
+#   - remove_pdf_metadata        Remove PDF metadata.
+#   - remove_pdf_metadata_batch  Batch metadata removal.
+#   - remove_pdf_metadata_simple Simplified metadata removal.
+#
+# Dependencies:
+#   - qpdf      PDF manipulation (required for most functions).
+#   - exiftool  Metadata removal (recommended).
+#   - ddjvu     DjVu conversion (djvulibre package).
+#   - python3   Bookmark copying (with PyPDF2).
 #
 # ============================================================================ #
 
@@ -30,13 +38,6 @@
 #   start_page - First page to extract (required, 1-indexed).
 #   end_page   - Last page to extract (required, 1-indexed).
 #   output.pdf - Output filename (optional, auto-generated if not provided).
-#
-# Returns:
-#   0 - Pages extracted successfully.
-#   1 - Invalid arguments, qpdf not available, or extraction failed.
-#
-# Dependencies:
-#   qpdf - PDF manipulation tool.
 # -----------------------------------------------------------------------------
 function pdfextract() {
     setopt localoptions pipefail no_aliases
@@ -145,6 +146,105 @@ function pdfextract() {
 }
 
 # -----------------------------------------------------------------------------
+# pdfrotate
+# -----------------------------------------------------------------------------
+# Rotate specific pages of a PDF file in-place.
+# Uses qpdf for safe, lossless rotation that preserves PDF structure.
+#
+# Usage:
+#   pdfrotate <file.pdf> <rotation> [pages]
+#
+# Arguments:
+#   file.pdf  - PDF file to rotate (required)
+#   rotation  - Rotation angle: left (-90°), right (+90°), or 180 (required)
+#   pages     - Page spec: single (5), range (1-10), list (1,3,5), or all
+#
+# Examples:
+#   pdfrotate doc.pdf right        Rotate all pages clockwise 90°
+#   pdfrotate doc.pdf left 1-5     Rotate pages 1-5 counter-clockwise 90°
+#   pdfrotate doc.pdf 180 3        Rotate page 3 by 180°
+#   pdfrotate doc.pdf right 1,3,5  Rotate pages 1, 3, and 5 clockwise
+# -----------------------------------------------------------------------------
+function pdfrotate() {
+  # Validate required tools.
+  if ! command -v qpdf >/dev/null 2>&1; then
+    echo "${C_RED}Error: qpdf is required.${C_RESET}" >&2
+    echo "${C_YELLOW}Install: brew install qpdf${C_RESET}" >&2
+    return 1
+  fi
+
+  # Show help.
+  if [[ $# -lt 2 ]]; then
+    echo "${C_YELLOW}Usage: pdfrotate <file.pdf> <rotation> [pages]${C_RESET}" >&2
+    echo ""
+    echo "Rotation: left (-90°), right (+90°), 180"
+    echo "Pages:    number, range (1-10), list (1,3,5), or all (default)"
+    echo ""
+    echo "Examples:"
+    echo "  pdfrotate doc.pdf right        All pages clockwise"
+    echo "  pdfrotate doc.pdf left 1-5     Pages 1-5 counter-clockwise"
+    echo "  pdfrotate doc.pdf 180 3        Page 3 upside-down"
+    return 1
+  fi
+
+  local input_file="$1"
+  local rotation="$2"
+  local pages="${3:-all}"
+
+  # Validate input file.
+  if [[ ! -f "$input_file" ]]; then
+    echo "${C_RED}Error: File '$input_file' not found.${C_RESET}" >&2
+    return 1
+  fi
+
+  if [[ "${input_file:l}" != *.pdf ]]; then
+    echo "${C_RED}Error: File must be a PDF.${C_RESET}" >&2
+    return 1
+  fi
+
+  if [[ ! -r "$input_file" || ! -w "$input_file" ]]; then
+    echo "${C_RED}Error: No read/write permission for '$input_file'.${C_RESET}" >&2
+    return 1
+  fi
+
+  # Convert rotation aliases to qpdf format.
+  local angle
+  case "$rotation" in
+    left | l)   angle="-90" ;;
+    right | r)  angle="+90" ;;
+    180)        angle="+180" ;;
+    *)
+      echo "${C_RED}Error: Invalid rotation '$rotation'. Use: left, right, or 180.${C_RESET}" >&2
+      return 1
+      ;;
+  esac
+
+  # Convert page specification to qpdf format.
+  local page_range
+  if [[ "$pages" == "all" ]]; then
+    page_range="1-z"
+  else
+    page_range="$pages"
+  fi
+
+  # Use qpdf --replace-input for atomic in-place modification.
+  echo "${C_CYAN}Rotating pages ${pages}...${C_RESET}"
+
+  local error_output
+  error_output=$(qpdf --rotate="${angle}:${page_range}" --replace-input "$input_file" 2>&1)
+  local exit_code=$?
+
+  if [[ $exit_code -eq 0 ]]; then
+    echo "${C_GREEN}Done.${C_RESET}"
+    return 0
+  else
+    echo "${C_RED}Error: Rotation failed.${C_RESET}" >&2
+    [[ -n "$error_output" ]] && echo "$error_output" >&2
+    return 1
+  fi
+}
+
+# -----------------------------------------------------------------------------
 # djvu_to_pdf
 # -----------------------------------------------------------------------------
 # Convert DjVu documents to PDF format using ddjvu from djvulibre.
@@ -156,13 +256,6 @@ function pdfextract() {
 # Arguments:
 #   input.djvu - Source DjVu file (.djvu, .djv) (required).
 #   output.pdf - Output PDF filename (optional, auto-generated from input name).
-#
-# Returns:
-#   0 - Conversion successful.
-#   1 - Invalid arguments, ddjvu not available, or conversion failed.
-#
-# Dependencies:
-#   ddjvu - DjVu document viewer and converter (djvulibre package).
 # -----------------------------------------------------------------------------
 function djvu_to_pdf() {
     setopt localoptions pipefail no_aliases
@@ -257,15 +350,6 @@ function djvu_to_pdf() {
 #   source_with_bookmarks.pdf    - PDF with bookmarks to copy (required).
 #   target_without_bookmarks.pdf - PDF to receive bookmarks (required).
 #   output.pdf                   - Output filename (optional, auto-generated).
-#
-# Returns:
-#   0 - Bookmarks copied successfully.
-#   1 - Dependencies missing, invalid arguments, or copy operation failed.
-#
-# Dependencies:
-#   python3 - Python 3 interpreter.
-#   PyPDF2  - Python PDF library (pip3 install PyPDF2).
-#   copy_bookmarks.py - Custom script in ~/.config/zsh/scripts/python/
 # -----------------------------------------------------------------------------
 function copy_pdf_bookmarks() {
     setopt localoptions pipefail no_aliases
@@ -401,14 +485,6 @@ function copy_pdf_bookmarks() {
 #   input.pdf  - PDF file to clean (required).
 #   output.pdf - Output filename (optional, overwrites original if not provided).
 #
-# Returns:
-#   0 - Metadata removed successfully.
-#   1 - Invalid arguments, dependencies missing, or removal failed.
-#
-# Dependencies:
-#   qpdf     - PDF manipulation tool (required).
-#   exiftool - Metadata tool (highly recommended for complete removal).
-#
 # Removed metadata:
 #   Author, Creator, Producer, Title, Subject, Keywords, CreateDate, ModifyDate.
 # -----------------------------------------------------------------------------
@@ -532,10 +608,10 @@ function remove_pdf_metadata() {
 
     if [[ $? -eq 0 ]]; then
 
-        # qpdf alone doesn't remove metadata, we need exiftool for that
+        # qpdf alone doesn't remove metadata, we need exiftool for that.
         if command -v exiftool >/dev/null 2>&1; then
             echo "${C_CYAN}Removing metadata with exiftool...${C_RESET}"
-            # Remove all metadata
+            # Remove all metadata.
             if exiftool -all:all= -overwrite_original "$output_file" 2>/dev/null; then
                 echo "${C_GREEN}✓ Metadata removed successfully${C_RESET}"
             else
@@ -561,7 +637,7 @@ function remove_pdf_metadata() {
         echo "${C_GREEN}✓ Successfully processed PDF${C_RESET}"
         echo "${C_GREEN}✓ Output file: '$output_file'${C_RESET}"
 
-        # Show file size comparison
+        # Show file size comparison.
         if command -v du >/dev/null 2>&1; then
             local input_size=$(du -h "$input_file" | cut -f1)
             local output_size=$(du -h "$output_file" | cut -f1)
@@ -623,14 +699,6 @@ function remove_pdf_metadata() {
 #
 # Arguments:
 #   file1.pdf, file2.pdf, ... - PDF files to process (one or more required).
-#
-# Returns:
-#   0 - All files processed (check summary for individual results).
-#   1 - Invalid usage or qpdf not available.
-#
-# Dependencies:
-#   qpdf     - PDF manipulation tool (required).
-#   exiftool - Metadata tool (optional, for complete removal).
 #
 # Output:
 #   Creates files with "_cleaned" suffix (e.g., document_cleaned.pdf).
@@ -716,14 +784,6 @@ function remove_pdf_metadata_batch() {
 #   input.pdf  - PDF file to clean (required).
 #   output.pdf - Output filename (optional, creates "_cleaned" version).
 #
-# Returns:
-#   0 - Processing successful.
-#   1 - Invalid arguments, qpdf not available, or processing failed.
-#
-# Dependencies:
-#   qpdf     - PDF manipulation tool (required).
-#   exiftool - Metadata tool (optional, for additional cleanup).
-#
 # Note:
 #   Use this when remove_pdf_metadata fails due to PDF compatibility issues.
 # -----------------------------------------------------------------------------
@@ -800,4 +860,3 @@ function remove_pdf_metadata_simple() {
 }
 
 # ============================================================================ #
-# End of script.

@@ -171,22 +171,7 @@ alias md="mkdir -p"
 alias size="du -sh"
 alias size-all="du -sh .[^.]* * 2>/dev/null"
 alias biggest="du -hs * | sort -hr | head -10"
-# -----------------------------------------------------------------------------
-# epoch
-# -----------------------------------------------------------------------------
-# Display current Unix timestamp and human-readable date.
-# Cross-platform compatible (macOS uses -r, Linux uses -d).
-# -----------------------------------------------------------------------------
-unalias epoch 2>/dev/null
-function epoch {
-  local ts=$(date +%s)
-  echo "Unix timestamp: $ts"
-  if [[ "$PLATFORM" == 'macOS' ]]; then
-    echo "Human readable: $(date -r "$ts")"
-  else
-    echo "Human readable: $(date -d "@$ts")"
-  fi
-}
+# Note: epoch function moved to functions/core.zsh
 alias ping="ping -c 5"
 alias reload="source ~/.zshrc"
 alias edit="$EDITOR ~/.zshrc"
@@ -250,12 +235,7 @@ zsh_profile() {
   esac
 }
 
-# Default 'ls' alias (may be overridden below based on platform).
-if command -v eza >/dev/null 2>&1; then
-  alias ls="eza --color=auto --long --git --icons=auto"
-  alias ll="eza -lha --icons=auto --sort=name --group-directories-first"
-  alias l="eza -lh --icons=auto"
-fi
+# Note: eza/bat/duf aliases moved to functions/aliases.zsh
 
 # ++++++++++++++++++++++++++++++ kitty Terminal ++++++++++++++++++++++++++++++ #
 
@@ -512,11 +492,7 @@ elif [[ "$PLATFORM" == 'Linux' ]]; then
       alias po='pacman -Qtdq | $aurhelper -Rns -'
     fi
 
-    # Additional 'eza' aliases for Arch (extends the default ones).
-    if command -v eza >/dev/null 2>&1; then
-      alias ld='eza -lhD --icons=auto'
-      alias lt='eza --icons=auto --tree'
-    fi
+    # Note: eza aliases (ld, lt) moved to functions/aliases.zsh
 
     # Other aliases for Arch.
     command -v kitten >/dev/null 2>&1 && alias kssh='kitten ssh'

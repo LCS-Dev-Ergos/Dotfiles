@@ -80,6 +80,14 @@ if [[ "${HYDE_ZSH_NO_PLUGINS}" != "1" ]]; then
   done
 
   if [[ -n "$ZSH" ]]; then
+    # Set ZSH_CUSTOM for Arch Linux custom plugins.
+    # Check if ZSH_CUSTOM has a valid plugins directory, otherwise use system-wide.
+    if [[ -z "${ZSH_CUSTOM:-}" ]] || [[ ! -d "$ZSH_CUSTOM/plugins" ]]; then
+      if [[ -d "/usr/share/oh-my-zsh/custom" ]]; then
+        export ZSH_CUSTOM="/usr/share/oh-my-zsh/custom"
+      fi
+    fi
+
     # HyDE default plugins.
     local -a hyde_plugins=(git zsh-256color zsh-autosuggestions zsh-syntax-highlighting)
 

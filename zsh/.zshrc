@@ -152,6 +152,13 @@ if [[ "$HYDE_ENABLED" == "1" ]]; then
     source "$ZSH_CONFIG_DIR/lib/90-path.zsh"
     [[ -f "$ZSH_CONFIG_DIR/lib/95-lazy-scripts.zsh" ]] && source "$ZSH_CONFIG_DIR/lib/95-lazy-scripts.zsh"
     [[ -f "$ZSH_CONFIG_DIR/lib/96-lazy-cpp-tools.zsh" ]] && source "$ZSH_CONFIG_DIR/lib/96-lazy-cpp-tools.zsh"
+
+    # Load custom functions (shell.zsh only loads them when HYDE_ZSH_NO_PLUGINS!=1).
+    if [[ "${HYDE_ZSH_NO_PLUGINS}" == "1" ]]; then
+        for file in "$ZSH_CONFIG_DIR"/functions/*.zsh(N); do
+            [[ -r "$file" ]] && source "$file"
+        done
+    fi
 else
     # -------------------------------------------------------------------------
     # ++++++++++++++++++++++++ macOS or non-HyDE Linux ++++++++++++++++++++++++
@@ -160,13 +167,18 @@ else
     config_modules=("$ZSH_CONFIG_DIR/lib/"*.zsh(N))
 
     if (( ${#config_modules} == 0 )); then
-        echo "⚠️  Warning: No Zsh configuration modules found in $ZSH_CONFIG_DIR/lib/"
+        echo "Warning: No Zsh configuration modules found in $ZSH_CONFIG_DIR/lib/"
         echo "    Please check your ZSH_CONFIG_DIR setting."
     else
         for config_module in "${config_modules[@]}"; do
             source "$config_module"
         done
     fi
+
+    # Load custom functions.
+    for file in "$ZSH_CONFIG_DIR"/functions/*.zsh(N); do
+        [[ -r "$file" ]] && source "$file"
+    done
 fi
 
 # +++++++++++++++++++++++++++++ EXTERNAL SCRIPTS +++++++++++++++++++++++++++++ #

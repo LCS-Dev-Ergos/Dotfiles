@@ -1,5 +1,5 @@
 # ============================================================================ #
-# USER.ZSH - Personal Customizations for HyDE
+# +++++++++++++++ USER.ZSH - Personal Customizations for HyDE ++++++++++++++++ #
 # ============================================================================ #
 #
 # This file is loaded by conf.d/hyde/shell.zsh BEFORE plugin/prompt init.

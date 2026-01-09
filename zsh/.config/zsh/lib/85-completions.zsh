@@ -19,9 +19,16 @@
 # On HyDE with shell.zsh: compinit already ran there.
 # This guard prevents double compinit when shell.zsh was loaded.
 if [[ "$HYDE_ENABLED" == "1" ]] && [[ "${HYDE_ZSH_NO_PLUGINS}" != "1" ]]; then
-    # shell.zsh already ran compinit, just add custom completions.
-    fpath=("$ZDOTDIR/completions" $fpath)
+    # shell.zsh already ran compinit, skip everything (fpath already set there).
     return 0
+fi
+
+# On HyDE with HYDE_ZSH_NO_PLUGINS=1: shell.zsh already added completions to fpath.
+# Skip adding again to avoid duplicates.
+if [[ "$HYDE_ENABLED" == "1" ]] && [[ "${HYDE_ZSH_NO_PLUGINS}" == "1" ]]; then
+    # shell.zsh:145 already added $ZDOTDIR/completions to fpath.
+    # We only need to ensure compinit runs (which happens below).
+    HYDE_SKIP_FPATH_COMPLETIONS=1
 fi
 
 # -----------------------------------------------------------------------------
@@ -99,15 +106,19 @@ else
 fi
 
 # ----------- Docker CLI  ----------- #
-# Add custom completions directories.
-local _completions_dir="${ZDOTDIR:-$HOME/.config/zsh}/completions"
-if [[ -d "$_completions_dir" ]]; then
-  fpath=("$_completions_dir" $fpath)
+# Add custom completions directories (unless HyDE already did it).
+if [[ "${HYDE_SKIP_FPATH_COMPLETIONS:-0}" != "1" ]]; then
+  local _completions_dir="${ZDOTDIR:-$HOME/.config/zsh}/completions"
+  if [[ -d "$_completions_dir" ]]; then
+    fpath=("$_completions_dir" $fpath)
+  fi
+  unset _completions_dir
 fi
+
+# Docker completions (always check, as HyDE doesn't add this).
 if [[ -d "$HOME/.docker/completions" ]]; then
   fpath=("$HOME/.docker/completions" $fpath)
 fi
-unset _completions_dir
 
 autoload -Uz compinit
 # Avoid double compinit (OMZ already ran it).
