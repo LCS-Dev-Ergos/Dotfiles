@@ -163,7 +163,7 @@ ssh_symbol = '󰢹 '
 trim_at = '.'
 detect_env_vars = ['SSH_CONNECTION', 'SSH_CLIENT', 'SSH_TTY']
 style = 'bold green'
-format = '[$ssh_symbol$hostname]($style) '
+format = '[$ssh_symbol$hostname]($style)'
 
 [localip]
 ssh_only = true
