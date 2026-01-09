@@ -323,25 +323,32 @@ fi
 
 # ----- FNM (Fast Node Manager) ----- #
 if command -v fnm &>/dev/null; then
+  _fnm_init() {
+    emulate -L zsh
+    setopt noxtrace noverbose
 
-  # Node.js: npm optimization and memory settings.
-  export NPM_CONFIG_FUND=false                    # Disable funding messages.
-  export NPM_CONFIG_AUDIT=false                   # Disable audit during install (run manually).
-  export NODE_OPTIONS="--max-old-space-size=4096" # Increase V8 heap size.
+    # Node.js: npm optimization and memory settings.
+    export NPM_CONFIG_FUND=false                    # Disable funding messages.
+    export NPM_CONFIG_AUDIT=false                   # Disable audit during install (run manually).
+    export NODE_OPTIONS="--max-old-space-size=4096" # Increase V8 heap size.
 
-  # Set a global default version if it doesn't exist.
-  if ! command fnm default >/dev/null 2>&1; then
-    local latest_installed
-    latest_installed=$(command fnm list | grep -o 'v[0-9.]\+' | sort -V | tail -n 1)
-    if [[ -n "$latest_installed" ]]; then
-      command fnm default "$latest_installed" 2>/dev/null
+    # Set a global default version if it doesn't exist.
+    if ! command fnm default >/dev/null 2>&1; then
+      local latest_installed
+      latest_installed=$(command fnm list 2>/dev/null | grep -o 'v[0-9.]\+' | sort -V | tail -n 1)
+      if [[ -n "$latest_installed" ]]; then
+        command fnm default "$latest_installed" >/dev/null 2>&1
+      fi
     fi
-  fi
 
-  # Initialize fnm environment immediately (fast, ~10ms).
-  # This sets FNM_MULTISHELL_PATH and adds fnm to PATH.
-  eval "$(command fnm env --use-on-cd --shell zsh)" 2>/dev/null || \
-    echo "${C_YELLOW}Warning: fnm env failed.${C_RESET}"
+    # Initialize fnm environment immediately (fast, ~10ms).
+    # This sets FNM_MULTISHELL_PATH and adds fnm to PATH.
+    eval "$(command fnm env --use-on-cd --shell zsh 2>/dev/null)" || \
+      echo "${C_YELLOW}Warning: fnm env failed.${C_RESET}"
+  }
+
+  _fnm_init
+  unfunction _fnm_init 2>/dev/null
 
   # ---------------------------------------------------------------------------
   # _fnm_setup_heartbeat (lazy)
