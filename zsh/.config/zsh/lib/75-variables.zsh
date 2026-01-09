@@ -60,6 +60,13 @@ if [[ "$PLATFORM" == "Linux" ]]; then
   export CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1
 fi
 
+# ------------- Starship ------------- #
+# Starship prompt configuration directory.
+export STARSHIP_CONFIG="$HOME/.config/starship/starship.toml"
+
+# Starship prompt cache directory.
+export STARSHIP_CACHE_DIR="$HOME/.cache/starship"
+
 # -------- OS-specific environment variables -------- #
 if [[ "$PLATFORM" == 'macOS' ]]; then
   # Force the use of system binaries to avoid conflicts.
