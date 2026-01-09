@@ -249,29 +249,42 @@ yabai_windows_table() {
 
 # ================================= GHOSTTY ================================== #
 
+# Command alias (only needed on macOS where app bundle isn't in PATH).
+# On Linux (Arch), ghostty is typically installed via package manager and already in PATH.
+if [[ "$PLATFORM" == "macOS" && -x "/Applications/Ghostty.app/Contents/MacOS/ghostty" ]]; then
+  alias ghostty="/Applications/Ghostty.app/Contents/MacOS/ghostty"
+fi
+
 # -----------------------------------------------------------------------------
 # _init_ghostty
 # -----------------------------------------------------------------------------
-# Initialize Ghostty shell integration and alias.
+# Initialize Ghostty shell integration (cross-platform).
+# Only runs when TERM indicates Ghostty (xterm-ghostty or ghostty).
 # Uses GHOSTTY_RESOURCES_DIR to source integration script if available.
-# Creates a 'ghostty' alias to avoid adding the full path to PATH.
+#
+# Platforms:
+#   - macOS: GHOSTTY_RESOURCES_DIR set by Ghostty.app.
+#   - Linux: GHOSTTY_RESOURCES_DIR typically /usr/share/ghostty or similar.
 # -----------------------------------------------------------------------------
-_init_ghostty() {
-  # 1. Shell Integration (if running inside Ghostty)
-  if [[ -n "${GHOSTTY_RESOURCES_DIR}" ]]; then
-    if [[ -f "${GHOSTTY_RESOURCES_DIR}/shell-integration/zsh/ghostty-integration" ]]; then
-      source "${GHOSTTY_RESOURCES_DIR}/shell-integration/zsh/ghostty-integration"
-    fi
-  fi
+if [[ "$TERM" == *ghostty* ]]; then
+  _init_ghostty() {
+    local integration_script=""
 
-  # 2. Command Alias (available everywhere)
-  # Allows running 'ghostty' without polluting PATH.
-  if [[ -x "/Applications/Ghostty.app/Contents/MacOS/ghostty" ]]; then
-    alias ghostty="/Applications/Ghostty.app/Contents/MacOS/ghostty"
-  fi
-}
-_init_ghostty
-unfunction _init_ghostty 2>/dev/null
+    # Try GHOSTTY_RESOURCES_DIR first (set by Ghostty itself).
+    if [[ -n "${GHOSTTY_RESOURCES_DIR}" ]]; then
+      integration_script="${GHOSTTY_RESOURCES_DIR}/shell-integration/zsh/ghostty-integration"
+    # Fallback paths for Linux installations.
+    elif [[ -f "/usr/share/ghostty/shell-integration/zsh/ghostty-integration" ]]; then
+      integration_script="/usr/share/ghostty/shell-integration/zsh/ghostty-integration"
+    elif [[ -f "/usr/local/share/ghostty/shell-integration/zsh/ghostty-integration" ]]; then
+      integration_script="/usr/local/share/ghostty/shell-integration/zsh/ghostty-integration"
+    fi
+
+    [[ -f "$integration_script" ]] && source "$integration_script"
+  }
+  _init_ghostty
+  unfunction _init_ghostty 2>/dev/null
+fi
 
 # =============================== ORBSTACK =================================== #
 
