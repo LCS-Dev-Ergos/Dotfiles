@@ -56,8 +56,14 @@ cdf() {
 # ++++++++++++++++++++++++++++ DEVELOPMENT TOOLS +++++++++++++++++++++++++++++ #
 
 alias ranger="TERM=screen-256color ranger"
-alias redis-start="/opt/homebrew/opt/redis/bin/redis-server /opt/homebrew/etc/redis.conf"
 alias clang-format="clang-format -style=file:\$CLANG_FORMAT_CONFIG"
+
+# Redis startup (platform-aware).
+if [[ "$PLATFORM" == 'macOS' ]] && [[ -x "/opt/homebrew/opt/redis/bin/redis-server" ]]; then
+  alias redis-start="/opt/homebrew/opt/redis/bin/redis-server /opt/homebrew/etc/redis.conf"
+elif command -v redis-server >/dev/null 2>&1; then
+  alias redis-start="redis-server"
+fi
 alias fnm-clean='echo "${C_CYAN}Cleaning up orphaned fnm sessions...${C_RESET}" &&
 rm -rf ~/.local/state/fnm_multishells/* && echo "${C_GREEN}Cleanup completed.${C_RESET}"'
 
@@ -165,8 +171,22 @@ alias md="mkdir -p"
 alias size="du -sh"
 alias size-all="du -sh .[^.]* * 2>/dev/null"
 alias biggest="du -hs * | sort -hr | head -10"
-alias epoch="date +%s | xargs -I {} sh -c 'echo \"Unix timestamp: {}\";
-echo \"Human readable: \$(date -d @{} 2>/dev/null || date -r {} 2>/dev/null)\"'"
+# -----------------------------------------------------------------------------
+# epoch
+# -----------------------------------------------------------------------------
+# Display current Unix timestamp and human-readable date.
+# Cross-platform compatible (macOS uses -r, Linux uses -d).
+# -----------------------------------------------------------------------------
+unalias epoch 2>/dev/null
+function epoch {
+  local ts=$(date +%s)
+  echo "Unix timestamp: $ts"
+  if [[ "$PLATFORM" == 'macOS' ]]; then
+    echo "Human readable: $(date -r "$ts")"
+  else
+    echo "Human readable: $(date -d "@$ts")"
+  fi
+}
 alias ping="ping -c 5"
 alias reload="source ~/.zshrc"
 alias edit="$EDITOR ~/.zshrc"

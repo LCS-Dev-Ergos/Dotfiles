@@ -110,9 +110,9 @@ _lazy_scripts_loader() {
       print -r -- '    return $?'
       print -r -- '  fi'
       print -r -- '  if alias "$name" >/dev/null 2>&1; then'
-      # Expand alias safely without eval.
+      # Expand alias: use ${=...} to split on whitespace for multi-word aliases.
       print -r -- '    local _alias_cmd="${aliases[$name]}"'
-      print -r -- '    "$_alias_cmd" "$@"'
+      print -r -- '    ${=_alias_cmd} "$@"'
       print -r -- '    return $?'
       print -r -- '  fi'
       # Warn and fail if function/alias not found after sourcing.

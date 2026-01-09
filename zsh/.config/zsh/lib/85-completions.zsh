@@ -99,10 +99,15 @@ else
 fi
 
 # ----------- Docker CLI  ----------- #
-if [[ -d "$HOME/.docker/completions" ]]; then
-  # Add custom completions directory.
-  fpath=("/Users/lcs-dev/Dotfiles/zsh/.config/zsh/completions" "$HOME/.docker/completions" $fpath)
+# Add custom completions directories.
+local _completions_dir="${ZDOTDIR:-$HOME/.config/zsh}/completions"
+if [[ -d "$_completions_dir" ]]; then
+  fpath=("$_completions_dir" $fpath)
 fi
+if [[ -d "$HOME/.docker/completions" ]]; then
+  fpath=("$HOME/.docker/completions" $fpath)
+fi
+unset _completions_dir
 
 autoload -Uz compinit
 # Avoid double compinit (OMZ already ran it).

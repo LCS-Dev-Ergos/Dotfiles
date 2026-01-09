@@ -39,16 +39,37 @@ export SBT_OPTS="-Xmx2g -XX:+UseG1GC -XX:MaxMetaspaceSize=512m"
 
 # ---------- Scala Configs ----------- #
 # Scala: Use Java 17 LTS to avoid sun.misc.Unsafe warnings.
-export JAVA_HOME_17="$HOME/.sdkman/candidates/java/17.0.13-tem"
+# Dynamically find Java 17 installation via SDKMAN.
+_find_java17() {
+  local sdkman_java="${SDKMAN_DIR:-$HOME/.sdkman}/candidates/java"
+  # Try 'current' symlink for Java 17 if explicitly set.
+  if [[ -d "$sdkman_java/17-tem" ]]; then
+    echo "$sdkman_java/17-tem"
+    return
+  fi
+  # Find any Java 17.x installation (prefer Temurin, then any).
+  local -a java17_dirs
+  java17_dirs=("$sdkman_java"/17*(N-/))
+  if (( ${#java17_dirs} )); then
+    echo "${java17_dirs[1]}"
+    return
+  fi
+  # Fallback to current Java if no 17 found.
+  [[ -d "$sdkman_java/current" ]] && echo "$sdkman_java/current"
+}
+export JAVA_HOME_17="$(_find_java17)"
+unfunction _find_java17 2>/dev/null
 
 # Wrapper function for scala commands to use Java 17.
-scala() {
-  JAVA_HOME="$JAVA_HOME_17" command scala "$@"
-}
+if [[ -n "$JAVA_HOME_17" ]]; then
+  scala() {
+    JAVA_HOME="$JAVA_HOME_17" command scala "$@"
+  }
 
-scalac() {
-  JAVA_HOME="$JAVA_HOME_17" command scalac "$@"
-}
+  scalac() {
+    JAVA_HOME="$JAVA_HOME_17" command scalac "$@"
+  }
+fi
 
 # ----------- Clang-Format ----------- #
 # Clang-Format Configuration.
@@ -105,16 +126,12 @@ if [[ "$PLATFORM" == 'Linux' && "$ARCH_LINUX" == true ]]; then
   export DOCKER_CONTEXT='default'
 
   # GO Language.
+  # Note: PATH is handled by 90-path.zsh via $GOPATH/bin.
   if command -v go >/dev/null 2>&1; then
     export GOPATH="$HOME/go"
     # Go: Module and build cache optimization.
     export GOCACHE="$HOME/.cache/go-build"
     export GOMODCACHE="$GOPATH/pkg/mod"
-    go_bin=$(go env GOBIN 2>/dev/null)
-    go_path=$(go env GOPATH 2>/dev/null)
-    [[ -n "$go_bin" ]] && export PATH="$PATH:$go_bin"
-    [[ -n "$go_path" ]] && export PATH="$PATH:$go_path/bin"
-    unset go_bin go_path
   fi
 
   # LCS.Data Volume.

@@ -62,7 +62,7 @@ if [[ -t 1 ]] && command -v tput >/dev/null && [[ $(tput colors) -ge 8 ]]; then
   C_RED="\e[31m"
   C_GREEN="\e[32m"
   C_YELLOW="\e[33m"
-  BLUE="\e[34m"
+  C_BLUE="\e[34m"
   C_CYAN="\e[36m"
 else
   C_RESET=""
@@ -70,7 +70,7 @@ else
   C_RED=""
   C_GREEN=""
   C_YELLOW=""
-  BLUE=""
+  C_BLUE=""
   C_CYAN=""
 fi
 

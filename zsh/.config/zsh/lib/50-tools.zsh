@@ -40,11 +40,15 @@ fi
 #   y [directory]
 # -----------------------------------------------------------------------------
 function y() {
-  local tmp="$(mktemp -t "yazi-cwd.XXXXXX")" cwd
+  local tmp cwd
+  tmp="$(mktemp -t "yazi-cwd.XXXXXX")" || return 1
+  # Ensure cleanup on exit, interrupt, or error.
+  trap "rm -f -- ${(q)tmp}" EXIT INT TERM HUP
   yazi "$@" --cwd-file="$tmp"
   IFS= read -r -d '' cwd <"$tmp"
-  [ -n "$cwd" ] && [ "$cwd" != "$PWD" ] && builtin cd -- "$cwd"
+  [[ -n "$cwd" && "$cwd" != "$PWD" ]] && builtin cd -- "$cwd"
   rm -f -- "$tmp"
+  trap - EXIT INT TERM HUP
 }
 
 # ============================ LAZY-LOADED TOOLS ============================= #

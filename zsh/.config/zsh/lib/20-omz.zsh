@@ -99,8 +99,13 @@ unfunction _ensure_plugin_installed 2>/dev/null
 
 # Check for plugin availability on Arch Linux.
 if [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" == true ]]; then
-  # Make sure the ZSH_CUSTOM path is set correctly for Arch Linux.
-  ZSH_CUSTOM="/usr/share/oh-my-zsh/custom"
+  # On Arch, prefer system-wide custom directory if it exists,
+  # but preserve user's ZSH_CUSTOM if already set to a valid directory.
+  if [[ -z "${ZSH_CUSTOM:-}" ]] || [[ ! -d "$ZSH_CUSTOM" ]]; then
+    if [[ -d "/usr/share/oh-my-zsh/custom" ]]; then
+      ZSH_CUSTOM="/usr/share/oh-my-zsh/custom"
+    fi
+  fi
 
   # Arch package ships "you-should-use" outside Oh-My-Zsh paths; source it manually.
   if [[ -f /usr/share/zsh/plugins/zsh-you-should-use/you-should-use.plugin.zsh ]]; then

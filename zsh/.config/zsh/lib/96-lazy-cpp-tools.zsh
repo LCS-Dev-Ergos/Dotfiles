@@ -10,6 +10,11 @@
 # Controlled by:
 #   ZSH_LAZY_CPP_TOOLS=1   (default: enabled)
 #
+# Note: This file shares similar logic with 95-lazy-scripts.zsh.
+# They are kept separate due to different use cases:
+#   - 95-lazy-scripts.zsh: scans a directory of scripts.
+#   - This file: loads a single specific script.
+#
 # ============================================================================ #
 # Early exit conditions.
 [[ $- == *i* ]] || return 0
@@ -97,9 +102,9 @@ _lazy_cpp_loader() {
       print -r -- '    return $?'
       print -r -- '  fi'
       print -r -- '  if alias "$name" >/dev/null 2>&1; then'
-      # Expand alias safely without eval.
+      # Expand alias: use ${=...} to split on whitespace for multi-word aliases.
       print -r -- '    local _alias_cmd="${aliases[$name]}"'
-      print -r -- '    "$_alias_cmd" "$@"'
+      print -r -- '    ${=_alias_cmd} "$@"'
       print -r -- '    return $?'
       print -r -- '  fi'
       # Warn and fail if function/alias not found after sourcing.
