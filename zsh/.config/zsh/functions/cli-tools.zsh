@@ -46,10 +46,20 @@ if command -v bat &>/dev/null; then
   # Replace cat with bat (plain style, no paging).
   alias cat='bat --style=plain --paging=never --color=auto'
 
-  # Smart help wrapper that uses bat for external commands only.
-  # Usage: h <command> - Shows help with syntax highlighting.
-  # Example: h git, h docker, h npm
-  h() {
+  # ---------------------------------------------------------------------------
+  # h - Help viewer using bat
+  # ---------------------------------------------------------------------------
+  # Helper function to display colorized help pages with bat.
+  # Usage: h <command> [args] - Shows --help with syntax highlighting.
+  # Example: h git, h docker, h npm install
+  #
+  # IMPORTANT: Requires the 'help' syntax to be installed. Run once:
+  #   mkdir -p "$(bat --config-dir)/syntaxes"
+  #   cd "$(bat --config-dir)/syntaxes"
+  #   git clone https://github.com/victor-gp/cmd-help-sublime-syntax
+  #   bat cache --build
+  # ---------------------------------------------------------------------------
+   h() {
     if [[ $# -eq 0 ]]; then
       echo "Usage: h <command>"
       echo "Shows help for a command with syntax highlighting."
@@ -59,9 +69,7 @@ if command -v bat &>/dev/null; then
     local cmd="$1"
     shift
 
-    # Execute the command (function, builtin, alias, or external) with --help.
-    # Pipe uniformly to bat for formatting.
-    "$cmd" --help "${@}" 2>&1 | bat --language=man --style=plain --paging=never --color=always
+    "$cmd" --help "${@}" 2>&1 | bat --language=help --style=plain --paging=never --color=always
   }
 
   # Bat with line numbers.
