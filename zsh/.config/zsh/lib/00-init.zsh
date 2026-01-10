@@ -178,16 +178,14 @@ if [[ $- == *i* ]]; then
   # _zsh_cache_auto_check
   # ---------------------------------------------------------------------------
   # One-time cache reset when config files changed since last stamp.
+  # Deferred to run after first prompt for faster startup.
   # Disable with: ZSH_CACHE_AUTO=0
   _zsh_cache_auto_check() {
-    add-zsh-hook -d precmd _zsh_cache_auto_check
     [[ "${ZSH_CACHE_AUTO:-1}" == "1" ]] || return 0
-    [[ "${ZSH_FAST_START:-}" == "1" ]] && return 0
 
     emulate -L zsh
-    setopt noxtrace noverbose
+    setopt noxtrace noverbose nullglob
 
-    # Determine config root directory.
     local cfg_root="${ZSH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zsh}"
     [[ -d "$cfg_root" ]] || return 0
 
@@ -195,24 +193,25 @@ if [[ $- == *i* ]]; then
     local stamp_file="$cache_dir/config.mtime"
     local zdot="${ZDOTDIR:-$HOME}"
 
-    # Collect config files.
+    # Collect config files using zsh glob (no fork).
     local -a files
-    files=("${(@f)$(command find "$cfg_root" -type f \( -name '*.zsh' -o -name '*.sh' \) 2>/dev/null)}")
+    files=("$cfg_root"/**/*.(zsh|sh)(N.))
     [[ -f "$HOME/.zshrc" ]] && files+=("$HOME/.zshrc")
     [[ -f "$HOME/.zshenv" ]] && files+=("$HOME/.zshenv")
     (( ${#files[@]} )) || return 0
 
-    # Find the most recent mtime among config files using stat.
-    local latest=0 mtime
-    local f
-    for f in "${files[@]}"; do
-      [[ -e "$f" ]] || continue
-      if [[ "$OSTYPE" == darwin* ]]; then
-        mtime="$(command stat -f %m "$f" 2>/dev/null)"
-      else
-        mtime="$(command stat -c %Y "$f" 2>/dev/null)"
-      fi
-      [[ "$mtime" =~ ^[0-9]+$ ]] && (( mtime > latest )) && latest=$mtime
+    # Get all mtimes in a single stat call (one fork instead of N).
+    local -a mtimes
+    if [[ "$OSTYPE" == darwin* ]]; then
+      mtimes=("${(@f)$(command stat -f %m "${files[@]}" 2>/dev/null)}")
+    else
+      mtimes=("${(@f)$(command stat -c %Y "${files[@]}" 2>/dev/null)}")
+    fi
+
+    # Find the latest mtime.
+    local latest=0 m
+    for m in "${mtimes[@]}"; do
+      [[ "$m" =~ ^[0-9]+$ ]] && (( m > latest )) && latest=$m
     done
 
     # Get stamp file mtime.
@@ -240,7 +239,8 @@ if [[ $- == *i* ]]; then
     fi
   }
 
-  add-zsh-hook precmd _zsh_cache_auto_check
+  # Defer cache check to run after first prompt (non-blocking startup).
+  _zsh_defer _zsh_cache_auto_check
 fi
 
 # Unset options to restore default behavior.
