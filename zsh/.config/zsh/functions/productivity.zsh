@@ -11,6 +11,7 @@
 #   - note      Quick note-taking with timestamps.
 #   - bm        Directory bookmark system.
 #   - cleanup   Clean temporary and cache files.
+#   - zshcache  Reset Zsh-related caches (compdump, lazy caches, completions).
 #   - fkill     Interactive process killer.
 #   - dshell    Docker container shell access.
 #   - preview   Interactive file preview with fzf.
@@ -183,6 +184,67 @@ function cleanup() {
       fi
     done
     echo "${C_GREEN}Cleanup completed!${C_RESET}"
+  fi
+}
+
+# -----------------------------------------------------------------------------
+# zshcache
+# -----------------------------------------------------------------------------
+# Reset Zsh-related caches to fix inconsistencies after config changes.
+# Removes compdump files, cached completions, and lazy cache stubs.
+#
+# Usage:
+#   zshcache [--dry-run] [--rebuild] [--quiet]
+#
+# Arguments:
+#   --dry-run - Show what would be removed without deleting.
+#   --rebuild - Run compinit after cleanup to rebuild caches.
+#   --quiet   - Suppress informational output.
+# -----------------------------------------------------------------------------
+function zshcache() {
+  local dry_run=false
+  local rebuild=false
+  local quiet=false
+
+  for arg in "$@"; do
+    case "$arg" in
+      --dry-run) dry_run=true ;;
+      --rebuild) rebuild=true ;;
+      --quiet) quiet=true ;;
+    esac
+  done
+
+  setopt localoptions nullglob
+
+  local zdot="${ZDOTDIR:-$HOME}"
+  local xdg_cache="${XDG_CACHE_HOME:-$HOME/.cache}"
+  local -a targets
+
+  # Zsh compdump files (ZDOTDIR now points to $HOME).
+  targets+=( "$zdot/.zcompdump"* )
+
+  # OMZ compdump cache if present.
+  if [[ -n "${ZSH:-}" ]]; then
+    targets+=( "$ZSH/cache/.zcompdump-"* )
+  fi
+
+  # Custom caches created by this config.
+  targets+=( "$xdg_cache/zsh"/* )
+
+  if [[ "$dry_run" == true ]]; then
+    [[ "$quiet" == true ]] || echo "${C_YELLOW}DRY RUN - Zsh cache files that would be removed:${C_RESET}"
+    for item in "${targets[@]}"; do
+      [[ "$quiet" == true ]] || echo "  $item"
+    done
+  else
+    (( ${#targets[@]} )) && command rm -rf -- "${targets[@]}" 2>/dev/null
+    [[ "$quiet" == true ]] || echo "${C_GREEN}Zsh cache cleanup completed.${C_RESET}"
+  fi
+
+  if [[ "$rebuild" == true ]]; then
+    autoload -Uz compinit
+    compinit -C
+    [[ "$quiet" == true ]] || echo "${C_GREEN}compinit rebuilt.${C_RESET}"
   fi
 }
 

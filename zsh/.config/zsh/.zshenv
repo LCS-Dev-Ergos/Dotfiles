@@ -30,12 +30,16 @@
 if [[ -f /etc/os-release ]]; then
   source /etc/os-release
   if [[ "$ID" == "arch" ]]; then
-    # Load ONLY HyDE environment variables (no shell config).
-    # This sets HYDE_ENABLED=1 which .zshrc uses for conditional loading.
-    local hyde_env="${ZDOTDIR:-$HOME/.config/zsh}/conf.d/hyde/env.zsh"
+    # HyDE configs stay in the XDG config dir even if we later move ZDOTDIR to $HOME.
+    local hyde_cfg_root="${XDG_CONFIG_HOME:-$HOME/.config}/zsh"
+    local hyde_env="${hyde_cfg_root}/conf.d/hyde/env.zsh"
     [[ -r "$hyde_env" ]] && source "$hyde_env"
   fi
 fi
+
+# Force ZDOTDIR to $HOME so history/dump files live in the home directory
+# while the actual configs remain under ${XDG_CONFIG_HOME:-$HOME/.config}/zsh.
+export ZDOTDIR="$HOME"
 
 # NOTE: .zshrc is loaded automatically by Zsh for interactive shells.
 # No explicit sourcing needed here.

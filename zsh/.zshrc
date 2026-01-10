@@ -79,10 +79,10 @@ fi
 # echo "ZSH_CONFIG_DIR=$ZSH_CONFIG_DIR"
 # echo "HYDE_ENABLED=${HYDE_ENABLED:-not set}"
 
-# -----------------------------------------------------------------------------#
+# -----------------------------------------------------------------------------
 # Fast start toggle: skip heavy modules for a minimal, quick shell.
 # Enable with: ZSH_FAST_START=1
-# -----------------------------------------------------------------------------#
+# -----------------------------------------------------------------------------
 if [[ "${ZSH_FAST_START:-}" == "1" ]]; then
     source "$ZSH_CONFIG_DIR/lib/00-init.zsh"
     source "$ZSH_CONFIG_DIR/lib/10-history.zsh"
@@ -149,7 +149,7 @@ if [[ "$HYDE_ENABLED" == "1" ]]; then
     source "$ZSH_CONFIG_DIR/lib/40-vi-mode.zsh"
     source "$ZSH_CONFIG_DIR/lib/50-tools.zsh"
     source "$ZSH_CONFIG_DIR/lib/60-aliases.zsh"
-    source "$ZSH_CONFIG_DIR/lib/70-fabric.zsh"
+    source "$ZSH_CONFIG_DIR/lib/70-ai-tools.zsh"
     source "$ZSH_CONFIG_DIR/lib/75-variables.zsh"
     source "$ZSH_CONFIG_DIR/lib/80-languages.zsh"
     source "$ZSH_CONFIG_DIR/lib/85-completions.zsh"

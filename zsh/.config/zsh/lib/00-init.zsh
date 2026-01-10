@@ -119,14 +119,14 @@ esac
 
 autoload -Uz add-zsh-hook
 
-# -----------------------------------------------------------------------------#
+# -----------------------------------------------------------------------------
 # _zsh_defer
-# -----------------------------------------------------------------------------#
+# -----------------------------------------------------------------------------
 # Defer a function until ZLE is idle (after the first prompt is shown).
 # This helps shift non-critical startup work out of the hot path.
 # Usage:
 #   _zsh_defer function_name
-# -----------------------------------------------------------------------------#
+# -----------------------------------------------------------------------------
 if [[ $- == *i* ]]; then
   typeset -ga _ZSH_DEFER_TASKS=()
   typeset -gi _ZSH_DEFER_ARMED=0
@@ -173,6 +173,74 @@ if [[ $- == *i* ]]; then
       add-zsh-hook precmd _zsh_defer_precmd
     fi
   }
+
+  # ---------------------------------------------------------------------------
+  # _zsh_cache_auto_check
+  # ---------------------------------------------------------------------------
+  # One-time cache reset when config files changed since last stamp.
+  # Disable with: ZSH_CACHE_AUTO=0
+  _zsh_cache_auto_check() {
+    add-zsh-hook -d precmd _zsh_cache_auto_check
+    [[ "${ZSH_CACHE_AUTO:-1}" == "1" ]] || return 0
+    [[ "${ZSH_FAST_START:-}" == "1" ]] && return 0
+
+    emulate -L zsh
+    setopt noxtrace noverbose
+
+    # Determine config root directory.
+    local cfg_root="${ZSH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zsh}"
+    [[ -d "$cfg_root" ]] || return 0
+
+    local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
+    local stamp_file="$cache_dir/config.mtime"
+    local zdot="${ZDOTDIR:-$HOME}"
+
+    # Collect config files.
+    local -a files
+    files=("${(@f)$(command find "$cfg_root" -type f \( -name '*.zsh' -o -name '*.sh' \) 2>/dev/null)}")
+    [[ -f "$HOME/.zshrc" ]] && files+=("$HOME/.zshrc")
+    [[ -f "$HOME/.zshenv" ]] && files+=("$HOME/.zshenv")
+    (( ${#files[@]} )) || return 0
+
+    # Find the most recent mtime among config files using stat.
+    local latest=0 mtime
+    local f
+    for f in "${files[@]}"; do
+      [[ -e "$f" ]] || continue
+      if [[ "$OSTYPE" == darwin* ]]; then
+        mtime="$(command stat -f %m "$f" 2>/dev/null)"
+      else
+        mtime="$(command stat -c %Y "$f" 2>/dev/null)"
+      fi
+      [[ "$mtime" =~ ^[0-9]+$ ]] && (( mtime > latest )) && latest=$mtime
+    done
+
+    # Get stamp file mtime.
+    local last=0
+    if [[ -f "$stamp_file" ]]; then
+      if [[ "$OSTYPE" == darwin* ]]; then
+        last="$(command stat -f %m "$stamp_file" 2>/dev/null)"
+      else
+        last="$(command stat -c %Y "$stamp_file" 2>/dev/null)"
+      fi
+      [[ "$last" =~ ^[0-9]+$ ]] || last=0
+    fi
+
+    # Rebuild cache if config is newer.
+    if (( latest > last )); then
+      if typeset -f zshcache >/dev/null 2>&1; then
+        zshcache --rebuild --quiet
+      else
+        command rm -rf -- "$cache_dir"/* "$zdot"/.zcompdump* 2>/dev/null
+        autoload -Uz compinit
+        compinit -C
+      fi
+      command mkdir -p "$cache_dir" 2>/dev/null
+      : >| "$stamp_file"
+    fi
+  }
+
+  add-zsh-hook precmd _zsh_cache_auto_check
 fi
 
 # Unset options to restore default behavior.

@@ -175,18 +175,19 @@ alias biggest="du -hs * | sort -hr | head -10"
 alias ping="ping -c 5"
 alias reload="source ~/.zshrc"
 alias edit="$EDITOR ~/.zshrc"
+alias zshfix="zshcache --rebuild"
 alias fastfetch='~/.config/fastfetch/scripts/fastfetch-dynamic.sh'
 
-# -----------------------------------------------------------------------------#
+# -----------------------------------------------------------------------------
 # zsh_profile
-# -----------------------------------------------------------------------------#
+# -----------------------------------------------------------------------------
 # Profile shell startup time and optionally show zprof output.
 #
 # Usage:
 #   zsh_profile            # timing only
 #   zsh_profile zprof      # zprof table
 #   zsh_profile both       # timing + zprof
-# -----------------------------------------------------------------------------#
+# -----------------------------------------------------------------------------
 zsh_profile() {
   local mode="${1:-time}"
   local zdot="${ZSH_CONFIG_DIR:-${ZDOTDIR:-$HOME/.config/zsh}}"
