@@ -75,6 +75,10 @@ else
     fi
 fi
 
+# Debug: Uncomment to troubleshoot configuration directory detection.
+# echo "ZSH_CONFIG_DIR=$ZSH_CONFIG_DIR"
+# echo "HYDE_ENABLED=${HYDE_ENABLED:-not set}"
+
 # -----------------------------------------------------------------------------#
 # Fast start toggle: skip heavy modules for a minimal, quick shell.
 # Enable with: ZSH_FAST_START=1
@@ -176,9 +180,22 @@ else
     fi
 
     # Load custom functions.
-    for file in "$ZSH_CONFIG_DIR"/functions/*.zsh(N); do
-        [[ -r "$file" ]] && source "$file"
-    done
+    typeset -a function_files
+    function_files=("$ZSH_CONFIG_DIR"/functions/*.zsh(N))
+
+    if (( ${#function_files} == 0 )); then
+        echo "Warning: No function files found in $ZSH_CONFIG_DIR/functions/"
+        echo "    ZSH_CONFIG_DIR=$ZSH_CONFIG_DIR"
+        echo "    Please check if the functions directory exists and contains .zsh files."
+    else
+        for file in "${function_files[@]}"; do
+            if [[ -r "$file" ]]; then
+                source "$file"
+            else
+                echo "Warning: Cannot read function file: $file"
+            fi
+        done
+    fi
 fi
 
 # +++++++++++++++++++++++++++++ EXTERNAL SCRIPTS +++++++++++++++++++++++++++++ #
