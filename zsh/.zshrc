@@ -29,7 +29,7 @@
 #   40-vi-mode.zsh      - Vi mode and keybindings.
 #   50-tools.zsh        - Modern tools (fzf, zoxide, yazi, atuin).
 #   60-aliases.zsh      - All aliases and utility functions.
-#   70-fabric.zsh       - Fabric AI integration.
+#   70-ai-tools.zsh     - AI tools (Fabric, OpenCode, etc.).
 #   75-variables.zsh    - Global variables and exports.
 #   80-languages.zsh    - Language managers (SDKMAN, pyenv, fnm, etc.).
 #   85-completions.zsh  - Completion systems.
@@ -253,9 +253,9 @@ fi
 #   navigation, development tools, compilation shortcuts, git, productivity,
 #   and platform-specific utilities.
 #
-# 70-fabric.zsh:
-#   Fabric AI integration with Obsidian note-taking workflow. Provides pattern
-#   aliases, YouTube transcript extraction, and automatic markdown file creation.
+# 70-ai-tools.zsh:
+#   Configuration for AI-powered tools and coding agents. Includes Fabric
+#   (LLM patterns with Obsidian integration) and OpenCode (MCP-based assistant).
 #
 # 75-variables.zsh:
 #   Environment variables and configuration for development tools, build systems,

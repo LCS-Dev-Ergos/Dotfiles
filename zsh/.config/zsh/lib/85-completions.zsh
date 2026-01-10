@@ -8,6 +8,7 @@
 # Completions enhance command-line productivity with tab-completion support.
 #
 # Tools:
+#   - Bun (JavaScript runtime)
 #   - Docker (custom completion directory)
 #   - ngrok
 #   - Angular CLI
@@ -97,6 +98,11 @@ _late_completions() {
   unfunction _late_completions 2>/dev/null
 }
 
+# --------- Bun completions ---------- #
+if [[ -s "$HOME/.bun/_bun" ]]; then
+  source "$HOME/.bun/_bun"
+fi
+
 if [[ "${ZSH_FAST_START:-}" == "1" ]]; then
   : # skip during fast start.
 elif [[ "${ZSH_DEFER_COMPLETIONS:-1}" == "1" ]]; then
@@ -105,7 +111,7 @@ else
   _late_completions
 fi
 
-# ----------- Docker CLI  ----------- #
+# ----------- Docker CLI  ------------ #
 # Add custom completions directories (unless HyDE already did it).
 if [[ "${HYDE_SKIP_FPATH_COMPLETIONS:-0}" != "1" ]]; then
   local _completions_dir="${ZDOTDIR:-$HOME/.config/zsh}/completions"

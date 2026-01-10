@@ -108,6 +108,9 @@ if [[ "$PLATFORM" == 'macOS' ]]; then
   # Ruby Gems.
   export GEM_HOME="$HOME/.gem"
 
+  # Bun JavaScript runtime.
+  export BUN_INSTALL="$HOME/.bun"
+
   # LCS.Data Volume.
   if [[ ! -d "$LCS_Data" ]]; then
     if [[ -t 1 ]] && [[ -z "${ZSH_SILENCE_LCS_DATA_WARN:-}" ]] && [[ -z "${LCS_DATA_WARNED:-}" ]]; then
@@ -124,6 +127,9 @@ if [[ "$PLATFORM" == 'Linux' && "$ARCH_LINUX" == true ]]; then
 
   # Docker Context for "Docker Desktop".
   export DOCKER_CONTEXT='default'
+
+  # Bun JavaScript runtime.
+  export BUN_INSTALL="$HOME/.bun"
 
   # GO Language.
   # Note: PATH is handled by 90-path.zsh via $GOPATH/bin.

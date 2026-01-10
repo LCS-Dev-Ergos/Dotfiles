@@ -88,6 +88,7 @@ build_final_path() {
 
       # ------ User and App-Specific Paths ------ #
       "$HOME/.ada/bin"
+      "$HOME/.bun/bin"
       "$HOME/.flutter/bin"
       "$HOME/.local/bin"
       "$HOME/.perl5/bin"
@@ -145,6 +146,7 @@ build_final_path() {
       # ------ User and App-Specific Paths ------ #
       "$GEM_HOME/bin" "$ruby_user_bin"
       "$HOME/.ada/bin"
+      "$HOME/.bun/bin"
       "$HOME/.flutter/bin"
       "$HOME/.local/bin"
       "$HOME/.npm/bin"

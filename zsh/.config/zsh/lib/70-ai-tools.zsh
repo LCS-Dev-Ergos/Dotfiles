@@ -1,20 +1,25 @@
 #!/usr/bin/env zsh
 # shellcheck shell=zsh
 # ============================================================================ #
-# +++++++++++++++++++++++++++ FABRIC CONFIGURATION +++++++++++++++++++++++++++ #
+# +++++++++++++++++++++++++++++ AI TOOLS CONFIG ++++++++++++++++++++++++++++++ #
 # ============================================================================ #
 #
-# Fabric AI integration with Obsidian note-taking workflow.
-# Fabric is a powerful tool for efficient LLM interaction via predefined patterns.
+# Configuration for AI-powered tools, coding agents, and assistants.
 #
-# Features:
+# Tools:
+#   - Fabric: LLM interaction via predefined patterns with Obsidian integration.
+#   - OpenCode: AI coding assistant with MCP support.
+#
+# Features (Fabric):
 #   - Pattern aliases for direct command execution.
 #   - YouTube transcript extraction (yt function).
 #   - Obsidian integration with automatic markdown file creation.
 #   - Frontmatter metadata for Obsidian compatibility.
 #   - Dual-mode operation (stream vs. save).
 #
-# Documentation: https://github.com/danielmiessler/fabric
+# Documentation:
+#   - Fabric: https://github.com/danielmiessler/fabric
+#   - OpenCode: https://github.com/opencode-ai/opencode
 #
 # ============================================================================ #
 
@@ -184,5 +189,19 @@ fabric-list() {
   echo "${C_CYAN}Available Fabric patterns:${C_RESET}"
   fabric --list
 }
+
+# ============================================================================ #
+# +++++++++++++++++++++++++++++++++ OPENCODE +++++++++++++++++++++++++++++++++ #
+# ============================================================================ #
+
+# -----------------------------------------------------------------------------
+# OpenCode MCP Environment
+# -----------------------------------------------------------------------------
+# Load environment variables for OpenCode (API keys, model configs, etc.).
+# The .env file is sourced if it exists and is readable.
+# -----------------------------------------------------------------------------
+if [[ -r "$HOME/.config/opencode/.env" ]]; then
+    source "$HOME/.config/opencode/.env"
+fi
 
 # ============================================================================ #
