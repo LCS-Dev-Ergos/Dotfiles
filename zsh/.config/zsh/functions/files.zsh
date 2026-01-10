@@ -165,7 +165,7 @@ function count() {
     case "$1" in
       -r | --recursive) recursive=1; max_depth=5; shift ;;
       -a | --all) show_all=1; shift ;;
-      -h | "--help")
+      -h | --help)
         echo "${C_CYAN}Usage: count [directory] [options]${C_RESET}"
         echo ""
         echo "Options:"

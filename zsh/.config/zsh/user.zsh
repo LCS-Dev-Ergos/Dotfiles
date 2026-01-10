@@ -38,19 +38,25 @@ fi
 
 # ================================= STARTUP ================================== #
 
-# Display startup art/info (only in interactive shells).
+# Toggle startup art/info on macOS (set to 1 to enable on macOS).
+MACOS_SHOW_STARTUP_ART=0
+
+# Display startup art/info (only in interactive shells and on Linux, or macOS if enabled).
 if [[ $- == *i* ]]; then
-    if command -v pokego >/dev/null; then
-        pokego --no-title -r 1,3,6
-    elif command -v pokemon-colorscripts >/dev/null; then
-        pokemon-colorscripts --no-title -r 1,3,6
-    elif command -v fastfetch >/dev/null; then
-        # do_render is defined in shell.zsh, check if available.
-        if typeset -f do_render >/dev/null 2>&1 && do_render "image"; then
-            fastfetch --logo-type kitty
-        elif [[ -z "${do_render+x}" ]]; then
-            # do_render not yet available, use simple check.
-            fastfetch 2>/dev/null || true
+    # Show on Linux always, or on macOS only if explicitly enabled.
+    if [[ "$PLATFORM" != "macOS" ]] || [[ "$MACOS_SHOW_STARTUP_ART" == "1" ]]; then
+        if command -v pokego >/dev/null; then
+            pokego --no-title -r 1,3,6
+        elif command -v pokemon-colorscripts >/dev/null; then
+            pokemon-colorscripts --no-title -r 1,3,6
+        elif command -v fastfetch >/dev/null; then
+            # do_render is defined in shell.zsh, check if available.
+            if typeset -f do_render >/dev/null 2>&1 && do_render "image"; then
+                fastfetch --logo-type kitty
+            elif [[ -z "${do_render+x}" ]]; then
+                # do_render not yet available, use simple check.
+                fastfetch 2>/dev/null || true
+            fi
         fi
     fi
 fi
