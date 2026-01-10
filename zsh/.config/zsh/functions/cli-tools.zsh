@@ -58,21 +58,10 @@ if command -v bat &>/dev/null; then
 
     local cmd="$1"
     shift
-    local cmd_type
-    cmd_type=$(type -w "$cmd" 2>/dev/null | awk '{print $2}')
 
-    # Check if it's a shell function or builtin - use native help without bat.
-    if [[ "$cmd_type" == "function" || "$cmd_type" == "builtin" || "$cmd_type" == "alias" ]]; then
-      # For functions, call directly with literal --help string.
-      if [[ "$cmd_type" == "function" ]]; then
-        "$cmd" "${@}" --help
-      else
-        builtin "$cmd" --help "${@}" 2>&1
-      fi
-    else
-      # External command - pipe through bat for colorization.
-      command "$cmd" --help "${@}" 2>&1 | bat --language=help --style=plain --paging=never --color=always
-    fi
+    # Execute the command (function, builtin, alias, or external) with --help.
+    # Pipe uniformly to bat for formatting.
+    "$cmd" --help "${@}" 2>&1 | bat --language=man --style=plain --paging=never --color=always
   }
 
   # Bat with line numbers.

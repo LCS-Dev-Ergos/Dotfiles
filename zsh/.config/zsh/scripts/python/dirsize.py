@@ -334,25 +334,23 @@ def main():
     parser = argparse.ArgumentParser(
         description="Directory Size Analyzer",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  %(prog)s                      # Analyze current directory
-  %(prog)s /var/log -a          # Include files, analyze /var/log
-  %(prog)s -n 50 --no-parallel  # 50 items per page, sequential processing
-        """
+        epilog="Examples:\n"
+               "  %(prog)s                      # Analyze current directory\n"
+               "  %(prog)s /var/log -a          # Include files, analyze /var/log\n"
+               "  %(prog)s -n 50 --no-parallel  # 50 items per page, sequential processing"
     )
     parser.add_argument("directory", nargs="?", default=".",
-                        help="Target directory (default: current)")
-    parser.add_argument("-n", "--limit", type=int, default=25,
-                        help="Results per page (default: 25)")
+                        help="Target directory to analyze (default: current)")
+    parser.add_argument("-n", "--limit", type=int, default=25, metavar="N",
+                        help="Number of results per page (default: 25)")
     parser.add_argument("-a", "--all", action="store_true",
-                        help="Include files (not just directories)")
+                        help="Include files in analysis (not just directories)")
     parser.add_argument("--no-parallel", action="store_true",
                         help="Disable parallel batch processing")
-    parser.add_argument("-w", "--workers", type=int, default=MAX_WORKERS,
+    parser.add_argument("-w", "--workers", type=int, default=MAX_WORKERS, metavar="N",
                         help=f"Max parallel workers (default: {MAX_WORKERS})")
     parser.add_argument("-v", "--verbose", action="store_true",
-                        help="Show warnings and errors")
+                        help="Show detailed warnings and errors")
     args = parser.parse_args()
 
     # Setup signal handlers
