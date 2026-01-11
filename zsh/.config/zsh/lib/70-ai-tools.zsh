@@ -205,3 +205,21 @@ if [[ -r "$HOME/.config/opencode/.env" ]]; then
 fi
 
 # ============================================================================ #
+# ++++++++++++++++++++++++++++ CLAUDE MCP SERVERS ++++++++++++++++++++++++++++ #
+# ============================================================================ #
+
+# -----------------------------------------------------------------------------
+# Claude MCP Environment
+# -----------------------------------------------------------------------------
+# Load environment variables for Claude MCP servers (API keys, configs, etc.).
+# The .env file is sourced if it exists and is readable.
+#
+# MCP Servers configured:
+#   - Context7: Up-to-date code documentation for LLMs
+#   - Everything: Demo server for testing MCP protocol features
+# -----------------------------------------------------------------------------
+if [[ -r "$HOME/.claude/.env" ]]; then
+    source "$HOME/.claude/.env"
+fi
+
+# ============================================================================ #
