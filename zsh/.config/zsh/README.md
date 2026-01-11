@@ -10,24 +10,24 @@ This directory contains the modular Zsh configuration, refactored from a monolit
 
 ```path-tree
 ~/.config/zsh/
-├── lib/                   # Core configuration modules
-│   ├── 00-init.zsh        # Base configuration & platform detection
-│   ├── 10-history.zsh     # History settings
-│   ├── 20-omz.zsh         # Oh-My-Zsh initialization
-│   ├── 30-prompt.zsh      # Prompt system (Starship/P10k/Minimal)
-│   ├── 40-vi-mode.zsh     # Vi mode & keybindings
-│   ├── 50-tools.zsh       # Modern tools (fzf, zoxide, yazi, atuin)
-│   ├── 60-aliases.zsh     # Aliases & utility functions
-│   ├── 70-fabric.zsh      # Fabric AI integration
-│   ├── 75-variables.zsh   # Global variables & exports
-│   ├── 80-languages.zsh   # Language managers (SDKMAN, pyenv, fnm)
-│   ├── 85-completions.zsh # Completion systems
-│   ├── 90-path.zsh        # Final PATH assembly
-│   ├── 95-lazy-scripts.zsh # Lazy loader for scripts/
+├── lib/                      # Core configuration modules
+│   ├── 00-init.zsh           # Base configuration & platform detection
+│   ├── 10-history.zsh        # History settings
+│   ├── 20-omz.zsh            # Oh-My-Zsh initialization
+│   ├── 30-prompt.zsh         # Prompt system (Starship/P10k/Minimal)
+│   ├── 40-vi-mode.zsh        # Vi mode & keybindings
+│   ├── 50-tools.zsh          # Modern tools (fzf, zoxide, yazi, atuin)
+│   ├── 60-aliases.zsh        # Aliases & utility functions
+│   ├── 70-ai-tools.zsh       # AI tools settings
+│   ├── 75-variables.zsh      # Global variables & exports
+│   ├── 80-languages.zsh      # Language managers (SDKMAN, pyenv, fnm)
+│   ├── 85-completions.zsh    # Completion systems
+│   ├── 90-path.zsh           # Final PATH assembly
+│   ├── 95-lazy-scripts.zsh   # Lazy loader for scripts/
 │   └── 96-lazy-cpp-tools.zsh # Lazy loader for cpp-tools/competitive.sh
 │
-├── scripts/               # Custom user scripts (optional)
-└── README.md              # This file
+├── scripts/                  # Custom user scripts (optional)
+└── README.md                 # This file
 ```
 
 ---
@@ -43,7 +43,7 @@ The numeric order of modules is **critical** for proper functionality:
 5. **40-vi-mode.zsh** - Vi mode
 6. **50-tools.zsh** - Modern tools with lazy-loading
 7. **60-aliases.zsh** - Aliases and functions
-8. **70-fabric.zsh** - Fabric AI
+8. **70-ai-tools.zsh** - AI tools settings
 9. **75-variables.zsh** - Global variables
 10. **80-languages.zsh** - Language managers
 11. **85-completions.zsh** - Completions
@@ -126,6 +126,7 @@ Language managers (SDKMAN, pyenv, conda, rbenv, fnm) are now initialized on
 first use; the first invocation of related commands may be slower.
 
 Performance toggles:
+
 - `ZSH_DISABLE_COMPFIX=true` skips compaudit (faster startup, less safety checks).
 - `ZSH_COMPINIT_CHECK_HOURS=24` controls how often a full `compinit` runs.
 - `ZSH_DEFER_FZF_GIT=1` defers `fzf-git.sh` loading until ZLE is idle.
@@ -184,7 +185,7 @@ mv ~/.zshrc.backup-TIMESTAMP ~/.zshrc
 source ~/.zshrc
 ```
 
-2. Test single module:
+1. Test single module:
 
 ```bash
 zsh -c 'source ~/.config/zsh/lib/00-init.zsh && echo OK'

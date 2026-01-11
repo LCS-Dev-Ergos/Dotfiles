@@ -177,3 +177,4 @@ _lazy_scripts_loader
 unfunction _lazy_scripts_loader 2>/dev/null
 
 # ============================================================================ #
+# # End of 95-lazy-scripts.zsh
