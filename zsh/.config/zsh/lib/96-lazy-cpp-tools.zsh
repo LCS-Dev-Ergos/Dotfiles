@@ -33,7 +33,7 @@ _lazy_cpp_loader() {
   # Cache file paths.
   local _lazy_cpp_cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
   local _lazy_cpp_cache_file="$_lazy_cpp_cache_dir/lazy-cpp-tools.zsh"
-  local _lazy_cpp_cache_version=3
+  local _lazy_cpp_cache_version=4
   local _lazy_cpp_cache_header="# lazy-cpp-tools-version: ${_lazy_cpp_cache_version}"
 
   # Builds the lazy cpp-tools cache file.
@@ -47,26 +47,38 @@ _lazy_cpp_loader() {
     trap "rm -f ${(q)tmp_file} 2>/dev/null" EXIT INT TERM
 
     local -a names
+    local -a source_files
+    local script_dir
+    script_dir="${script:h}"
+    source_files=("$script")
+    if [[ -d "$script_dir/modules" ]]; then
+      source_files+=("$script_dir/modules/"*.zsh(N))
+    fi
+
     # Parse function and alias names (supports names with dashes).
-    names=("${(@f)$(awk '
-      /^[[:space:]]*#/ { next }
-      /^[[:space:]]*alias[[:space:]]+[A-Za-z_][A-Za-z0-9_-]*=/ {
-        line=$0
-        sub(/^[[:space:]]*alias[[:space:]]+/, "", line)
-        name=line
-        sub(/=.*/, "", name)
-        print name
-        next
-      }
-      /^[[:space:]]*(function[[:space:]]+)?[A-Za-z_][A-Za-z0-9_-]*[[:space:]]*\(\)[[:space:]]*\{/ {
-        line=$0
-        sub(/^[[:space:]]*/, "", line)
-        if (line ~ /^function[[:space:]]+/) sub(/^function[[:space:]]+/, "", line)
-        name=line
-        sub(/[[:space:]]*\(\).*/, "", name)
-        print name
-      }
-    ' "$script")}")
+    local file
+    for file in "${source_files[@]}"; do
+      [[ -r "$file" ]] || continue
+      names+=("${(@f)$(awk '
+        /^[[:space:]]*#/ { next }
+        /^[[:space:]]*alias[[:space:]]+[A-Za-z_][A-Za-z0-9_-]*=/ {
+          line=$0
+          sub(/^[[:space:]]*alias[[:space:]]+/, "", line)
+          name=line
+          sub(/=.*/, "", name)
+          print name
+          next
+        }
+        /^[[:space:]]*(function[[:space:]]+)?[A-Za-z_][A-Za-z0-9_-]*[[:space:]]*\(\)[[:space:]]*\{/ {
+          line=$0
+          sub(/^[[:space:]]*/, "", line)
+          if (line ~ /^function[[:space:]]+/) sub(/^function[[:space:]]+/, "", line)
+          name=line
+          sub(/[[:space:]]*\(\).*/, "", name)
+          print name
+        }
+      ' "$file")}")
+    done
 
     local name
     for name in "${names[@]}"; do
