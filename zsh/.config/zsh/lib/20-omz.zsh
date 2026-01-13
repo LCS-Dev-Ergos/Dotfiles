@@ -49,7 +49,8 @@ ZSH_CUSTOM=${ZSH_CUSTOM:-$HOME/.config/zsh}
 ZSH_THEME=""
 
 # Skip compfix (compaudit) for faster startup. Set to false to re-enable.
-: ${ZSH_DISABLE_COMPFIX:=true}
+: "${ZSH_DISABLE_COMPFIX:=true}"
+: "${ZSH_ENABLE_YOU_SHOULD_USE:=0}"
 
 # -----------------------------------------------------------------------------
 # _ensure_plugin_installed
@@ -98,7 +99,9 @@ if [[ "$ZSH_AUTO_INSTALL_PLUGINS" == "1" && "$PLATFORM" == "macOS" ]]; then
   _ensure_plugin_installed "zsh-history-substring-search" "https://github.com/zsh-users/zsh-history-substring-search"
   _ensure_plugin_installed "zsh-syntax-highlighting" "https://github.com/zsh-users/zsh-syntax-highlighting"
   _ensure_plugin_installed "zsh-autopair" "https://github.com/hlissner/zsh-autopair"
-  _ensure_plugin_installed "you-should-use" "https://github.com/MichaelAquilina/zsh-you-should-use"
+  if [[ "$ZSH_ENABLE_YOU_SHOULD_USE" == "1" ]]; then
+    _ensure_plugin_installed "you-should-use" "https://github.com/MichaelAquilina/zsh-you-should-use"
+  fi
   _ensure_plugin_installed "zsh-bat" "https://github.com/fdellwing/zsh-bat"
 fi
 
@@ -116,7 +119,7 @@ if [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" == true ]]; then
   fi
 
   # Arch package ships "you-should-use" outside Oh-My-Zsh paths; source it manually.
-  if [[ -f /usr/share/zsh/plugins/zsh-you-should-use/you-should-use.plugin.zsh ]]; then
+  if [[ "$ZSH_ENABLE_YOU_SHOULD_USE" == "1" && -f /usr/share/zsh/plugins/zsh-you-should-use/you-should-use.plugin.zsh ]]; then
     source /usr/share/zsh/plugins/zsh-you-should-use/you-should-use.plugin.zsh
   fi
 fi
@@ -142,11 +145,13 @@ if [[ "$PLATFORM" == "macOS" ]]; then
   plugins+=(
     zsh-bat
     zsh-autopair
-    you-should-use
     zsh-autosuggestions
     zsh-history-substring-search
-    zsh-syntax-highlighting
   )
+  if [[ "$ZSH_ENABLE_YOU_SHOULD_USE" == "1" ]]; then
+    plugins+=(you-should-use)
+  fi
+  plugins+=(zsh-syntax-highlighting)
 elif [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" == true ]]; then
   # Arch Linux specific plugins.
   plugins+=(

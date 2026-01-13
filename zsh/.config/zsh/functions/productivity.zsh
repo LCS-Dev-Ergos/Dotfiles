@@ -194,25 +194,32 @@ function cleanup() {
 # Removes compdump files, cached completions, and lazy cache stubs.
 #
 # Usage:
-#   zshcache [--dry-run] [--rebuild] [--quiet]
+#   zshcache [--dry-run] [--rebuild] [--compile] [--quiet]
 #
 # Arguments:
 #   --dry-run - Show what would be removed without deleting.
 #   --rebuild - Run compinit after cleanup to rebuild caches.
+#   --compile - Compile Zsh files to .zwc bytecode.
 #   --quiet   - Suppress informational output.
 # -----------------------------------------------------------------------------
 function zshcache() {
   local dry_run=false
   local rebuild=false
+  local compile=false
   local quiet=false
 
   for arg in "$@"; do
     case "$arg" in
       --dry-run) dry_run=true ;;
       --rebuild) rebuild=true ;;
+      --compile) compile=true ;;
       --quiet) quiet=true ;;
     esac
   done
+
+  if [[ "$rebuild" == true && "${ZSH_CACHE_COMPILE:-1}" == "1" ]]; then
+    compile=true
+  fi
 
   setopt localoptions nullglob
 
@@ -241,11 +248,57 @@ function zshcache() {
     [[ "$quiet" == true ]] || echo "${C_GREEN}Zsh cache cleanup completed.${C_RESET}"
   fi
 
+  _zshcache_compile() {
+    emulate -L zsh
+    setopt noxtrace noverbose nullglob
+
+    local cfg_root="${ZSH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zsh}"
+    local zdot="${ZDOTDIR:-$HOME}"
+    local -a compile_files
+
+    compile_files=(
+      "$cfg_root"/*.zsh(N.)
+      "$cfg_root"/lib/**/*.zsh(N.)
+      "$cfg_root"/functions/**/*.zsh(N.)
+      "$cfg_root"/conf.d/**/*.zsh(N.)
+      "$cfg_root"/others/**/*.zsh(N.)
+      "$zdot"/.zshrc(N)
+      "$zdot"/.zshenv(N)
+      "$zdot"/.zprofile(N)
+    )
+    typeset -U compile_files
+
+    (( ${#compile_files[@]} )) || return 0
+
+    local file
+    local failed=0
+    for file in "${compile_files[@]}"; do
+      if ! zcompile "$file" 2>/dev/null; then
+        failed=1
+        [[ "$quiet" == true ]] || echo "${C_YELLOW}Warning: zcompile failed for $file${C_RESET}"
+      fi
+    done
+
+    if (( failed == 0 )); then
+      [[ "$quiet" == true ]] || echo "${C_GREEN}Zsh bytecode compiled.${C_RESET}"
+    fi
+  }
+
   if [[ "$rebuild" == true ]]; then
     autoload -Uz compinit
     compinit -C
     [[ "$quiet" == true ]] || echo "${C_GREEN}compinit rebuilt.${C_RESET}"
   fi
+
+  if [[ "$compile" == true ]]; then
+    if [[ "$dry_run" == true ]]; then
+      [[ "$quiet" == true ]] || echo "${C_YELLOW}DRY RUN - zcompile skipped.${C_RESET}"
+    else
+      _zshcache_compile
+    fi
+  fi
+
+  unfunction _zshcache_compile 2>/dev/null
 }
 
 # -----------------------------------------------------------------------------

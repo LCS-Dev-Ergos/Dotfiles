@@ -44,7 +44,9 @@ zsh_rebuild_path() {
   local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
   local cache_file="$cache_dir/path.cache"
   local cache_version="1"
-  local cache_signature="${cache_version}|${original_path}|${PLATFORM}|${PYENV_ROOT}|${SDKMAN_DIR}|${FNM_MULTISHELL_PATH}|${GEM_HOME}|${GOPATH}|${GOROOT}|${ANDROID_HOME}"
+  local cache_signature="${cache_version}|${original_path}|${PLATFORM}"
+  cache_signature+="|${PYENV_ROOT}|${SDKMAN_DIR}|${FNM_MULTISHELL_PATH}"
+  cache_signature+="|${GEM_HOME}|${GOPATH}|${GOROOT}|${ANDROID_HOME}"
 
   local cache_ok=false
   if [[ -r "$cache_file" && -O "$cache_file" ]]; then

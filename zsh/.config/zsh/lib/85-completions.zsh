@@ -140,12 +140,19 @@ fi
 autoload -Uz compinit
 # Avoid double compinit (OMZ already ran it).
 if (( ! ${+_comps} )); then
+  typeset -a compinit_opts
+  compinit_opts=(-d "$ZSH_COMPDUMP")
+  if [[ "$ZSH_DISABLE_COMPFIX" == true ]]; then
+    compinit_opts=(-u $compinit_opts)
+  fi
+
   # Use -C only if the dump file exists, otherwise do a full init.
   if [[ -f "$ZSH_COMPDUMP" ]]; then
-    compinit -C -d "$ZSH_COMPDUMP"
+    compinit -C "${compinit_opts[@]}"
   else
-    compinit -d "$ZSH_COMPDUMP"
+    compinit "${compinit_opts[@]}"
   fi
+  unset compinit_opts
 fi
 
 # ============================================================================ #
