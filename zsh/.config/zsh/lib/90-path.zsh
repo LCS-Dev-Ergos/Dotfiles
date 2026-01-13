@@ -31,15 +31,39 @@
 # ============================================================================ #
 
 # -----------------------------------------------------------------------------
-# build_final_path
+# zsh_rebuild_path
 # -----------------------------------------------------------------------------
 # Rebuild PATH in deterministic order with version manager shims at top.
 # Ensures consistent PATH priority across shell sessions and removes duplicates.
 # -----------------------------------------------------------------------------
-build_final_path() {
+zsh_rebuild_path() {
   # Store original PATH for debugging and fallback (exported for inspection).
   export PATH_BEFORE_BUILD="$PATH"
   local original_path="$PATH"
+
+  local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
+  local cache_file="$cache_dir/path.cache"
+  local cache_version="1"
+  local cache_signature="${cache_version}|${original_path}|${PLATFORM}|${PYENV_ROOT}|${SDKMAN_DIR}|${FNM_MULTISHELL_PATH}|${GEM_HOME}|${GOPATH}|${GOROOT}|${ANDROID_HOME}"
+
+  local cache_ok=false
+  if [[ -r "$cache_file" && -O "$cache_file" ]]; then
+    cache_ok=true
+  fi
+
+  if $cache_ok; then
+    local cached_signature cached_path
+    {
+      IFS= read -r cached_signature
+      IFS= read -r cached_path
+    } < "$cache_file"
+
+    if [[ "$cached_signature" == "$cache_signature" && -n "$cached_path" ]]; then
+      export PATH="$cached_path"
+      typeset -gU PATH fpath manpath
+      return 0
+    fi
+  fi
 
   # Version-specific Ruby gems bin (only when Ruby and GEM_HOME are available).
   local ruby_user_bin=""
@@ -230,11 +254,16 @@ build_final_path() {
   # Deduplicate other important path arrays. PATH is already deduplicated
   # by the logic above, but -gU ensures it stays unique globally.
   typeset -gU PATH fpath manpath
+
+  command mkdir -p "$cache_dir" 2>/dev/null
+  {
+    print -r -- "$cache_signature"
+    print -r -- "$PATH"
+  } >| "$cache_file" 2>/dev/null
 }
 
 # Run the PATH rebuilding function.
-build_final_path
-unset -f build_final_path
+zsh_rebuild_path
 
 # ============================================================================ #
 # # End of 90-path.zsh

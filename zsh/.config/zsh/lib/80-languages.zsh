@@ -329,7 +329,10 @@ fi
 
 # ----- FNM (Fast Node Manager) ----- #
 if command -v fnm &>/dev/null; then
-  _fnm_init() {
+  _fnm_lazy_init() {
+    [[ -n "${_FNM_LAZY_INIT:-}" ]] && return 0
+    _FNM_LAZY_INIT=1
+
     emulate -L zsh
     setopt noxtrace noverbose
 
@@ -347,14 +350,15 @@ if command -v fnm &>/dev/null; then
       fi
     fi
 
-    # Initialize fnm environment immediately (fast, ~10ms).
+    # Initialize fnm environment on demand.
     # This sets FNM_MULTISHELL_PATH and adds fnm to PATH.
     eval "$(command fnm env --use-on-cd --shell zsh 2>/dev/null)" || \
       echo "${C_YELLOW}Warning: fnm env failed.${C_RESET}"
-  }
 
-  _fnm_init
-  unfunction _fnm_init 2>/dev/null
+    if typeset -f zsh_rebuild_path >/dev/null 2>&1; then
+      zsh_rebuild_path
+    fi
+  }
 
   # ---------------------------------------------------------------------------
   # _fnm_setup_heartbeat (lazy)
@@ -385,27 +389,46 @@ if command -v fnm &>/dev/null; then
     add-zsh-hook precmd _fnm_update_timestamp
   }
 
-  # Wrap node commands to ensure heartbeat is setup on first use.
-  node() {
+  _fnm_ensure_ready() {
+    _fnm_lazy_init
     _fnm_setup_heartbeat
+  }
+
+  if [[ "${ZSH_FAST_START:-}" == "1" ]]; then
+    : # skip during fast start.
+  elif typeset -f _zsh_defer >/dev/null 2>&1; then
+    _zsh_defer _fnm_lazy_init
+  else
+    add-zsh-hook precmd _fnm_lazy_init
+  fi
+
+  fnm() {
+    _fnm_ensure_ready
+    unfunction fnm 2>/dev/null
+    command fnm "$@"
+  }
+
+  # Wrap node commands to ensure fnm is ready and heartbeat is setup on first use.
+  node() {
+    _fnm_ensure_ready
     unfunction node 2>/dev/null
     command node "$@"
   }
 
   npm() {
-    _fnm_setup_heartbeat
+    _fnm_ensure_ready
     unfunction npm 2>/dev/null
     command npm "$@"
   }
 
   npx() {
-    _fnm_setup_heartbeat
+    _fnm_ensure_ready
     unfunction npx 2>/dev/null
     command npx "$@"
   }
 
   corepack() {
-    _fnm_setup_heartbeat
+    _fnm_ensure_ready
     unfunction corepack 2>/dev/null
     command corepack "$@"
   }

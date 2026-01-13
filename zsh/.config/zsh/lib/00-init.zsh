@@ -47,13 +47,29 @@ fi
 # Must be in .zshrc because it is run for each new interactive shell.
 if [[ "$TERM_PROGRAM" == "vscode" ]]; then
   # shellcheck source=/dev/null
-  if command -v code >/dev/null 2>&1; then
-    # Only attempt to source if the command succeeds.
-    typeset shell_integration="$(code --locate-shell-integration-path zsh 2>/dev/null)"
+  () {
+    local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
+    local cache_file="$cache_dir/vscode-shell-integration"
+    local shell_integration=""
+
+    if [[ -r "$cache_file" ]]; then
+      IFS= read -r shell_integration < "$cache_file"
+    fi
+
+    if [[ -z "$shell_integration" || ! -f "$shell_integration" ]]; then
+      if command -v code >/dev/null 2>&1; then
+        shell_integration="$(code --locate-shell-integration-path zsh 2>/dev/null)"
+        if [[ -n "$shell_integration" && -f "$shell_integration" ]]; then
+          command mkdir -p "$cache_dir" 2>/dev/null
+          print -r -- "$shell_integration" >| "$cache_file"
+        fi
+      fi
+    fi
+
     if [[ -n "$shell_integration" && -f "$shell_integration" ]]; then
       . "$shell_integration"
     fi
-  fi
+  }
 fi
 
 # ============================================================================ #
@@ -63,14 +79,25 @@ fi
 # ---- ANSI Color Definitions ---- #
 # Check if the current shell is interactive and supports colors.
 # If so, define color variables. Otherwise, they will be empty strings.
-if [[ -t 1 ]] && command -v tput >/dev/null && [[ $(tput colors) -ge 8 ]]; then
-  C_RESET="\e[0m"
-  C_BOLD="\e[1m"
-  C_RED="\e[31m"
-  C_GREEN="\e[32m"
-  C_YELLOW="\e[33m"
-  C_BLUE="\e[34m"
-  C_CYAN="\e[36m"
+if [[ -t 1 ]]; then
+  zmodload -i zsh/terminfo 2>/dev/null
+  if [[ -n "${terminfo[colors]-}" ]] && (( terminfo[colors] >= 8 )); then
+    C_RESET="\e[0m"
+    C_BOLD="\e[1m"
+    C_RED="\e[31m"
+    C_GREEN="\e[32m"
+    C_YELLOW="\e[33m"
+    C_BLUE="\e[34m"
+    C_CYAN="\e[36m"
+  else
+    C_RESET=""
+    C_BOLD=""
+    C_RED=""
+    C_GREEN=""
+    C_YELLOW=""
+    C_BLUE=""
+    C_CYAN=""
+  fi
 else
   C_RESET=""
   C_BOLD=""
@@ -137,6 +164,11 @@ autoload -Uz add-zsh-hook
 if [[ $- == *i* ]]; then
   typeset -ga _ZSH_DEFER_TASKS=()
   typeset -gi _ZSH_DEFER_ARMED=0
+  typeset -gi _ZSH_HAS_ZSTAT=0
+
+  if zmodload -i zsh/stat 2>/dev/null; then
+    _ZSH_HAS_ZSTAT=1
+  fi
 
   # Run deferred tasks.
   _zsh_defer_run() {
@@ -182,6 +214,59 @@ if [[ $- == *i* ]]; then
   }
 
   # ---------------------------------------------------------------------------
+  # _zsh_mtime
+  # ---------------------------------------------------------------------------
+  # Return file modification time using zstat when available.
+  _zsh_mtime() {
+    local file="$1"
+    local -a stat_info
+
+    if (( _ZSH_HAS_ZSTAT )) && zstat -L -A stat_info +mtime -- "$file" 2>/dev/null; then
+      print -r -- "$stat_info[1]"
+      return 0
+    fi
+
+    if [[ "$OSTYPE" == darwin* ]]; then
+      command stat -f %m "$file" 2>/dev/null
+    else
+      command stat -c %Y "$file" 2>/dev/null
+    fi
+  }
+
+  # ---------------------------------------------------------------------------
+  # _zsh_is_secure_file
+  # ---------------------------------------------------------------------------
+  # Ensure file is owned by the current user and not group/world-writable.
+  _zsh_is_secure_file() {
+    local file="$1"
+    [[ -f "$file" && -r "$file" ]] || return 1
+
+    local -a stat_info
+    if (( _ZSH_HAS_ZSTAT )) && zstat -L -A stat_info +mode +uid -- "$file" 2>/dev/null; then
+      local mode=$stat_info[1]
+      local uid=$stat_info[2]
+      (( uid == EUID )) || return 1
+      (( mode & 0022 )) && return 1
+      return 0
+    fi
+
+    local mode uid
+    if [[ "$OSTYPE" == darwin* ]]; then
+      uid="$(command stat -f %u "$file" 2>/dev/null)" || return 1
+      mode="$(command stat -f %Lp "$file" 2>/dev/null)" || return 1
+    else
+      uid="$(command stat -c %u "$file" 2>/dev/null)" || return 1
+      mode="$(command stat -c %a "$file" 2>/dev/null)" || return 1
+    fi
+
+    [[ "$uid" =~ ^[0-9]+$ ]] || return 1
+    [[ "$mode" =~ ^[0-9]+$ ]] || return 1
+    (( uid == EUID )) || return 1
+    (( 8#$mode & 022 )) && return 1
+    return 0
+  }
+
+  # ---------------------------------------------------------------------------
   # _zsh_cache_auto_check
   # ---------------------------------------------------------------------------
   # One-time cache reset when config files changed since last stamp.
@@ -207,28 +292,17 @@ if [[ $- == *i* ]]; then
     [[ -f "$HOME/.zshenv" ]] && files+=("$HOME/.zshenv")
     (( ${#files[@]} )) || return 0
 
-    # Get all mtimes in a single stat call (one fork instead of N).
-    local -a mtimes
-    if [[ "$OSTYPE" == darwin* ]]; then
-      mtimes=("${(@f)$(command stat -f %m "${files[@]}" 2>/dev/null)}")
-    else
-      mtimes=("${(@f)$(command stat -c %Y "${files[@]}" 2>/dev/null)}")
-    fi
-
     # Find the latest mtime.
-    local latest=0 m
-    for m in "${mtimes[@]}"; do
-      [[ "$m" =~ ^[0-9]+$ ]] && (( m > latest )) && latest=$m
+    local latest=0 mtime file
+    for file in "${files[@]}"; do
+      mtime="$(_zsh_mtime "$file")" || continue
+      [[ "$mtime" =~ ^[0-9]+$ ]] && (( mtime > latest )) && latest=$mtime
     done
 
     # Get stamp file mtime.
     local last=0
     if [[ -f "$stamp_file" ]]; then
-      if [[ "$OSTYPE" == darwin* ]]; then
-        last="$(command stat -f %m "$stamp_file" 2>/dev/null)"
-      else
-        last="$(command stat -c %Y "$stamp_file" 2>/dev/null)"
-      fi
+      last="$(_zsh_mtime "$stamp_file")"
       [[ "$last" =~ ^[0-9]+$ ]] || last=0
     fi
 

@@ -92,7 +92,8 @@ _ensure_plugin_installed() {
 }
 
 # Auto-install required custom plugins if missing.
-if [[ "$PLATFORM" == "macOS" ]]; then
+: "${ZSH_AUTO_INSTALL_PLUGINS:=0}"
+if [[ "$ZSH_AUTO_INSTALL_PLUGINS" == "1" && "$PLATFORM" == "macOS" ]]; then
   _ensure_plugin_installed "zsh-autosuggestions" "https://github.com/zsh-users/zsh-autosuggestions"
   _ensure_plugin_installed "zsh-history-substring-search" "https://github.com/zsh-users/zsh-history-substring-search"
   _ensure_plugin_installed "zsh-syntax-highlighting" "https://github.com/zsh-users/zsh-syntax-highlighting"

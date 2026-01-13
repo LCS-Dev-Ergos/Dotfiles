@@ -23,8 +23,8 @@
 #   - direnv: Directory-specific environment loading.
 #
 # Performance:
-#   - Lazy loading for fzf, zoxide, direnv (first precmd hook).
-#   - Immediate loading for Atuin and Yazi (lightweight).
+#   - Deferred loading for atuin, fzf, zoxide, direnv.
+#   - Immediate loading for Yazi (lightweight).
 #
 # ============================================================================ #
 
@@ -32,7 +32,20 @@
 
 # Initialize Atuin (Magical Shell History).
 if command -v atuin >/dev/null 2>&1; then
-  eval "$(atuin init zsh)"
+  _atuin_lazy_init() {
+    [[ -n "${_ATUIN_INIT_DONE:-}" ]] && return 0
+    _ATUIN_INIT_DONE=1
+    eval "$(atuin init zsh)" || echo "${C_YELLOW}Warning: atuin init failed.${C_RESET}"
+    unfunction _atuin_lazy_init 2>/dev/null
+  }
+
+  if [[ "${ZSH_FAST_START:-}" == "1" ]]; then
+    : # skip during fast start.
+  elif typeset -f _zsh_defer >/dev/null 2>&1; then
+    _zsh_defer _atuin_lazy_init
+  else
+    add-zsh-hook precmd _atuin_lazy_init
+  fi
 fi
 
 # =================================== YAZI =================================== #
@@ -93,7 +106,14 @@ _tools_lazy_init() {
   # Self-destruct after first run.
   unfunction _tools_lazy_init 2>/dev/null
 }
-add-zsh-hook precmd _tools_lazy_init
+
+if [[ "${ZSH_FAST_START:-}" == "1" ]]; then
+  : # skip during fast start.
+elif typeset -f _zsh_defer >/dev/null 2>&1; then
+  _zsh_defer _tools_lazy_init
+else
+  add-zsh-hook precmd _tools_lazy_init
+fi
 
 # ============================ FZF CONFIGURATION ============================= #
 

@@ -70,16 +70,20 @@ _cache_completion() {
   # Check if cache exists and is less than 7 days old.
   if [[ -f "$cache_file" ]]; then
     local cache_valid=false
-    if [[ "$PLATFORM" == 'macOS' ]]; then
-      local mtime=$(stat -f %m "$cache_file")
-      local now=$(date +%s)
-      if ((now - mtime < 604800)); then
-        cache_valid=true
-      fi
+    local now=${EPOCHSECONDS:-$(date +%s)}
+    local mtime=""
+
+    if typeset -f _zsh_mtime >/dev/null 2>&1; then
+      mtime="$(_zsh_mtime "$cache_file")"
+    elif [[ "$PLATFORM" == 'macOS' ]]; then
+      mtime="$(command stat -f %m "$cache_file" 2>/dev/null)"
     else
-      if [[ -n $(find "$cache_file" -mtime -7 2>/dev/null) ]]; then
-        cache_valid=true
-      fi
+      mtime="$(command stat -c %Y "$cache_file" 2>/dev/null)"
+    fi
+
+    [[ "$mtime" =~ ^[0-9]+$ ]] || mtime=0
+    if (( now - mtime < 604800 )); then
+      cache_valid=true
     fi
 
     if $cache_valid; then

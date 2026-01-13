@@ -207,9 +207,14 @@ fabric-list() {
 # Load environment variables for OpenCode (API keys, model configs, etc.).
 # The .env file is sourced if it exists and is readable.
 # -----------------------------------------------------------------------------
-if [[ -r "$HOME/.config/opencode/.env" ]]; then
+_zsh_source_opencode_env() {
+  if typeset -f _zsh_is_secure_file >/dev/null 2>&1; then
+    _zsh_is_secure_file "$HOME/.config/opencode/.env" && source "$HOME/.config/opencode/.env"
+  elif [[ -r "$HOME/.config/opencode/.env" ]]; then
     source "$HOME/.config/opencode/.env"
-fi
+  fi
+  unfunction _zsh_source_opencode_env 2>/dev/null
+}
 
 # ============================================================================ #
 # ++++++++++++++++++++++++++++ CLAUDE MCP SERVERS ++++++++++++++++++++++++++++ #
@@ -225,8 +230,21 @@ fi
 #   - Context7: Up-to-date code documentation for LLMs
 #   - Everything: Demo server for testing MCP protocol features
 # -----------------------------------------------------------------------------
-if [[ -r "$HOME/.claude/.env" ]]; then
+_zsh_source_claude_env() {
+  if typeset -f _zsh_is_secure_file >/dev/null 2>&1; then
+    _zsh_is_secure_file "$HOME/.claude/.env" && source "$HOME/.claude/.env"
+  elif [[ -r "$HOME/.claude/.env" ]]; then
     source "$HOME/.claude/.env"
+  fi
+  unfunction _zsh_source_claude_env 2>/dev/null
+}
+
+if typeset -f _zsh_defer >/dev/null 2>&1; then
+  _zsh_defer _zsh_source_opencode_env
+  _zsh_defer _zsh_source_claude_env
+else
+  _zsh_source_opencode_env
+  _zsh_source_claude_env
 fi
 
 # ============================================================================ #
