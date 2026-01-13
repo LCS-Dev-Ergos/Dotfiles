@@ -466,10 +466,6 @@ alias krest='kitty_restore_session'
 #   kget file1 file2 /local/dir/
 # -----------------------------------------------------------------------------
 kget() {
-  if [[ -z "${KITTY_PID:-}" ]]; then
-    echo "Not running inside Kitty" >&2
-    return 1
-  fi
   if [[ -z "${SSH_CONNECTION:-}" ]]; then
     echo "Not in an SSH session (run this from the remote host)" >&2
     return 1
@@ -494,10 +490,6 @@ kget() {
 #   kput                 # interactive fzf selection
 # -----------------------------------------------------------------------------
 kput() {
-  if [[ -z "${KITTY_PID:-}" ]]; then
-    echo "Not running inside Kitty" >&2
-    return 1
-  fi
   if [[ -z "${SSH_CONNECTION:-}" ]]; then
     echo "Not in an SSH session (run this from the remote host)" >&2
     return 1
