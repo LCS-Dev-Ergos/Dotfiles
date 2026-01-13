@@ -455,5 +455,74 @@ kitty_restore_session() {
 
 alias krest='kitty_restore_session'
 
+# -----------------------------------------------------------------------------
+# kget
+# -----------------------------------------------------------------------------
+# Download files from remote host to local machine via Kitty transfer protocol.
+# Wrapper around `kitten transfer` with compression enabled by default.
+#
+# Usage:
+#   kget <remote-file> [local-destination]
+#   kget file1 file2 /local/dir/
+# -----------------------------------------------------------------------------
+kget() {
+  if [[ -z "${KITTY_PID:-}" ]]; then
+    echo "Not running inside Kitty" >&2
+    return 1
+  fi
+  if [[ -z "${SSH_CONNECTION:-}" ]]; then
+    echo "Not in an SSH session (run this from the remote host)" >&2
+    return 1
+  fi
+  if (( $# == 0 )); then
+    echo "Usage: kget <remote-file>... [local-destination]" >&2
+    return 1
+  fi
+  kitten transfer --compress=auto "$@"
+}
+
+# -----------------------------------------------------------------------------
+# kput
+# -----------------------------------------------------------------------------
+# Upload files from local machine to remote host via Kitty transfer protocol.
+# Wrapper around `kitten transfer --direction=upload` with compression enabled.
+#
+# If no arguments given and fzf is available, opens interactive file selector.
+#
+# Usage:
+#   kput <local-file>... [remote-destination]
+#   kput                 # interactive fzf selection
+# -----------------------------------------------------------------------------
+kput() {
+  if [[ -z "${KITTY_PID:-}" ]]; then
+    echo "Not running inside Kitty" >&2
+    return 1
+  fi
+  if [[ -z "${SSH_CONNECTION:-}" ]]; then
+    echo "Not in an SSH session (run this from the remote host)" >&2
+    return 1
+  fi
+
+  local -a files
+  if (( $# == 0 )); then
+    if command -v fzf >/dev/null 2>&1; then
+      # Use fd if available, otherwise find.
+      local finder="find . -type f -not -path '*/\.*' 2>/dev/null"
+      if command -v fd >/dev/null 2>&1; then
+        finder="fd --type f --hidden --exclude .git"
+      fi
+      files=("${(@f)$(eval "$finder" | fzf --multi --prompt='upload> ')}")
+      (( ${#files[@]} == 0 )) && return 1
+    else
+      echo "Usage: kput <local-file>... [remote-destination]" >&2
+      return 1
+    fi
+  else
+    files=("$@")
+  fi
+
+  kitten transfer --direction=upload --compress=auto "${files[@]}"
+}
+
 # ============================================================================ #
 # End of 50-tools.zsh
