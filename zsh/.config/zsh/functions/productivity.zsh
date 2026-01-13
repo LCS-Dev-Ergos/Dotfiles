@@ -273,7 +273,7 @@ function zshcache() {
     local file
     local failed=0
     for file in "${compile_files[@]}"; do
-      if ! zcompile "$file" 2>/dev/null; then
+      if ! zcompile -U "$file" 2>/dev/null; then
         failed=1
         [[ "$quiet" == true ]] || echo "${C_YELLOW}Warning: zcompile failed for $file${C_RESET}"
       fi

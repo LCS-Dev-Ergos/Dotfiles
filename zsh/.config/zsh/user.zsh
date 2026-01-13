@@ -38,27 +38,36 @@ fi
 
 # ================================= STARTUP ================================== #
 
-# Toggle startup art/info on macOS (set to 1 to enable on macOS).
+# Toggle startup art/info display (set to 1 to enable).
+LINUX_SHOW_STARTUP_ART=0
 MACOS_SHOW_STARTUP_ART=0
 
-# Display startup art/info (only in interactive shells and on Linux, or macOS if enabled).
+# Display startup art/info (only in interactive shells and if enabled for the platform).
 if [[ $- == *i* ]]; then
-    # Show on Linux always, or on macOS only if explicitly enabled.
-    if [[ "$PLATFORM" != "macOS" ]] || [[ "$MACOS_SHOW_STARTUP_ART" == "1" ]]; then
-        if command -v pokego >/dev/null; then
-            pokego --no-title -r 1,3,6
-        elif command -v pokemon-colorscripts >/dev/null; then
-            pokemon-colorscripts --no-title -r 1,3,6
-        elif command -v fastfetch >/dev/null; then
-            # do_render is defined in shell.zsh, check if available.
-            if typeset -f do_render >/dev/null 2>&1 && do_render "image"; then
-                fastfetch --logo-type kitty
-            elif [[ -z "${do_render+x}" ]]; then
-                # do_render not yet available, use simple check.
-                fastfetch 2>/dev/null || true
-            fi
-        fi
+  local show_art=0
+
+  # Check if startup art should be shown based on platform.
+  if [[ "$PLATFORM" == "macOS" && "$MACOS_SHOW_STARTUP_ART" == "1" ]]; then
+    show_art=1
+  elif [[ "$PLATFORM" != "macOS" && "$LINUX_SHOW_STARTUP_ART" == "1" ]]; then
+    show_art=1
+  fi
+
+  if [[ "$show_art" == "1" ]]; then
+    if command -v pokego >/dev/null; then
+      pokego --no-title -r 1,3,6
+    elif command -v pokemon-colorscripts >/dev/null; then
+      pokemon-colorscripts --no-title -r 1,3,6
+    elif command -v fastfetch >/dev/null; then
+      # do_render is defined in shell.zsh, check if available.
+      if typeset -f do_render >/dev/null 2>&1 && do_render "image"; then
+        fastfetch --logo-type kitty
+      elif [[ -z "${do_render+x}" ]]; then
+        # do_render not yet available, use simple check.
+        fastfetch 2>/dev/null || true
+      fi
     fi
+  fi
 fi
 
 # ============================================================================ #
