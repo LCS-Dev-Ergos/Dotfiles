@@ -39,7 +39,7 @@ fi
 # ================================= STARTUP ================================== #
 
 # Toggle startup art/info display (set to 1 to enable).
-LINUX_SHOW_STARTUP_ART=0
+LINUX_SHOW_STARTUP_ART=1
 MACOS_SHOW_STARTUP_ART=0
 
 # Display startup art/info (only in interactive shells and if enabled for the platform).
