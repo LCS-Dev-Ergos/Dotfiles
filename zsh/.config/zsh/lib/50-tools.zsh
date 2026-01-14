@@ -474,7 +474,21 @@ kget() {
     echo "Usage: kget <remote-file>... [local-destination]" >&2
     return 1
   fi
-  kitten transfer --compress=auto "$@"
+
+  local -a args=("$@")
+  local last="${args[-1]}"
+
+  # Auto-add trailing slash for directory destinations.
+  # Heuristic: if multiple files OR last arg has no extension, treat as directory.
+  if (( $# > 1 )) && [[ "$last" != */ ]]; then
+    local basename="${last:t}"
+    # No dot in basename = likely a directory, not a file.
+    if [[ "$basename" != *.* ]] || (( $# > 2 )); then
+      args[-1]="${last}/"
+    fi
+  fi
+
+  kitten transfer --compress=auto "${args[@]}"
 }
 
 # -----------------------------------------------------------------------------
