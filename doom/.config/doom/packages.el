@@ -53,3 +53,6 @@
 
 ;; Plugins for Hugo framework
 (package! ox-hugo)
+
+;; Gleam language support
+(package! gleam-mode)

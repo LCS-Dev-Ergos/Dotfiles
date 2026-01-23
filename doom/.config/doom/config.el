@@ -177,6 +177,25 @@
   (setq proof-shell-show-proof-state-in-mode-line t))
 
 ;; ============================================================================
+;; GLEAM (Functional Language for Erlang/JS)
+;; ============================================================================
+;; Gleam is a type-safe functional language that compiles to Erlang and JS
+;; The LSP is built into the compiler: gleam lsp
+;; Requires: gleam-mode package (add to packages.el)
+
+(use-package! gleam-mode
+  :mode "\\.gleam\\'"
+  :hook (gleam-mode . lsp!)
+  :config
+  (after! lsp-mode
+    (add-to-list 'lsp-language-id-configuration '(gleam-mode . "gleam"))
+    (lsp-register-client
+     (make-lsp-client
+      :new-connection (lsp-stdio-connection '("gleam" "lsp"))
+      :major-modes '(gleam-mode)
+      :server-id 'gleam-lsp))))
+
+;; ============================================================================
 ;; OCAML (via Tuareg)
 ;; ============================================================================
 ;; Tuareg provides OCaml editing support
