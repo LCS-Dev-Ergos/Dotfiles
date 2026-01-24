@@ -54,5 +54,7 @@
 ;; Plugins for Hugo framework
 (package! ox-hugo)
 
-;; Gleam language support
-(package! gleam-mode)
+;; Gleam language support (tree-sitter mode)
+(package! gleam-ts-mode
+  :recipe (:host github :repo "gleam-lang/gleam-mode"
+           :branch "main" :files ("gleam-ts-*.el")))

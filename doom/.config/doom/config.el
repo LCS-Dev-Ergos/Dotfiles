@@ -181,18 +181,19 @@
 ;; ============================================================================
 ;; Gleam is a type-safe functional language that compiles to Erlang and JS
 ;; The LSP is built into the compiler: gleam lsp
-;; Requires: gleam-mode package (add to packages.el)
+;; Uses tree-sitter mode (requires Emacs 29+)
+;; After install, run: M-x gleam-ts-install-grammar
 
-(use-package! gleam-mode
+(use-package! gleam-ts-mode
   :mode "\\.gleam\\'"
-  :hook (gleam-mode . lsp!)
+  :hook (gleam-ts-mode . lsp!)
   :config
   (after! lsp-mode
-    (add-to-list 'lsp-language-id-configuration '(gleam-mode . "gleam"))
+    (add-to-list 'lsp-language-id-configuration '(gleam-ts-mode . "gleam"))
     (lsp-register-client
      (make-lsp-client
       :new-connection (lsp-stdio-connection '("gleam" "lsp"))
-      :major-modes '(gleam-mode)
+      :major-modes '(gleam-ts-mode)
       :server-id 'gleam-lsp))))
 
 ;; ============================================================================
