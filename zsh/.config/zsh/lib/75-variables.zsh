@@ -33,16 +33,19 @@ fi
 
 # -------- JVM & Build Tools --------- #
 # JVM: Performance optimization flags for local development.
-export JAVA_TOOL_OPTIONS="-XX:+UseG1GC -XX:MaxRAMPercentage=75.0 -XX:+TieredCompilation"
+export JAVA_TOOL_OPTIONS="-XX:+TieredCompilation -XX:MaxRAMPercentage=75.0"
 
 # Gradle: Performance tuning with daemon, parallel builds, and caching.
-export GRADLE_OPTS="-Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Xmx2g"
+export GRADLE_OPTS="-Xmx4g -Xms512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 \
+  -Dorg.gradle.daemon=true -Dorg.gradle.parallel=true \
+  -Dorg.gradle.caching=true -Dorg.gradle.configureondemand=true \
+  -Dorg.gradle.vfs.watch=true"
 
 # Maven: Performance tuning with increased heap and fast compilation.
-export MAVEN_OPTS="-Xmx2g -XX:+TieredCompilation -XX:TieredStopAtLevel=1"
+export MAVEN_OPTS="-Xmx3g -Xms512m -XX:+UseG1GC -XX:+TieredCompilation"
 
 # SBT: Scala build tool optimization.
-export SBT_OPTS="-Xmx2g -XX:+UseG1GC -XX:MaxMetaspaceSize=512m"
+export SBT_OPTS="-Xmx3g -Xms512m -XX:+UseG1GC -XX:MaxMetaspaceSize=1g -XX:ReservedCodeCacheSize=256m"
 
 # ---------- Scala Configs ----------- #
 # Scala: Use Java 17 LTS to avoid sun.misc.Unsafe warnings.
