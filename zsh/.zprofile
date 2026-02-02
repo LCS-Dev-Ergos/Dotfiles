@@ -56,6 +56,9 @@ export XDG_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"
 # Adds standard user paths. Final PATH order handled by ".zshrc".
 export PATH="$HOME/.local/bin:$PATH"
 
+# ----------------- Maven PATH ----------------- #
+export PATH="$HOME/.sdkman/candidates/maven/current/bin:$PATH"
+
 # --------------- Coursier PATH ---------------- #
 # Add Coursier bin to PATH, handling platform-specific paths.
 if [[ "$OSTYPE" == "darwin"* ]]; then
