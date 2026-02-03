@@ -1,8 +1,8 @@
 #!/usr/bin/env sh
-# =========================================================================== #
-# ========================= Yabai Configuration file ======================== #
+# ============================================================================ #
+# ========================= Yabai Configuration file ========================= #
 
-# =========================== Scripting Addition ============================ #
+# ============================ Scripting Addition ============================ #
 # For this to work you must configure sudo such that
 # it will be able to run the command without password
 
@@ -15,7 +15,7 @@ yabai -m signal --add event=window_focused action="sketchybar --trigger window_f
 #                       sleep \$(yabai -m config window_opacity_duration) && yabai -m window \
 #                       \$YABAI_WINDOW_ID --opacity 0.0"
 
-# ========================== Aspect Customization =========================== #
+# =========================== Aspect Customization =========================== #
 
 yabai -m config external_bar all:40:0 \
     mouse_follows_focus off \
@@ -44,12 +44,12 @@ yabai -m config external_bar all:40:0 \
     right_padding 12 \
     window_gap 12
 
-# ++++++++++++++++++++++++++++++ Custom Rules +++++++++++++++++++++++++++++++ #
+# +++++++++++++++++++++++++++++++ Custom Rules +++++++++++++++++++++++++++++++ #
 yabai -m rule --add app="kitty" opacity=0.9875
 
-# ======================== End Aspect Customization ========================= #
+# ========================= End Aspect Customization ========================= #
 
-# ============================= Disabling Rules ============================= #
+# ============================= Disabling Rules ============================== #
 
 # Exclude problematic apps from being managed:
 EXCLUDED_APPS="1Password|Activity Monitor|Alfred|App Store|Archive Utility|Audio MIDI Setup|BetterDisplay|
@@ -76,14 +76,14 @@ yabai -m rule --add label="About This Mac" app="System Information" title="About
 NEURAL_DSP="Archetype Tim Henson X|Archetype Petrucci X"
 yabai -m rule --add app="^(${NEURAL_DSP})$" manage=off
 
-# ++++++++++++++++++++++++++ Custom Developed Apps ++++++++++++++++++++++++++ #
+# ++++++++++++++++++++++++++ Custom Developed Apps +++++++++++++++++++++++++++ #
 # QT Clustering App - MAP
 yabai -m rule --add label="MAP Clustering" \
     app="^java$" \
     title="^(.*Clusters?.*|.*QT Clustering.*|.*Visualizzazione.*)$" \
     manage=off
 
-# +++++++++++++++++++++++++++++ JetBrains IDEs ++++++++++++++++++++++++++++++ #
+# +++++++++++++++++++++++++=++++ JetBrains IDEs ++++++++++++++++++++++++++++++ #
 
 # Exclude JetBrains IDEs specific windows from being managed
 JETBRAINS_IDEs="CLion|CLion-EAP|DataGrip|DataGrip-EAP|GoLand-EAP|IntelliJ IDEA|IntelliJ IDEA EAP|IntelliJ IDEA-EAP| \
@@ -97,7 +97,7 @@ yabai -m rule --add \
              |.*Resources?.*|.*Tip of the Day.*|.*Updates?.*|.*Welcome.*)$" \
     manage=off
 
-# ++++++++++++++++++++++++++++++ Android Studio +++++++++++++++++++++++++++++ #
+# ++++++++++++++++++++++++++++++ Android Studio ++++++++++=+++++++++++++++++++ #
 yabai -m rule --add \
     label="Android Studio" \
     app="^.*Android Studio.*$" \
@@ -110,7 +110,7 @@ yabai -m rule --add \
              |.*Tip of the Day.*|.*Updates?.*|.*Welcome.*)$" \
     manage=off
 
-# +++++++++++++++++++++++++++++++ DataSpell ++++++++++++++++++++++++++++++++++ #
+# ++++++++++++++++++++++++++++++++ DataSpell +++++++++++++++++++++++++++++++++ #
 yabai -m rule --add \
     label="DataSpell" \
     app="^.*DataSpell.*$" \
@@ -122,7 +122,7 @@ yabai -m rule --add \
              |.*Resources?.*|.*Settings.*|.*Tip of the Day.*|.*Updates?.*|.*Welcome.*)$" \
     manage=off
 
-# +++++++++++++++++++++++++++++++++ Eclipse +++++++++++++++++++++++++++++++++ #
+# +++++++++++++++++++++++++++++++++ Eclipse ++++++++++++++++++++++++++++++++++ #
 yabai -m rule --add \
     label="Eclipse" \
     app="^.*Eclipse.*$" \
@@ -130,14 +130,14 @@ yabai -m rule --add \
              |.*Problems?.*|.*Projects?.*|.*Resources?.*)$" \
     manage=off
 
-# +++++++++++++++++++++++++++++ Other Exclusions ++++++++++++++++++++++++++++ #
-# Exclude "VNC Viewer" specific windows from being managed
+# +++++++++++++++++++++++++++++ Other Exclusions +++++++++++++++++++++++++++++ #
+# Exclude "VNC Viewer" specific windows from being managed.
 yabai -m rule --add label="VNC Viewer" \
     app="^VNC Viewer$" \
     title="^(.*VNC.*|.*Viewer.*|.*RealVNC.*)$" \
     manage=off
 
-# Exclude GIMP transient/context dialogs (About / Welcome, etc.)
+# Exclude GIMP transient/context dialogs (About / Welcome, etc.).
 GIMP_APP="GIMP|GIMP-2\\..*|GNU Image Manipulation Program"
 yabai -m rule --add label="GIMP Popups" \
     app="^(${GIMP_APP})$" \
@@ -145,7 +145,7 @@ yabai -m rule --add label="GIMP Popups" \
              |.*Embedded.*|.*Working.*|.*Spaces?.*|.*Close.*)$" \
     manage=off
 
-# Exclude Rancher Desktop/OrbStack preference windows from tiling
+# Exclude Rancher Desktop/OrbStack preference windows from tiling.
 yabai -m rule --add label="Rancher Desktop Preferences" \
     app="^Rancher Desktop$" \
     title="^Rancher Desktop - Preferences$" \
@@ -156,14 +156,14 @@ yabai -m rule --add label="OrbStack Preferences" \
     title="^(General.*|System.*|Network.*|Storage.*|Machine.*|Docker.*|Kubernetes.*)$" \
     manage=off
 
-# =========================== End Disabling Rules =========================== #
+# =========================== End Disabling Rules ============================ #
 
-# =============================== Other Stuff =============================== #
+# =============================== Other Stuff ================================ #
 # - bsp, stack or float
 yabai -m config layout bsp
 echo "yabai configuration loaded..."
 
-# ++++++++++++++++++++++++++++++ Border Style +++++++++++++++++++++++++++++++ #
+# +++++++++++++++++++++++++++++++ Border Style +++++++++++++++++++++++++++++++ #
 
 # borders style=round                 \
 #         width=5.0                   \
@@ -176,4 +176,4 @@ echo "yabai configuration loaded..."
 #                    Rider,RustRover-EAP" \
 #         inactive_color=0xE63c3836       \
 
-# ============================= End Other Stuff ============================= #
+# ============================= End Other Stuff ============================== #
