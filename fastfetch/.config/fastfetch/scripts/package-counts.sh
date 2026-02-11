@@ -91,7 +91,7 @@ if command -v nix-env >/dev/null 2>&1 || [ -d /run/current-system/sw/bin ]; then
       [[ ${count:-0} -gt 0 ]] && nix_parts=" ${count} (nix-user)"
     fi
     if [ -d /run/current-system/sw/bin ]; then
-      count=$(ls -1 /run/current-system/sw/bin 2>/dev/null | wc -l | awk '{print $1}')
+      count=$(find /run/current-system/sw/bin -mindepth 1 -maxdepth 1 -print 2>/dev/null | wc -l | awk '{print $1}')
       [[ ${count:-0} -gt 0 ]] && nix_parts="${nix_parts}${nix_parts:+,} ${count} (nix-system)"
     fi
     if command -v nix-env >/dev/null 2>&1 && [ -e /nix/var/nix/profiles/default ]; then
@@ -104,7 +104,8 @@ if command -v nix-env >/dev/null 2>&1 || [ -d /run/current-system/sw/bin ]; then
 fi
 
 # Wait for all background jobs to complete.
-wait
+# Ignore non-zero status from individual package manager commands.
+wait || true
 
 # Collect results from temporary files.
 order=(brew arch dpkg dnf zypper flatpak snap nix)
@@ -123,17 +124,14 @@ for key in "${order[@]}"; do
   lines+=("$line")
 done
 
-# Get indent from fastfetch or default to escape sequence.
-indent=${FASTFETCH_INDENT:-$'\033[40C'}
-
-# Output with proper box drawing prefixes.
+# Output package summary.
 if (( ${#lines[@]} == 0 )); then
   echo "none"
 elif (( ${#lines[@]} == 1 )); then
-  # Single line: print newline, then indent + content.
-  printf "\n%s└%s" "$indent" "${lines[0]}"
-else
-  # Multiple lines: print newline, then each line with indent.
+  printf "%s\n" "${lines[0]}"
+elif [[ -n "${FASTFETCH_INDENT:-}" ]]; then
+  indent="$FASTFETCH_INDENT"
+  # Multi-line mode with explicit external indent.
   printf "\n"
   for i in "${!lines[@]}"; do
     if (( i == ${#lines[@]} - 1 )); then
@@ -142,4 +140,15 @@ else
       printf "%s├%s\n" "$indent" "${lines[$i]}"
     fi
   done
+else
+  # Default mode: avoid hardcoded cursor offsets, keep output on one line.
+  joined=""
+  for line in "${lines[@]}"; do
+    if [[ -n "$joined" ]]; then
+      joined="$joined; $line"
+    else
+      joined="$line"
+    fi
+  done
+  printf "%s\n" "$joined"
 fi
