@@ -17,7 +17,7 @@ if command -v pacman >/dev/null 2>&1; then
     official_count=$(pacman -Qqn 2>/dev/null | wc -l | awk '{print $1}')
     aur_count=$(pacman -Qqm 2>/dev/null | wc -l | awk '{print $1}')
     parts=""
-    [[ ${official_count:-0} -gt 0 ]] && parts=" ${official_count} (pacman)"
+    [[ ${official_count:-0} -gt 0 ]] && parts=" ${official_count} (pacman)"
     [[ ${aur_count:-0} -gt 0 ]] && parts="${parts}${parts:+,} ${aur_count} (aur)"
     echo "$parts" > "$tmpdir/arch"
   ) &
@@ -27,7 +27,7 @@ fi
 if command -v dpkg >/dev/null 2>&1; then
   (
     count=$(dpkg -l 2>/dev/null | awk '/^ii/{c++} END{print c+0}')
-    [[ ${count:-0} -gt 0 ]] && echo " ${count} (dpkg)" > "$tmpdir/dpkg"
+    [[ ${count:-0} -gt 0 ]] && echo " ${count} (dpkg)" > "$tmpdir/dpkg"
   ) &
 fi
 
@@ -35,12 +35,12 @@ fi
 if command -v dnf >/dev/null 2>&1; then
   (
     count=$(dnf list installed 2>/dev/null | awk 'NR>1{c++} END{print c+0}')
-    [[ ${count:-0} -gt 0 ]] && echo " ${count} (dnf)" > "$tmpdir/dnf"
+    [[ ${count:-0} -gt 0 ]] && echo " ${count} (dnf)" > "$tmpdir/dnf"
   ) &
 elif command -v yum >/dev/null 2>&1; then
   (
     count=$(yum list installed 2>/dev/null | awk 'NR>1{c++} END{print c+0}')
-    [[ ${count:-0} -gt 0 ]] && echo " ${count} (yum)" > "$tmpdir/dnf"
+    [[ ${count:-0} -gt 0 ]] && echo " ${count} (yum)" > "$tmpdir/dnf"
   ) &
 fi
 
@@ -48,7 +48,7 @@ fi
 if command -v zypper >/dev/null 2>&1; then
   (
     count=$(zypper se -i 2>/dev/null | awk '/^i/{c++} END{print c+0}')
-    [[ ${count:-0} -gt 0 ]] && echo " ${count} (zypper)" > "$tmpdir/zypper"
+    [[ ${count:-0} -gt 0 ]] && echo " ${count} (zypper)" > "$tmpdir/zypper"
   ) &
 fi
 
@@ -58,7 +58,7 @@ if command -v brew >/dev/null 2>&1; then
     brew_count=$(brew list --formula 2>/dev/null | wc -l | awk '{print $1}')
     cask_count=$(brew list --cask 2>/dev/null | wc -l | awk '{print $1}')
     line=""
-    [[ ${brew_count:-0} -gt 0 ]] && line=" ${brew_count} (brew)"
+    [[ ${brew_count:-0} -gt 0 ]] && line=" ${brew_count} (brew)"
     [[ ${cask_count:-0} -gt 0 ]] && line="${line}${line:+,} ${cask_count} (brew-cask)"
     [[ -n "$line" ]] && echo "$line" > "$tmpdir/brew"
   ) &
@@ -68,7 +68,7 @@ fi
 if command -v flatpak >/dev/null 2>&1; then
   (
     count=$(flatpak list --app 2>/dev/null | wc -l | awk '{print $1}')
-    [[ ${count:-0} -gt 0 ]] && echo " ${count} (flatpak)" > "$tmpdir/flatpak"
+    [[ ${count:-0} -gt 0 ]] && echo " ${count} (flatpak)" > "$tmpdir/flatpak"
   ) &
 fi
 
@@ -76,7 +76,7 @@ fi
 if command -v snap >/dev/null 2>&1; then
   (
     count=$(snap list 2>/dev/null | awk 'NR>1{c++} END{print c+0}')
-    [[ ${count:-0} -gt 0 ]] && echo " ${count} (snap)" > "$tmpdir/snap"
+    [[ ${count:-0} -gt 0 ]] && echo " ${count} (snap)" > "$tmpdir/snap"
   ) &
 fi
 
@@ -88,11 +88,11 @@ if command -v nix-env >/dev/null 2>&1 || [ -d /run/current-system/sw/bin ]; then
     safe_user=$(id -un 2>/dev/null || echo "unknown")
     if command -v nix-env >/dev/null 2>&1 && [ -d "/nix/var/nix/profiles/per-user/${safe_user}" ]; then
       count=$(nix-env -q 2>/dev/null | wc -l | awk '{print $1}')
-      [[ ${count:-0} -gt 0 ]] && nix_parts=" ${count} (nix-user)"
+      [[ ${count:-0} -gt 0 ]] && nix_parts=" ${count} (nix-user)"
     fi
     if [ -d /run/current-system/sw/bin ]; then
       count=$(find /run/current-system/sw/bin -mindepth 1 -maxdepth 1 -print 2>/dev/null | wc -l | awk '{print $1}')
-      [[ ${count:-0} -gt 0 ]] && nix_parts="${nix_parts}${nix_parts:+,} ${count} (nix-system)"
+      [[ ${count:-0} -gt 0 ]] && nix_parts="${nix_parts}${nix_parts:+,} ${count} (nix-system)"
     fi
     if command -v nix-env >/dev/null 2>&1 && [ -e /nix/var/nix/profiles/default ]; then
       count=$(nix-env -p /nix/var/nix/profiles/default -q 2>/dev/null || true)
@@ -124,6 +124,27 @@ for key in "${order[@]}"; do
   lines+=("$line")
 done
 
+# Print multi-line values aligned to the command value column by anchoring
+# to the current cursor position (set by fastfetch before command output).
+print_multiline_with_cursor_anchor() {
+  local i down prefix backshift
+  backshift="${FASTFETCH_PACKAGES_BACKSHIFT:-14}"
+  [[ "$backshift" =~ ^[0-9]+$ ]] || backshift=14
+
+  printf '\0337'
+  for i in "${!lines[@]}"; do
+    down=$((i + 1))
+    if (( i == ${#lines[@]} - 1 )); then
+      prefix='└'
+    else
+      prefix='├'
+    fi
+    printf '\n\0338\033[%dB' "$down"
+    (( backshift > 0 )) && printf '\033[%dD' "$backshift"
+    printf '%s%s' "$prefix" "${lines[$i]}"
+  done
+}
+
 # Output package summary.
 if (( ${#lines[@]} == 0 )); then
   echo "none"
@@ -140,8 +161,11 @@ elif [[ -n "${FASTFETCH_INDENT:-}" ]]; then
       printf "%s├%s\n" "$indent" "${lines[$i]}"
     fi
   done
+elif [[ ! -t 1 ]]; then
+  # Fastfetch captures command output via pipe (non-TTY): anchor to value column.
+  print_multiline_with_cursor_anchor
 else
-  # Default mode: avoid hardcoded cursor offsets, keep output on one line.
+  # Direct interactive invocation fallback.
   joined=""
   for line in "${lines[@]}"; do
     if [[ -n "$joined" ]]; then
