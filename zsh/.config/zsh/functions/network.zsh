@@ -32,9 +32,17 @@
 # -----------------------------------------------------------------------------
 function weather() {
   local location="${1:-Bari}"
-  local cache_file="/tmp/weather_${location}.cache"
+  local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/weather"
+  local location_key="${location//[^A-Za-z0-9._-]/_}"
+  local cache_file="$cache_dir/${location_key}.cache"
+  local location_url="${location// /%20}"
   local current_time=$(date +%s)
   local cache_age=3600
+
+  command mkdir -p -- "$cache_dir" 2>/dev/null || {
+    echo "${C_RED}Error: Unable to create weather cache directory.${C_RESET}" >&2
+    return 1
+  }
 
   if [[ -f "$cache_file" ]]; then
     local file_time
@@ -49,9 +57,18 @@ function weather() {
     fi
   fi
 
-  if curl -s --fail --connect-timeout 5 "https://wttr.in/${location}?lang=it" >"$cache_file"; then
+  local tmp_file
+  tmp_file="$(mktemp "${cache_dir}/.weather.${location_key}.XXXXXX" 2>/dev/null)" || {
+    echo "${C_RED}Error: Unable to allocate temporary cache file.${C_RESET}" >&2
+    return 1
+  }
+
+  if curl -s --fail --connect-timeout 5 "https://wttr.in/${location_url}?lang=it" >"$tmp_file"; then
+    chmod 600 "$tmp_file" 2>/dev/null || :
+    mv -f "$tmp_file" "$cache_file"
     cat "$cache_file"
   else
+    rm -f -- "$tmp_file" 2>/dev/null
     echo "${C_RED}Error: Unable to fetch weather data.${C_RESET}" >&2
     if [[ -f "$cache_file" ]]; then
       echo "${C_YELLOW}(Showing cached data)${C_RESET}"

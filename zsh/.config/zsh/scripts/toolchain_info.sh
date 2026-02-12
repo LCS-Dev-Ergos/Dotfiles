@@ -556,8 +556,8 @@ get_toolchain_info() {
       fi
 
       if [[ "${TOOLCHAIN_INFO_DEBUG:-0}" != "0" ]]; then
-        printf "     %sDebug:%s compiler_path=%s%s%s\n" "$C_BOLD" "$C_RESET" "$C_CYAN" "$compiler_path" "$C_RESET"
-        printf "            real_compiler_path=%s%s%s\n" "$C_CYAN" "$real_compiler_path" "$C_RESET"
+        printf "     %sDebug:%s compiler_path=%s%s%s\n" "$C_BOLD" "$C_RESET" "$C_CYAN" "$cpath" "$C_RESET"
+        printf "            real_compiler_path=%s%s%s\n" "$C_CYAN" "$real_cpath" "$C_RESET"
         printf "            wrapper_details='%s%s%s|%s%s%s|%s%s%s'\n" \
           "$C_BLUE" "$wrapper_type" "$C_RESET" "$C_YELLOW" "$wrapper_vendor" "$C_RESET" "$C_MAGENTA" "$wrapper_version" "$C_RESET"
         printf "            real_details='%s%s%s|%s%s%s|%s%s%s'\n" \

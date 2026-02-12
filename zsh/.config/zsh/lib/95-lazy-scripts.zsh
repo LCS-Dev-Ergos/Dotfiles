@@ -128,6 +128,8 @@ _lazy_scripts_loader() {
       done
     } >| "$tmp_file" || { rm -f "$tmp_file" 2>/dev/null; trap - EXIT INT TERM; return 1; }
 
+    chmod 600 "$tmp_file" 2>/dev/null || :
+
     mv -f "$tmp_file" "$out_file" || { rm -f "$tmp_file" 2>/dev/null; trap - EXIT INT TERM; return 1; }
     trap - EXIT INT TERM
   }
@@ -137,6 +139,12 @@ _lazy_scripts_loader() {
   if [[ ! -f "$_lazy_cache_file" ]]; then
     _lazy_regen=1
   else
+    if typeset -f _zsh_is_secure_file >/dev/null 2>&1; then
+      _zsh_is_secure_file "$_lazy_cache_file" || _lazy_regen=1
+    elif [[ ! -O "$_lazy_cache_file" || -L "$_lazy_cache_file" ]]; then
+      _lazy_regen=1
+    fi
+
     if ! command grep -q -F "$_lazy_cache_header" "$_lazy_cache_file" 2>/dev/null; then
       _lazy_regen=1
     fi
@@ -167,7 +175,20 @@ _lazy_scripts_loader() {
     _lazy_scripts_build_cache "$_lazy_cache_file" "${_lazy_scripts[@]}"
   fi
 
-  [[ -r "$_lazy_cache_file" ]] && source "$_lazy_cache_file"
+  if [[ -r "$_lazy_cache_file" ]]; then
+    local _lazy_cache_safe=false
+    if typeset -f _zsh_is_secure_file >/dev/null 2>&1; then
+      _zsh_is_secure_file "$_lazy_cache_file" && _lazy_cache_safe=true
+    elif [[ -O "$_lazy_cache_file" && ! -L "$_lazy_cache_file" ]]; then
+      _lazy_cache_safe=true
+    fi
+
+    if $_lazy_cache_safe; then
+      source "$_lazy_cache_file"
+    else
+      print -u2 "lazy-scripts: warning: skipping insecure cache file: $_lazy_cache_file"
+    fi
+  fi
 
   unfunction _lazy_scripts_build_cache 2>/dev/null
   unset _lazy_regen _lazy_scripts_dir _lazy_scripts _lazy_cache_dir _lazy_cache_file _lazy_cache_version _lazy_cache_header

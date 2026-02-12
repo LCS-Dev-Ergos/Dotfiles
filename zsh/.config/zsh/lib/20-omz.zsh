@@ -48,8 +48,9 @@ ZSH_CUSTOM=${ZSH_CUSTOM:-$HOME/.config/zsh}
 # Set name of the theme to load.
 ZSH_THEME=""
 
-# Skip compfix (compaudit) for faster startup. Set to false to re-enable.
-: "${ZSH_DISABLE_COMPFIX:=true}"
+# Keep compfix (compaudit) enabled by default for safer completion loading.
+# Set to "true" only if you explicitly want to skip security checks.
+: "${ZSH_DISABLE_COMPFIX:=false}"
 : "${ZSH_ENABLE_YOU_SHOULD_USE:=0}"
 
 # -----------------------------------------------------------------------------

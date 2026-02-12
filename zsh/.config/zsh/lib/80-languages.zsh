@@ -130,29 +130,38 @@ else
     # Cache file location.
     local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
     local cache_file="$cache_dir/java_home"
+    local cache_safe=false
+    local cache_mtime=0
+    local now
 
     # Check if cache exists and is less than 7 days old.
     if [[ -f "$cache_file" ]]; then
-      # Check modification time (macOS/Linux compatible).
-      local cache_valid=false
-      if [[ "$PLATFORM" == 'macOS' ]]; then
-        # stat -f %m returns modification time in seconds.
-        local mtime=$(stat -f %m "$cache_file")
-        local now=$(date +%s)
-        # 604800 seconds = 7 days.
-        if ((now - mtime < 604800)); then
-          cache_valid=true
-        fi
-      else
-        # Linux find -mtime -7.
-        if [[ -n $(find "$cache_file" -mtime -7 2>/dev/null) ]]; then
-          cache_valid=true
-        fi
+      # Source cache only if file ownership/permissions are safe.
+      if typeset -f _zsh_is_secure_file >/dev/null 2>&1; then
+        _zsh_is_secure_file "$cache_file" && cache_safe=true
+      elif [[ -r "$cache_file" && -O "$cache_file" && ! -L "$cache_file" ]]; then
+        cache_safe=true
       fi
 
-      if $cache_valid; then
+      # Check modification time (macOS/Linux compatible).
+      local cache_valid=false
+      now="${EPOCHSECONDS:-$(date +%s)}"
+      if [[ "$PLATFORM" == 'macOS' ]]; then
+        cache_mtime="$(stat -f %m "$cache_file" 2>/dev/null || echo 0)"
+      else
+        cache_mtime="$(stat -c %Y "$cache_file" 2>/dev/null || echo 0)"
+      fi
+      [[ "$cache_mtime" =~ ^[0-9]+$ ]] || cache_mtime=0
+      # 604800 seconds = 7 days.
+      if ((now - cache_mtime < 604800)); then
+        cache_valid=true
+      fi
+
+      if $cache_valid && $cache_safe; then
         source "$cache_file"
         return
+      elif $cache_valid && ! $cache_safe; then
+        echo "${C_YELLOW}Warning: skipping insecure Java cache file: $cache_file${C_RESET}" >&2
       fi
     fi
 
@@ -200,8 +209,13 @@ else
     # Save to cache if JAVA_HOME was found.
     if [[ -n "$JAVA_HOME" ]]; then
       mkdir -p "$cache_dir"
-      echo "export JAVA_HOME='$JAVA_HOME'" >"$cache_file"
-      echo "export PATH='\$JAVA_HOME/bin:\$PATH'" >>"$cache_file"
+      (
+        umask 077
+        {
+          echo "export JAVA_HOME='$JAVA_HOME'"
+          echo "export PATH='\$JAVA_HOME/bin:\$PATH'"
+        } >| "$cache_file"
+      )
     fi
   }
   # Execute the fallback function.

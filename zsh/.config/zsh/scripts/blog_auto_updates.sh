@@ -272,8 +272,9 @@ blog_validate_path() {
     local path="$1"
     local description="$2"
 
-    # Check for dangerous characters.
-    if [[ "$path" == *".."* ]] || [[ "$path" == *";"* ]] || [[ "$path" == *"|"* ]]; then
+    # Check for dangerous characters and shell metacharacters.
+    if [[ "$path" == *".."* ]] || [[ "$path" == *";"* ]] || [[ "$path" == *"|"* ]] || \
+       [[ "$path" == *$'\n'* ]] || [[ "$path" == *$'\r'* ]] || [[ "$path" == *$'\t'* ]]; then
         blog_error "Unsafe path detected in $description: $path"
         return 1
     fi
@@ -285,6 +286,56 @@ blog_validate_path() {
     fi
 
     return 0
+}
+
+# -----------------------------------------------------------------------------
+# blog_validate_managed_path
+# -----------------------------------------------------------------------------
+# Ensures a path is under ALLOWED_BLOG_ROOT for operations that can modify or
+# delete content.
+#
+# Usage:
+#   blog_validate_managed_path <path> <description>
+# -----------------------------------------------------------------------------
+blog_validate_managed_path() {
+    local path="$1"
+    local description="$2"
+
+    blog_validate_path "$path" "$description" || return 1
+
+    case "$path" in
+        "$ALLOWED_BLOG_ROOT" | "$ALLOWED_BLOG_ROOT"/*)
+            return 0
+            ;;
+        *)
+            blog_error "Path for $description must remain under $ALLOWED_BLOG_ROOT: $path"
+            return 1
+            ;;
+    esac
+}
+
+# -----------------------------------------------------------------------------
+# blog_safe_clear_dir
+# -----------------------------------------------------------------------------
+# Clears directory contents with explicit safety checks.
+#
+# Usage:
+#   blog_safe_clear_dir <directory>
+# -----------------------------------------------------------------------------
+blog_safe_clear_dir() {
+    local target_dir="$1"
+
+    blog_validate_managed_path "$target_dir" "cleanup target" || return 1
+    [[ -d "$target_dir" ]] || {
+        blog_error "Cleanup target is not a directory: $target_dir"
+        return 1
+    }
+    [[ "$target_dir" != "/" ]] || {
+        blog_error "Refusing to clear root directory"
+        return 1
+    }
+
+    find "$target_dir" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + 2>/dev/null
 }
 
 # ============================================================================ #
@@ -370,10 +421,10 @@ blog_load_config() {
     fi
 
     # Validate all critical paths.
-    blog_validate_path "$BLOG_DIR" "BLOG_DIR" || return 1
+    blog_validate_managed_path "$BLOG_DIR" "BLOG_DIR" || return 1
     blog_validate_path "$BLOG_SOURCE_PATH" "BLOG_SOURCE_PATH" || return 1
-    blog_validate_path "$BLOG_DEST_PATH" "BLOG_DEST_PATH" || return 1
-    blog_validate_path "$BLOG_REPO_PATH" "BLOG_REPO_PATH" || return 1
+    blog_validate_managed_path "$BLOG_DEST_PATH" "BLOG_DEST_PATH" || return 1
+    blog_validate_managed_path "$BLOG_REPO_PATH" "BLOG_REPO_PATH" || return 1
 }
 
 # -----------------------------------------------------------------------------
@@ -946,8 +997,9 @@ blog_sync_posts() {
     blog_check_dir "$BLOG_SOURCE_PATH" "Source" || return 1
     blog_check_dir "$BLOG_DEST_PATH" "Destination" true || return 1
 
-    # Create backup before synchronization.
-    # local backup_path=$(blog_backup_before_sync "$BLOG_DEST_PATH")
+    # Create backup before synchronization (kept optional for performance).
+    local backup_path=""
+    # backup_path="$(blog_backup_before_sync "$BLOG_DEST_PATH")"
 
     blog_info "Synchronizing: $BLOG_SOURCE_PATH -> $BLOG_DEST_PATH"
 
@@ -971,7 +1023,7 @@ blog_sync_posts() {
             # Attempt recovery from backup.
             if [[ -n "$backup_path" ]] && [[ -d "$backup_path" ]]; then
                 blog_warn "Attempting recovery from backup: $backup_path"
-                rm -rf "$BLOG_DEST_PATH"/*
+                blog_safe_clear_dir "$BLOG_DEST_PATH" || return 1
                 cp -r "$backup_path/." "$BLOG_DEST_PATH/" || {
                     blog_error "Recovery from backup failed"
                 }

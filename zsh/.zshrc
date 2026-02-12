@@ -115,6 +115,52 @@ fi
 
 # Determine which modules to load based on platform/environment and user prefs.
 typeset -a config_modules
+typeset -ga _ZSH_HEAVY_FUNCTION_FILES=()
+
+# -----------------------------------------------------------------------------
+# Function file loader helpers
+# -----------------------------------------------------------------------------
+# Keep startup hot path small by deferring heavy helper bundles until the shell
+# is idle after the first prompt.
+_zsh_source_function_file() {
+    local file="$1"
+    if [[ -r "$file" ]]; then
+        source "$file"
+        return 0
+    fi
+    echo "Warning: Cannot read function file: $file"
+    return 1
+}
+
+_zsh_queue_function_file() {
+    local file="$1"
+    case "${file:t}" in
+        network.zsh | pdf.zsh | productivity.zsh)
+            _ZSH_HEAVY_FUNCTION_FILES+=("$file")
+            ;;
+        *)
+            _zsh_source_function_file "$file"
+            ;;
+    esac
+}
+
+_zsh_load_heavy_functions() {
+    local file
+    for file in "${_ZSH_HEAVY_FUNCTION_FILES[@]}"; do
+        _zsh_source_function_file "$file"
+    done
+    _ZSH_HEAVY_FUNCTION_FILES=()
+    unfunction _zsh_load_heavy_functions 2>/dev/null
+}
+
+_zsh_schedule_heavy_functions() {
+    (( ${#_ZSH_HEAVY_FUNCTION_FILES[@]} )) || return 0
+    if typeset -f _zsh_defer >/dev/null 2>&1; then
+        _zsh_defer _zsh_load_heavy_functions
+    else
+        _zsh_load_heavy_functions
+    fi
+}
 
 if [[ "$HYDE_ENABLED" == "1" ]]; then
     # -------------------------------------------------------------------------
@@ -160,8 +206,9 @@ if [[ "$HYDE_ENABLED" == "1" ]]; then
     # Load custom functions (shell.zsh only loads them when HYDE_ZSH_NO_PLUGINS!=1).
     if [[ "${HYDE_ZSH_NO_PLUGINS}" == "1" ]]; then
         for file in "$ZSH_CONFIG_DIR"/functions/*.zsh(N); do
-            [[ -r "$file" ]] && source "$file"
+            _zsh_queue_function_file "$file"
         done
+        _zsh_schedule_heavy_functions
     fi
 else
     # -------------------------------------------------------------------------
@@ -189,12 +236,9 @@ else
         echo "    Please check if the functions directory exists and contains .zsh files."
     else
         for file in "${function_files[@]}"; do
-            if [[ -r "$file" ]]; then
-                source "$file"
-            else
-                echo "Warning: Cannot read function file: $file"
-            fi
+            _zsh_queue_function_file "$file"
         done
+        _zsh_schedule_heavy_functions
     fi
 fi
 

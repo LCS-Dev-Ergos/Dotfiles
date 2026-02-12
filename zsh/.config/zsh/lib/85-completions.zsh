@@ -55,7 +55,7 @@ fi
 # Behavior:
 #   - Uses cached completion if valid (< 7 days old).
 #   - Regenerates completion if cache missing or expired.
-#   - Platform-aware cache validation (macOS uses stat -f, Linux uses find).
+#   - Platform-aware cache validation (macOS uses stat -f, Linux uses stat -c).
 #
 # Usage:
 #   _cache_completion "ngrok" "ngrok completion"
@@ -66,6 +66,7 @@ _cache_completion() {
   shift
   local -a generate_cmd=("$@")
   local cache_file="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/completions/_$cmd"
+  local cache_safe=false
 
   # Check if cache exists and is less than 7 days old.
   if [[ -f "$cache_file" ]]; then
@@ -86,16 +87,41 @@ _cache_completion() {
       cache_valid=true
     fi
 
-    if $cache_valid; then
+    if typeset -f _zsh_is_secure_file >/dev/null 2>&1; then
+      _zsh_is_secure_file "$cache_file" && cache_safe=true
+    elif [[ -r "$cache_file" && -O "$cache_file" && ! -L "$cache_file" ]]; then
+      cache_safe=true
+    fi
+
+    if $cache_valid && $cache_safe; then
       source "$cache_file"
       return
+    elif $cache_valid && ! $cache_safe; then
+      print -u2 "Completion cache skipped (insecure file): $cache_file"
     fi
   fi
 
   # Generate completion.
-  mkdir -p "$(dirname "$cache_file")"
-  "${generate_cmd[@]}" >"$cache_file" 2>/dev/null
-  source "$cache_file"
+  local cache_dir="${cache_file:h}"
+  local tmp_file=""
+  mkdir -p "$cache_dir"
+
+  tmp_file="$(mktemp "${cache_dir}/.${cmd}.XXXXXX" 2>/dev/null)" || return 1
+  if "${generate_cmd[@]}" >"$tmp_file" 2>/dev/null; then
+    chmod 600 "$tmp_file" 2>/dev/null || :
+    mv -f "$tmp_file" "$cache_file"
+  else
+    rm -f -- "$tmp_file" 2>/dev/null
+    return 1
+  fi
+
+  cache_safe=false
+  if typeset -f _zsh_is_secure_file >/dev/null 2>&1; then
+    _zsh_is_secure_file "$cache_file" && cache_safe=true
+  elif [[ -r "$cache_file" && -O "$cache_file" && ! -L "$cache_file" ]]; then
+    cache_safe=true
+  fi
+  $cache_safe && source "$cache_file"
 }
 
 # ---------- ngrok / Angular CLI (deferred) ---------- #

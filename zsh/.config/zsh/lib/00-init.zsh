@@ -144,11 +144,16 @@ fi
 DISABLE_AUTO_TITLE="true"
 
 # ---------------------------- Terminal Variables ---------------------------- #
-# Respect the terminal-provided TERM. Only force kitty when actually in kitty.
-case "$TERM" in
-  xterm-kitty) export TERM=xterm-kitty ;;     # running in Kitty
-  xterm-ghostty) export TERM=xterm-ghostty ;; # running in Ghostty
-  *) export TERM=xterm-256color ;;            # sensible default
+# Keep terminal-provided TERM whenever available. Only set a default when TERM
+# is missing or set to "dumb" (common in limited/non-interactive contexts).
+case "${TERM:-}" in
+  "" | dumb)
+    case "${TERM_PROGRAM:-}" in
+      kitty) export TERM=xterm-kitty ;;
+      ghostty) export TERM=xterm-ghostty ;;
+      *) export TERM=xterm-256color ;;
+    esac
+    ;;
 esac
 
 autoload -Uz add-zsh-hook
