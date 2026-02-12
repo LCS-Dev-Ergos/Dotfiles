@@ -255,6 +255,24 @@ export PIPENV_VENV_IN_PROJECT=1    # Store .venv in project directory.
 export CARGO_BUILD_JOBS=$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo "4")
 export CARGO_INCREMENTAL=1
 
+# -------------- C/C++ --------------- #
+# Conservative C/C++ defaults: keep them tool-friendly and non-invasive.
+# Avoid global optimization flags here; project build files should own those.
+if command -v ccache >/dev/null 2>&1; then
+  export CCACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/ccache"
+  export CCACHE_COMPRESS=1
+  export CCACHE_COMPRESSLEVEL="${CCACHE_COMPRESSLEVEL:-5}"
+  export CCACHE_MAXSIZE="${CCACHE_MAXSIZE:-10G}"
+
+  # CMake launcher variables (used by CMake projects when available).
+  export CMAKE_C_COMPILER_LAUNCHER="ccache"
+  export CMAKE_CXX_COMPILER_LAUNCHER="ccache"
+fi
+
+# Enable compile_commands.json generation for LSP/tooling in CMake projects.
+: "${CMAKE_EXPORT_COMPILE_COMMANDS:=1}"
+export CMAKE_EXPORT_COMPILE_COMMANDS
+
 # -------------- CONDA --------------- #
 # >>> Conda initialize >>>
 # -----------------------------------------------------------------------------
