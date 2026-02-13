@@ -25,6 +25,7 @@
 
 # Determine current script path.
 if [[ -n "${ZSH_VERSION}" ]]; then
+    # shellcheck disable=SC2296
     SCRIPT_PATH="${(%):-%x}"
 elif [[ -n "${BASH_VERSION}" ]]; then
     SCRIPT_PATH="${BASH_SOURCE[0]}"
@@ -33,30 +34,42 @@ else
 fi
 
 BLOG_SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd 2>/dev/null)"
-SCRIPT_NAME="$(basename "$SCRIPT_PATH")"
 VERSION="2.1.0"
+
+# ============================================================================ #
+# ++++++++++++++++++++++++++ Shared helpers loader ++++++++++++++++++++++++++++ #
+# ============================================================================ #
+
+_blog_helpers_primary="${BLOG_SCRIPT_DIR}/_shared_helpers.sh"
+_blog_helpers_fallback="${ZSH_CONFIG_DIR:-$HOME/.config/zsh}/scripts/_shared_helpers.sh"
+if [[ -r "$_blog_helpers_primary" ]]; then
+    # shellcheck disable=SC1090
+    source "$_blog_helpers_primary"
+elif [[ -r "$_blog_helpers_fallback" ]]; then
+    # shellcheck disable=SC1090
+    source "$_blog_helpers_fallback"
+else
+    echo "[ERROR] Shared helpers not found."
+    echo "Tried: $_blog_helpers_primary"
+    echo "Tried: $_blog_helpers_fallback"
+    return 1 2>/dev/null || exit 1
+fi
+unset _blog_helpers_primary _blog_helpers_fallback
 
 # ============================================================================ #
 # ++++++++++++ Operating system detection and path configuration +++++++++++++ #
 # ============================================================================ #
 
 # Detect operating system and set allowed blog directory.
-if [[ "$(uname)" == "Darwin" ]]; then
+_shared_detect_platform
+if [[ "${SHARED_PLATFORM:-Other}" == "macOS" ]]; then
     PLATFORM="macOS"
-    ARCH_LINUX=false
     ALLOWED_BLOG_ROOT="/Volumes/LCS.Data/Blog"
-elif [[ "$(uname)" == "Linux" ]]; then
+elif [[ "${SHARED_PLATFORM:-Other}" == "Linux" ]]; then
     PLATFORM="Linux"
     ALLOWED_BLOG_ROOT="/LCS.Data/Blog"
-    # Check if we're on Arch Linux
-    if [[ -f "/etc/arch-release" ]]; then
-        ARCH_LINUX=true
-    else
-        ARCH_LINUX=false
-    fi
 else
-    PLATFORM="Other"
-    ARCH_LINUX=false
+    PLATFORM="${SHARED_PLATFORM:-Other}"
     ALLOWED_BLOG_ROOT=""
 fi
 
@@ -64,25 +77,7 @@ fi
 # +++++++++++++++++++++++++++++ Color Support ++++++++++++++++++++++++++++++++ #
 # ============================================================================ #
 
-if [[ -t 1 ]] && command -v tput >/dev/null 2>&1 && [[ $(tput colors 2>/dev/null) -ge 8 ]]; then
-    C_RESET=$'\e[0m'
-    C_BOLD=$'\e[1m'
-    C_RED=$'\e[31m'
-    C_GREEN=$'\e[32m'
-    C_YELLOW=$'\e[33m'
-    C_BLUE=$'\e[34m'
-    C_MAGENTA=$'\e[35m'
-    C_CYAN=$'\e[36m'
-else
-    C_RESET=""
-    C_BOLD=""
-    C_RED=""
-    C_GREEN=""
-    C_YELLOW=""
-    C_BLUE=""
-    C_MAGENTA=""
-    C_CYAN=""
-fi
+_shared_init_colors
 
 # ============================================================================ #
 # ++++++++++++++++++++++++++++++ Logging System ++++++++++++++++++++++++++++++ #
@@ -598,7 +593,7 @@ blog_cleanup_backups() {
 # -----------------------------------------------------------------------------
 blog_check_command() {
     local cmd="$1"
-    if ! command -v "$cmd" &>/dev/null; then
+    if ! _shared_has_command "$cmd"; then
         blog_error "Required command not found: $cmd"
         return 1
     fi
@@ -714,7 +709,7 @@ blog_run_with_timeout() {
 
     blog_debug "Executing with ${timeout}s timeout: $*"
 
-    if command -v timeout &>/dev/null; then
+    if _shared_has_command timeout; then
         timeout "${timeout}s" "$@"
         return $?
     else
@@ -1563,8 +1558,9 @@ blog_status() {
     echo ""
     blog_info "=== Dependency Check ==="
     for cmd in python3 hugo git rsync; do
-        if command -v "$cmd" &>/dev/null; then
-            blog_info "$cmd: ${C_GREEN}✓${C_RESET} $(command -v "$cmd")"
+        local cmd_path
+        if cmd_path=$(command -v "$cmd" 2>/dev/null); then
+            blog_info "$cmd: ${C_GREEN}✓${C_RESET} $cmd_path"
         else
             blog_warn "$cmd: ${C_RED}✗ NOT FOUND${C_RESET}"
         fi

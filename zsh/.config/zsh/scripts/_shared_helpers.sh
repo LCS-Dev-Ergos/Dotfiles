@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck shell=zsh
+# shellcheck shell=bash
 # ============================================================================ #
 # +++++++++++++++++++++++++++ Shared Shell Helpers +++++++++++++++++++++++++++ #
 # ============================================================================ #
@@ -40,6 +40,7 @@ _SHARED_HELPERS_LOADED=1
 #     C_YELLOW, C_BLUE, C_CYAN, C_MAGENTA.
 # -----------------------------------------------------------------------------
 _shared_init_colors() {
+  # shellcheck disable=SC2034
   if [[ -t 1 ]] && command -v tput >/dev/null 2>&1 && [[ $(tput colors 2>/dev/null) -ge 8 ]]; then
     C_RESET=$'\e[0m'
     C_BOLD=$'\e[1m'
@@ -88,6 +89,122 @@ _shared_log() {
     warn)  printf "%s[WARN]%s  %s\n" "$C_YELLOW" "$C_RESET" "$*" >&2 ;;
     error) printf "%s[ERROR]%s %s\n" "$C_RED" "$C_RESET" "$*" >&2 ;;
   esac
+}
+
+# +++++++++++++++++++++++++++++ PLATFORM HELPERS ++++++++++++++++++++++++++++++ #
+
+# -----------------------------------------------------------------------------
+# _shared_detect_platform
+# -----------------------------------------------------------------------------
+# Detects the current operating system and optional Linux distribution.
+# Results are cached in SHARED_PLATFORM and SHARED_DISTRO globals.
+#
+# Usage:
+#   _shared_detect_platform
+#
+# Side Effects:
+#   - Sets SHARED_PLATFORM global variable.
+#   - Sets SHARED_DISTRO global variable for Linux when available.
+# -----------------------------------------------------------------------------
+_shared_detect_platform() {
+  if [[ -n "${SHARED_PLATFORM:-}" ]]; then
+    return 0
+  fi
+
+  local os
+  os=$(uname -s 2>/dev/null || printf "unknown")
+
+  case "$os" in
+    Darwin) SHARED_PLATFORM="macOS" ;;
+    Linux) SHARED_PLATFORM="Linux" ;;
+    *) SHARED_PLATFORM="$os" ;;
+  esac
+
+  SHARED_DISTRO=""
+  if [[ "$SHARED_PLATFORM" == "Linux" ]]; then
+    if [[ -f "/etc/arch-release" ]]; then
+      SHARED_DISTRO="Arch"
+    elif command -v lsb_release >/dev/null 2>&1; then
+      SHARED_DISTRO=$(lsb_release -si 2>/dev/null || printf "")
+    fi
+  fi
+}
+
+# -----------------------------------------------------------------------------
+# _shared_platform_pretty
+# -----------------------------------------------------------------------------
+# Returns human-readable platform string.
+#
+# Usage:
+#   platform=$(_shared_platform_pretty)
+# -----------------------------------------------------------------------------
+_shared_platform_pretty() {
+  _shared_detect_platform
+  if [[ "${SHARED_PLATFORM:-}" == "Linux" && -n "${SHARED_DISTRO:-}" ]]; then
+    printf "Linux (%s)\n" "$SHARED_DISTRO"
+  else
+    printf "%s\n" "${SHARED_PLATFORM:-unknown}"
+  fi
+}
+
+# ++++++++++++++++++++++++++++ VALIDATION HELPERS +++++++++++++++++++++++++++++ #
+
+# -----------------------------------------------------------------------------
+# _shared_is_bool
+# -----------------------------------------------------------------------------
+# Validates boolean-like values.
+#
+# Usage:
+#   _shared_is_bool <value>
+#
+# Returns:
+#   0 - Value is "true" or "false".
+#   1 - Value is invalid.
+# -----------------------------------------------------------------------------
+_shared_is_bool() {
+  local value="$1"
+  [[ "$value" == "true" || "$value" == "false" ]]
+}
+
+# -----------------------------------------------------------------------------
+# _shared_has_command
+# -----------------------------------------------------------------------------
+# Checks whether a command exists in PATH.
+#
+# Usage:
+#   _shared_has_command <command>
+#
+# Returns:
+#   0 - Command exists.
+#   1 - Command missing.
+# -----------------------------------------------------------------------------
+_shared_has_command() {
+  local cmd="$1"
+  command -v "$cmd" >/dev/null 2>&1
+}
+
+# -----------------------------------------------------------------------------
+# _shared_require_command
+# -----------------------------------------------------------------------------
+# Ensures a required command exists in PATH.
+#
+# Usage:
+#   _shared_require_command <command> [error_message]
+#
+# Returns:
+#   0 - Command exists.
+#   1 - Command missing (logs error).
+# -----------------------------------------------------------------------------
+_shared_require_command() {
+  local cmd="$1"
+  local message="${2:-Required command not found: $cmd}"
+
+  if _shared_has_command "$cmd"; then
+    return 0
+  fi
+
+  _shared_log error "$message"
+  return 1
 }
 
 # +++++++++++++++++++++++++++ INTERACTIVE PROMPTS ++++++++++++++++++++++++++++ #

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck shell=zsh
+# shellcheck shell=bash
 # ============================================================================ #
 # ++++++++++++++++++++ Cross-Platform Toolchain Switcher +++++++++++++++++++++ #
 # ============================================================================ #
@@ -31,6 +31,23 @@
 # License: MIT
 # ============================================================================ #
 
+# ++++++++++++++++++++++++++ SHARED HELPERS LOADER +++++++++++++++++++++++++++ #
+
+# shellcheck disable=SC2034
+
+_toolchain_helpers_dir="${ZSH_CONFIG_DIR:-$HOME/.config/zsh}/scripts"
+if [[ -r "${_toolchain_helpers_dir}/_shared_helpers.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "${_toolchain_helpers_dir}/_shared_helpers.sh"
+else
+  printf "[ERROR] Shared helpers not found: %s/_shared_helpers.sh\n" "$_toolchain_helpers_dir" >&2
+  if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+    return 1
+  fi
+  exit 1
+fi
+unset _toolchain_helpers_dir
+
 # ++++++++++++++++++++++++++++++ COLOR HANDLING ++++++++++++++++++++++++++++++ #
 
 # -----------------------------------------------------------------------------
@@ -50,23 +67,7 @@
 #   - Sets global color variables: C_RESET, C_BOLD, C_RED, C_GREEN, etc.
 # -----------------------------------------------------------------------------
 _toolchain_init_colors() {
-  if [[ -t 1 ]] && command -v tput >/dev/null 2>&1 && [[ $(tput colors 2>/dev/null) -ge 8 ]]; then
-    C_RESET=$'\e[0m'
-    C_BOLD=$'\e[1m'
-    C_RED=$'\e[31m'
-    C_GREEN=$'\e[32m'
-    C_YELLOW=$'\e[33m'
-    C_BLUE=$'\e[34m'
-    C_CYAN=$'\e[36m'
-  else
-    C_RESET=""
-    C_BOLD=""
-    C_RED=""
-    C_GREEN=""
-    C_YELLOW=""
-    C_BLUE=""
-    C_CYAN=""
-  fi
+  _shared_init_colors
 }
 
 # ++++++++++++++++++++++++++++++ PLATFORM PROBE ++++++++++++++++++++++++++++++ #
@@ -90,16 +91,13 @@ _toolchain_init_colors() {
 # -----------------------------------------------------------------------------
 _toolchain_detect_platform() {
   if [[ -n "${TOOLCHAIN_OS:-}" ]]; then
-    return
+    return 0
   fi
 
-  case "$(uname -s 2>/dev/null)" in
-    Darwin) TOOLCHAIN_OS="macOS" ;;
-    Linux) TOOLCHAIN_OS="Linux" ;;
-    *) TOOLCHAIN_OS="Other" ;;
-  esac
-
-  if [[ "$TOOLCHAIN_OS" == "Linux" && -f "/etc/arch-release" ]]; then
+  _shared_detect_platform
+  TOOLCHAIN_OS="${SHARED_PLATFORM:-Other}"
+  TOOLCHAIN_DISTRO=""
+  if [[ "$TOOLCHAIN_OS" == "Linux" && "${SHARED_DISTRO:-}" == "Arch" ]]; then
     TOOLCHAIN_DISTRO="Arch"
   fi
 }
@@ -147,14 +145,7 @@ fi
 #   - Outputs to stdout for info/ok, stderr for warn/error.
 # -----------------------------------------------------------------------------
 _toolchain_log() {
-  local level="$1"
-  shift
-  case "$level" in
-    info) printf "%s[INFO]%s %s\n" "$C_CYAN" "$C_RESET" "$*" ;;
-    ok) printf "%s[OK]%s   %s\n" "$C_GREEN" "$C_RESET" "$*" ;;
-    warn) printf "%s[WARN]%s %s\n" "$C_YELLOW" "$C_RESET" "$*" >&2 ;;
-    error) printf "%s[ERROR]%s %s\n" "$C_RED" "$C_RESET" "$*" >&2 ;;
-  esac
+  _shared_log "$@"
 }
 
 # -----------------------------------------------------------------------------

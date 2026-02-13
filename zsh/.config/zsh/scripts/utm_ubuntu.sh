@@ -1,5 +1,5 @@
-#!/bin/bash
-# shellcheck shell=zsh
+#!/usr/bin/env bash
+# shellcheck shell=bash
 # ============================================================================ #
 # utm_ubuntu.sh - Helper script to start a UTM virtual machine and mount a host
 # shared directory
@@ -42,6 +42,7 @@
 
 # When sourced by zsh during shell startup, expose helper commands and avoid changing shell options.
 if [[ -n "${ZSH_VERSION:-}" && "${BASH_SOURCE[0]:-}" != "$0" ]]; then
+    # shellcheck disable=SC2296
     UTM_UBUNTU_SCRIPT_PATH="${(%):-%N}"
 
     # -------------------------------------------------------------------------
@@ -81,6 +82,18 @@ if [[ -n "${ZSH_VERSION:-}" && "${BASH_SOURCE[0]:-}" != "$0" ]]; then
 fi
 
 set -euo pipefail
+
+# ++++++++++++++++++++++++++ SHARED HELPERS LOADER +++++++++++++++++++++++++++ #
+
+_utm_helpers_dir="${ZSH_CONFIG_DIR:-$HOME/.config/zsh}/scripts"
+if [[ -r "${_utm_helpers_dir}/_shared_helpers.sh" ]]; then
+    # shellcheck disable=SC1091
+    source "${_utm_helpers_dir}/_shared_helpers.sh"
+else
+    printf "[ERROR] Shared helpers not found: %s/_shared_helpers.sh\n" "$_utm_helpers_dir" >&2
+    exit 1
+fi
+unset _utm_helpers_dir
 
 # Parse command line arguments
 AUTO_LOGIN=true
@@ -163,7 +176,7 @@ fail() { echo "$@" >&2; exit 1; }
 #   0 - Command found.
 #   1 - Command missing (exits script via fail).
 # -----------------------------------------------------------------------------
-require_command() { command -v "$1" >/dev/null 2>&1 || fail "Required command not found: $1"; }
+require_command() { _shared_has_command "$1" || fail "Required command not found: $1"; }
 
 # -----------------------------------------------------------------------------
 # describe_ssh_target
@@ -325,7 +338,8 @@ mount_shared_directory() {
     remote_mount_q=$(printf "%q" "${REMOTE_MOUNTPOINT}")
     remote_share_q=$(printf "%q" "${REMOTE_SHARE_NAME}")
 
-if mount_output=$(ssh "${SSH_OPTS[@]}" -T "${SSH_HOST}" "bash -s" 2>&1 <<EOF
+    # shellcheck disable=SC2087
+    if mount_output=$(ssh "${SSH_OPTS[@]}" -T "${SSH_HOST}" "bash -s" 2>&1 <<EOF
 set -euo pipefail
 REMOTE_SUDO=${remote_sudo_q}
 REMOTE_MOUNTPOINT=${remote_mount_q}

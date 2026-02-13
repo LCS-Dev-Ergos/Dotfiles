@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck shell=zsh
+# shellcheck shell=bash
 # ============================================================================ #
 # +++++++++++++++ VS Code Sync (Stable <-> Insiders) on macOS ++++++++++++++++ #
 # ============================================================================ #
@@ -46,35 +46,16 @@ _VSCODE_SYNC_BACKUP_DIR="${HOME}/.local/share/vscode-sync-backups"
 # ++++++++++++++++++++++++++ SHARED HELPERS LOADER +++++++++++++++++++++++++++ #
 
 # Source shared helpers for color, logging, and confirmation utilities.
-# Falls back to inline definitions if the shared file is unavailable.
 _vscode_sync_helpers_dir="${ZSH_CONFIG_DIR:-$HOME/.config/zsh}/scripts"
 if [[ -r "${_vscode_sync_helpers_dir}/_shared_helpers.sh" ]]; then
+  # shellcheck disable=SC1091
   source "${_vscode_sync_helpers_dir}/_shared_helpers.sh"
 else
-  # Inline fallback: define minimal versions if shared helpers are missing.
-  _shared_init_colors() {
-    if [[ -t 1 ]] && command -v tput >/dev/null 2>&1 && [[ $(tput colors 2>/dev/null) -ge 8 ]]; then
-      C_RESET=$'\e[0m' C_BOLD=$'\e[1m' C_RED=$'\e[31m' C_GREEN=$'\e[32m'
-      C_YELLOW=$'\e[33m' C_BLUE=$'\e[34m' C_MAGENTA=$'\e[35m' C_CYAN=$'\e[36m'
-    else
-      C_RESET="" C_BOLD="" C_RED="" C_GREEN="" C_YELLOW="" C_BLUE="" C_MAGENTA="" C_CYAN=""
-    fi
-  }
-  _shared_log() {
-    local level="$1"; shift
-    case "$level" in
-      info)  printf "[INFO]  %s\n" "$*" ;;
-      ok)    printf "[OK]    %s\n" "$*" ;;
-      warn)  printf "[WARN]  %s\n" "$*" >&2 ;;
-      error) printf "[ERROR] %s\n" "$*" >&2 ;;
-    esac
-  }
-  _shared_confirm() {
-    local prompt="${1:-Continue?}" reply
-    printf "%s [y/N]: " "$prompt"
-    read -r reply
-    case "$reply" in [yY]|[yY][eE][sS]) return 0 ;; *) return 1 ;; esac
-  }
+  printf "[ERROR] Shared helpers not found: %s/_shared_helpers.sh\n" "$_vscode_sync_helpers_dir" >&2
+  if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+    return 1
+  fi
+  exit 1
 fi
 unset _vscode_sync_helpers_dir
 
@@ -97,8 +78,9 @@ unset _vscode_sync_helpers_dir
 #   - Logs error message if not on macOS.
 # -----------------------------------------------------------------------------
 _vscode_sync_check_platform() {
-  if [[ "$(uname -s 2>/dev/null)" != "Darwin" ]]; then
-    _shared_log error "This script only supports macOS. Detected: $(uname -s 2>/dev/null)"
+  _shared_detect_platform
+  if [[ "${SHARED_PLATFORM:-unknown}" != "macOS" ]]; then
+    _shared_log error "This script only supports macOS. Detected: ${SHARED_PLATFORM:-unknown}"
     return 1
   fi
   return 0

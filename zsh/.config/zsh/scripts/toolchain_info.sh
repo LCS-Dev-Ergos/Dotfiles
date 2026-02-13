@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck shell=zsh
+# shellcheck shell=bash
 # ============================================================================ #
 # ++++++++++++++++++++++ Toolchain Information Reporter ++++++++++++++++++++++ #
 # ============================================================================ #
@@ -29,7 +29,36 @@
 # License: MIT
 # ============================================================================ #
 
+# ++++++++++++++++++++++++++ SHARED HELPERS LOADER +++++++++++++++++++++++++++ #
+
+_toolchain_info_helpers_dir="${ZSH_CONFIG_DIR:-$HOME/.config/zsh}/scripts"
+if [[ -r "${_toolchain_info_helpers_dir}/_shared_helpers.sh" ]]; then
+  # shellcheck disable=SC1091
+  source "${_toolchain_info_helpers_dir}/_shared_helpers.sh"
+else
+  printf "[ERROR] Shared helpers not found: %s/_shared_helpers.sh\n" "$_toolchain_info_helpers_dir" >&2
+  if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
+    return 1
+  fi
+  exit 1
+fi
+unset _toolchain_info_helpers_dir
+
 # ++++++++++++++++++++++++++++++ Color Handling ++++++++++++++++++++++++++++++ #
+
+# -----------------------------------------------------------------------------
+# _toolchain_info_disable_trace
+# -----------------------------------------------------------------------------
+# Disables noisy trace options in zsh, no-op on other shells.
+#
+# Usage:
+#   _toolchain_info_disable_trace
+# -----------------------------------------------------------------------------
+_toolchain_info_disable_trace() {
+  if [[ -n "${ZSH_VERSION:-}" ]]; then
+    unsetopt VERBOSE SOURCE_TRACE 2>/dev/null || true
+  fi
+}
 
 # -----------------------------------------------------------------------------
 # _toolchain_info_init_colors
@@ -49,28 +78,8 @@
 #   - Temporarily disables VERBOSE and SOURCE_TRACE options.
 # -----------------------------------------------------------------------------
 _toolchain_info_init_colors() {
-  # Preserve xtrace state.
-  unsetopt VERBOSE SOURCE_TRACE
-
-  if [[ -t 1 ]] && command -v tput >/dev/null 2>&1 && [[ $(tput colors 2>/dev/null) -ge 8 ]]; then
-    C_RESET=$'\e[0m'
-    C_BOLD=$'\e[1m'
-    C_RED=$'\e[31m'
-    C_GREEN=$'\e[32m'
-    C_YELLOW=$'\e[33m'
-    C_BLUE=$'\e[34m'
-    C_MAGENTA=$'\e[35m'
-    C_CYAN=$'\e[36m'
-  else
-    C_RESET=""
-    C_BOLD=""
-    C_RED=""
-    C_GREEN=""
-    C_YELLOW=""
-    C_BLUE=""
-    C_MAGENTA=""
-    C_CYAN=""
-  fi
+  _toolchain_info_disable_trace
+  _shared_init_colors
 }
 
 # +++++++++++++++++++++++++++++++ HELPER UTILS +++++++++++++++++++++++++++++++ #
@@ -92,24 +101,8 @@ _toolchain_info_init_colors() {
 #   - Temporarily disables VERBOSE and SOURCE_TRACE options.
 # -----------------------------------------------------------------------------
 _toolchain_detect_platform() {
-  # Preserve xtrace state.
-  unsetopt VERBOSE SOURCE_TRACE
-
-  local os
-  os=$(uname -s 2>/dev/null || printf "unknown")
-  case "$os" in
-    Darwin) echo "macOS" ;;
-    Linux)
-      if [[ -f "/etc/arch-release" ]]; then
-        echo "Linux (Arch)"
-      elif command -v lsb_release >/dev/null 2>&1; then
-        echo "Linux ($(lsb_release -si 2>/dev/null))"
-      else
-        echo "Linux"
-      fi
-      ;;
-    *) echo "$os" ;;
-  esac
+  _toolchain_info_disable_trace
+  _shared_platform_pretty
 }
 
 # -----------------------------------------------------------------------------
@@ -129,8 +122,7 @@ _toolchain_detect_platform() {
 #   - Temporarily disables VERBOSE and SOURCE_TRACE options.
 # -----------------------------------------------------------------------------
 _toolchain_path_without_ccache() {
-  # Preserve xtrace state.
-  unsetopt VERBOSE SOURCE_TRACE
+  _toolchain_info_disable_trace
 
   local IFS=:
   local dir filtered=()
@@ -169,8 +161,7 @@ _toolchain_path_without_ccache() {
 #   readlink - Symlink reader (fallback, optional).
 # -----------------------------------------------------------------------------
 _toolchain_portable_realpath() {
-  # Preserve xtrace state.
-  unsetopt VERBOSE SOURCE_TRACE
+  _toolchain_info_disable_trace
 
   local target="$1"
 
@@ -220,8 +211,7 @@ PY
 #   - Temporarily disables VERBOSE and SOURCE_TRACE options.
 # -----------------------------------------------------------------------------
 _toolchain_find_in_path() {
-  # Preserve xtrace state.
-  unsetopt VERBOSE SOURCE_TRACE
+  _toolchain_info_disable_trace
 
   local name="$1" search_path="${2:-$PATH}" dir
   local IFS=:
@@ -318,8 +308,7 @@ _toolchain_resolve_real_compiler() {
 #   - Temporarily disables VERBOSE and SOURCE_TRACE options.
 # -----------------------------------------------------------------------------
 _toolchain_vendor_for_gcc() {
-  # Preserve xtrace state.
-  unsetopt VERBOSE SOURCE_TRACE
+  _toolchain_info_disable_trace
 
   local version_info="$1" compiler_path="$2"
   if [[ "$version_info" == *"Homebrew"* ]]; then
@@ -479,6 +468,7 @@ get_toolchain_info() {
 
   local -a compilers=("cc" "c++" "gcc" "g++" "clang" "clang++")
   local -A seen_compilers=()
+  local name
 
   # Add Homebrew versioned GCC binaries if present (e.g., gcc-15, g++-15).
   if [[ "$(uname -s 2>/dev/null)" == "Darwin" ]]; then
@@ -496,7 +486,7 @@ get_toolchain_info() {
 
     if [[ -n "$gcc_bin" && -d "$gcc_bin" ]]; then
       while IFS= read -r compiler_entry; do
-        local name=$(basename "$compiler_entry")
+        name=$(basename "$compiler_entry")
         if [[ -n "$name" ]]; then
           compilers+=("$name")
         fi
@@ -519,13 +509,17 @@ get_toolchain_info() {
 
   local compiler
   for compiler in "${compilers[@]}"; do
-    local cpath=$(command -v "$compiler" 2>/dev/null)
+    local cpath
+    cpath=$(command -v "$compiler" 2>/dev/null)
 
     if [[ -n "$cpath" && -x "$cpath" ]]; then
-      local real_cpath=$(_toolchain_resolve_real_compiler "$cpath")
+      local real_cpath
+      real_cpath=$(_toolchain_resolve_real_compiler "$cpath")
 
-      local wrapper_details=$(_toolchain_compiler_details "$cpath")
-      local real_details=$(_toolchain_compiler_details "$real_cpath")
+      local wrapper_details
+      local real_details
+      wrapper_details=$(_toolchain_compiler_details "$cpath")
+      real_details=$(_toolchain_compiler_details "$real_cpath")
 
       IFS='|' read -r wrapper_type wrapper_vendor wrapper_version <<<"$wrapper_details"
       IFS='|' read -r real_type real_vendor real_version <<<"$real_details"
