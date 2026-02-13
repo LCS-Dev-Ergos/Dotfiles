@@ -23,7 +23,7 @@
 # Note: This module must load LATE to ensure all PATH modifications are complete.
 # ============================================================================ #
 
-# On HyDE with user's lib/config: compinit runs here.
+# On HyDE with user's lib/config: compinit usually runs in 20-zinit.zsh.
 # On HyDE with shell.zsh: compinit already ran there.
 # This guard prevents double compinit when shell.zsh was loaded.
 if [[ "$HYDE_ENABLED" == "1" ]] && [[ "${HYDE_ZSH_NO_PLUGINS}" != "1" ]]; then
@@ -162,7 +162,7 @@ if [[ -d "$HOME/.docker/completions" ]]; then
 fi
 
 autoload -Uz compinit
-# Avoid double compinit (OMZ already ran it).
+# Avoid double compinit (20-zinit.zsh usually already ran it).
 if (( ! ${+_comps} )); then
   typeset -a compinit_opts
   compinit_opts=(-d "$ZSH_COMPDUMP")

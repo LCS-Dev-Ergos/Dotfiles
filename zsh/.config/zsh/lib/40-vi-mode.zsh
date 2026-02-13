@@ -153,5 +153,38 @@ if command -v pbcopy >/dev/null 2>&1; then
   bindkey '^O' _vi_copy_cwd
 fi
 
+# -----------------------------------------------------------------------------
+# Terminal keybindings previously provided by OMZ key-bindings.
+# -----------------------------------------------------------------------------
+[[ -n "${terminfo[khome]-}" ]] && {
+  bindkey -M viins "${terminfo[khome]}" beginning-of-line
+  bindkey -M vicmd "${terminfo[khome]}" beginning-of-line
+}
+
+[[ -n "${terminfo[kend]-}" ]] && {
+  bindkey -M viins "${terminfo[kend]}" end-of-line
+  bindkey -M vicmd "${terminfo[kend]}" end-of-line
+}
+
+[[ -n "${terminfo[kpp]-}" ]] && bindkey "${terminfo[kpp]}" up-line-or-history
+[[ -n "${terminfo[knp]-}" ]] && bindkey "${terminfo[knp]}" down-line-or-history
+[[ -n "${terminfo[kdch1]-}" ]] && bindkey -M viins "${terminfo[kdch1]}" delete-char
+[[ -n "${terminfo[kcbt]-}" ]] && bindkey "${terminfo[kcbt]}" reverse-menu-complete
+
+bindkey -M viins '^?' backward-delete-char
+
+for seq in $'\e[1;5D' $'\e[5D' $'\eb'; do
+  bindkey -M viins "$seq" backward-word
+  bindkey -M vicmd "$seq" backward-word
+done
+for seq in $'\e[1;5C' $'\e[5C' $'\ef'; do
+  bindkey -M viins "$seq" forward-word
+  bindkey -M vicmd "$seq" forward-word
+done
+
+autoload -Uz edit-command-line
+zle -N edit-command-line
+bindkey -M vicmd 'v' edit-command-line
+
 # ============================================================================ #
 # End of 40-vi-mode.zsh

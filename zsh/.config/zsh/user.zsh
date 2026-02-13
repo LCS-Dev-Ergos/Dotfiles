@@ -6,7 +6,7 @@
 # Your overrides here WILL take effect (unlike the old terminal.zsh flow).
 #
 # Available options:
-#   HYDE_ZSH_NO_PLUGINS=1   - Skip HyDE's OMZ loading (use lib/20-omz.zsh instead)
+#   HYDE_ZSH_NO_PLUGINS=1   - Skip HyDE's plugin loading (use lib/20-zinit.zsh instead)
 #   HYDE_ZSH_PROMPT=0       - Skip HyDE's prompt (use lib/30-prompt.zsh instead)
 #   HYDE_ZSH_COMPINIT_CHECK - Hours between compinit regeneration (default: 24)
 #
@@ -15,7 +15,7 @@
 # ================================ OVERRIDES ================================= #
 
 # Use custom lib/modules instead of HyDE's plugin system.
-# When set to 1: lib/20-omz.zsh handles OMZ (with macOS-specific plugins)
+# When set to 1: lib/20-zinit.zsh handles plugins (with platform-aware behavior)
 # When set to 0: HyDE shell.zsh handles OMZ (with HyDE-specific plugins)
 HYDE_ZSH_NO_PLUGINS=1
 

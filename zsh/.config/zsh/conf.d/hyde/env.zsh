@@ -49,7 +49,7 @@ PYTHON_HISTORY="$XDG_STATE_HOME/python_history"
 export HYPRLAND_CONFIG="${XDG_DATA_HOME:-$HOME/.local/share}/hypr/hyprland.conf"
 
 # Signal that HyDE environment is active.
-# This flag is used by .zshrc to conditionally skip lib/20-omz.zsh and lib/30-prompt.zsh
+# This flag is used by .zshrc to conditionally skip lib/20-zinit.zsh and lib/30-prompt.zsh
 # when HyDE's shell.zsh handles OMZ and prompt initialization.
 HYDE_ENABLED=1
 

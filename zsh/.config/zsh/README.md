@@ -13,7 +13,7 @@ This directory contains the modular Zsh configuration, refactored from a monolit
 ├── lib/                      # Core configuration modules
 │   ├── 00-init.zsh           # Base configuration & platform detection
 │   ├── 10-history.zsh        # History settings
-│   ├── 20-omz.zsh            # Oh-My-Zsh initialization
+│   ├── 20-zinit.zsh          # Zinit plugin initialization
 │   ├── 30-prompt.zsh         # Prompt system (Starship/P10k/Minimal)
 │   ├── 40-vi-mode.zsh        # Vi mode & keybindings
 │   ├── 50-tools.zsh          # Modern tools (fzf, zoxide, yazi, atuin)
@@ -38,7 +38,7 @@ The numeric order of modules is **critical** for proper functionality:
 
 1. **00-init.zsh** - Must be first: defines base variables (PLATFORM, colors)
 2. **10-history.zsh** - History configuration
-3. **20-omz.zsh** - Oh-My-Zsh (requires init variables)
+3. **20-zinit.zsh** - Zinit plugins/snippets (requires init variables)
 4. **30-prompt.zsh** - Prompt system
 5. **40-vi-mode.zsh** - Vi mode
 6. **50-tools.zsh** - Modern tools with lazy-loading
@@ -247,6 +247,7 @@ source ~/.zshrc
 ### References
 
 - [Zsh Documentation](https://zsh.sourceforge.io/Doc/)
+- [Zinit](https://github.com/zdharma-continuum/zinit)
 - [Oh-My-Zsh](https://github.com/ohmyzsh/ohmyzsh)
 - [Starship Prompt](https://starship.rs/)
 

@@ -24,7 +24,7 @@
 #
 #   00-init.zsh         - Base configuration, platform detection, colors.
 #   10-history.zsh      - History settings.
-#   20-omz.zsh          - Oh-My-Zsh initialization.
+#   20-zinit.zsh        - Zinit plugin initialization.
 #   30-prompt.zsh       - Prompt system (Starship/P10k/Minimal).
 #   40-vi-mode.zsh      - Vi mode and keybindings.
 #   50-tools.zsh        - Modern tools (fzf, zoxide, yazi, atuin).
@@ -167,7 +167,7 @@ if [[ "$HYDE_ENABLED" == "1" ]]; then
     # +++++++++++++++++++++++++ ARCH LINUX with HyDE ++++++++++++++++++++++++++
     # -------------------------------------------------------------------------
     # Check user preferences to decide which system handles OMZ/prompt:
-    #   - HYDE_ZSH_NO_PLUGINS=1 → use lib/20-omz.zsh (user's config)
+    #   - HYDE_ZSH_NO_PLUGINS=1 → use lib/20-zinit.zsh (user's config)
     #   - HYDE_ZSH_PROMPT=0     → use lib/30-prompt.zsh (user's config)
 
     # Load base modules first.
@@ -176,8 +176,8 @@ if [[ "$HYDE_ENABLED" == "1" ]]; then
 
     # OMZ: user's lib/ or HyDE's shell.zsh?
     if [[ "${HYDE_ZSH_NO_PLUGINS}" == "1" ]]; then
-        # User wants their own OMZ config.
-        source "$ZSH_CONFIG_DIR/lib/20-omz.zsh"
+        # User wants their own plugin manager config.
+        source "$ZSH_CONFIG_DIR/lib/20-zinit.zsh"
     else
         # HyDE handles OMZ - load shell.zsh (partial, just OMZ part).
         [[ -f "$ZSH_CONFIG_DIR/conf.d/hyde/shell.zsh" ]] && \
@@ -276,8 +276,8 @@ fi
 #   Shell history configuration with advanced features for command recall,
 #   deduplication, and history sharing across sessions.
 #
-# 20-omz.zsh:
-#   Oh-My-Zsh framework initialization with platform-aware plugin management.
+# 20-zinit.zsh:
+#   Zinit plugin initialization with platform-aware plugin management.
 #   Provides syntax highlighting, autosuggestions, and utility plugins.
 #
 # 30-prompt.zsh:
