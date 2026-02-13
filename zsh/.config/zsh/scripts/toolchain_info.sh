@@ -1,25 +1,25 @@
 #!/usr/bin/env bash
 # shellcheck shell=zsh
 # ============================================================================ #
-# ++++++++++++++++++++++++ Toolchain Information Reporter +++++++++++++++++++ #
+# ++++++++++++++++++++++ Toolchain Information Reporter ++++++++++++++++++++++ #
 # ============================================================================ #
 # Comprehensive C/C++ compiler toolchain analysis and reporting utility.
 #
 # This script provides detailed information about active compiler toolchains:
-# - Compiler detection (cc, c++, gcc, g++, clang, clang++, versioned variants)
-# - Vendor identification (Apple, Homebrew, GNU, LLVM, system packages)
-# - Wrapper detection (ccache, symlinks, masquerading binaries)
-# - Version reporting with origin attribution
-# - Cross-platform support (macOS, Linux: Arch, Ubuntu, Debian)
+#  - Compiler detection (cc, c++, gcc, g++, clang, clang++, versioned variants)
+#  - Vendor identification (Apple, Homebrew, GNU, LLVM, system packages)
+#  - Wrapper detection (ccache, symlinks, masquerading binaries)
+#  - Version reporting with origin attribution
+#  - Cross-platform support (macOS, Linux: Arch, Ubuntu, Debian)
 #
 # Features:
-# - Automatic detection of Homebrew versioned GCC (gcc-14, gcc-15, etc.)
-# - Symlink resolution to identify real compiler binaries
-# - ccache wrapper detection with fallback resolution
-# - Masquerading warnings (gcc pointing to clang, etc.)
-# - Color-coded output with vendor/type highlighting
-# - Environment variable override display (CC, CXX)
-# - Debug mode for detailed path resolution information
+#  - Automatic detection of Homebrew versioned GCC (gcc-14, gcc-15, etc.)
+#  - Symlink resolution to identify real compiler binaries
+#  - ccache wrapper detection with fallback resolution
+#  - Masquerading warnings (gcc pointing to clang, etc.)
+#  - Color-coded output with vendor/type highlighting
+#  - Environment variable override display (CC, CXX)
+#  - Debug mode for detailed path resolution information
 #
 # Usage:
 #   get_toolchain_info              # Display comprehensive toolchain report
@@ -73,7 +73,7 @@ _toolchain_info_init_colors() {
   fi
 }
 
-# ++++++++++++++++++++++++++++++ Helper Utils ++++++++++++++++++++++++++++++++ #
+# +++++++++++++++++++++++++++++++ HELPER UTILS +++++++++++++++++++++++++++++++ #
 
 # -----------------------------------------------------------------------------
 # _toolchain_detect_platform
@@ -430,7 +430,7 @@ _toolchain_compiler_details() {
   printf "%s|%s|%s\n" "$toolchain_type" "$vendor" "$version_info"
 }
 
-# ++++++++++++++++++++++++++++++ Main Function +++++++++++++++++++++++++++++++ #
+# ++++++++++++++++++++++++++++++ MAIN FUNCTION +++++++++++++++++++++++++++++++ #
 
 # -----------------------------------------------------------------------------
 # get_toolchain_info

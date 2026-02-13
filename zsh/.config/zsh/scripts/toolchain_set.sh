@@ -7,17 +7,17 @@
 #
 # This script provides intelligent switching between LLVM/Clang and GNU GCC
 # toolchains with automatic detection of installation paths from:
-# - Homebrew installations (macOS: /opt/homebrew, /usr/local)
-# - System package managers (Arch Linux, Ubuntu, Debian)
-# - Custom LLVM installations (/usr/lib/llvm*, /opt/llvm*)
+#  - Homebrew installations (macOS: /opt/homebrew, /usr/local)
+#  - System package managers (Arch Linux, Ubuntu, Debian)
+#  - Custom LLVM installations (/usr/lib/llvm*, /opt/llvm*)
 #
 # Features:
-# - Automatic version selection (prefers highest versioned binary)
-# - Safe environment preservation and restoration
-# - PATH manipulation with original state backup
-# - Compiler flags configuration (LDFLAGS, CPPFLAGS)
-# - Cross-platform compatibility (macOS Darwin, Linux)
-# - Color-coded logging and status messages
+#  - Automatic version selection (prefers highest versioned binary)
+#  - Safe environment preservation and restoration
+#  - PATH manipulation with original state backup
+#  - Compiler flags configuration (LDFLAGS, CPPFLAGS)
+#  - Cross-platform compatibility (macOS Darwin, Linux)
+#  - Color-coded logging and status messages
 #
 # Usage:
 #   use_llvm    # Activate LLVM/Clang toolchain
@@ -31,7 +31,7 @@
 # License: MIT
 # ============================================================================ #
 
-# ++++++++++++++++++++++++++++++ Color Handling ++++++++++++++++++++++++++++++ #
+# ++++++++++++++++++++++++++++++ COLOR HANDLING ++++++++++++++++++++++++++++++ #
 
 # -----------------------------------------------------------------------------
 # _toolchain_init_colors
@@ -69,7 +69,7 @@ _toolchain_init_colors() {
   fi
 }
 
-# ------------------------------ Platform Probe ------------------------------ #
+# ++++++++++++++++++++++++++++++ PLATFORM PROBE ++++++++++++++++++++++++++++++ #
 
 # -----------------------------------------------------------------------------
 # _toolchain_detect_platform
@@ -125,7 +125,7 @@ if [[ -z "${_TOOLCHAIN_SAVED_ENV:-}" ]]; then
   TOOLCHAIN_ORIGINAL_CXX="${CXX-__TOOLCHAIN_UNSET__}"
 fi
 
-# +++++++++++++++++++++++++++++++ Log Helpers ++++++++++++++++++++++++++++++++ #
+# +++++++++++++++++++++++++++++++ LOG HELPERS ++++++++++++++++++++++++++++++++ #
 
 # -----------------------------------------------------------------------------
 # _toolchain_log
@@ -495,7 +495,7 @@ _toolchain_verify_compiler() {
   return 1
 }
 
-# +++++++++++++++++++++++++ Main Toolchain Functions +++++++++++++++++++++++++ #
+# +++++++++++++++++++++++++ MAIN TOOLCHAIN FUNCTIONS +++++++++++++++++++++++++ #
 
 # -----------------------------------------------------------------------------
 # use_llvm
