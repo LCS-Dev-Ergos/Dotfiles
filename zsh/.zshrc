@@ -18,36 +18,8 @@
 #   This file has been refactored from a 2000+ line monolithic configuration
 #   into a modular system for better maintainability and organization.
 #
-# Configuration modules are loaded from: ~/.config/zsh/lib/
-#
-# Loading order (critical for proper functionality):
-#
-#   00-init.zsh         - Base configuration, platform detection, colors.
-#   10-history.zsh      - History settings.
-#   20-zinit.zsh        - Zinit plugin initialization.
-#   30-prompt.zsh       - Prompt system (Starship/P10k/Minimal).
-#   40-vi-mode.zsh      - Vi mode and keybindings.
-#   50-tools.zsh        - Modern tools (fzf, zoxide, yazi, atuin).
-#   60-aliases.zsh      - All aliases and utility functions.
-#   70-ai-tools.zsh     - AI tools (Fabric, OpenCode, etc.).
-#   75-variables.zsh    - Global variables and exports.
-#   80-languages.zsh    - Language managers (SDKMAN, pyenv, fnm, etc.).
-#   85-completions.zsh  - Completion systems.
-#   90-path.zsh         - Final PATH assembly and cleanup.
-#   95-lazy-scripts.zsh - Lazy loader for ~/.config/zsh/scripts.
-#   96-lazy-cpp-tools.zsh - Lazy loader for ~/.config/cpp-tools/competitive.sh.
-#
-# BENEFITS OF MODULAR ARCHITECTURE:
-#   - Maintainability: Each file has a single responsibility.
-#   - Performance: Easy to profile and optimize individual modules.
-#   - Debugging: Can disable specific modules for troubleshooting.
-#   - Portability: Modules can be shared across machines.
-#   - Version Control: Smaller, focused commits.
-#
-#
-# EXTERNAL SCRIPTS:
-#   Custom scripts from ~/.config/zsh/scripts/ are loaded after core modules.
-#   Scripts are sourced alphabetically by filename.
+# Consult the README.md for further details on the design philosophy,
+# module breakdown, and usage tips.
 #
 # ============================================================================ #
 
