@@ -39,11 +39,28 @@ if [[ ! -f "$ZINIT_HOME/zinit.zsh" ]]; then
 fi
 
 if [[ ! -f "$ZINIT_HOME/zinit.zsh" ]]; then
+  # Fallback to OMZ backup when Zinit isn't available (offline/first boot).
+  typeset _zinit_module_dir="${${(%):-%x}:A:h}"
+  typeset _zinit_omz_backup="${_zinit_module_dir}/20-omz.zsh.bak"
+  if [[ "${ZSH_ZINIT_FALLBACK_OMZ:-1}" == "1" ]] && [[ -r "$_zinit_omz_backup" ]]; then
+    print -u2 "Warning: zinit not available at $ZINIT_HOME (fallback: 20-omz.zsh.bak)"
+    source "$_zinit_omz_backup"
+    unset _zinit_module_dir _zinit_omz_backup
+    return 0
+  fi
+  unset _zinit_module_dir _zinit_omz_backup
   print -u2 "Warning: zinit not available at $ZINIT_HOME"
   return 0
 fi
 
 source "$ZINIT_HOME/zinit.zsh"
+
+# Optional optimization from Zinit docs: skip some disk checks on startup.
+# Safe after first plugin install/update; disable with ZSH_ZINIT_OPTIMIZE_DISK_ACCESSES=0.
+: "${ZSH_ZINIT_OPTIMIZE_DISK_ACCESSES:=1}"
+if [[ "${ZSH_ZINIT_OPTIMIZE_DISK_ACCESSES}" == "1" ]]; then
+  ZINIT[OPTIMIZE_OUT_DISK_ACCESSES]=1
+fi
 
 # Use XDG cache for completion dump to avoid framework-specific cache paths.
 export ZSH_COMPDUMP="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/.zcompdump-$HOST"
@@ -137,23 +154,26 @@ zinit snippet OMZL::theme-and-appearance.zsh
 setopt auto_cd auto_pushd pushd_ignore_dups pushdminus
 alias d='dirs -v | head -10'
 
+# OMZ-compat function replacements are loaded from functions/omz-compat.zsh.
+
 # Core OMZ plugin snippets loaded synchronously.
-typeset -a _zinit_omz_plugins=(
+typeset -a _zinit_omz_plugins_sync=(
   git
   sudo
-  extract
+)
+typeset -a _zinit_omz_plugins_deferred=(
   jsontools
-  colored-man-pages
   command-not-found
-  copyfile
-  copypath
-  web-search
 )
 typeset _zinit_omz_plugin
-for _zinit_omz_plugin in "${_zinit_omz_plugins[@]}"; do
+for _zinit_omz_plugin in "${_zinit_omz_plugins_sync[@]}"; do
   zinit snippet "OMZP::${_zinit_omz_plugin}/${_zinit_omz_plugin}.plugin.zsh"
 done
-unset _zinit_omz_plugin _zinit_omz_plugins
+for _zinit_omz_plugin in "${_zinit_omz_plugins_deferred[@]}"; do
+  zinit ice wait"1" lucid
+  zinit snippet "OMZP::${_zinit_omz_plugin}/${_zinit_omz_plugin}.plugin.zsh"
+done
+unset _zinit_omz_plugin _zinit_omz_plugins_sync _zinit_omz_plugins_deferred
 
 # Run compinit after synchronous snippets, then replay queued compdefs.
 _zinit_compinit_periodic
@@ -165,31 +185,31 @@ zinit ice wait"0" lucid atload"_zsh_autosuggest_start 2>/dev/null || true"
 zinit light zsh-users/zsh-autosuggestions
 
 if [[ "$PLATFORM" == "macOS" ]]; then
-  zinit ice wait"0" lucid
+  zinit ice wait"1" lucid
   zinit light hlissner/zsh-autopair
 
-  zinit ice wait"0" lucid
+  zinit ice wait"2" lucid
   zinit light fdellwing/zsh-bat
 
   if [[ "$ZSH_ENABLE_YOU_SHOULD_USE" == "1" ]]; then
-    zinit ice wait"0" lucid
+    zinit ice wait"2" lucid
     zinit light MichaelAquilina/zsh-you-should-use
   fi
 elif [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" == true ]]; then
   zinit ice wait"0" lucid
   zinit light chrissicool/zsh-256color
 
-  zinit ice wait"0" lucid
+  zinit ice wait"1" lucid
   zinit snippet OMZP::fzf/fzf.plugin.zsh
 fi
 
 if [[ "$PLATFORM" == "macOS" ]] || [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" == true ]]; then
   # Keep this after autosuggestions.
-  zinit ice wait"1" lucid atload"_zinit_bind_history_substring_keys"
+  zinit ice wait"2" lucid atload"_zinit_bind_history_substring_keys"
   zinit light zsh-users/zsh-history-substring-search
 
   # Must stay last among async plugins.
-  zinit ice wait"2" lucid atload"_zinit_replay_compdefs"
+  zinit ice wait"3" lucid atload"_zinit_replay_compdefs"
   zinit light zdharma-continuum/fast-syntax-highlighting
 fi
 

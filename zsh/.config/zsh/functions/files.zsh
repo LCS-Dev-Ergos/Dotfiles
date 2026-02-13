@@ -23,51 +23,284 @@
 # -----------------------------------------------------------------------------
 # extract
 # -----------------------------------------------------------------------------
-# Universal extraction function supporting multiple archive formats.
-# Automatically detects archive type by extension and uses appropriate tool.
-#
-# Supported: .tar.bz2, .tbz2, .tar.gz, .tgz, .tar.xz, .txz, .tar,
-#            .bz2, .rar, .gz, .zip, .Z, .7z, .xz
+# Universal extraction function supporting many archive formats.
+# Behavior matches/extends OMZ extract:
+#   - Extract each archive into a dedicated directory.
+#   - Optional archive removal with -r/--remove on successful extraction.
+#   - Auto-flatten when extraction yields a single top-level entry.
 #
 # Usage:
-#   extract <archive>
+#   extract <archive> [archive ...]
+#   extract -r <archive> [archive ...]
 # -----------------------------------------------------------------------------
 function extract() {
+  setopt localoptions noautopushd nullglob
+
   if [[ $# -eq 0 ]]; then
-    echo "${C_YELLOW}Usage: extract <archive>${C_RESET}" >&2
+    echo "${C_YELLOW}Usage: extract [-r|--remove] <archive> [archive ...]${C_RESET}" >&2
     return 1
   fi
 
-  if [[ ! -f "$1" ]]; then
-    echo "${C_RED}Error: File '$1' not found.${C_RESET}" >&2
+  local remove_archive=0
+  if [[ "$1" == "-r" || "$1" == "--remove" ]]; then
+    remove_archive=1
+    shift
+  fi
+
+  if [[ $# -eq 0 ]]; then
+    echo "${C_YELLOW}Usage: extract [-r|--remove] <archive> [archive ...]${C_RESET}" >&2
     return 1
   fi
 
-  case "$1" in
-    *.tar.bz2 | *.tbz2) tar xjf "$1" ;;
-    *.tar.gz | *.tgz) tar xzf "$1" ;;
-    *.tar.xz | *.txz) tar xJf "$1" ;;
-    *.tar) tar xf "$1" ;;
-    *.bz2) bunzip2 "$1" ;;
-    *.rar) unrar x "$1" ;;
-    *.gz) gunzip "$1" ;;
-    *.zip) unzip "$1" ;;
-    *.Z) uncompress "$1" ;;
-    *.7z) 7z x "$1" ;;
-    *.xz) unxz "$1" ;;
-    *)
-      echo "${C_RED}Error: Unsupported archive format for '$1'${C_RESET}" >&2
-      return 1
-      ;;
-  esac
+  local archive lower had_errors=0 pwd="$PWD"
+  for archive in "$@"; do
+    if [[ ! -f "$archive" ]]; then
+      echo "${C_RED}Error: File '$archive' not found.${C_RESET}" >&2
+      had_errors=1
+      continue
+    fi
 
-  if [[ $? -eq 0 ]]; then
-    echo "${C_GREEN}Successfully extracted '$1'${C_RESET}"
-  else
-    echo "${C_RED}Error: Extraction failed for '$1'${C_RESET}" >&2
-    return 1
-  fi
+    local full_path="${archive:A}"
+    local extract_dir="${archive:t:r}"
+    if [[ $extract_dir =~ '\.tar$' ]]; then
+      extract_dir="${extract_dir:r}"
+    fi
+    if [[ -e "$extract_dir" ]]; then
+      local rnd="${(L)"${$(( [##36]$RANDOM*$RANDOM ))}":1:5}"
+      extract_dir="${extract_dir}-${rnd}"
+    fi
+
+    if ! command mkdir -p -- "$extract_dir"; then
+      echo "${C_RED}Error: Could not create extraction directory '$extract_dir'.${C_RESET}" >&2
+      had_errors=1
+      continue
+    fi
+    if ! builtin cd -q -- "$extract_dir"; then
+      echo "${C_RED}Error: Could not enter extraction directory '$extract_dir'.${C_RESET}" >&2
+      had_errors=1
+      continue
+    fi
+
+    echo "extract: extracting to $extract_dir" >&2
+
+    lower="${archive:l}"
+    local rc=0
+
+    case "$lower" in
+      *.tar.gz | *.tgz)
+        if command -v pigz >/dev/null 2>&1; then
+          tar -I pigz -xvf "$full_path"
+        else
+          tar -xzf "$full_path"
+        fi
+        rc=$?
+        ;;
+      *.tar.bz2 | *.tbz | *.tbz2)
+        if command -v pbzip2 >/dev/null 2>&1; then
+          tar -I pbzip2 -xvf "$full_path"
+        else
+          tar -xjf "$full_path"
+        fi
+        rc=$?
+        ;;
+      *.tar.xz | *.txz)
+        if command -v pixz >/dev/null 2>&1; then
+          tar -I pixz -xvf "$full_path"
+        elif tar --xz --help >/dev/null 2>&1; then
+          tar --xz -xvf "$full_path"
+        else
+          xzcat "$full_path" | tar -xvf -
+        fi
+        rc=$?
+        ;;
+      *.tar.zma | *.tlz)
+        if tar --lzma --help >/dev/null 2>&1; then
+          tar --lzma -xvf "$full_path"
+        else
+          lzcat "$full_path" | tar -xvf -
+        fi
+        rc=$?
+        ;;
+      *.tar.zst | *.tzst)
+        if tar --zstd --help >/dev/null 2>&1; then
+          tar --zstd -xvf "$full_path"
+        else
+          zstdcat "$full_path" | tar -xvf -
+        fi
+        rc=$?
+        ;;
+      *.tar) tar -xf "$full_path"; rc=$? ;;
+      *.tar.lz)
+        if command -v lzip >/dev/null 2>&1; then
+          tar -xf "$full_path"
+          rc=$?
+        else
+          echo "${C_RED}Error: 'lzip' is required for '$archive'.${C_RESET}" >&2
+          rc=1
+        fi
+        ;;
+      *.tar.lz4)
+        if command -v lz4 >/dev/null 2>&1; then
+          lz4 -c -d "$full_path" | tar -xvf -
+          rc=$?
+        else
+          echo "${C_RED}Error: 'lz4' is required for '$archive'.${C_RESET}" >&2
+          rc=1
+        fi
+        ;;
+      *.tar.lrz)
+        if command -v lrzuntar >/dev/null 2>&1; then
+          lrzuntar "$full_path"
+          rc=$?
+        else
+          echo "${C_RED}Error: lrzuntar is required for '$archive'.${C_RESET}" >&2
+          rc=1
+        fi
+        ;;
+      *.gz)
+        if command -v pigz >/dev/null 2>&1; then
+          pigz -cdk "$full_path" > "${archive:t:r}"
+        else
+          gunzip -ck "$full_path" > "${archive:t:r}"
+        fi
+        rc=$?
+        ;;
+      *.bz2)
+        if command -v pbzip2 >/dev/null 2>&1; then
+          pbzip2 -cdk "$full_path" > "${archive:t:r}"
+        else
+          bunzip2 -ck "$full_path" > "${archive:t:r}"
+        fi
+        rc=$?
+        ;;
+      *.xz) xz -cdk "$full_path" > "${archive:t:r}"; rc=$? ;;
+      *.lzma) unlzma -c "$full_path" > "${archive:t:r}"; rc=$? ;;
+      *.lz4)
+        if command -v lz4 >/dev/null 2>&1; then
+          lz4 -d "$full_path" "${archive:t:r}" >/dev/null
+          rc=$?
+        else
+          echo "${C_RED}Error: 'lz4' is required for '$archive'.${C_RESET}" >&2
+          rc=1
+        fi
+        ;;
+      *.lrz)
+        if command -v lrunzip >/dev/null 2>&1; then
+          lrunzip "$full_path"
+          rc=$?
+        else
+          echo "${C_RED}Error: lrunzip is required for '$archive'.${C_RESET}" >&2
+          rc=1
+        fi
+        ;;
+      *.z) uncompress -c "$full_path" > "${archive:t:r}"; rc=$? ;;
+      *.zst) unzstd --stdout "$full_path" > "${archive:t:r}"; rc=$? ;;
+      *.zip | *.war | *.jar | *.ear | *.sublime-package | *.ipa | *.ipsw | *.xpi | *.apk | *.aar | *.whl | *.vsix | *.crx | *.pk3 | *.pk4)
+        unzip "$full_path"
+        rc=$?
+        ;;
+      *.rar)
+        if command -v unrar >/dev/null 2>&1; then
+          unrar x -ad "$full_path"
+          rc=$?
+        elif command -v unar >/dev/null 2>&1; then
+          unar -o . "$full_path"
+          rc=$?
+        else
+          echo "${C_RED}Error: Install 'unrar' or 'unar' to extract '$archive'.${C_RESET}" >&2
+          rc=1
+        fi
+        ;;
+      *.rpm)
+        if command -v rpm2cpio >/dev/null 2>&1 && command -v cpio >/dev/null 2>&1; then
+          rpm2cpio "$full_path" | cpio --quiet -id
+          rc=$?
+        else
+          echo "${C_RED}Error: rpm2cpio and cpio are required for '$archive'.${C_RESET}" >&2
+          rc=1
+        fi
+        ;;
+      *.7z | *.7z.[0-9]* | *.pk7)
+        if command -v 7z >/dev/null 2>&1; then
+          7z x "$full_path"
+          rc=$?
+        elif command -v 7za >/dev/null 2>&1; then
+          7za x "$full_path"
+          rc=$?
+        else
+          echo "${C_RED}Error: Install '7z' or '7za' to extract '$archive'.${C_RESET}" >&2
+          rc=1
+        fi
+        ;;
+      *.deb)
+        if command -v ar >/dev/null 2>&1; then
+          command mkdir -p control data &&
+            ar vx "$full_path" >/dev/null &&
+            (builtin cd -q control && extract ../control.tar.* >/dev/null) &&
+            (builtin cd -q data && extract ../data.tar.* >/dev/null) &&
+            command rm -f -- ./*.tar.* ./debian-binary
+          rc=$?
+        else
+          echo "${C_RED}Error: 'ar' is required for '$archive'.${C_RESET}" >&2
+          rc=1
+        fi
+        ;;
+      *.cab | *.exe)
+        if command -v cabextract >/dev/null 2>&1; then
+          cabextract "$full_path"
+          rc=$?
+        else
+          echo "${C_RED}Error: 'cabextract' is required for '$archive'.${C_RESET}" >&2
+          rc=1
+        fi
+        ;;
+      *.cpio | *.obscpio) cpio -idmvF "$full_path"; rc=$? ;;
+      *.zpaq) zpaq x "$full_path"; rc=$? ;;
+      *.zlib) zlib-flate -uncompress < "$full_path" > "${archive:r}"; rc=$? ;;
+      *)
+        echo "${C_RED}Error: Unsupported archive format for '$archive'${C_RESET}" >&2
+        rc=1
+        ;;
+    esac
+
+    # Restore original working directory before post-processing.
+    builtin cd -q -- "$pwd"
+
+    if (( rc == 0 )); then
+      if (( remove_archive == 1 )); then
+        command rm -f -- "$full_path"
+      fi
+      echo "${C_GREEN}Successfully extracted '$archive'${C_RESET}"
+    else
+      echo "${C_RED}Error: Extraction failed for '$archive'${C_RESET}" >&2
+      had_errors=1
+    fi
+
+    # OMZ-style flattening: if extraction produced a single top-level entry,
+    # move it up and remove the temporary extraction directory.
+    local -a content
+    content=("${extract_dir}"/*(DNY2))
+    if [[ ${#content} -eq 1 && -e "${content[1]}" ]]; then
+      if [[ "${content[1]:t}" == "$extract_dir" ]]; then
+        local tmp_name==(:)
+        tmp_name="${tmp_name:t}"
+        command mv -- "${content[1]}" "$tmp_name" \
+          && command rmdir -- "$extract_dir" \
+          && command mv -- "$tmp_name" "$extract_dir"
+      elif [[ ! -e "${content[1]:t}" ]]; then
+        command mv -- "${content[1]}" . \
+          && command rmdir -- "$extract_dir"
+      fi
+    elif [[ ${#content} -eq 0 ]]; then
+      command rmdir -- "$extract_dir" 2>/dev/null || :
+    fi
+  done
+
+  return $had_errors
 }
+
+# OMZ compatibility alias.
+alias x='extract'
 
 # -----------------------------------------------------------------------------
 # mktar, mkgz, mktbz, mkzip

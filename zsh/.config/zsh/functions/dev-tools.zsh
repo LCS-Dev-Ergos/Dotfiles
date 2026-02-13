@@ -9,6 +9,7 @@
 # Functions:
 #   - clang_format_link   Create symlink to global .clang-format config.
 #   - sysinfo             Display comprehensive system information.
+#   - zbench              Run zsh-bench from the shared tools directory.
 #
 # ============================================================================ #
 
@@ -133,6 +134,31 @@ function sysinfo() {
   # Uptime.
   echo -e "\n${C_YELLOW}Uptime:${C_RESET}"
   uptime
+}
+
+# -----------------------------------------------------------------------------
+# zbench
+# -----------------------------------------------------------------------------
+# Run zsh-bench from $ZSH_BENCH_DIR (or default XDG tools location).
+#
+# Usage:
+#   zbench [zsh-bench args...]
+#
+# Examples:
+#   zbench --iters 20 --raw
+#   zbench --help
+# -----------------------------------------------------------------------------
+function zbench() {
+  local bench_dir="${ZSH_BENCH_DIR:-${ZSH_TOOLS_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/zsh/tools}/zsh-bench}"
+  local bench_cmd="$bench_dir/zsh-bench"
+
+  if [[ ! -x "$bench_cmd" ]]; then
+    echo "${C_RED}Error: zsh-bench not found at '$bench_cmd'.${C_RESET}" >&2
+    echo "${C_YELLOW}Install with:${C_RESET} git clone https://github.com/romkatv/zsh-bench \"$bench_dir\"" >&2
+    return 1
+  fi
+
+  "$bench_cmd" "$@"
 }
 
 # ============================================================================ #

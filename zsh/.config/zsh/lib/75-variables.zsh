@@ -97,6 +97,11 @@ export STARSHIP_CONFIG="$HOME/.config/starship/starship.toml"
 # Starship prompt cache directory.
 export STARSHIP_CACHE_DIR="$HOME/.cache/starship"
 
+# ----------- Zsh Tooling ------------ #
+# Shared directory for standalone Zsh tools (not shell startup plugins).
+export ZSH_TOOLS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/zsh/tools"
+export ZSH_BENCH_DIR="${ZSH_TOOLS_DIR}/zsh-bench"
+
 # -------- OS-specific environment variables -------- #
 if [[ "$PLATFORM" == 'macOS' ]]; then
   # Force the use of system binaries to avoid conflicts.
