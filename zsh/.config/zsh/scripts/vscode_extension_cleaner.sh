@@ -1,7 +1,7 @@
-#!/usr/bin/env bash
-# shellcheck shell=bash
+#!/usr/bin/env zsh
+# shellcheck shell=zsh
 # ============================================================================ #
-# ++++++++++++++++++++++++ VS Code Extension Cleaner +++++++++++++++++++++++++ #
+# ++++++++++++++++++++++++ VS CODE EXTENSION CLEANER +++++++++++++++++++++++++ #
 # ============================================================================ #
 # Safe cleanup of duplicate VS Code extension versions on macOS and Linux.
 #
@@ -47,10 +47,7 @@ if [[ -r "${_vscode_ext_clean_helpers_dir}/_shared_helpers.sh" ]]; then
   source "${_vscode_ext_clean_helpers_dir}/_shared_helpers.sh"
 else
   printf "[ERROR] Shared helpers not found: %s/_shared_helpers.sh\n" "$_vscode_ext_clean_helpers_dir" >&2
-  if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
-    return 1
-  fi
-  exit 1
+  return 1 2>/dev/null || exit 1
 fi
 unset _vscode_ext_clean_helpers_dir
 
@@ -93,14 +90,14 @@ EOF
 #   1 - Could not read mtime.
 # -----------------------------------------------------------------------------
 _vscode_ext_clean_get_mtime() {
-  local path="$1"
+  local target_path="$1"
   local mtime
 
-  if mtime=$(stat -f %m "$path" 2>/dev/null); then
+  if mtime=$(stat -f %m "$target_path" 2>/dev/null); then
     printf "%s\n" "$mtime"
     return 0
   fi
-  if mtime=$(stat -c %Y "$path" 2>/dev/null); then
+  if mtime=$(stat -c %Y "$target_path" 2>/dev/null); then
     printf "%s\n" "$mtime"
     return 0
   fi
@@ -148,13 +145,15 @@ _vscode_ext_clean_epoch_to_date() {
 #   _vscode_ext_clean_parse_name <folder_name>
 # -----------------------------------------------------------------------------
 _vscode_ext_clean_parse_name() {
+  setopt localoptions noksharrays
+
   local folder_name="$1"
   _vscode_ext_clean_core_name="$folder_name"
   _vscode_ext_clean_version=""
 
   if [[ "$folder_name" =~ ^(.*)-([0-9][0-9A-Za-z._+-]*)$ ]]; then
-    _vscode_ext_clean_core_name="${BASH_REMATCH[1]}"
-    _vscode_ext_clean_version="${BASH_REMATCH[2]}"
+    _vscode_ext_clean_core_name="${match[1]}"
+    _vscode_ext_clean_version="${match[2]}"
   fi
 }
 
@@ -177,10 +176,12 @@ _vscode_ext_clean_parse_name() {
 #   - Missing tokens are treated as 0.
 # -----------------------------------------------------------------------------
 _vscode_ext_clean_version_cmp() {
+  setopt localoptions ksharrays
+
   local left="$1" right="$2"
   local i max left_token right_token left_lower right_lower
-  local IFS='.-+_'
-  local left_parts=() right_parts=()
+  local normalized_left normalized_right
+  local -a left_parts=() right_parts=()
 
   if [[ -z "$left" && -z "$right" ]]; then
     printf "%s\n" "0"
@@ -195,8 +196,10 @@ _vscode_ext_clean_version_cmp() {
     return 0
   fi
 
-  read -r -a left_parts <<< "$left"
-  read -r -a right_parts <<< "$right"
+  normalized_left="${left//[._+-]/ }"
+  normalized_right="${right//[._+-]/ }"
+  left_parts=(${=normalized_left})
+  right_parts=(${=normalized_right})
 
   max=${#left_parts[@]}
   if (( ${#right_parts[@]} > max )); then
@@ -362,6 +365,8 @@ _vscode_ext_clean_validate_strategy() {
 #   _vscode_ext_clean_run <dir> [strategy] [dry_run] [debug] [respect_refs]
 # -----------------------------------------------------------------------------
 _vscode_ext_clean_run() {
+  setopt localoptions localtraps ksharrays
+
   local folder_path="$1"
   local requested_strategy="${2:-$_VSCODE_EXT_CLEAN_DEFAULT_STRATEGY}"
   local dry_run="${3:-$_VSCODE_EXT_CLEAN_DEFAULT_DRY_RUN}"
@@ -419,7 +424,7 @@ _vscode_ext_clean_run() {
     _shared_log error "Failed to create temporary working directory."
     return 1
   }
-  trap 'rm -rf "$temp_dir"' RETURN
+  trap 'rm -rf "$temp_dir"' EXIT
 
   local all_dirs_file="${temp_dir}/all_dirs.txt"
   local records_file="${temp_dir}/records.txt"
@@ -628,6 +633,15 @@ vscode_clean_extensions() {
 }
 
 # -----------------------------------------------------------------------------
+# vscode_clean_extension
+# -----------------------------------------------------------------------------
+# Singular alias for convenience and typo-resistance.
+# -----------------------------------------------------------------------------
+vscode_clean_extension() {
+  vscode_clean_extensions "$@"
+}
+
+# -----------------------------------------------------------------------------
 # _vscode_ext_clean_main
 # -----------------------------------------------------------------------------
 # Script entrypoint for direct execution.
@@ -640,6 +654,6 @@ _vscode_ext_clean_main() {
   _vscode_ext_clean_run "$@"
 }
 
-if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+if [[ "${ZSH_EVAL_CONTEXT:-}" == toplevel ]]; then
   _vscode_ext_clean_main "$@"
 fi

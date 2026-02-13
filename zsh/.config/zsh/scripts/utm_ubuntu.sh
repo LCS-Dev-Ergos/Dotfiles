@@ -1,8 +1,9 @@
-#!/usr/bin/env bash
-# shellcheck shell=bash
+#!/usr/bin/env zsh
+# shellcheck shell=zsh
 # ============================================================================ #
-# utm_ubuntu.sh - Helper script to start a UTM virtual machine and mount a host
-# shared directory
+# +++++++++++++++++++++++++ UTM UBUNTU HELPER SCRIPT +++++++++++++++++++++++++ #
+# ============================================================================ #
+# Helper script to start a UTM virtual machine and mount a host shared directory.
 #
 # SYNOPSIS
 #   utm_ubuntu.sh [--no-login]
@@ -41,14 +42,17 @@
 # ============================================================================ #
 
 # When sourced by zsh during shell startup, expose helper commands and avoid changing shell options.
-if [[ -n "${ZSH_VERSION:-}" && "${BASH_SOURCE[0]:-}" != "$0" ]]; then
+if [[ "${ZSH_EVAL_CONTEXT:-}" == *:file ]]; then
+    typeset _utm_script_ref
     # shellcheck disable=SC2296
-    UTM_UBUNTU_SCRIPT_PATH="${(%):-%N}"
+    _utm_script_ref="${(%):-%x}"
+    UTM_UBUNTU_SCRIPT_PATH="$(cd "$(dirname "$_utm_script_ref")" && pwd 2>/dev/null)/$(basename "$_utm_script_ref")"
+    unset _utm_script_ref
 
     # -------------------------------------------------------------------------
     # utm_ubuntu_start
     # -------------------------------------------------------------------------
-    # Wrapper to run the script via bash when sourced in zsh contexts.
+    # Wrapper to run the script in a zsh subprocess.
     #
     # Usage:
     #   utm_ubuntu_start [--no-login]
@@ -57,10 +61,10 @@ if [[ -n "${ZSH_VERSION:-}" && "${BASH_SOURCE[0]:-}" != "$0" ]]; then
     #   0 - Success
     #
     # Side Effects:
-    #   - Invokes the main script logic in a bash subprocess.
+    #   - Invokes the main script logic in a zsh subprocess.
     # -------------------------------------------------------------------------
     utm_ubuntu_start() {
-        bash "${UTM_UBUNTU_SCRIPT_PATH}" "$@"
+        zsh "${UTM_UBUNTU_SCRIPT_PATH}" "$@"
     }
 
     # -------------------------------------------------------------------------
@@ -91,7 +95,7 @@ if [[ -r "${_utm_helpers_dir}/_shared_helpers.sh" ]]; then
     source "${_utm_helpers_dir}/_shared_helpers.sh"
 else
     printf "[ERROR] Shared helpers not found: %s/_shared_helpers.sh\n" "$_utm_helpers_dir" >&2
-    exit 1
+    return 1 2>/dev/null || exit 1
 fi
 unset _utm_helpers_dir
 
@@ -409,7 +413,7 @@ main() {
     fi
 }
 
-if [[ "${BASH_SOURCE[0]:-}" == "$0" ]]; then
+if [[ "${ZSH_EVAL_CONTEXT:-}" == toplevel ]]; then
     main "$@"
 fi
 

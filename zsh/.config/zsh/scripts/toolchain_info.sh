@@ -1,7 +1,7 @@
-#!/usr/bin/env bash
-# shellcheck shell=bash
+#!/usr/bin/env zsh
+# shellcheck shell=zsh
 # ============================================================================ #
-# ++++++++++++++++++++++ Toolchain Information Reporter ++++++++++++++++++++++ #
+# ++++++++++++++++++++++ TOOLCHAIN INFORMATION REPORTER ++++++++++++++++++++++ #
 # ============================================================================ #
 # Comprehensive C/C++ compiler toolchain analysis and reporting utility.
 #
@@ -37,10 +37,7 @@ if [[ -r "${_toolchain_info_helpers_dir}/_shared_helpers.sh" ]]; then
   source "${_toolchain_info_helpers_dir}/_shared_helpers.sh"
 else
   printf "[ERROR] Shared helpers not found: %s/_shared_helpers.sh\n" "$_toolchain_info_helpers_dir" >&2
-  if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
-    return 1
-  fi
-  exit 1
+  return 1 2>/dev/null || exit 1
 fi
 unset _toolchain_info_helpers_dir
 

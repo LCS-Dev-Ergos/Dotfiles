@@ -1,6 +1,6 @@
 #!/usr/bin/env zsh
 # ============================================================================ #
-# ++++++++++++++++++++++++++ Blog Automation Script ++++++++++++++++++++++++++ #
+# ++++++++++++++++++++++++++ BLOG AUTOMATION SCRIPT ++++++++++++++++++++++++++ #
 # ============================================================================ #
 # Comprehensive Hugo blog automation system with Obsidian vault integration.
 #
@@ -24,14 +24,8 @@
 # ============================================================================ #
 
 # Determine current script path.
-if [[ -n "${ZSH_VERSION}" ]]; then
-    # shellcheck disable=SC2296
-    SCRIPT_PATH="${(%):-%x}"
-elif [[ -n "${BASH_VERSION}" ]]; then
-    SCRIPT_PATH="${BASH_SOURCE[0]}"
-else
-    SCRIPT_PATH="$0"
-fi
+# shellcheck disable=SC2296
+SCRIPT_PATH="${(%):-%x}"
 
 BLOG_SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd 2>/dev/null)"
 VERSION="2.1.0"
@@ -253,19 +247,19 @@ blog_validate_location() {
 #   1 - Path contains dangerous characters or is not absolute.
 # -----------------------------------------------------------------------------
 blog_validate_path() {
-    local path="$1"
+    local target_path="$1"
     local description="$2"
 
     # Check for dangerous characters and shell metacharacters.
-    if [[ "$path" == *".."* ]] || [[ "$path" == *";"* ]] || [[ "$path" == *"|"* ]] || \
-       [[ "$path" == *$'\n'* ]] || [[ "$path" == *$'\r'* ]] || [[ "$path" == *$'\t'* ]]; then
-        blog_error "Unsafe path detected in $description: $path"
+    if [[ "$target_path" == *".."* ]] || [[ "$target_path" == *";"* ]] || [[ "$target_path" == *"|"* ]] || \
+       [[ "$target_path" == *$'\n'* ]] || [[ "$target_path" == *$'\r'* ]] || [[ "$target_path" == *$'\t'* ]]; then
+        blog_error "Unsafe path detected in $description: $target_path"
         return 1
     fi
 
     # Must be absolute path.
-    if [[ "$path" != /* ]]; then
-        blog_error "Path must be absolute for $description: $path"
+    if [[ "$target_path" != /* ]]; then
+        blog_error "Path must be absolute for $description: $target_path"
         return 1
     fi
 
@@ -282,17 +276,17 @@ blog_validate_path() {
 #   blog_validate_managed_path <path> <description>
 # -----------------------------------------------------------------------------
 blog_validate_managed_path() {
-    local path="$1"
+    local target_path="$1"
     local description="$2"
 
-    blog_validate_path "$path" "$description" || return 1
+    blog_validate_path "$target_path" "$description" || return 1
 
-    case "$path" in
+    case "$target_path" in
         "$ALLOWED_BLOG_ROOT" | "$ALLOWED_BLOG_ROOT"/*)
             return 0
             ;;
         *)
-            blog_error "Path for $description must remain under $ALLOWED_BLOG_ROOT: $path"
+            blog_error "Path for $description must remain under $ALLOWED_BLOG_ROOT: $target_path"
             return 1
             ;;
     esac

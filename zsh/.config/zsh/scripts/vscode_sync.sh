@@ -1,7 +1,7 @@
-#!/usr/bin/env bash
-# shellcheck shell=bash
+#!/usr/bin/env zsh
+# shellcheck shell=zsh
 # ============================================================================ #
-# +++++++++++++++ VS Code Sync (Stable <-> Insiders) on macOS ++++++++++++++++ #
+# ++++++++++++++++++++ VS CODE SYNC (Stable <-> Insiders) ++++++++++++++++++++ #
 # ============================================================================ #
 # Symlink-based synchronization of VS Code settings and extensions between
 # VS Code Stable and VS Code Insiders on macOS.
@@ -52,10 +52,7 @@ if [[ -r "${_vscode_sync_helpers_dir}/_shared_helpers.sh" ]]; then
   source "${_vscode_sync_helpers_dir}/_shared_helpers.sh"
 else
   printf "[ERROR] Shared helpers not found: %s/_shared_helpers.sh\n" "$_vscode_sync_helpers_dir" >&2
-  if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then
-    return 1
-  fi
-  exit 1
+  return 1 2>/dev/null || exit 1
 fi
 unset _vscode_sync_helpers_dir
 

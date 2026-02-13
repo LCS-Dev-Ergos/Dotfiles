@@ -1,7 +1,7 @@
-#!/usr/bin/env bash
-# shellcheck shell=bash
+#!/usr/bin/env zsh
+# shellcheck shell=zsh
 # ============================================================================ #
-# +++++++++++++++++++++++++++ Shared Shell Helpers +++++++++++++++++++++++++++ #
+# +++++++++++++++++++++++++++ SHARED SHELL HELPERS +++++++++++++++++++++++++++ #
 # ============================================================================ #
 # Common utility functions shared across zsh scripts.
 #
