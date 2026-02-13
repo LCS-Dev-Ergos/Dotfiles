@@ -466,8 +466,8 @@ get_toolchain_info() {
   # Initialize colors.
   _toolchain_info_init_colors
 
-  echo "${C_GREEN}/===--------------------------------------------------------------===/${C_RESET}"
-  printf "%s%sAnalyzing C/C++ toolchain configuration (%s)...%s\n" \
+  echo "${C_GREEN}╞════════════════════════════════════════════════════════════════════╡${C_RESET}"
+  printf "\n%s%sAnalyzing C/C++ toolchain configuration (%s)...%s\n" \
     "$C_BOLD" "$C_CYAN" "$(_toolchain_detect_platform)" "$C_RESET"
 
   if [[ -n "${CC:-}" || -n "${CXX:-}" ]]; then
@@ -569,7 +569,7 @@ get_toolchain_info() {
     fi
   done
 
-  echo "${C_GREEN}/===--------------------------------------------------------------===/${C_RESET}"
+  echo "${C_GREEN}╞════════════════════════════════════════════════════════════════════╡${C_RESET}"
 }
 
 # ============================================================================ #

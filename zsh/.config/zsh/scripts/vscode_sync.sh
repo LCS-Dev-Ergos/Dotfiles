@@ -35,8 +35,11 @@ _VSCODE_SYNC_ITEMS=(
   "Keybindings|${HOME}/Library/Application Support/Code/User/keybindings.json|${HOME}/Library/Application Support/Code - Insiders/User/keybindings.json"
   "Snippets|${HOME}/Library/Application Support/Code/User/snippets|${HOME}/Library/Application Support/Code - Insiders/User/snippets"
   "MCP Config|${HOME}/Library/Application Support/Code/User/mcp.json|${HOME}/Library/Application Support/Code - Insiders/User/mcp.json"
-  "Profiles|${HOME}/Library/Application Support/Code/User/profiles|${HOME}/Library/Application Support/Code - Insiders/User/profiles"
 )
+# NOTE: VS Code profiles are NOT included here. Profile definitions and
+# extension-profile associations live in globalStorage/state.vscdb (SQLite),
+# not in the profiles/ directory. Use VS Code's built-in Settings Sync or
+# manual Profile Export/Import to synchronize profiles across editions.
 
 _VSCODE_SYNC_BACKUP_DIR="${HOME}/.local/share/vscode-sync-backups"
 
