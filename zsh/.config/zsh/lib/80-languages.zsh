@@ -358,11 +358,16 @@ if [[ -d "$HOME/.rbenv" ]]; then
   fi
 fi
 
-# ----- FNM (Fast Node Manager) ----- #
+# ----- FNM (Fast Node Manager) ------ #
 if command -v fnm &>/dev/null; then
   _fnm_lazy_init() {
-    [[ -n "${_FNM_LAZY_INIT:-}" ]] && return 0
-    _FNM_LAZY_INIT=1
+    if [[ -n "${_FNM_LAZY_INIT:-}" ]]; then
+      if [[ -n "${FNM_MULTISHELL_PATH:-}" && -d "$FNM_MULTISHELL_PATH/bin" ]] \
+        && [[ ":$PATH:" == *":$FNM_MULTISHELL_PATH/bin:"* ]]; then
+        return 0
+      fi
+      unset _FNM_LAZY_INIT
+    fi
 
     emulate -L zsh
     setopt noxtrace noverbose
@@ -372,10 +377,16 @@ if command -v fnm &>/dev/null; then
     export NPM_CONFIG_AUDIT=false                   # Disable audit during install (run manually).
     export NODE_OPTIONS="--max-old-space-size=4096" # Increase V8 heap size.
 
-    # Set a global default version if it doesn't exist.
-    if ! command fnm default >/dev/null 2>&1; then
+    # Set a global default version only when no alias/default exists.
+    local fnm_alias_default="${FNM_DIR:-$HOME/.local/share/fnm}/aliases/default"
+    if [[ ! -e "$fnm_alias_default" ]]; then
       local latest_installed
-      latest_installed=$(command fnm list 2>/dev/null | grep -o 'v[0-9.]\+' | sort -V | tail -n 1)
+      latest_installed=$(
+        command fnm list 2>/dev/null \
+          | awk '{for (i = 1; i <= NF; i++) if ($i ~ /^v[0-9][0-9.]*$/) print $i}' \
+          | sort -V \
+          | tail -n 1
+      )
       if [[ -n "$latest_installed" ]]; then
         command fnm default "$latest_installed" >/dev/null 2>&1
       fi
@@ -383,12 +394,23 @@ if command -v fnm &>/dev/null; then
 
     # Initialize fnm environment on demand.
     # This sets FNM_MULTISHELL_PATH and adds fnm to PATH.
-    eval "$(command fnm env --use-on-cd --shell zsh 2>/dev/null)" || \
+    local fnm_env_output
+    fnm_env_output="$(command fnm env --use-on-cd --shell zsh 2>/dev/null)" || {
       echo "${C_YELLOW}Warning: fnm env failed.${C_RESET}"
+      return 1
+    }
 
-    if typeset -f zsh_rebuild_path >/dev/null 2>&1; then
-      zsh_rebuild_path
+    if eval "$fnm_env_output"; then
+      _FNM_LAZY_INIT=1
+
+      if typeset -f zsh_rebuild_path >/dev/null 2>&1; then
+        zsh_rebuild_path
+      fi
+      return 0
     fi
+
+    echo "${C_YELLOW}Warning: fnm env failed.${C_RESET}"
+    return 1
   }
 
   # ---------------------------------------------------------------------------
@@ -407,7 +429,7 @@ if command -v fnm &>/dev/null; then
     # Heartbeat function to keep fnm multishell session alive.
     _fnm_update_timestamp() {
       ((FNM_CMD_COUNTER++))
-      if ((FNM_CMD_COUNTER > 50)); then
+      if ((FNM_CMD_COUNTER >= 50)); then
         if [[ -n "$FNM_MULTISHELL_PATH" && -L "$FNM_MULTISHELL_PATH" ]]; then
           touch -h "$FNM_MULTISHELL_PATH" 2>/dev/null
         fi
@@ -421,7 +443,7 @@ if command -v fnm &>/dev/null; then
   }
 
   _fnm_ensure_ready() {
-    _fnm_lazy_init
+    _fnm_lazy_init || return 1
     _fnm_setup_heartbeat
   }
 
@@ -434,33 +456,32 @@ if command -v fnm &>/dev/null; then
   fi
 
   fnm() {
-    _fnm_ensure_ready
+    if ! _fnm_ensure_ready; then
+      command fnm "$@"
+      return $?
+    fi
     unfunction fnm 2>/dev/null
     command fnm "$@"
   }
 
   # Wrap node commands to ensure fnm is ready and heartbeat is setup on first use.
   node() {
-    _fnm_ensure_ready
-    unfunction node 2>/dev/null
+    _fnm_ensure_ready || return 1
     command node "$@"
   }
 
   npm() {
-    _fnm_ensure_ready
-    unfunction npm 2>/dev/null
+    _fnm_ensure_ready || return 1
     command npm "$@"
   }
 
   npx() {
-    _fnm_ensure_ready
-    unfunction npx 2>/dev/null
+    _fnm_ensure_ready || return 1
     command npx "$@"
   }
 
   corepack() {
-    _fnm_ensure_ready
-    unfunction corepack 2>/dev/null
+    _fnm_ensure_ready || return 1
     command corepack "$@"
   }
 fi

@@ -71,8 +71,9 @@ if [[ "$PLATFORM" == 'macOS' ]] && [[ -x "/opt/homebrew/opt/redis/bin/redis-serv
 elif command -v redis-server >/dev/null 2>&1; then
   alias redis-start="redis-server"
 fi
-alias fnm-clean='echo "${C_CYAN}Cleaning up orphaned fnm sessions...${C_RESET}" &&
-rm -rf ~/.local/state/fnm_multishells/* && echo "${C_GREEN}Cleanup completed.${C_RESET}"'
+
+# Implemented in functions/dev-tools.zsh.
+alias fnm-clean='fnm_clean'
 
 # ++++++++++++++++++++++++++++ C/C++ COMPILATION +++++++++++++++++++++++++++++ #
 
@@ -184,64 +185,6 @@ alias reload="source ~/.zshrc"
 alias edit="$EDITOR ~/.zshrc"
 alias zshfix="zshcache --rebuild"
 alias fastfetch='~/.config/fastfetch/scripts/fastfetch-dynamic.sh'
-
-# -----------------------------------------------------------------------------
-# zsh_profile
-# -----------------------------------------------------------------------------
-# Profile shell startup time and optionally show zprof output.
-#
-# Usage:
-#   zsh_profile            # timing only
-#   zsh_profile zprof      # zprof table
-#   zsh_profile both       # timing + zprof
-# -----------------------------------------------------------------------------
-zsh_profile() {
-  local mode="${1:-time}"
-  local zdot="${ZSH_CONFIG_DIR:-${ZDOTDIR:-$HOME/.config/zsh}}"
-  local zsh_bin="${ZSH_PROFILE_ZSH_BIN:-$(command -v zsh)}"
-  local fast="${ZSH_PROFILE_FAST_START:-}"
-
-  if [[ ! -f "$zdot/.zshrc" ]]; then
-    zdot="${ZDOTDIR:-$HOME}"
-  fi
-
-  # Find a suitable time command (GNU time preferred for -p flag).
-  local time_cmd=""
-  if [[ -x /usr/bin/time ]]; then
-    time_cmd="/usr/bin/time -p"
-  elif command -v gtime >/dev/null 2>&1; then
-    time_cmd="gtime -p"
-  fi
-
-  # Helper to run timed command.
-  _zsh_profile_timed() {
-    if [[ -n "$time_cmd" ]]; then
-      command ${=time_cmd} env ZDOTDIR="$zdot" ZSH_FAST_START="$fast" "$zsh_bin" -i -c exit
-    else
-      # Fallback to zsh time builtin (less precise, different format).
-      TIMEFMT=$'real\t%*E\nuser\t%*U\nsys\t%*S'
-      time (env ZDOTDIR="$zdot" ZSH_FAST_START="$fast" "$zsh_bin" -i -c exit)
-    fi
-  }
-
-  # Mode selection.
-  case "$mode" in
-    time|--time)
-      _zsh_profile_timed
-      ;;
-    zprof|--zprof)
-      env ZDOTDIR="$zdot" ZSH_PROFILE=1 ZSH_FAST_START="$fast" "$zsh_bin" -i -c 'zmodload zsh/zprof; zprof'
-      ;;
-    both|--both)
-      _zsh_profile_timed
-      env ZDOTDIR="$zdot" ZSH_PROFILE=1 ZSH_FAST_START="$fast" "$zsh_bin" -i -c 'zmodload zsh/zprof; zprof'
-      ;;
-    *)
-      echo "Usage: zsh_profile [time|zprof|both]" >&2
-      return 1
-      ;;
-  esac
-}
 
 # Note: eza/bat/duf aliases moved to functions/aliases.zsh
 

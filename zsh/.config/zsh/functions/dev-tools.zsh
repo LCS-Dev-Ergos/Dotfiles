@@ -10,6 +10,8 @@
 #   - clang_format_link   Create symlink to global .clang-format config.
 #   - sysinfo             Display comprehensive system information.
 #   - zbench              Run zsh-bench from the shared tools directory.
+#   - fnm_clean           Clean stale fnm multishell symlinks.
+#   - zsh_profile         Profile shell startup time and zprof output.
 #
 # ============================================================================ #
 
@@ -159,6 +161,165 @@ function zbench() {
   fi
 
   "$bench_cmd" "$@"
+}
+
+# -----------------------------------------------------------------------------
+# fnm_clean
+# -----------------------------------------------------------------------------
+# Safely cleanup stale fnm multishell symlinks.
+# Default: removes only orphan sessions (PID not running).
+# Flags:
+#   --all      Remove all symlinks (including active sessions).
+#   --dry-run  Show what would be removed.
+#   --quiet    Suppress info output.
+# -----------------------------------------------------------------------------
+function fnm_clean() {
+  emulate -L zsh
+  setopt noxtrace noverbose nullglob
+
+  local fnm_state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/fnm_multishells"
+  local remove_all=0
+  local dry_run=0
+  local quiet=0
+  local arg
+
+  for arg in "$@"; do
+    case "$arg" in
+      --all) remove_all=1 ;;
+      --dry-run|-n) dry_run=1 ;;
+      --quiet) quiet=1 ;;
+      -h|--help)
+        cat <<'EOF'
+Usage: fnm_clean [--all] [--dry-run|-n] [--quiet]
+
+Default behavior removes only orphan fnm multishell symlinks.
+Use --all to remove every symlink in the fnm multishell state directory.
+EOF
+        return 0
+        ;;
+      *)
+        echo "fnm_clean: unknown option '$arg'" >&2
+        return 2
+        ;;
+    esac
+  done
+
+  if [[ ! -d "$fnm_state_dir" ]]; then
+    (( quiet )) || echo "${C_YELLOW}fnm state directory not found: $fnm_state_dir${C_RESET}"
+    return 0
+  fi
+
+  local -a links=("$fnm_state_dir"/*(N@))
+  if (( ${#links[@]} == 0 )); then
+    (( quiet )) || echo "${C_CYAN}No fnm multishell symlinks to clean.${C_RESET}"
+    return 0
+  fi
+
+  (( quiet )) || echo "${C_CYAN}Cleaning fnm multishell symlinks...${C_RESET}"
+
+  local removed=0 skipped=0 failed=0
+  local link base pid
+
+  for link in "${links[@]}"; do
+    if (( ! remove_all )); then
+      # Keep current shell session symlink when available.
+      if [[ -n "${FNM_MULTISHELL_PATH:-}" && "$link" == "$FNM_MULTISHELL_PATH" ]]; then
+        ((skipped++))
+        continue
+      fi
+
+      # fnm multishell names are "<pid>_<timestamp>"; keep running PIDs.
+      base="${link:t}"
+      pid="${base%%_*}"
+      if [[ "$pid" == <-> ]] && kill -0 "$pid" 2>/dev/null; then
+        ((skipped++))
+        continue
+      fi
+    fi
+
+    if (( dry_run )); then
+      (( quiet )) || print -r -- "would remove: $link"
+      ((removed++))
+      continue
+    fi
+
+    if command rm -f -- "$link"; then
+      ((removed++))
+    else
+      ((failed++))
+    fi
+  done
+
+  if (( dry_run )); then
+    (( quiet )) || echo "${C_GREEN}Dry-run completed. Candidates: $removed, skipped(active): $skipped.${C_RESET}"
+    return 0
+  fi
+
+  if (( failed > 0 )); then
+    (( quiet )) || echo "${C_YELLOW}Cleanup completed with errors. Removed: $removed, skipped(active): $skipped, failed: $failed.${C_RESET}"
+    return 1
+  fi
+
+  (( quiet )) || echo "${C_GREEN}Cleanup completed. Removed: $removed, skipped(active): $skipped.${C_RESET}"
+  return 0
+}
+
+# -----------------------------------------------------------------------------
+# zsh_profile
+# -----------------------------------------------------------------------------
+# Profile shell startup time and optionally show zprof output.
+#
+# Usage:
+#   zsh_profile            # timing only
+#   zsh_profile zprof      # zprof table
+#   zsh_profile both       # timing + zprof
+# -----------------------------------------------------------------------------
+function zsh_profile() {
+  local mode="${1:-time}"
+  local zdot="${ZSH_CONFIG_DIR:-${ZDOTDIR:-$HOME/.config/zsh}}"
+  local zsh_bin="${ZSH_PROFILE_ZSH_BIN:-$(command -v zsh)}"
+  local fast="${ZSH_PROFILE_FAST_START:-}"
+
+  if [[ ! -f "$zdot/.zshrc" ]]; then
+    zdot="${ZDOTDIR:-$HOME}"
+  fi
+
+  # Find a suitable time command (GNU time preferred for -p flag).
+  local time_cmd=""
+  if [[ -x /usr/bin/time ]]; then
+    time_cmd="/usr/bin/time -p"
+  elif command -v gtime >/dev/null 2>&1; then
+    time_cmd="gtime -p"
+  fi
+
+  # Helper to run timed command.
+  _zsh_profile_timed() {
+    if [[ -n "$time_cmd" ]]; then
+      command ${=time_cmd} env ZDOTDIR="$zdot" ZSH_FAST_START="$fast" "$zsh_bin" -i -c exit
+    else
+      # Fallback to zsh time builtin (less precise, different format).
+      TIMEFMT=$'real\t%*E\nuser\t%*U\nsys\t%*S'
+      time (env ZDOTDIR="$zdot" ZSH_FAST_START="$fast" "$zsh_bin" -i -c exit)
+    fi
+  }
+
+  # Mode selection.
+  case "$mode" in
+    time|--time)
+      _zsh_profile_timed
+      ;;
+    zprof|--zprof)
+      env ZDOTDIR="$zdot" ZSH_PROFILE=1 ZSH_FAST_START="$fast" "$zsh_bin" -i -c 'zmodload zsh/zprof; zprof'
+      ;;
+    both|--both)
+      _zsh_profile_timed
+      env ZDOTDIR="$zdot" ZSH_PROFILE=1 ZSH_FAST_START="$fast" "$zsh_bin" -i -c 'zmodload zsh/zprof; zprof'
+      ;;
+    *)
+      echo "Usage: zsh_profile [time|zprof|both]" >&2
+      return 1
+      ;;
+  esac
 }
 
 # ============================================================================ #
