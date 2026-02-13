@@ -162,3 +162,4 @@ alias ffec='_fuzzy_edit_search_file_content'
 alias ffch='_fuzzy_search_cmd_history'
 
 # ============================================================================ #
+# End of fzf.zsh
