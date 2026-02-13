@@ -77,14 +77,14 @@ fi
 
 # --------------- Opam --------------- #
 # OCaml: Build and package manager optimization.
-export OPAMJOBS=$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo "4") # Parallel builds.
-export DUNE_CACHE=enabled                                                         # Enable Dune build cache.
-export DUNE_CACHE_TRANSPORT=direct                                                # Faster cache access.
+export OPAMJOBS="${_ZSH_NCPUS:-4}"  # Parallel builds (uses cached CPU count from 00-init.zsh).
+export DUNE_CACHE=enabled           # Enable Dune build cache.
+export DUNE_CACHE_TRANSPORT=direct  # Faster cache access.
 # export OPAMYES=1  # Auto-confirm opam operations.
 
 [[ ! -r "$HOME/.opam/opam-init/init.zsh" ]] || source "$HOME/.opam/opam-init/init.zsh" >/dev/null 2>/dev/null
 
-# ============================================================================ #
+# ---------------------------------------------------------------------------- #
 # ++++++++++++++++++++++ DYNAMIC ENVIRONMENT MANAGERS  +++++++++++++++++++++++ #
 
 # ===================== LANGUAGES AND DEVELOPMENT TOOLS ====================== #
@@ -251,8 +251,7 @@ export PIPENV_VENV_IN_PROJECT=1    # Store .venv in project directory.
 
 # --------------- Rust --------------- #
 # Rust: Parallel compilation and incremental builds.
-# macOS: sysctl -n hw.ncpu | Linux: nproc | Fallback: 4
-export CARGO_BUILD_JOBS=$(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo "4")
+export CARGO_BUILD_JOBS="${_ZSH_NCPUS:-4}" # Uses cached CPU count from 00-init.zsh.
 export CARGO_INCREMENTAL=1
 
 # -------------- C/C++ --------------- #

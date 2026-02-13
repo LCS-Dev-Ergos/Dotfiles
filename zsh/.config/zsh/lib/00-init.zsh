@@ -28,8 +28,8 @@
 # Profiling (enable by exporting ZSH_PROFILE=1 before starting the shell).
 [[ -n "${ZSH_PROFILE:-}" ]] && zmodload zsh/zprof
 
-# Fail on pipe errors.
-set -o pipefail
+# Load zsh/datetime for $EPOCHSECONDS (avoids forking `date +%s`).
+zmodload -F zsh/datetime b:strftime p:EPOCHSECONDS 2>/dev/null
 
 # Protect against unset variables in functions.
 setopt LOCAL_OPTIONS
@@ -112,22 +112,25 @@ fi
 # This is the crucial synchronization mechanism.
 export ZPROFILE_HAS_RUN=true
 
-# Detect operating system to load specific configurations.
-if [[ "$(uname)" == "Darwin" ]]; then
-  PLATFORM="macOS"
-  ARCH_LINUX=false
-elif [[ "$(uname)" == "Linux" ]]; then
-  PLATFORM="Linux"
-  # Check if we're on Arch Linux.
-  if [[ -f "/etc/arch-release" ]]; then
-    ARCH_LINUX=true
-  else
+# Detect operating system using $OSTYPE (zsh builtin, no fork).
+case "$OSTYPE" in
+  darwin*)
+    PLATFORM="macOS"
     ARCH_LINUX=false
-  fi
-else
-  PLATFORM="Other"
-  ARCH_LINUX=false
-fi
+    ;;
+  linux*)
+    PLATFORM="Linux"
+    [[ -f /etc/arch-release ]] && ARCH_LINUX=true || ARCH_LINUX=false
+    ;;
+  *)
+    PLATFORM="Other"
+    ARCH_LINUX=false
+    ;;
+esac
+
+# CPU count (computed once, reused by OPAMJOBS, CARGO_BUILD_JOBS, etc.).
+typeset -gi _ZSH_NCPUS
+(( _ZSH_NCPUS = $(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4) ))
 
 # ----------------------------- Startup Commands ----------------------------- #
 # Conditional startup commands based on platform.
@@ -290,9 +293,13 @@ if [[ $- == *i* ]]; then
     local stamp_file="$cache_dir/config.mtime"
     local zdot="${ZDOTDIR:-$HOME}"
 
-    # Collect config files using zsh glob (no fork).
+    # Collect config files that affect startup (skip scripts/ which are lazy-loaded).
     local -a files
-    files=("$cfg_root"/**/*.(zsh|sh)(N.))
+    files=(
+      "$cfg_root"/lib/*.zsh(N.)
+      "$cfg_root"/functions/*.zsh(N.)
+      "$cfg_root"/conf.d/**/*.zsh(N.)
+    )
     [[ -f "$HOME/.zshrc" ]] && files+=("$HOME/.zshrc")
     [[ -f "$HOME/.zshenv" ]] && files+=("$HOME/.zshenv")
     (( ${#files[@]} )) || return 0

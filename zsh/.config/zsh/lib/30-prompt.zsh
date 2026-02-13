@@ -67,8 +67,25 @@ _init_starship_prompt() {
 
   setopt PROMPT_SUBST
 
-  # Initialize Starship.
-  eval "$(starship init zsh)"
+  # Cache starship init output to avoid forking on subsequent starts.
+  # Invalidated automatically when the starship binary is updated.
+  local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
+  local cache_file="$cache_dir/starship-init.zsh"
+  local starship_bin="${commands[starship]}"
+
+  if [[ -r "$cache_file" && "$cache_file" -nt "$starship_bin" ]]; then
+    source "$cache_file"
+  else
+    local init_code
+    init_code="$(starship init zsh)" || {
+      print "Warning: Starship init failed" >&2
+      return 1
+    }
+    eval "$init_code"
+    command mkdir -p "$cache_dir" 2>/dev/null
+    print -r -- "$init_code" >| "$cache_file" 2>/dev/null
+  fi
+
   if [[ -z "$PROMPT" ]]; then
     print "Warning: Starship failed to initialize" >&2
     return 1

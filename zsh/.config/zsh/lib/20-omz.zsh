@@ -206,7 +206,7 @@ _omz_compinit_periodic() {
   local stamp_file="$cache_dir/compinit.last"
   local now epoch_last age_hours
 
-  now=$(date +%s)
+  now=${EPOCHSECONDS:-$(date +%s)}
   epoch_last=0
   if [[ -f "$stamp_file" ]]; then
     if [[ "${PLATFORM:-}" == "macOS" ]]; then

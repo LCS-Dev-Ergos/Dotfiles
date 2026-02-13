@@ -124,8 +124,11 @@ _cache_completion() {
   $cache_safe && source "$cache_file"
 }
 
-# ---------- ngrok / Angular CLI (deferred) ---------- #
+# ------- Deferred completions ------- #
 _late_completions() {
+  if [[ -s "$HOME/.bun/_bun" ]]; then
+    source "$HOME/.bun/_bun"
+  fi
   if command -v ngrok >/dev/null 2>&1; then
     _cache_completion ngrok ngrok completion
   fi
@@ -134,11 +137,6 @@ _late_completions() {
   fi
   unfunction _late_completions 2>/dev/null
 }
-
-# --------- Bun completions ---------- #
-if [[ -s "$HOME/.bun/_bun" ]]; then
-  source "$HOME/.bun/_bun"
-fi
 
 if [[ "${ZSH_FAST_START:-}" == "1" ]]; then
   : # skip during fast start.

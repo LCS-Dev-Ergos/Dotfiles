@@ -110,43 +110,43 @@ _fabric_lazy_init() {
   # Create output directory if it doesn't exist.
   [[ ! -d "$FABRIC_OUTPUT_DIR" ]] && mkdir -p "$FABRIC_OUTPUT_DIR"
 
-  # Factory function to create pattern wrappers.
-  _fabric_create_pattern_function() {
+  # Single dispatcher function (defined once, called by all pattern wrappers).
+  _fabric_run_pattern() {
     local pname="$1"
-    eval "function ${pname}() {
-      local title=\"\$1\"
-      local date_stamp=\"\$(date +'%Y-%m-%d')\"
+    shift
+    local title="$1"
+    local date_stamp="$(date +'%Y-%m-%d')"
 
-      if [[ -n \"\$title\" ]]; then
-        # Sanitize title (security: prevent path traversal)
-        title=\"\${title//\\//_}\"
-        title=\"\${title//../_}\"
+    if [[ -n "$title" ]]; then
+      # Sanitize title (security: prevent path traversal).
+      title="${title//\\/_}"
+      title="${title//../_}"
 
-        local output_path=\"\$FABRIC_OUTPUT_DIR/\${date_stamp}-\${title}.md\"
+      local output_path="$FABRIC_OUTPUT_DIR/${date_stamp}-${title}.md"
 
-        # Save to Obsidian vault with metadata
-        {
-          echo \"---\"
-          echo \"title: \$title\"
-          echo \"date: \$date_stamp\"
-          echo \"pattern: ${pname}\"
-          echo \"tags: [fabric, ${pname}]\"
-          echo \"---\"
-          echo \"\"
-          fabric --pattern \"${pname}\"
-        } > \"\$output_path\"
-        echo \"\${C_GREEN}Saved to: \$output_path\${C_RESET}\"
-      else
-        # Stream output directly
-        fabric --pattern \"${pname}\" --stream
-      fi
-    }"
+      # Save to Obsidian vault with metadata.
+      {
+        echo "---"
+        echo "title: $title"
+        echo "date: $date_stamp"
+        echo "pattern: $pname"
+        echo "tags: [fabric, $pname]"
+        echo "---"
+        echo ""
+        fabric --pattern "$pname"
+      } > "$output_path"
+      echo "${C_GREEN}Saved to: $output_path${C_RESET}"
+    else
+      # Stream output directly.
+      fabric --pattern "$pname" --stream
+    fi
   }
 
-  # Pattern aliases and functions.
+  # Build all pattern wrapper functions in a single eval (avoids N separate evals).
+  local eval_code=""
   for pattern_file in "$fabric_patterns_dir"/*; do
     [[ ! -f "$pattern_file" ]] && continue
-    typeset pattern_name="$(basename "$pattern_file")"
+    typeset pattern_name="${pattern_file:t}"
 
     # Validate pattern name (security: prevent injection).
     [[ ! "$pattern_name" =~ ^[a-zA-Z0-9_-]+$ ]] && continue
@@ -154,10 +154,9 @@ _fabric_lazy_init() {
     # Remove any existing alias before creating function.
     unalias "$pattern_name" 2>/dev/null
 
-    _fabric_create_pattern_function "$pattern_name"
+    eval_code+="function ${pattern_name}() { _fabric_run_pattern ${pattern_name} \"\$@\"; }; "
   done
-
-  unset -f _fabric_create_pattern_function
+  [[ -n "$eval_code" ]] && eval "$eval_code"
 }
 
 # Initialize Fabric functions unless in fast start mode.
