@@ -5,18 +5,18 @@
 # Comprehensive Hugo blog automation system with Obsidian vault integration.
 #
 # This script provides a complete blog publishing workflow that:
-# - Synchronizes markdown posts from an Obsidian vault to Hugo content directory
-# - Detects file changes using Git status or hash-based comparison
-# - Updates YAML frontmatter metadata in blog posts
-# - Processes and converts Obsidian-style image links to Hugo format
-# - Builds static site with Hugo generator
-# - Manages Git commits and deployment to remote repositories
-# - Supports multiple deployment targets (main branch and Hostinger)
-# - Implements security validation, backup/recovery, and comprehensive logging
+#  - Synchronizes markdown posts from an Obsidian vault to Hugo content directory
+#  - Detects file changes using Git status or hash-based comparison
+#  - Updates YAML frontmatter metadata in blog posts
+#  - Processes and converts Obsidian-style image links to Hugo format
+#  - Builds static site with Hugo generator
+#  - Manages Git commits and deployment to remote repositories
+#  - Supports multiple deployment targets (main branch and Hostinger)
+#  - Implements security validation, backup/recovery, and comprehensive logging
 #
-# The script is platform-aware (macOS/Linux) with configurable paths,
-# dry-run mode for testing, verbose logging, and timeout protection
-# for long-running operations.
+# The script is platform-aware (macOS/Linux) with configurable paths, dry-run
+# mode for testing, verbose logging, and timeout protection for long-running
+# operations.
 #
 # Author: XtremeXSPC
 # Version: 2.1.0 - Git-based change detection
@@ -36,9 +36,7 @@ fi
 BLOG_SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd 2>/dev/null)"
 VERSION="2.1.0"
 
-# ============================================================================ #
-# ++++++++++++++++++++++++++ Shared helpers loader ++++++++++++++++++++++++++++ #
-# ============================================================================ #
+# ++++++++++++++++++++++++++ SHARED HELPERS LOADER +++++++++++++++++++++++++++ #
 
 _blog_helpers_primary="${BLOG_SCRIPT_DIR}/_shared_helpers.sh"
 _blog_helpers_fallback="${ZSH_CONFIG_DIR:-$HOME/.config/zsh}/scripts/_shared_helpers.sh"
@@ -56,9 +54,7 @@ else
 fi
 unset _blog_helpers_primary _blog_helpers_fallback
 
-# ============================================================================ #
-# ++++++++++++ Operating system detection and path configuration +++++++++++++ #
-# ============================================================================ #
+# ++++++++++++++++++++++++ OPERATING SYSTEM DETECTION ++++++++++++++++++++++++ #
 
 # Detect operating system and set allowed blog directory.
 _shared_detect_platform
@@ -73,15 +69,10 @@ else
     ALLOWED_BLOG_ROOT=""
 fi
 
-# ============================================================================ #
-# +++++++++++++++++++++++++++++ Color Support ++++++++++++++++++++++++++++++++ #
-# ============================================================================ #
-
+# Init colors after platform detection.
 _shared_init_colors
 
-# ============================================================================ #
-# ++++++++++++++++++++++++++++++ Logging System ++++++++++++++++++++++++++++++ #
-# ============================================================================ #
+# ++++++++++++++++++++++++++++++ LOGGING SYSTEM ++++++++++++++++++++++++++++++ #
 
 # Logging configuration.
 BLOG_DRY_RUN=${BLOG_DRY_RUN:-false}
@@ -197,9 +188,7 @@ blog_debug() {
     [[ "$BLOG_VERBOSE" == "true" ]] && blog_log "DEBUG" "$1"
 }
 
-# ============================================================================ #
-# ++++++++++++++++++++++ Security checks and validation ++++++++++++++++++++++ #
-# ============================================================================ #
+# +++++++++++++++++++++++ SECURITY CHECKS & VALIDATION +++++++++++++++++++++++ #
 
 # -----------------------------------------------------------------------------
 # blog_validate_location
@@ -333,9 +322,7 @@ blog_safe_clear_dir() {
     find "$target_dir" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + 2>/dev/null
 }
 
-# ============================================================================ #
-# +++++++++++++++++++++++++ Configuration Management +++++++++++++++++++++++++ #
-# ============================================================================ #
+# +++++++++++++++++++++++++ CONFIGURATION MANAGEMENT +++++++++++++++++++++++++ #
 
 # Configuration file path.
 BLOG_CONFIG_FILE="${ALLOWED_BLOG_ROOT}/blog_config.conf"
@@ -483,9 +470,7 @@ BLOG_GIT_TIMEOUT=600
 EOF
 }
 
-# ============================================================================ #
-# ++++++++++++++++++++++++ Backup and recovery system ++++++++++++++++++++++++ #
-# ============================================================================ #
+# +++++++++++++++++++++++++ FILE BACKUP AND RECOVERY +++++++++++++++++++++++++ #
 
 # -----------------------------------------------------------------------------
 # blog_create_backup
@@ -571,9 +556,7 @@ blog_cleanup_backups() {
     fi
 }
 
-# ============================================================================ #
-# +++++++++++++++++++++++++++++ System utilities +++++++++++++++++++++++++++++ #
-# ============================================================================ #
+# +++++++++++++++++++++++++++++ SYSTEM UTILITIES +++++++++++++++++++++++++++++ #
 
 # -----------------------------------------------------------------------------
 # blog_check_command
@@ -720,9 +703,7 @@ blog_run_with_timeout() {
     fi
 }
 
-# ============================================================================ #
-# ++++++++++++++++++++++++ Git-based change detection ++++++++++++++++++++++++ #
-# ============================================================================ #
+# ++++++++++++++++++++++++ GIT-BASED CHANGE DETECTION ++++++++++++++++++++++++ #
 
 # -----------------------------------------------------------------------------
 # blog_detect_git_changes
@@ -842,9 +823,7 @@ blog_detect_hash_changes() {
     fi
 }
 
-# ============================================================================ #
-# +++++++++++++++++++++++++++ Main blog functions ++++++++++++++++++++++++++++ #
-# ============================================================================ #
+# +++++++++++++++++++++++++++ MAIN BLOG FUNCTIONS ++++++++++++++++++++++++++++ #
 
 # -----------------------------------------------------------------------------
 # _blog_ensure_valid_location
@@ -1440,9 +1419,7 @@ blog_deploy_hostinger() {
     return 0
 }
 
-# ============================================================================ #
-# +++++++++++++++++++++++++ Orchestration functions ++++++++++++++++++++++++++ #
-# ============================================================================ #
+# +++++++++++++++++++++++++ ORCHESTRATION FUNCTIONS ++++++++++++++++++++++++++ #
 
 # -----------------------------------------------------------------------------
 # blog_run_all
@@ -1511,9 +1488,7 @@ blog_run_all() {
     fi
 }
 
-# ============================================================================ #
-# ++++++++++++++++++++++++ Utility and help functions ++++++++++++++++++++++++ #
-# ============================================================================ #
+# +++++++++++++++++++++++++ UTILITY & HELP FUNCTIONS +++++++++++++++++++++++++ #
 
 # -----------------------------------------------------------------------------
 # blog_status
