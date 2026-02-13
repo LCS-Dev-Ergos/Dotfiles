@@ -148,36 +148,44 @@ fi
 
 # ----------- Docker CLI  ------------ #
 # Add custom completions directories (unless HyDE already did it).
+typeset -i _completion_fpath_changed=0
 if [[ "${HYDE_SKIP_FPATH_COMPLETIONS:-0}" != "1" ]]; then
   local _completions_dir="${ZDOTDIR:-$HOME/.config/zsh}/completions"
-  if [[ -d "$_completions_dir" ]]; then
+  if [[ -d "$_completions_dir" ]] && (( ${fpath[(Ie)$_completions_dir]} == 0 )); then
     fpath=("$_completions_dir" $fpath)
+    _completion_fpath_changed=1
   fi
   unset _completions_dir
 fi
 
 # Docker completions (always check, as HyDE doesn't add this).
-if [[ -d "$HOME/.docker/completions" ]]; then
-  fpath=("$HOME/.docker/completions" $fpath)
+local _docker_completions_dir="$HOME/.docker/completions"
+if [[ -d "$_docker_completions_dir" ]] && (( ${fpath[(Ie)$_docker_completions_dir]} == 0 )); then
+  fpath=("$_docker_completions_dir" $fpath)
+  _completion_fpath_changed=1
 fi
+unset _docker_completions_dir
 
 autoload -Uz compinit
+typeset -a compinit_opts
+compinit_opts=(-d "$ZSH_COMPDUMP")
+if [[ "$ZSH_DISABLE_COMPFIX" == true ]]; then
+  compinit_opts=(-u $compinit_opts)
+fi
+
 # Avoid double compinit (20-zinit.zsh usually already ran it).
 if (( ! ${+_comps} )); then
-  typeset -a compinit_opts
-  compinit_opts=(-d "$ZSH_COMPDUMP")
-  if [[ "$ZSH_DISABLE_COMPFIX" == true ]]; then
-    compinit_opts=(-u $compinit_opts)
-  fi
-
   # Use -C only if the dump file exists, otherwise do a full init.
   if [[ -f "$ZSH_COMPDUMP" ]]; then
     compinit -C "${compinit_opts[@]}"
   else
     compinit "${compinit_opts[@]}"
   fi
-  unset compinit_opts
+elif (( _completion_fpath_changed )); then
+  # fpath changed after compinit: rebuild completion map to include new dirs.
+  compinit "${compinit_opts[@]}"
 fi
+unset compinit_opts _completion_fpath_changed
 
 # ============================================================================ #
 # End of 85-completions.zsh

@@ -28,6 +28,8 @@ fi
 : "${ZSH_DISABLE_COMPFIX:=false}"
 : "${ZSH_ENABLE_YOU_SHOULD_USE:=0}"
 : "${ZSH_COMPINIT_CHECK_HOURS:=24}"
+: "${ZSH_ENABLE_ZSH_COMPLETIONS:=1}"
+: "${ZSH_ENABLE_FZF_TAB:=1}"
 
 # Install and source Zinit from XDG data directory.
 typeset -g ZINIT_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/zinit/zinit.git"
@@ -75,10 +77,13 @@ _zinit_compinit_periodic() {
 
   local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
   local stamp_file="$cache_dir/compinit.last"
+  local sig_file="$cache_dir/compinit.sig"
   local now epoch_last age_hours
+  local current_sig cached_sig=""
 
   now=${EPOCHSECONDS:-$(date +%s)}
   epoch_last=0
+  current_sig="${ZSH_COMPDUMP}|${(j.:.)fpath}"
 
   if [[ -f "$stamp_file" ]]; then
     if typeset -f _zsh_mtime >/dev/null 2>&1; then
@@ -93,11 +98,15 @@ _zinit_compinit_periodic() {
   [[ "$epoch_last" =~ ^[0-9]+$ ]] || epoch_last=0
   age_hours=$(( (now - epoch_last) / 3600 ))
 
+  if [[ -r "$sig_file" ]]; then
+    IFS= read -r cached_sig < "$sig_file"
+  fi
+
   command mkdir -p "$cache_dir" "${ZSH_COMPDUMP:h}" 2>/dev/null
   autoload -Uz compinit
 
   # Fast path: reuse dump and skip security checks.
-  if [[ -f "$ZSH_COMPDUMP" && $age_hours -lt ${ZSH_COMPINIT_CHECK_HOURS:-24} ]]; then
+  if [[ -f "$ZSH_COMPDUMP" && $age_hours -lt ${ZSH_COMPINIT_CHECK_HOURS:-24} && "$cached_sig" == "$current_sig" ]]; then
     compinit -C -d "$ZSH_COMPDUMP"
     return $?
   fi
@@ -110,6 +119,7 @@ _zinit_compinit_periodic() {
 
   if (( rc == 0 )); then
     touch "$stamp_file" 2>/dev/null || :
+    print -r -- "$current_sig" >| "$sig_file" 2>/dev/null || :
   fi
   return $rc
 }
@@ -146,6 +156,25 @@ _zinit_bind_history_substring_keys() {
   HISTORY_SUBSTRING_SEARCH_HIGHLIGHT_NOT_FOUND='bg=red,fg=black,bold'
 }
 
+# -----------------------------------------------------------------------------
+# _zinit_add_completion_paths
+# -----------------------------------------------------------------------------
+# Ensure local completion directories are in fpath before compinit.
+# This allows compinit to register custom/docker completions in the dump.
+_zinit_add_completion_paths() {
+  local dir
+
+  dir="${ZDOTDIR:-$HOME/.config/zsh}/completions"
+  if [[ -d "$dir" ]] && (( ${fpath[(Ie)$dir]} == 0 )); then
+    fpath=("$dir" $fpath)
+  fi
+
+  dir="$HOME/.docker/completions"
+  if [[ -d "$dir" ]] && (( ${fpath[(Ie)$dir]} == 0 )); then
+    fpath=("$dir" $fpath)
+  fi
+}
+
 # Load OMZ snippets required by selected plugin snippets.
 zinit snippet OMZL::completion.zsh
 zinit snippet OMZL::theme-and-appearance.zsh
@@ -175,9 +204,23 @@ for _zinit_omz_plugin in "${_zinit_omz_plugins_deferred[@]}"; do
 done
 unset _zinit_omz_plugin _zinit_omz_plugins_sync _zinit_omz_plugins_deferred
 
+# Additional completion definitions managed by Zinit.
+# blockf prevents direct fpath injection from the plugin itself.
+if [[ "${ZSH_ENABLE_ZSH_COMPLETIONS}" == "1" ]]; then
+  zinit ice lucid blockf atclone"zinit creinstall -q ." atpull"%atclone"
+  zinit light zsh-users/zsh-completions
+fi
+
 # Run compinit after synchronous snippets, then replay queued compdefs.
+_zinit_add_completion_paths
 _zinit_compinit_periodic
 _zinit_replay_compdefs
+
+# fzf-tab should be loaded after compinit and before autosuggestions/highlighting.
+if [[ "${ZSH_ENABLE_FZF_TAB}" == "1" ]]; then
+  zinit ice lucid
+  zinit light Aloxaf/fzf-tab
+fi
 
 # ---------------------------- TURBO PLUGINS LOAD ---------------------------- #
 # Common async plugin.
