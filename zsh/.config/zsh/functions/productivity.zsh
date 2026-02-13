@@ -79,9 +79,41 @@ function bm() {
         echo "${C_YELLOW}Usage: bm add <name>${C_RESET}" >&2
         return 1
       fi
-      local current_dir="$(pwd)"
-      echo "$name=$current_dir" >>"$bookmarks_file"
-      echo "${C_GREEN}Bookmark '$name' added for $current_dir${C_RESET}"
+      if [[ "$name" == *"="* || "$name" == *$'\n'* ]]; then
+        echo "${C_RED}Error: Bookmark name cannot contain '=' or newlines.${C_RESET}" >&2
+        return 1
+      fi
+
+      local current_dir="$PWD"
+      local tmp_file="${bookmarks_file}.tmp.$$"
+
+      if [[ -f "$bookmarks_file" ]]; then
+        if ! command awk -F= -v key="$name" '$1 != key { print }' "$bookmarks_file" >"$tmp_file"; then
+          command rm -f -- "$tmp_file" 2>/dev/null
+          echo "${C_RED}Error: Failed to update bookmarks.${C_RESET}" >&2
+          return 1
+        fi
+      else
+        : >"$tmp_file" || {
+          echo "${C_RED}Error: Cannot create bookmarks file.${C_RESET}" >&2
+          return 1
+        }
+      fi
+
+      print -r -- "$name=$current_dir" >>"$tmp_file" || {
+        command rm -f -- "$tmp_file" 2>/dev/null
+        echo "${C_RED}Error: Failed to write bookmark.${C_RESET}" >&2
+        return 1
+      }
+
+      command mv -- "$tmp_file" "$bookmarks_file" || {
+        command rm -f -- "$tmp_file" 2>/dev/null
+        echo "${C_RED}Error: Failed to save bookmarks.${C_RESET}" >&2
+        return 1
+      }
+
+      command chmod 600 "$bookmarks_file" 2>/dev/null || :
+      echo "${C_GREEN}Bookmark '$name' saved for $current_dir${C_RESET}"
       ;;
 
     del)
@@ -89,18 +121,44 @@ function bm() {
         echo "${C_YELLOW}Usage: bm del <name>${C_RESET}" >&2
         return 1
       fi
-      if [[ -f "$bookmarks_file" ]]; then
-        grep -v "^$name=" "$bookmarks_file" >"${bookmarks_file}.tmp"
-        mv "${bookmarks_file}.tmp" "$bookmarks_file"
-        echo "${C_GREEN}Bookmark '$name' deleted${C_RESET}"
+      if [[ "$name" == *"="* || "$name" == *$'\n'* ]]; then
+        echo "${C_RED}Error: Invalid bookmark name.${C_RESET}" >&2
+        return 1
       fi
+
+      if [[ ! -f "$bookmarks_file" ]]; then
+        echo "${C_RED}Error: No bookmarks file found.${C_RESET}" >&2
+        return 1
+      fi
+
+      if ! command awk -F= -v key="$name" 'BEGIN { found = 0 } $1 == key { found = 1 } END { exit found ? 0 : 1 }' "$bookmarks_file"; then
+        echo "${C_RED}Error: Bookmark '$name' not found.${C_RESET}" >&2
+        return 1
+      fi
+
+      local tmp_file="${bookmarks_file}.tmp.$$"
+      if ! command awk -F= -v key="$name" '$1 != key { print }' "$bookmarks_file" >"$tmp_file"; then
+        command rm -f -- "$tmp_file" 2>/dev/null
+        echo "${C_RED}Error: Failed to update bookmarks.${C_RESET}" >&2
+        return 1
+      fi
+
+      command mv -- "$tmp_file" "$bookmarks_file" || {
+        command rm -f -- "$tmp_file" 2>/dev/null
+        echo "${C_RED}Error: Failed to save bookmarks.${C_RESET}" >&2
+        return 1
+      }
+
+      echo "${C_GREEN}Bookmark '$name' deleted${C_RESET}"
       ;;
 
     list)
       if [[ -f "$bookmarks_file" ]]; then
         echo "${C_CYAN}Directory Bookmarks:${C_RESET}"
-        while IFS='=' read -r name dir; do
-          echo "  ${C_YELLOW}$name${C_RESET} -> $dir"
+        local bm_name dir
+        while IFS='=' read -r bm_name dir; do
+          [[ -z "$bm_name" ]] && continue
+          echo "  ${C_YELLOW}$bm_name${C_RESET} -> $dir"
         done <"$bookmarks_file"
       else
         echo "${C_YELLOW}No bookmarks found.${C_RESET}"
@@ -109,10 +167,20 @@ function bm() {
 
     *)
       if [[ -f "$bookmarks_file" ]]; then
-        local dir=$(grep "^$action=" "$bookmarks_file" | cut -d= -f2-)
+        if [[ "$action" == *"="* || "$action" == *$'\n'* ]]; then
+          echo "${C_RED}Error: Invalid bookmark name.${C_RESET}" >&2
+          return 1
+        fi
+
+        local dir
+        dir="$(command awk -F= -v key="$action" '$1 == key { $1 = ""; sub(/^=/, ""); print; exit }' "$bookmarks_file")"
         if [[ -n "$dir" ]]; then
-          cd "$dir"
-          echo "${C_GREEN}Jumped to bookmark '$action': $(pwd)${C_RESET}"
+          if builtin cd -- "$dir"; then
+            echo "${C_GREEN}Jumped to bookmark '$action': $PWD${C_RESET}"
+          else
+            echo "${C_RED}Error: Target directory for bookmark '$action' is not accessible.${C_RESET}" >&2
+            return 1
+          fi
         else
           echo "${C_RED}Error: Bookmark '$action' not found.${C_RESET}" >&2
           return 1
@@ -143,46 +211,63 @@ function bm() {
 #   --dry-run - Show what would be deleted without actually removing files.
 # -----------------------------------------------------------------------------
 function cleanup() {
+  emulate -L zsh
+  setopt noxtrace noverbose nullglob
+
   local dry_run=false
-  [[ "$1" == "--dry-run" ]] && dry_run=true
+  case "${1:-}" in
+    --dry-run) dry_run=true ;;
+    "")
+      ;;
+    *)
+      echo "${C_YELLOW}Usage: cleanup [--dry-run]${C_RESET}" >&2
+      return 1
+      ;;
+  esac
 
   echo "${C_CYAN}Cleaning temporary files...${C_RESET}"
 
-  local total_size=0
-  local files_to_clean=()
+  local -a cleanup_roots=()
+  local -a targets=()
+  local root
 
   # Add directories to clean based on platform.
   if [[ "$PLATFORM" == "macOS" ]]; then
-    files_to_clean+=(
-      "$HOME/Library/Caches/*"
-      "$HOME/.Trash/*"
-      "/private/var/tmp/*"
+    cleanup_roots+=(
+      "$HOME/Library/Caches"
+      "$HOME/.Trash"
+      "/private/var/tmp"
     )
   fi
 
   # Common directories for all platforms.
-  files_to_clean+=(
-    "/tmp/*"
-    "$HOME/.cache/*"
-    "$HOME/.npm/_cacache/*"
-    "$HOME/.yarn/cache/*"
+  cleanup_roots+=(
+    "/tmp"
+    "$HOME/.cache"
+    "$HOME/.npm/_cacache"
+    "$HOME/.yarn/cache"
   )
+
+  for root in "${cleanup_roots[@]}"; do
+    [[ -d "$root" ]] || continue
+    targets+=( "$root"/*(DN) )
+  done
+
+  if (( ${#targets[@]} == 0 )); then
+    echo "${C_YELLOW}No temporary/cache files found to clean.${C_RESET}"
+    return 0
+  fi
 
   if [[ "$dry_run" == true ]]; then
     echo "${C_YELLOW}DRY RUN - No files will be deleted${C_RESET}"
-    for pattern in "${files_to_clean[@]}"; do
-      if ls $pattern >/dev/null 2>&1; then
-        du -sh $pattern 2>/dev/null | while read size path; do
-          echo "  Would remove: $path ($size)"
-        done
-      fi
+    local item size
+    for item in "${targets[@]}"; do
+      size="$(du -sh -- "$item" 2>/dev/null | awk '{print $1}')"
+      [[ -z "$size" ]] && size="?"
+      echo "  Would remove: $item ($size)"
     done
   else
-    for pattern in "${files_to_clean[@]}"; do
-      if ls $pattern >/dev/null 2>&1; then
-        rm -rf $pattern 2>/dev/null
-      fi
-    done
+    command rm -rf -- "${targets[@]}" 2>/dev/null
     echo "${C_GREEN}Cleanup completed!${C_RESET}"
   fi
 }

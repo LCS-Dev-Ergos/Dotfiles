@@ -184,12 +184,20 @@ function serve() {
   fi
 
   # Check if port is already in use.
-  if lsof -Pi :$port -sTCP:LISTEN -t >/dev/null 2>&1; then
+  if lsof -Pi :"$port" -sTCP:LISTEN -t >/dev/null 2>&1; then
     echo "${C_YELLOW}Warning: Port $port is already in use.${C_RESET}" >&2
     echo -n "Choose another port or press Enter to continue anyway: "
     read -r new_port
     if [[ -n "$new_port" ]]; then
+      if ! [[ "$new_port" =~ ^[0-9]+$ ]] || [[ $new_port -lt 1 || $new_port -gt 65535 ]]; then
+        echo "${C_RED}Error: Invalid port number. Use a number between 1 and 65535.${C_RESET}" >&2
+        return 1
+      fi
       port="$new_port"
+      if lsof -Pi :"$port" -sTCP:LISTEN -t >/dev/null 2>&1; then
+        echo "${C_RED}Error: Port $port is still in use.${C_RESET}" >&2
+        return 1
+      fi
     fi
   fi
 
@@ -286,7 +294,7 @@ function cheat() {
     echo "${C_YELLOW}Usage: cheat <command>${C_RESET}" >&2
     return 1
   fi
-  curl -s "cheat.sh/$1" | less -R
+  curl -s "https://cheat.sh/$1" | less -R
 }
 
 # -----------------------------------------------------------------------------
@@ -306,7 +314,7 @@ function qr() {
     echo "${C_YELLOW}Usage: qr <text>${C_RESET}" >&2
     return 1
   fi
-  curl -sF-="\<-" qrenco.de <<<"$1"
+  curl -sF-="\<-" "https://qrenco.de" <<<"$1"
 }
 
 # ============================================================================ #

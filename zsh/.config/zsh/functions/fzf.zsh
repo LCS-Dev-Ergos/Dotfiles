@@ -89,9 +89,15 @@ _fuzzy_edit_search_file() {
 #   ffec <search_pattern>
 # -----------------------------------------------------------------------------
 _fuzzy_edit_search_file_content() {
+  local search_pattern="${1:-}"
   local selected_file
   local fzf_options=()
   local preview_cmd
+
+  if [[ -z "$search_pattern" ]]; then
+    echo "Usage: ffec <search_pattern>" >&2
+    return 1
+  fi
 
   if command -v bat &>/dev/null; then
     preview_cmd='bat --color always --style=plain --paging=never {}'
@@ -100,7 +106,21 @@ _fuzzy_edit_search_file_content() {
   fi
 
   fzf_options+=(--height "80%" --layout=reverse --cycle --preview-window right:60% --preview "$preview_cmd")
-  selected_file=$(grep -irl "${1:-}" ./ | fzf "${fzf_options[@]}")
+
+  if command -v rg &>/dev/null; then
+    selected_file=$(
+      rg --files-with-matches --hidden --no-messages \
+        --glob '!.git/**' --glob '!node_modules/**' --glob '!.venv/**' \
+        --glob '!target/**' --glob '!.cache/**' --glob '!dist/**' --glob '!build/**' \
+        -- "$search_pattern" . 2>/dev/null | fzf "${fzf_options[@]}"
+    )
+  else
+    selected_file=$(
+      grep -irl --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.venv \
+        --exclude-dir=target --exclude-dir=.cache -- "$search_pattern" . 2>/dev/null \
+        | fzf "${fzf_options[@]}"
+    )
+  fi
 
   if [[ -n "$selected_file" ]]; then
     if command -v "$EDITOR" &>/dev/null; then

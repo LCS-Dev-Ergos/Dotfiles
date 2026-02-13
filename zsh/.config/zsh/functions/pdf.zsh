@@ -378,21 +378,27 @@ function copy_pdf_bookmarks() {
         return 1
     fi
 
-    # Check if copy_bookmarks.py script exists.
-    local script_dir="${${(%):-%N}:A:h}"
-    local script_path="${HOME}/.config/zsh/scripts/python/copy_bookmarks.py"
-    if [[ ! -f "$script_path" ]]; then
-        # Try alternative locations
-        if [[ -f "$script_dir/copy_bookmarks.py" ]]; then
-            script_path="$script_dir/copy_bookmarks.py"
-        elif [[ -f "./copy_bookmarks.py" ]]; then
-            script_path="./copy_bookmarks.py"
-        else
-            echo "${C_RED}Error: copy_bookmarks.py script not found.${C_RESET}" >&2
-            echo "Expected location: ${HOME}/.config/zsh/scripts/python/copy_bookmarks.py" >&2
-            echo "Or in current directory: ./copy_bookmarks.py" >&2
-            return 1
-        fi
+    # Check if copy_bookmarks.py script exists in trusted paths only.
+    local script_path=""
+    local -a script_candidates=(
+        "${PDF_COPY_BOOKMARKS_SCRIPT:-}"
+        "${HOME}/.config/zsh/scripts/python/copy_bookmarks.py"
+        "${ZSH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zsh}/scripts/python/copy_bookmarks.py"
+    )
+    local candidate
+    for candidate in "${script_candidates[@]}"; do
+        [[ -n "$candidate" && -f "$candidate" && -r "$candidate" ]] || continue
+        script_path="$candidate"
+        break
+    done
+
+    if [[ -z "$script_path" ]]; then
+        echo "${C_RED}Error: copy_bookmarks.py script not found in trusted paths.${C_RESET}" >&2
+        echo "Checked:" >&2
+        echo "  1. \$PDF_COPY_BOOKMARKS_SCRIPT (if set)" >&2
+        echo "  2. ${HOME}/.config/zsh/scripts/python/copy_bookmarks.py" >&2
+        echo "  3. ${ZSH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zsh}/scripts/python/copy_bookmarks.py" >&2
+        return 1
     fi
 
     # Check if correct number of arguments is provided.

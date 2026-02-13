@@ -97,8 +97,13 @@ typeset -ga _ZSH_HEAVY_FUNCTION_FILES=()
 _zsh_source_function_file() {
     local file="$1"
     if [[ -r "$file" ]]; then
-        source "$file"
-        return 0
+        # Parse function bundles with aliases disabled so definitions stay
+        # deterministic regardless of interactive aliases (ls/rm/cat, etc.).
+        () {
+            setopt localoptions no_aliases
+            source "$file"
+        }
+        return $?
     fi
     echo "Warning: Cannot read function file: $file"
     return 1
