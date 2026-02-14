@@ -172,6 +172,26 @@ fi
 [[ -n "${terminfo[kcbt]-}" ]] && bindkey "${terminfo[kcbt]}" reverse-menu-complete
 
 bindkey -M viins '^?' backward-delete-char
+bindkey -M viins '^[^?' backward-kill-word
+
+# Emacs-style line editing restored for insert mode.
+bindkey -M viins '^W' backward-kill-word
+bindkey -M viins '^U' backward-kill-line
+bindkey -M viins '^K' kill-line
+bindkey -M viins '^A' beginning-of-line
+bindkey -M viins '^E' end-of-line
+
+# History navigation in insert mode.
+bindkey -M viins '^P' up-line-or-history
+bindkey -M viins '^N' down-line-or-history
+bindkey -M viins '^R' history-incremental-search-backward
+
+# Text manipulation.
+bindkey -M viins '^T' transpose-chars
+bindkey -M viins '^Y' yank
+
+# Quick escape: "jk" in insert mode switches to normal mode.
+bindkey -M viins 'jk' vi-cmd-mode
 
 for seq in $'\e[1;5D' $'\e[5D' $'\eb'; do
   bindkey -M viins "$seq" backward-word
