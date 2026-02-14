@@ -26,6 +26,7 @@
 function cppsubmit() {
   _check_initialized || return 1
   local target_name=${1:-$(_get_default_target)}
+  local problem_brief
   local solution_file="${target_name}.cpp"
   local submission_dir="$SUBMISSIONS_DIR"
   local submission_file="$submission_dir/${target_name}_sub.cpp"
@@ -51,6 +52,8 @@ function cppsubmit() {
     return 1
   fi
 
+  problem_brief=$(_problem_brief "$target_name")
+
   # Create submissions directory if needed.
   mkdir -p "$submission_dir"
 
@@ -70,7 +73,7 @@ function cppsubmit() {
  * @source: $solution_file
  * @author: Costantino Lombardi
  *
- * @brief: Codeforces Round #XXX (Div. X) - Problem Y
+ * @brief: ${problem_brief}
  */
 //===----------------------------------------------------------------------===//
 /* Included library and Compiler Optimizations */
@@ -289,7 +292,7 @@ function cpptestsubmit() {
     # Test execution with input.
     if [ -f "$input_path" ]; then
       echo -e "${C_BLUE}Testing with input from $input_path:${C_RESET}"
-      echo -e "${C_CYAN}╔═══------------------------------------------═══╗${C_RESET}"
+      echo -e "${C_CYAN}╔═══──────────────────────────────────────────═══╗${C_RESET}"
 
       # Run with timeout and capture output.
       local run_output
@@ -297,7 +300,7 @@ function cpptestsubmit() {
       local exit_code=$?
       echo "$run_output" | head -n 50
 
-      echo -e "${C_CYAN}╚═══------------------------------------------═══╝${C_RESET}"
+      echo -e "${C_CYAN}╚═══──────────────────────────────────────────═══╝${C_RESET}"
 
       if [ "$exit_code" -eq 124 ]; then
         echo -e "${C_YELLOW}⚠ Execution timeout (2s limit exceeded)${C_RESET}"
@@ -337,9 +340,9 @@ function cppfull() {
   local target_name=${1:-$(_get_default_target)}
   local input_name=${2:-"${target_name}.in"}
 
-  echo -e "${C_BLUE}╔═══------------------------------------------═══╗${C_RESET}"
+  echo -e "${C_BLUE}╔═══──────────────────────────────────────────═══╗${C_RESET}"
   echo -e "${C_BLUE}${C_BOLD} FULL WORKFLOW: $(printf "%-20s" "$target_name")${C_RESET}"
-  echo -e "${C_BLUE}╚═══------------------------------------------═══╝${C_RESET}"
+  echo -e "${C_BLUE}╚═══──────────────────────────────────────────═══╝${C_RESET}"
 
   # Step 1: Development version test.
   echo ""
@@ -372,9 +375,9 @@ function cppfull() {
   file_size=$(wc -c < "$submission_file" 2>/dev/null || echo "0")
 
   echo ""
-  echo -e "${C_GREEN}${C_BOLD}╔═══------------------------------------------═══╗${C_RESET}"
+  echo -e "${C_GREEN}${C_BOLD}╔═══──────────────────────────────────────────═══╗${C_RESET}"
   echo -e "${C_GREEN}${C_BOLD}  ✓ Full workflow completed successfully${C_RESET}"
-  echo -e "${C_GREEN}${C_BOLD}╚═══------------------------------------------═══╝${C_RESET}"
+  echo -e "${C_GREEN}${C_BOLD}╚═══──────────────────────────────────────────═══╝${C_RESET}"
   echo -e "${C_YELLOW}📁 Submission: $submission_file${C_RESET}"
   echo -e "${C_YELLOW}📊 Size: $(numfmt --to=iec-i --suffix=B "$file_size" 2>/dev/null || echo "$file_size bytes")${C_RESET}"
   echo -e "${C_YELLOW}📋 Ready for contest submission${C_RESET}"
@@ -390,7 +393,7 @@ function cppfull() {
 # -----------------------------------------------------------------------------
 function cppcheck() {
   echo -e "${C_CYAN}${C_BOLD}Checking template system health...${C_RESET}"
-  echo -e "${C_CYAN}╔═══-----------------------------------------═══╗${C_RESET}"
+  echo -e "${C_CYAN}╔═══──────────────────────────────────────────═══╗${C_RESET}"
 
   local all_good=true
   local warnings=0
@@ -490,7 +493,7 @@ function cppcheck() {
   fi
 
   # Summary.
-  echo -e "\n${C_CYAN}╚═══------------------------------------------═══╝${C_RESET}"
+  echo -e "\n${C_CYAN}╚═══──────────────────────────────────────────═══╝${C_RESET}"
   if $all_good; then
     if [ $warnings -eq 0 ]; then
       echo -e "${C_GREEN}${C_BOLD}✓ All systems fully operational${C_RESET}"

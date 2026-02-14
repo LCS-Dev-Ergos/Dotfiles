@@ -59,7 +59,7 @@ function cppbuild() {
   # Handle build failures with full error output.
   if [ $build_status -ne 0 ]; then
     echo ""
-    echo "${C_BOLD}${C_RED}╔═══--------- BUILD FAILED ---------═══╗${C_RESET}"
+    echo "${C_BOLD}${C_RED}╔═══───────── BUILD FAILED ─────────═══╗${C_RESET}"
     echo "$build_output"
     printf "${C_RED}Build failed after %s${C_RESET}\n" "$elapsed_str"
     return 1
@@ -78,7 +78,7 @@ function cppbuild() {
     # 3. Print timing statistics only if timing is enabled.
     if [ "$timing_enabled" = true ]; then
       echo ""
-      echo "${C_BOLD}${C_CYAN}╔═══--------------------- Compilation Time Statistics ----------------------═══╗${C_RESET}"
+      echo "${C_BOLD}${C_CYAN}╔═══───────────────────── Compilation Time Statistics ──────────────────────═══╗${C_RESET}"
       echo ""
 
       # Universal timing report finder for both GCC and Clang.
@@ -101,7 +101,7 @@ function cppbuild() {
       fi
 
       echo ""
-      echo "${C_BOLD}${C_CYAN}╚═══--------------- Compilation Finished, Proceeding to Link ---------------═══╝${C_RESET}"
+      echo "${C_BOLD}${C_CYAN}╚═══─────────────── Compilation Finished, Proceeding to Link ───────────────═══╝${C_RESET}"
       echo ""
     fi
 
@@ -163,7 +163,7 @@ function cppgo() {
   echo "${C_CYAN}Building target '${C_BOLD}$target_name${C_CYAN}'...${C_RESET}"
   if cppbuild "$target_name"; then
     echo ""
-    echo "${C_BLUE}════-------------------------------------════${C_RESET}"
+    echo "${C_BLUE}════─────────────────────────────────────════${C_RESET}"
     echo "${C_BLUE}${C_BOLD}RUNNING: $target_name${C_RESET}"
 
     # Track execution time.
@@ -192,7 +192,7 @@ function cppgo() {
       echo "${C_RED}Program exited with code $exit_code${C_RESET}"
     fi
 
-    echo "${C_BLUE}════------------- FINISHED --------------════${C_RESET}"
+    echo "${C_BLUE}════───────────── FINISHED ──────────────════${C_RESET}"
     if (( elapsed_sec < 1 )); then
       printf "${C_MAGENTA}Execution time: %.2fms${C_RESET}\n" $(( elapsed_sec * 1000 ))
     else
@@ -257,7 +257,7 @@ function cppi() {
   echo "${C_CYAN}Building target '${C_BOLD}$target_name${C_CYAN}'...${C_RESET}"
   if cppbuild "$target_name"; then
     echo ""
-    echo "${C_BLUE}════-------------------------------------════${C_RESET}"
+    echo "${C_BLUE}════─────────────────────────────────────════${C_RESET}"
     echo "${C_BLUE}${C_BOLD}INTERACTIVE MODE: $target_name${C_RESET}"
     echo "${C_YELLOW}Enter input (Ctrl+D when done):${C_RESET}"
     "$exec_path"
@@ -344,18 +344,18 @@ function cppjudge() {
     else
       echo "${C_BOLD}${C_RED}FAILED${C_RESET} (${elapsed_ms}ms)"
       ((failed++))
-      echo "${C_BOLD}${C_YELLOW}════------------ YOUR OUTPUT ------------════${C_RESET}"
+      echo "${C_BOLD}${C_YELLOW}════──────────── YOUR OUTPUT ────────────════${C_RESET}"
       cat "$temp_out"
-      echo "${C_BOLD}${C_YELLOW}╠═══------------- EXPECTED --------------═══╣${C_RESET}"
+      echo "${C_BOLD}${C_YELLOW}╠═══───────────── EXPECTED ──────────────═══╣${C_RESET}"
       cat "$output_case"
-      echo "${C_BOLD}${C_YELLOW}════-------------------------------------════${C_RESET}"
+      echo "${C_BOLD}${C_YELLOW}════─────────────────────────────────────════${C_RESET}"
     fi
     rm -f -- "$temp_out"
   done
 
   # Summary.
   echo ""
-  echo "${C_BOLD}${C_BLUE}════----------- TEST SUMMARY ------------════${C_RESET}"
+  echo "${C_BOLD}${C_BLUE}════─────────── TEST SUMMARY ────────────════${C_RESET}"
   echo "${C_GREEN}Passed: $passed/$total${C_RESET}"
   if [ $failed -gt 0 ]; then
     echo "${C_RED}Failed: $failed/$total${C_RESET}"
@@ -363,7 +363,7 @@ function cppjudge() {
   if [ $missing_expected -gt 0 ]; then
     echo "${C_YELLOW}Missing expected outputs: $missing_expected${C_RESET}"
   fi
-  echo "${C_BOLD}${C_BLUE}════-------------------------------------════${C_RESET}"
+  echo "${C_BOLD}${C_BLUE}════─────────────────────────────────────════${C_RESET}"
 
   if [ $failed -gt 0 ] || [ $missing_expected -gt 0 ]; then
     return 1

@@ -9,6 +9,9 @@
 #   - _get_default_target  Resolve default C++ target name.
 #   - _check_initialized   Ensure project has CMake setup.
 #   - _check_workspace     Validate working directory is in workspace.
+#   - _problem_label       Normalize problem label for metadata.
+#   - _contest_label       Extract contest label from path.
+#   - _problem_brief       Build contest/problem brief string.
 #   - _format_duration     Format elapsed time values.
 #   - _get_timeout_cmd     Select available timeout command.
 #   - _run_with_timeout    Execute command with timeout fallback.
@@ -166,6 +169,88 @@ _check_workspace() {
       return 1
       ;;
   esac
+}
+
+# -----------------------------------------------------------------------------
+# _problem_label
+# -----------------------------------------------------------------------------
+# Normalize problem identifier from filenames like:
+#   A.cpp, A, problem_A.cpp, problem_A
+# Falls back to the raw value when pattern is unknown.
+# -----------------------------------------------------------------------------
+_problem_label() {
+  local raw="$1"
+  raw="${raw:t}"
+  raw="${raw%.cpp}"
+  raw="${raw%.cc}"
+  raw="${raw%.cxx}"
+
+  if [[ "$raw" =~ '^problem_([A-Za-z][0-9]*)$' ]]; then
+    echo "${match[1]:u}"
+    return 0
+  fi
+
+  if [[ "$raw" =~ '^([A-Za-z][0-9]*)$' ]]; then
+    echo "${match[1]:u}"
+    return 0
+  fi
+
+  if [ -n "$raw" ]; then
+    echo "$raw"
+  else
+    echo "Y"
+  fi
+}
+
+# -----------------------------------------------------------------------------
+# _contest_label
+# -----------------------------------------------------------------------------
+# Extract contest round/division from current path or provided string.
+# Recognizes forms such as:
+#   Round_1070_Div_2, round-1070-div2, Round1070Div2
+# -----------------------------------------------------------------------------
+_contest_label() {
+  local context="${1:-$PWD}"
+  local normalized="${context//-/_}"
+  local round=""
+  local division=""
+
+  if [[ "$normalized" =~ '[Rr]ound[^0-9]*([0-9]+)' ]]; then
+    round="${match[1]}"
+  fi
+
+  if [[ "$normalized" =~ '[Dd]iv[^0-9]*([0-9]+)' ]]; then
+    division="${match[1]}"
+  fi
+
+  if [ -z "$round" ]; then
+    return 1
+  fi
+
+  if [ -n "$division" ]; then
+    echo "Codeforces Round ${round} (Div. ${division})"
+  else
+    echo "Codeforces Round ${round}"
+  fi
+}
+
+# -----------------------------------------------------------------------------
+# _problem_brief
+# -----------------------------------------------------------------------------
+# Build the standard problem brief string used in templates/submissions.
+# -----------------------------------------------------------------------------
+_problem_brief() {
+  local target_name="$1"
+  local problem_name contest_name
+
+  problem_name=$(_problem_label "$target_name")
+  contest_name=$(_contest_label "$PWD" 2>/dev/null || true)
+
+  if [ -n "$contest_name" ]; then
+    echo "${contest_name} - Problem ${problem_name}"
+  else
+    echo "Codeforces Round XXX (Div. X) - Problem ${problem_name}"
+  fi
 }
 
 # -----------------------------------------------------------------------------

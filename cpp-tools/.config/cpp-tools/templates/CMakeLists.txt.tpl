@@ -333,17 +333,14 @@ if(CP_ENABLE_PCH AND CMAKE_VERSION VERSION_GREATER_EQUAL "3.16")
 
     # Define the PCH header path based on compiler.
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang" OR USING_CLANG_FOR_SANITIZERS)
-        set(PCH_HEADER_PATH "${CMAKE_CURRENT_SOURCE_DIR}/libs/PCH.h")
+        set(PCH_HEADER_PATH "${CMAKE_CURRENT_SOURCE_DIR}/algorithms/PCH.h")
         set(PCH_TYPE "PCH.h")
     else()
         # For GCC, we can use bits/stdc++.h directly as PCH.
-        set(PCH_HEADER_PATH "${CMAKE_CURRENT_SOURCE_DIR}/libs/PCH_Wrapper.h")
+        set(PCH_HEADER_PATH "${CMAKE_CURRENT_SOURCE_DIR}/algorithms/PCH_Wrapper.h")
         set(PCH_TYPE "bits/stdc++.h wrapper")
 
-        # Ensure the wrapper file exists.
-        if(NOT EXISTS "${PCH_HEADER_PATH}")
-          message(FATAL_ERROR "${ANSI_COLOR_RED}PCH: Wrapper file ${PCH_HEADER_PATH} not found${ANSI_COLOR_RESET}")
-        endif()
+        # Wrapper availability is checked in the generic PCH existence guard below.
     endif()
 
     # Verify PCH header exists.
@@ -671,7 +668,7 @@ endif()
 add_custom_target(symlink_clangd
     COMMAND ${CMAKE_COMMAND} -E create_symlink
             "${CMAKE_BINARY_DIR}/compile_commands.json"
-            "${CMAKE_SOURCE_DIR}/.ide-config/compile_commands.json"
+            "${CMAKE_SOURCE_DIR}/.ide-configs/compile_commands.json"
     COMMAND ${CMAKE_COMMAND} -E create_symlink
             "${CMAKE_BINARY_DIR}/compile_commands.json"
             "${CMAKE_SOURCE_DIR}/compile_commands.json"

@@ -1,7 +1,7 @@
 //===----------------------------------------------------------------------===//
 /**
  * @file: __FILE_NAME__
- * @brief Codeforces Round #XXX (Div. X) - Problem Y
+ * @brief __PROBLEM_BRIEF__
  * @author: Costantino Lombardi
  *
  * @status: In Progress
