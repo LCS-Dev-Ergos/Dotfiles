@@ -222,9 +222,9 @@ if [[ "${ZSH_ENABLE_FZF_TAB}" == "1" ]]; then
   zinit light Aloxaf/fzf-tab
 fi
 
-# ---------------------------- TURBO PLUGINS LOAD ---------------------------- #
-# Common async plugin.
-zinit ice wait"0" lucid atload"_zsh_autosuggest_start 2>/dev/null || true"
+# ------------------------- INTERACTIVE CORE PLUGINS ------------------------- #
+# Keep core interactive feedback plugins synchronous for immediate availability.
+zinit ice lucid atload"_zsh_autosuggest_start 2>/dev/null || true"
 zinit light zsh-users/zsh-autosuggestions
 
 if [[ "$PLATFORM" == "macOS" ]]; then
@@ -248,11 +248,11 @@ fi
 
 if [[ "$PLATFORM" == "macOS" ]] || [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" == true ]]; then
   # Keep this after autosuggestions.
-  zinit ice wait"2" lucid atload"_zinit_bind_history_substring_keys"
+  zinit ice lucid atload"_zinit_bind_history_substring_keys"
   zinit light zsh-users/zsh-history-substring-search
 
-  # Must stay last among async plugins.
-  zinit ice wait"3" lucid atload"_zinit_replay_compdefs"
+  # Must stay last among interactive plugins.
+  zinit ice lucid atload"_zinit_replay_compdefs"
   zinit light zdharma-continuum/fast-syntax-highlighting
 fi
 
