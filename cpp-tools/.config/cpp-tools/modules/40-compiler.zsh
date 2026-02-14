@@ -64,21 +64,27 @@ function cppprof() {
 # -----------------------------------------------------------------------------
 function cppinfo() {
   if [ -f ".statistics/last_config" ]; then
-    local config
+    local config build_type compiler pch_mode
     config=$(cat .statistics/last_config)
-    local build_type=${config%:*}
-    local compiler=${config#*:}
+    IFS=: read -r build_type compiler pch_mode <<< "$config"
     echo "${C_CYAN}Current configuration:${C_RESET}"
     echo "  Build Type: ${C_YELLOW}$build_type${C_RESET}"
     echo "  Compiler: ${C_YELLOW}$compiler${C_RESET}"
+    if [ -n "$pch_mode" ]; then
+      echo "  PCH: ${C_YELLOW}$pch_mode${C_RESET}"
+    fi
   else
     echo "${C_YELLOW}No configuration found. Run 'cppconf' first.${C_RESET}"
   fi
 
   if [ -f "build/CMakeCache.txt" ]; then
     local actual_compiler
-    actual_compiler=$(grep "CMAKE_CXX_COMPILER:FILEPATH=" build/CMakeCache.txt | cut -d'=' -f2)
-    echo "  Actual Path: ${C_GREEN}$actual_compiler${C_RESET}"
+    actual_compiler=$(grep -E '^CMAKE_CXX_COMPILER:(FILEPATH|PATH|STRING)=' build/CMakeCache.txt | head -n1 | cut -d'=' -f2-)
+    if [ -n "$actual_compiler" ]; then
+      echo "  Actual Path: ${C_GREEN}$actual_compiler${C_RESET}"
+    else
+      echo "  Actual Path: ${C_YELLOW}Unavailable (cache key not found)${C_RESET}"
+    fi
 
     # Check for LTO support.
     if grep -q "INTERPROCEDURAL_OPTIMIZATION.*TRUE" build/CMakeCache.txt 2>/dev/null; then

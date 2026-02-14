@@ -21,7 +21,7 @@ ${C_BOLD}Enhanced CMake Utilities for Competitive Programming:${C_RESET}
 ${C_BOLD}${C_CYAN}[ SETUP & CONFIGURATION ]${C_RESET}
   ${C_GREEN}cppinit${C_RESET}                       - Initializes or verifies a project directory (workspace-protected).
   ${C_GREEN}cppnew${C_RESET} ${C_YELLOW}[name] [template]${C_RESET}      - Creates a new .cpp file from a template ('default', 'pbds', 'advanced', 'base').
-  ${C_GREEN}cppdelete${C_RESET} ${C_YELLOW}[name]${C_RESET}              - Deletes a problem file and associated data (interactive).
+  ${C_GREEN}cppdelete${C_RESET} ${C_YELLOW}[name...]${C_RESET}           - Deletes one or more problems (space/comma-separated, interactive).
   ${C_GREEN}cppbatch${C_RESET} ${C_YELLOW}[count] [tpl]${C_RESET}        - Creates multiple problems at once (A, B, C, ...).
   ${C_GREEN}cppconf${C_RESET} ${C_YELLOW}[type] [compiler] ${C_RESET}    - (Re)configures the project (Debug/Release/Sanitize, gcc/clang/auto, timing reports).
           ${C_YELLOW}[timing=on/off]${C_RESET}
@@ -73,8 +73,8 @@ EOF
 }
 
 # Display load message only if not in quiet mode.
-export CP_QUIET_LOAD=${1:-0}
-if [ -z "$CP_QUIET_LOAD" ]; then
+: "${CP_QUIET_LOAD:=0}"
+if [ "$CP_QUIET_LOAD" = "0" ]; then
   echo "${C_GREEN}Competitive Programming utilities loaded. Type 'cpphelp' for commands.${C_RESET}"
 fi
 

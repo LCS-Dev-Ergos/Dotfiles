@@ -40,11 +40,11 @@ else()
     # Search for Clang compiler.
     if(APPLE)
         # On macOS, prefer LLVM clang (has best sanitizer support).
-        set(COMPILER_SEARCH_NAMES 
+        set(COMPILER_SEARCH_NAMES
             clang++                    # LLVM clang (preferred).
             clang++-20 clang++-19 clang++-18 clang++-17 clang++-16
         )
-        set(COMPILER_SEARCH_PATHS 
+        set(COMPILER_SEARCH_PATHS
             /opt/homebrew/opt/llvm/bin  # Homebrew LLVM.
             /usr/local/opt/llvm/bin     # Homebrew LLVM (Intel).
             /opt/local/bin              # MacPorts.
@@ -52,10 +52,10 @@ else()
         )
     else()
         # Linux.
-        set(COMPILER_SEARCH_NAMES 
+        set(COMPILER_SEARCH_NAMES
             clang++-20 clang++-19 clang++-18 clang++-17 clang++-16 clang++-15 clang++
         )
-        set(COMPILER_SEARCH_PATHS 
+        set(COMPILER_SEARCH_PATHS
             /usr/bin
             /usr/local/bin
             /opt/llvm/bin
@@ -87,7 +87,7 @@ endif()
 
 # Error if Clang not found.
 if(NOT CLANG_EXECUTABLE)
-    message(FATAL_ERROR 
+    message(FATAL_ERROR
         "\n"
         "╔═══------------------------------------------------------------------------═══╗\n"
         "                          CLANG COMPILER NOT FOUND!                             \n"
@@ -96,7 +96,7 @@ if(NOT CLANG_EXECUTABLE)
         "Clang is required for sanitizer builds on this platform.\n"
         "\n"
         "Installation instructions:\n")
-    
+
     if(APPLE)
         message(FATAL_ERROR
             "  macOS:\n"
@@ -128,7 +128,7 @@ execute_process(
 )
 
 if(NOT CLANG_VERSION_RESULT EQUAL 0)
-    message(FATAL_ERROR 
+    message(FATAL_ERROR
         "Failed to execute ${CLANG_EXECUTABLE} --version.\n"
         "Error: ${CLANG_VERSION_ERROR}")
 endif()
@@ -201,20 +201,17 @@ if(NOT IS_APPLE_CLANG AND APPLE)
     set(CMAKE_SKIP_BUILD_RPATH TRUE CACHE BOOL "" FORCE)
     set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE CACHE BOOL "" FORCE)
     set(CMAKE_INSTALL_RPATH "${LLVM_LIB_DIR}" CACHE STRING "" FORCE)
-  
+
   message(STATUS "Using LLVM libc++ from: ${LLVM_LIB_DIR}")
 endif()
-
-# Set compiler IDs.
-set(CMAKE_C_COMPILER_ID "Clang" CACHE STRING "C compiler ID" FORCE)
-set(CMAKE_CXX_COMPILER_ID "Clang" CACHE STRING "C++ compiler ID" FORCE)
 
 # Ensure standard support.
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Set C++23 standard.
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++23" CACHE STRING "" FORCE)
+# Set C++23 standard through CMake standard variables.
+set(CMAKE_CXX_STANDARD 23 CACHE STRING "C++ standard" FORCE)
+set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOL "Disable compiler extensions" FORCE)
 
 # Set default build type to Sanitize.
 if(NOT CMAKE_BUILD_TYPE)
@@ -241,4 +238,4 @@ message(STATUS "╬═══----------------------------------------------------
 message(STATUS "")
 
 # ============================================================================ #
-# End of Clang Toolchain File.  
+# End of Clang Toolchain File.

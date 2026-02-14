@@ -52,6 +52,7 @@ function cppdeepclean() {
   if [[ "$response" =~ ^[Yy]$ ]]; then
     cppclean
     rm -f -- CMakeLists.txt gcc-toolchain.cmake clang-toolchain.cmake .clangd
+    rm -f -- .statistics/contest_metadata .statistics/problem_times .statistics/last_config
     rm -f -- .contest_metadata .problem_times
     rm -rf -- .cache
     echo "${C_GREEN}Deep clean complete.${C_RESET}"
@@ -110,8 +111,8 @@ function cppstats() {
 
   local current_time
   current_time=$(date +%s)
-  while IFS=: read -r problem action timestamp; do
-    if [ "$action" = "START" ]; then
+  while IFS=: read -r problem action timestamp _; do
+    if [ "$action" = "START" ] && [[ "$timestamp" == <-> ]]; then
       local elapsed=$((current_time - timestamp))
       echo "${C_CYAN}$problem${C_RESET}: Started $(_format_duration $elapsed) ago"
     fi
@@ -265,8 +266,13 @@ function cppdiag() {
     fi
 
     # Check for metadata files.
-    if [ -f ".contest_metadata" ]; then
+    if [ -f ".statistics/contest_metadata" ]; then
       echo "${C_GREEN}Found contest metadata${C_RESET}"
+      grep "CONTEST_NAME" .statistics/contest_metadata | sed 's/^/   /'
+      grep "CREATED" .statistics/contest_metadata | sed 's/^/   /'
+    elif [ -f ".contest_metadata" ]; then
+      # Legacy compatibility path.
+      echo "${C_GREEN}Found legacy contest metadata${C_RESET}"
       grep "CONTEST_NAME" .contest_metadata | sed 's/^/   /'
       grep "CREATED" .contest_metadata | sed 's/^/   /'
     fi

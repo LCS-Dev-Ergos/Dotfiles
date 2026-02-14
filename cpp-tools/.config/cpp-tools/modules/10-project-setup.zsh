@@ -229,6 +229,11 @@ function cppnew() {
   local template_type=${2:-"base"}
   local file_name="${problem_name}.cpp"
   local template_file
+  local skip_config=0
+
+  if [ "${3:-}" = "--no-config" ] || [ "${CPPNEW_SKIP_CONFIG:-0}" = "1" ]; then
+    skip_config=1
+  fi
 
   if [ -f "${problem_name}.cpp" ] || [ -f "${problem_name}.cc" ] || [ -f "${problem_name}.cxx" ]; then
     echo "${C_RED}Error: File for problem '$problem_name' already exists.${C_RESET}" >&2
@@ -260,6 +265,9 @@ function cppnew() {
   # Replace placeholder and create the file.
   sed "s/__FILE_NAME__/$file_name/g" "$template_file" > "$file_name"
 
+  # Ensure generated-data directories exist.
+  mkdir -p input_cases output_cases .statistics
+
   # Create corresponding empty input/output files.
   touch "input_cases/${problem_name}.in"
   touch "output_cases/${problem_name}.exp"
@@ -269,114 +277,200 @@ function cppnew() {
   # Track problem creation time with human-readable format.
   echo "${problem_name}:START:$(date +%s):$(date '+%Y-%m-%d %H:%M:%S')" >> .statistics/problem_times
 
-  echo "New problem '$problem_name' created. Re-running CMake configuration..."
-  cppconf # Re-run configuration to add the new file to the build system.
+  if [ "$skip_config" -eq 1 ]; then
+    echo "New problem '$problem_name' created. Skipping CMake configuration (batch mode)."
+  else
+    echo "New problem '$problem_name' created. Re-running CMake configuration..."
+    cppconf # Re-run configuration to add the new file to the build system.
+  fi
 }
 
 # -----------------------------------------------------------------------------
 # cppdelete
 # -----------------------------------------------------------------------------
-# Delete a problem source and associated files interactively.
+# Delete one or more problems and associated files interactively.
 #
 # Usage:
-#   cppdelete <problem_name>
+#   cppdelete [--yes|-y] [--no-config] <problem_name> [problem_name...]
+#   cppdelete problem_A,problem_B,problem_C
 # -----------------------------------------------------------------------------
 function cppdelete() {
-  local problem_name=${1}
+  setopt localoptions typesetsilent
 
-  if [ -z "$problem_name" ]; then
-    echo "${C_RED}Usage: cppdelete <problem_name>${C_RESET}" >&2
+  local auto_confirm=0
+  local skip_config=0
+  local arg token normalized
+  local -a requested_problems=()
+  local -a valid_problems=()
+  local -a missing_problems=()
+  local -a files_to_delete=()
+  typeset -A seen_problems
+  typeset -A seen_files
+
+  for arg in "$@"; do
+    case "$arg" in
+      -y|--yes)
+        auto_confirm=1
+        continue
+        ;;
+      --no-config)
+        skip_config=1
+        continue
+        ;;
+    esac
+
+    normalized="${arg//,/ }"
+    for token in ${(z)normalized}; do
+      token="${token%.cpp}"
+      token="${token%.cc}"
+      token="${token%.cxx}"
+      token="${token#,}"
+      token="${token%,}"
+      [ -z "$token" ] && continue
+
+      if (( ! ${+seen_problems[$token]} )); then
+        seen_problems[$token]=1
+        requested_problems+=("$token")
+      fi
+    done
+  done
+
+  if (( ${#requested_problems} == 0 )); then
+    echo "${C_RED}Usage: cppdelete [--yes|-y] [--no-config] <problem_name> [problem_name...]${C_RESET}" >&2
+    echo "Examples:" >&2
+    echo "  cppdelete problem_A problem_B problem_C" >&2
+    echo "  cppdelete problem_A,problem_B,problem_C" >&2
     return 1
   fi
 
-  # Check if any source file exists for this problem.
-  local source_file=""
-  for ext in cpp cc cxx; do
-    if [ -f "${problem_name}.${ext}" ]; then
-      source_file="${problem_name}.${ext}"
-      break
+  echo "${C_YELLOW}The following files will be deleted:${C_RESET}"
+
+  local problem_name source_file ext file input_file output_file
+  for problem_name in "${requested_problems[@]}"; do
+    source_file=""
+    for ext in cpp cc cxx; do
+      if [ -f "${problem_name}.${ext}" ]; then
+        source_file="${problem_name}.${ext}"
+        break
+      fi
+    done
+
+    if [ -z "$source_file" ]; then
+      missing_problems+=("$problem_name")
+      continue
+    fi
+
+    valid_problems+=("$problem_name")
+    echo "${C_CYAN}[${problem_name}]${C_RESET}"
+
+    if (( ! ${+seen_files[$source_file]} )); then
+      files_to_delete+=("$source_file")
+      seen_files[$source_file]=1
+      echo "  - Source file: ${C_CYAN}$source_file${C_RESET}"
+    fi
+
+    file="input_cases/${problem_name}.in"
+    if [ -f "$file" ] && (( ! ${+seen_files[$file]} )); then
+      files_to_delete+=("$file")
+      seen_files[$file]=1
+      echo "  - Input file: ${C_CYAN}$file${C_RESET}"
+    fi
+
+    local -a input_files=( input_cases/"${problem_name}".*.in(N) )
+    for input_file in "${input_files[@]}"; do
+      if (( ! ${+seen_files[$input_file]} )); then
+        files_to_delete+=("$input_file")
+        seen_files[$input_file]=1
+        echo "  - Input file: ${C_CYAN}$input_file${C_RESET}"
+      fi
+    done
+
+    file="output_cases/${problem_name}.exp"
+    if [ -f "$file" ] && (( ! ${+seen_files[$file]} )); then
+      files_to_delete+=("$file")
+      seen_files[$file]=1
+      echo "  - Output file: ${C_CYAN}$file${C_RESET}"
+    fi
+
+    local -a output_files=( output_cases/"${problem_name}".*.exp(N) )
+    for output_file in "${output_files[@]}"; do
+      if (( ! ${+seen_files[$output_file]} )); then
+        files_to_delete+=("$output_file")
+        seen_files[$output_file]=1
+        echo "  - Output file: ${C_CYAN}$output_file${C_RESET}"
+      fi
+    done
+
+    file="$SUBMISSIONS_DIR/${problem_name}_sub.cpp"
+    if [ -f "$file" ] && (( ! ${+seen_files[$file]} )); then
+      files_to_delete+=("$file")
+      seen_files[$file]=1
+      echo "  - Submission file: ${C_CYAN}$file${C_RESET}"
+    fi
+
+    file="bin/${problem_name}"
+    if [ -f "$file" ] && (( ! ${+seen_files[$file]} )); then
+      files_to_delete+=("$file")
+      seen_files[$file]=1
+      echo "  - Executable: ${C_CYAN}$file${C_RESET}"
     fi
   done
 
-  if [ -z "$source_file" ]; then
-    echo "${C_RED}Error: No source file found for problem '$problem_name'${C_RESET}" >&2
+  if (( ${#missing_problems} > 0 )); then
+    echo "${C_YELLOW}Warning: Source file not found for: ${missing_problems[*]}${C_RESET}"
+  fi
+
+  if (( ${#valid_problems} == 0 )) || (( ${#files_to_delete} == 0 )); then
+    echo "${C_RED}Error: No matching problem files found to delete.${C_RESET}" >&2
     return 1
   fi
 
-  # List all files that will be deleted.
-  echo "${C_YELLOW}The following files will be deleted:${C_RESET}"
-  echo "  - Source file: ${C_CYAN}$source_file${C_RESET}"
+  if [ "$auto_confirm" -eq 0 ]; then
+    local response
+    echo ""
+    printf "${C_YELLOW}Are you sure you want to delete these files? (y/N): ${C_RESET}"
+    read -r response || response=""
 
-  # Check for input/output files.
-  local files_to_delete=("$source_file")
-
-  if [ -f "input_cases/${problem_name}.in" ]; then
-    echo "  - Input file: ${C_CYAN}input_cases/${problem_name}.in${C_RESET}"
-    files_to_delete+=("input_cases/${problem_name}.in")
+    if [[ ! "$response" =~ ^[Yy]$ ]]; then
+      echo "Deletion cancelled."
+      return 0
+    fi
   fi
 
-  # Check for multiple input files (numbered pattern).
-  local -a input_files=( input_cases/"${problem_name}".*.in(N) )
-  for input_file in "${input_files[@]}"; do
-    echo "  - Input file: ${C_CYAN}$input_file${C_RESET}"
-    files_to_delete+=("$input_file")
-  done
-
-  if [ -f "output_cases/${problem_name}.exp" ]; then
-    echo "  - Output file: ${C_CYAN}output_cases/${problem_name}.exp${C_RESET}"
-    files_to_delete+=("output_cases/${problem_name}.exp")
-  fi
-
-  # Check for multiple output files (numbered pattern).
-  local -a output_files=( output_cases/"${problem_name}".*.exp(N) )
-  for output_file in "${output_files[@]}"; do
-    echo "  - Output file: ${C_CYAN}$output_file${C_RESET}"
-    files_to_delete+=("$output_file")
-  done
-
-  # Check for submission file.
-  if [ -f "$SUBMISSIONS_DIR/${problem_name}_sub.cpp" ]; then
-    echo "  - Submission file: ${C_CYAN}$SUBMISSIONS_DIR/${problem_name}_sub.cpp${C_RESET}"
-    files_to_delete+=("$SUBMISSIONS_DIR/${problem_name}_sub.cpp")
-  fi
-
-  # Check for executable in bin directory.
-  if [ -f "bin/${problem_name}" ]; then
-    echo "  - Executable: ${C_CYAN}bin/${problem_name}${C_RESET}"
-    files_to_delete+=("bin/${problem_name}")
-  fi
-
-  # Confirmation prompt.
-  echo ""
-  echo -n "${C_YELLOW}Are you sure you want to delete these files? (y/N): ${C_RESET}"
-  read -r response
-
-  if [[ ! "$response" =~ ^[Yy]$ ]]; then
-    echo "Deletion cancelled."
-    return 0
-  fi
-
-  # Delete the files.
   local deleted_count=0
   for file in "${files_to_delete[@]}"; do
-    if [ -f "$file" ]; then
+    if [ -e "$file" ]; then
       rm -f -- "$file"
       echo "${C_GREEN}Deleted: $file${C_RESET}"
       ((deleted_count++))
     fi
   done
 
-  # Remove problem timing data from statistics.
-  if [ -f ".statistics/problem_times" ]; then
-    grep -v "^${problem_name}:" .statistics/problem_times > .statistics/problem_times.tmp 2>/dev/null || true
-    mv .statistics/problem_times.tmp .statistics/problem_times 2>/dev/null || true
+  if [ -f ".statistics/problem_times" ] && (( ${#valid_problems} > 0 )); then
+    local stats_tmp=".statistics/problem_times.tmp.$$"
+    : > "$stats_tmp"
+
+    local line keep p
+    while IFS= read -r line; do
+      keep=1
+      for p in "${valid_problems[@]}"; do
+        if [[ "$line" == "${p}:"* ]]; then
+          keep=0
+          break
+        fi
+      done
+      if [ "$keep" -eq 1 ]; then
+        echo "$line" >> "$stats_tmp"
+      fi
+    done < ".statistics/problem_times"
+
+    mv "$stats_tmp" ".statistics/problem_times"
   fi
 
   echo ""
-  echo "${C_GREEN}Successfully deleted problem '$problem_name' ($deleted_count files removed)${C_RESET}"
+  echo "${C_GREEN}Successfully deleted problem(s): ${valid_problems[*]} ($deleted_count files removed)${C_RESET}"
 
-  # Re-run CMake configuration to update the build system.
-  if [ -f "CMakeLists.txt" ]; then
+  if [ "$skip_config" -eq 0 ] && [ -f "CMakeLists.txt" ]; then
     echo "Re-running CMake configuration to update build system..."
     cppconf
   fi
@@ -391,23 +485,46 @@ function cppdelete() {
 #   cppbatch [count] [template]
 # -----------------------------------------------------------------------------
 function cppbatch() {
+  setopt localoptions typesetsilent
+
   local count=${1:-5}
-  local template=${2:-"default"}
+  local template=${2:-"base"}
+  local created_count=0
+  local -a letters=(A B C D E F G H I J K L M N O P Q R S T U V W X Y Z)
+
+  if [[ ! "$count" =~ '^[0-9]+$' ]] || [ "$count" -le 0 ]; then
+    echo "${C_RED}Error: count must be a positive integer (got '$count').${C_RESET}" >&2
+    return 1
+  fi
+
+  if [ "$count" -gt "${#letters[@]}" ]; then
+    echo "${C_YELLOW}Warning: Requested $count problems, but only ${#letters[@]} letters are supported (A-Z).${C_RESET}"
+    count=${#letters[@]}
+  fi
 
   echo "${C_CYAN}Creating $count problems with template '$template'...${C_RESET}"
 
-  for (( i=65; i < 65 + count; i++ )); do
+  local idx
+  for (( idx = 1; idx <= count; idx++ )); do
     local problem_name
     local letter
-    # Zsh character conversion: convert ASCII code to character.
-    letter=${(#)i}
+    letter="${letters[idx]}"
     problem_name="problem_${letter}"
     if [ ! -f "${problem_name}.cpp" ]; then
-      cppnew "$problem_name" "$template"
+      if CPPNEW_SKIP_CONFIG=1 cppnew "$problem_name" "$template"; then
+        ((created_count++))
+      fi
     else
       echo "${C_YELLOW}Skipping $problem_name - already exists${C_RESET}"
     fi
   done
+
+  if [ "$created_count" -gt 0 ]; then
+    echo "Re-running CMake configuration once for $created_count new problem(s)..."
+    cppconf
+  else
+    echo "No new problems were created. Skipping CMake reconfiguration."
+  fi
 
   echo "${C_GREEN}Batch creation complete!${C_RESET}"
 }
@@ -545,6 +662,52 @@ function cppconf() {
     fi
   fi
 
+  # If the requested compiler family differs from the one cached in build/,
+  # recreate the build directory so CMake actually applies the new toolchain.
+  local rebuild_build_dir=0
+  local rebuild_reason=""
+  if [ -f "build/CMakeCache.txt" ]; then
+    local cached_compiler
+    local cached_toolchain
+    local cached_toolchain_base
+
+    cached_compiler=$(grep -E '^CMAKE_CXX_COMPILER:(FILEPATH|PATH|STRING)=' build/CMakeCache.txt | head -n1 | cut -d'=' -f2-)
+    cached_toolchain=$(grep -E '^CMAKE_TOOLCHAIN_FILE:' build/CMakeCache.txt | head -n1 | cut -d'=' -f2-)
+    cached_toolchain_base=${cached_toolchain##*/}
+
+    case "$toolchain_file" in
+      gcc-toolchain.cmake)
+        if [[ "$cached_compiler" == *clang* ]]; then
+          rebuild_build_dir=1
+          rebuild_reason="cached compiler is Clang"
+        fi
+        ;;
+      clang-toolchain.cmake)
+        if [[ "$cached_compiler" == *g++* || "$cached_compiler" == *gcc* ]]; then
+          rebuild_build_dir=1
+          rebuild_reason="cached compiler is GCC"
+        fi
+        ;;
+    esac
+
+    if [ "$rebuild_build_dir" -eq 0 ] && [ -n "$cached_toolchain_base" ] && [ "$cached_toolchain_base" != "$toolchain_file" ]; then
+      rebuild_build_dir=1
+      rebuild_reason="cached toolchain is '$cached_toolchain_base'"
+    fi
+  fi
+
+  if [ "$rebuild_build_dir" -eq 1 ]; then
+    echo "${C_YELLOW}Toolchain switch detected (${rebuild_reason}). Recreating build directory...${C_RESET}"
+    rm -rf -- build
+  fi
+
+  # CMAKE_TOOLCHAIN_FILE is meaningful only during first configure of a build dir.
+  # Passing it on subsequent reconfigure triggers noisy warnings in CMake.
+  local cmake_toolchain_arg=()
+  if [ ! -f "build/CMakeCache.txt" ]; then
+    cmake_toolchain_arg=("-DCMAKE_TOOLCHAIN_FILE=${toolchain_file}")
+  fi
+
   # Auto-configure PCH based on build type if set to AUTO.
   if [[ "$pch_cmake_arg" == *"AUTO"* ]]; then
     if [ "$build_type" = "Debug" ]; then
@@ -592,7 +755,7 @@ function cppconf() {
   # Run CMake with the selected toolchain - use array expansion.
   if cmake -S . -B build \
     -DCMAKE_BUILD_TYPE="${build_type}" \
-    -DCMAKE_TOOLCHAIN_FILE="${toolchain_file}" \
+    "${cmake_toolchain_arg[@]}" \
     -DCMAKE_CXX_FLAGS="-std=c++23" \
     "${cmake_flags[@]}"; then
     echo "${C_GREEN}CMake configuration successful.${C_RESET}"

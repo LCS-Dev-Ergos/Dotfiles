@@ -51,10 +51,10 @@ else()
     # Prefer newer versions for better C++23 support and optimizations.
     if(APPLE)
         # macOS with Homebrew - prioritize newer versions and Homebrew paths.
-        set(COMPILER_SEARCH_NAMES 
+        set(COMPILER_SEARCH_NAMES
             g++-15 g++-14 g++-13 g++-12 g++-11 g++-10 g++
         )
-        set(COMPILER_SEARCH_PATHS 
+        set(COMPILER_SEARCH_PATHS
             /opt/homebrew/bin           # Apple Silicon Homebrew.
             /usr/local/bin              # Intel Mac Homebrew.
             /opt/local/bin              # MacPorts.
@@ -63,10 +63,10 @@ else()
         )
     elseif(CMAKE_SYSTEM_NAME MATCHES "Linux")
         # Linux - check both versioned and unversioned, prefer newer versions.
-        set(COMPILER_SEARCH_NAMES 
+        set(COMPILER_SEARCH_NAMES
             g++-15 g++-14 g++-13 g++-12 g++-11 g++-10 g++-9 g++
         )
-        
+
         # Detect Linux distribution for better path handling.
         if(EXISTS "/etc/os-release")
             file(READ "/etc/os-release" OS_RELEASE)
@@ -82,8 +82,8 @@ else()
         else()
             set(DISTRO "Unknown Linux")
         endif()
-        
-        set(COMPILER_SEARCH_PATHS 
+
+        set(COMPILER_SEARCH_PATHS
             /usr/bin
             /usr/local/bin
             /opt/gcc/bin                       # Custom installations.
@@ -93,10 +93,10 @@ else()
         )
     else()
         # BSD and other Unix systems
-        set(COMPILER_SEARCH_NAMES 
+        set(COMPILER_SEARCH_NAMES
             g++15 g++14 g++13 g++12 g++11 g++10 g++9 g++
         )
-        set(COMPILER_SEARCH_PATHS 
+        set(COMPILER_SEARCH_PATHS
             /usr/local/bin
             /usr/bin
             /opt/local/bin
@@ -127,7 +127,7 @@ endif()
 
 # If no g++ is found, terminate with a helpful platform-specific error message.
 if(NOT GCC_EXECUTABLE)
-    message(FATAL_ERROR 
+    message(FATAL_ERROR
         "\n"
         "╔═══------------------------------------------------------------------------═══╗\n"
         "                            GCC COMPILER NOT FOUND!                             \n"
@@ -140,7 +140,7 @@ if(NOT GCC_EXECUTABLE)
         "\n"
         "Installation instructions for ${PLATFORM_NAME}:\n"
         "\n")
-    
+
     if(APPLE)
         message(FATAL_ERROR
             "  macOS (Homebrew):\n"
@@ -161,7 +161,7 @@ if(NOT GCC_EXECUTABLE)
         else()
             set(INSTALL_CMD "Use your distribution's package manager to install g++")
         endif()
-        
+
         message(FATAL_ERROR
             "  ${DISTRO}:\n"
             "    ${INSTALL_CMD}\n"
@@ -197,7 +197,7 @@ execute_process(
 )
 
 if(NOT GCC_VERSION_RESULT EQUAL 0)
-    message(FATAL_ERROR 
+    message(FATAL_ERROR
         "Failed to execute ${GCC_EXECUTABLE} --version.\n"
         "The found executable may not be a valid GCC compiler.\n"
         "Error: ${GCC_VERSION_ERROR}")
@@ -228,7 +228,7 @@ endif()
 
 # Verify it's actually GCC and not a disguised Clang.
 if(GCC_VERSION_OUTPUT MATCHES "clang" OR GCC_VERSION_OUTPUT MATCHES "Apple")
-    message(WARNING 
+    message(WARNING
         "\n"
         "╔═══------------------------------------------------------------------------═══╗\n"
         "                         WARNING: CLANG DETECTED AS G++                         \n"
@@ -238,22 +238,22 @@ if(GCC_VERSION_OUTPUT MATCHES "clang" OR GCC_VERSION_OUTPUT MATCHES "Apple")
         "This is common on macOS where 'g++' is aliased to Clang.\n"
         "\n"
         "Searching for real GCC installation...\n")
-    
+
     # Try to find real GCC by excluding the fake one.
     list(REMOVE_ITEM COMPILER_SEARCH_PATHS "/usr/bin")
-    
+
     find_program(REAL_GCC_EXECUTABLE
         NAMES ${COMPILER_SEARCH_NAMES}
         PATHS ${COMPILER_SEARCH_PATHS}
         DOC "Path to the real g++ executable"
         NO_DEFAULT_PATH
     )
-    
+
     if(REAL_GCC_EXECUTABLE)
         set(GCC_EXECUTABLE ${REAL_GCC_EXECUTABLE})
         set(CACHED_GCC_EXECUTABLE "${GCC_EXECUTABLE}" CACHE INTERNAL "Cached GCC executable path" FORCE)
         message(STATUS "Found real GCC at: ${GCC_EXECUTABLE}")
-        
+
         # Re-verify version.
         execute_process(
             COMMAND ${GCC_EXECUTABLE} -dumpversion
@@ -263,7 +263,7 @@ if(GCC_VERSION_OUTPUT MATCHES "clang" OR GCC_VERSION_OUTPUT MATCHES "Apple")
         )
         string(REGEX MATCH "^([0-9]+)" GCC_MAJOR_VERSION "${GCC_VERSION}")
     else()
-        message(FATAL_ERROR 
+        message(FATAL_ERROR
             "Could not find real GCC. Please install it using the instructions above.\n"
             "╚═══------------------------------------------------------------------------═══╝\n")
     endif()
@@ -272,7 +272,7 @@ endif()
 # Verify GCC version meets minimum requirements for competitive programming.
 if(GCC_MAJOR_VERSION)
     if(GCC_MAJOR_VERSION LESS 9)
-        message(WARNING 
+        message(WARNING
             "Found GCC version ${GCC_VERSION} is quite old (< 9.0).\n"
             "Some modern C++ features may not be available:\n"
             "  - C++20/23 features may be incomplete\n"
@@ -311,7 +311,7 @@ if(NOT C_COMPILER_PATH)
         list(APPEND C_COMPILER_CANDIDATES ${c_name} ${c_name2})
     endforeach()
     list(REMOVE_DUPLICATES C_COMPILER_CANDIDATES)
-    
+
     find_program(C_COMPILER_PATH
         NAMES ${C_COMPILER_CANDIDATES}
         PATHS ${COMPILER_SEARCH_PATHS}
@@ -321,7 +321,7 @@ endif()
 
 # Verify we found a matching C compiler.
 if(NOT C_COMPILER_PATH)
-    message(WARNING 
+    message(WARNING
         "Could not find matching GCC C compiler for ${GCC_EXECUTABLE}.\n"
         "Using ${GCC_EXECUTABLE} for both C and C++.\n"
         "This may cause issues with C files.")
@@ -334,12 +334,12 @@ else()
         OUTPUT_STRIP_TRAILING_WHITESPACE
         ERROR_QUIET
     )
-    
+
     string(REGEX MATCH "^([0-9]+)" C_MAJOR_VERSION "${C_COMPILER_VERSION}")
-    
-    if(C_MAJOR_VERSION AND GCC_MAJOR_VERSION AND 
+
+    if(C_MAJOR_VERSION AND GCC_MAJOR_VERSION AND
        NOT C_MAJOR_VERSION STREQUAL GCC_MAJOR_VERSION)
-        message(WARNING 
+        message(WARNING
             "C compiler version (${C_COMPILER_VERSION}) differs from "
             "C++ compiler version (${GCC_VERSION}).\n"
             "This may cause linking issues.")
@@ -350,22 +350,13 @@ endif()
 set(CMAKE_C_COMPILER   ${C_COMPILER_PATH} CACHE PATH "C compiler"   FORCE)
 set(CMAKE_CXX_COMPILER ${GCC_EXECUTABLE}  CACHE PATH "C++ compiler" FORCE)
 
-# Set compiler-specific flags that may be needed for toolchain setup.
-set(CMAKE_C_COMPILER_ID "GNU" CACHE STRING "C compiler ID" FORCE)
-set(CMAKE_CXX_COMPILER_ID "GNU" CACHE STRING "C++ compiler ID" FORCE)
-
 # Ensure the compilers support the required standards.
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Set C++23 standard.
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++23" CACHE STRING "" FORCE)
-
-# Enable compiler-specific features.
-if(GCC_MAJOR_VERSION AND GCC_MAJOR_VERSION GREATER_EQUAL 10)
-    # Enable coroutines for GCC 10+.
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcoroutines" CACHE STRING "" FORCE)
-endif()
+# Set C++23 standard through CMake standard variables.
+set(CMAKE_CXX_STANDARD 23 CACHE STRING "C++ standard" FORCE)
+set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOL "Disable compiler extensions" FORCE)
 
 # Success message with summary.
 message(STATUS "")

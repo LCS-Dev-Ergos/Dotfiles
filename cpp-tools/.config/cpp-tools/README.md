@@ -69,7 +69,7 @@ This command creates the directory structure, navigates into it, and automatical
 Inside the contest directory, use `cppnew` to create a source file.
 
 ```bash
-# Creates A.cpp from the default template
+# Creates A.cpp from the base template (default)
 cppnew A
 
 # Creates C_pbds.cpp using the Policy-Based Data Structures template
@@ -93,30 +93,30 @@ cppgo B custom_input.in
 
 ### 4\. Test Against Sample Cases
 
-If you have multiple sample cases named like `A.1.in`, `A.1.out`, `A.2.in`, etc., in the `input_cases/` folder, you can test them all automatically with `cppjudge`.
+If you have multiple sample cases named like `A.1.in`, `A.2.in`, etc. in `input_cases/`, with corresponding expected outputs `A.1.exp`, `A.2.exp`, etc. in `output_cases/`, you can test them all automatically with `cppjudge`.
 
 ```bash
 cppjudge A
 ```
 
-The script will run your code against each `.in` file and `diff` the output with the corresponding `.out` file, reporting ✅ **PASSED** or ❌ **FAILED**.
+The script will run your code against each `.in` file and `diff` the output with the corresponding `.exp` file, reporting **PASSED** or  **FAILED**.
 
 ## Command Reference
 
-| Command                | Description                                                                    |
-| :--------------------- | :----------------------------------------------------------------------------- |
-| `cppcontest <dir>`     | Creates, navigates into, and initializes a new contest directory.              |
-| `cppinit`              | Initializes or verifies a CMake project in the current directory (idempotent). |
-| `cppnew <name> [tpl]`  | Creates a new source file from a template (`default`, `pbds`).                 |
-| `cppconf [type]`       | (Re)configures the CMake project (`Debug`, `Release`, `Sanitize`).             |
-| `cppbuild [name]`      | Builds a specific target (defaults to the most recently modified file).        |
-| `cpprun [name]`        | Runs a target's executable.                                                    |
-| `cppgo [name] [input]` | Builds and runs. Uses `input_cases/<name>.in` by default.                      |
-| `cppjudge [name]`      | Tests the solution against all corresponding `.in`/`.out` sample files.        |
-| `cppwatch [name]`      | Automatically rebuilds a target when its source file changes.                  |
-| `cppclean`             | Removes the `build` directory and other artifacts.                             |
-| `cppdiag`              | Displays detailed diagnostic information about the toolchain and environment.  |
-| `cpphelp`              | Displays this help message.                                                    |
+| Command                | Description                                                                        |
+| :--------------------- | :--------------------------------------------------------------------------------- |
+| `cppcontest <dir>`     | Creates, navigates into, and initializes a new contest directory.                  |
+| `cppinit`              | Initializes or verifies a CMake project in the current directory (idempotent).     |
+| `cppnew <name> [tpl]`  | Creates a new source file from a template (`base`, `default`, `pbds`, `advanced`). |
+| `cppconf [type]`       | (Re)configures the CMake project (`Debug`, `Release`, `Sanitize`).                 |
+| `cppbuild [name]`      | Builds a specific target (defaults to the most recently modified file).            |
+| `cpprun [name]`        | Runs a target's executable.                                                        |
+| `cppgo [name] [input]` | Builds and runs. Uses `input_cases/<name>.in` by default.                          |
+| `cppjudge [name]`      | Tests the solution against all corresponding `.in`/`.exp` sample files.            |
+| `cppwatch [name]`      | Automatically rebuilds a target when its source file changes.                      |
+| `cppclean`             | Removes the `build` directory and other artifacts.                                 |
+| `cppdiag`              | Displays detailed diagnostic information about the toolchain and environment.      |
+| `cpphelp`              | Displays this help message.                                                        |
 
 ## Project Directory Structure
 
@@ -131,7 +131,10 @@ CONTEST_NAME/
 ├── input_cases/              # For all input files
 │   ├── A.in
 │   ├── A.1.in
-│   └── A.1.out
+│   └── A.2.in
+├── output_cases/             # Expected outputs used by cppjudge
+│   ├── A.exp
+│   └── A.1.exp
 ├── build/                    # Build directory (managed by CMake)
 │   └── compile_commands.json # For clangd
 ├── bin/                      # Where executables are placed

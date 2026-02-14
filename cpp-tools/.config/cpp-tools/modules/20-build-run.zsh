@@ -199,7 +199,7 @@ function cppgo() {
       printf "${C_MAGENTA}Execution time: %.2fs${C_RESET}\n" $elapsed_sec
     fi
   else
-    echo "${C_RED}Build failed!${C_RESET}\n" >&2
+    echo "${C_RED}Build failed!${C_RESET}" >&2
     return 1
   fi
 }
@@ -309,6 +309,7 @@ function cppjudge() {
   local passed=0
   local failed=0
   local total=0
+  local missing_expected=0
 
   for test_in in "${test_files[@]}"; do
     local test_case_base
@@ -331,6 +332,7 @@ function cppjudge() {
     # Check if expected output file exists.
     if [ ! -f "$output_case" ]; then
       echo "${C_BOLD}${C_YELLOW}WARNING: Expected output file '$(basename "$output_case")' not found.${C_RESET}"
+      ((missing_expected++))
       rm -f -- "$temp_out"
       continue
     fi
@@ -358,7 +360,15 @@ function cppjudge() {
   if [ $failed -gt 0 ]; then
     echo "${C_RED}Failed: $failed/$total${C_RESET}"
   fi
+  if [ $missing_expected -gt 0 ]; then
+    echo "${C_YELLOW}Missing expected outputs: $missing_expected${C_RESET}"
+  fi
   echo "${C_BOLD}${C_BLUE}════-------------------------------------════${C_RESET}"
+
+  if [ $failed -gt 0 ] || [ $missing_expected -gt 0 ]; then
+    return 1
+  fi
+  return 0
 }
 
 # -----------------------------------------------------------------------------
@@ -375,6 +385,11 @@ function cppstress() {
   local iterations=${2:-100}
   local exec_path="./bin/$target_name"
 
+  if [[ ! "$iterations" == <-> ]] || [ "$iterations" -le 0 ]; then
+    echo "${C_RED}Error: iterations must be a positive integer (got '$iterations').${C_RESET}" >&2
+    return 1
+  fi
+
   if ! cppbuild "$target_name"; then
     echo "${C_RED}Build failed!${C_RESET}" >&2
     return 1
@@ -383,7 +398,8 @@ function cppstress() {
   echo "${C_CYAN}Stress testing '$target_name' for $iterations iterations...${C_RESET}"
 
   local failed=0
-  for i in $(seq 1 "$iterations"); do
+  local i
+  for (( i = 1; i <= iterations; i++ )); do
     printf "\rIteration %d/%d... " "$i" "$iterations"
 
     # Run with empty input and check for crashes.

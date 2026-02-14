@@ -36,18 +36,18 @@ if(APPLE)
     set(CMAKE_SKIP_BUILD_RPATH FALSE)
     set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
     set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-    
+
     # Disable automatic RPATH generation to avoid duplicates.
     set(CMAKE_SKIP_RPATH FALSE)
     set(CMAKE_SKIP_INSTALL_RPATH TRUE)
   endif()
-  
+
   # Get the LLVM/Clang library path if using Homebrew LLVM.
   if(CMAKE_CXX_COMPILER MATCHES "llvm")
     get_filename_component(LLVM_BIN_DIR ${CMAKE_CXX_COMPILER} DIRECTORY)
     get_filename_component(LLVM_ROOT_DIR ${LLVM_BIN_DIR} DIRECTORY)
     set(LLVM_LIB_DIR "${LLVM_ROOT_DIR}/lib")
-    
+
     if(EXISTS "${LLVM_LIB_DIR}")
       # Set a clean, single RPATH for LLVM.
       set(CMAKE_INSTALL_RPATH "${LLVM_LIB_DIR}")
@@ -120,7 +120,7 @@ option(CP_ENABLE_LTO "Enable Link Time Optimization (if supported)" OFF)
 if(CP_ENABLE_LTO AND CMAKE_BUILD_TYPE STREQUAL "Release")
   include(CheckIPOSupported)
   check_ipo_supported(RESULT ipo_supported OUTPUT ipo_output)
-  
+
   if(ipo_supported)
     message(STATUS "${ANSI_COLOR_GREEN}Link Time Optimization (LTO) enabled${ANSI_COLOR_RESET}")
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
@@ -146,7 +146,7 @@ function(detect_compiler_system_includes OUTPUT_VARIABLE)
     # GCC-specific path detection (existing logic).
     if(APPLE)
       message(STATUS "Clangd Assist: Using selective path detection for GCC on macOS.")
-      
+
       # Try to get exact brew prefix first, fallback to common locations.
       execute_process(
         COMMAND brew --prefix
@@ -172,7 +172,7 @@ function(detect_compiler_system_includes OUTPUT_VARIABLE)
           OUTPUT_STRIP_TRAILING_WHITESPACE
           ERROR_QUIET
         )
-        
+
         # Derive major version number (e.g. "15").
         string(REGEX MATCH "^[0-9]+" GCC_VERSION "${GCC_FULL_VERSION}")
         if(NOT GCC_VERSION)
@@ -220,7 +220,7 @@ function(detect_compiler_system_includes OUTPUT_VARIABLE)
       if(EXIT_CODE EQUAL 0)
         string(REPLACE "\n" ";" OUTPUT_LINES "${GCC_VERBOSE_OUTPUT}")
         set(IS_PARSING_INCLUDES FALSE)
-        
+
         foreach(line ${OUTPUT_LINES})
           if(line MATCHES "^#include <...> search starts here:")
             set(IS_PARSING_INCLUDES TRUE)
@@ -235,12 +235,12 @@ function(detect_compiler_system_includes OUTPUT_VARIABLE)
         endforeach()
       endif()
     endif()
-    
+
   elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang")
     # Clang-specific path detection.
     message(STATUS "Clangd Assist: Detecting Clang system includes.")
-    
-    # For Clang, we don't need to add as many custom paths since it handles 
+
+    # For Clang, we don't need to add as many custom paths since it handles
     # its own includes well, but we might want to add some for compatibility.
     execute_process(
       COMMAND ${CMAKE_CXX_COMPILER} -E -x c++ -v /dev/null
@@ -249,11 +249,11 @@ function(detect_compiler_system_includes OUTPUT_VARIABLE)
       RESULT_VARIABLE EXIT_CODE
       TIMEOUT 5
     )
-    
+
     if(EXIT_CODE EQUAL 0)
       string(REPLACE "\n" ";" OUTPUT_LINES "${CLANG_VERBOSE_OUTPUT}")
       set(IS_PARSING_INCLUDES FALSE)
-      
+
       foreach(line ${OUTPUT_LINES})
         if(line MATCHES "^#include.*search starts here:")
           set(IS_PARSING_INCLUDES TRUE)
@@ -300,9 +300,9 @@ if(CMAKE_BUILD_TYPE STREQUAL "Sanitize" AND APPLE)
     set(CMAKE_REQUIRED_FLAGS "-fsanitize=address")
     check_cxx_compiler_flag("-fsanitize=address" HAS_ASAN)
     unset(CMAKE_REQUIRED_FLAGS)
-    
+
     if(NOT HAS_ASAN)
-      message(WARNING 
+      message(WARNING
         "${ANSI_COLOR_YELLOW}GCC on this macOS system lacks sanitizer support.\n"
         "Consider using 'cppconf Sanitize clang' to use Clang for sanitizers.${ANSI_COLOR_RESET}")
     endif()
@@ -314,7 +314,7 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Sanitize" AND CMAKE_CXX_COMPILER_ID MATCHES "C
     message(STATUS "${ANSI_COLOR_CYAN}Using Clang for Sanitize build${ANSI_COLOR_RESET}")
 elseif(NOT CMAKE_BUILD_TYPE STREQUAL "Sanitize" AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND NOT APPLE)
     # Only show warning for non-Apple systems when using non-GCC for non-Sanitize builds.
-    message(WARNING 
+    message(WARNING
         "${ANSI_COLOR_YELLOW}Non-GCC compiler detected for non-Sanitize build.\n"
         "Detected compiler: ${CMAKE_CXX_COMPILER_ID}\n"
         "Some features like <bits/stdc++.h> may not be available.${ANSI_COLOR_RESET}")
@@ -330,22 +330,22 @@ set(CP_PCH_TARGET_CONFIGS "Debug;Sanitize" CACHE STRING "Build configurations th
 if(CP_ENABLE_PCH AND CMAKE_VERSION VERSION_GREATER_EQUAL "3.16")
     # CMake 3.16+ has native PCH support.
     set(PCH_SUPPORTED TRUE)
-    
+
     # Define the PCH header path based on compiler.
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang" OR USING_CLANG_FOR_SANITIZERS)
-        set(PCH_HEADER_PATH "${CMAKE_CURRENT_SOURCE_DIR}/algorithms/PCH.h")
+        set(PCH_HEADER_PATH "${CMAKE_CURRENT_SOURCE_DIR}/libs/PCH.h")
         set(PCH_TYPE "PCH.h")
     else()
         # For GCC, we can use bits/stdc++.h directly as PCH.
-        set(PCH_HEADER_PATH "${CMAKE_CURRENT_SOURCE_DIR}/algorithms/PCH_Wrapper.h")
+        set(PCH_HEADER_PATH "${CMAKE_CURRENT_SOURCE_DIR}/libs/PCH_Wrapper.h")
         set(PCH_TYPE "bits/stdc++.h wrapper")
-        
-        # Ensure the wrapper file exists.         
+
+        # Ensure the wrapper file exists.
         if(NOT EXISTS "${PCH_HEADER_PATH}")
           message(FATAL_ERROR "${ANSI_COLOR_RED}PCH: Wrapper file ${PCH_HEADER_PATH} not found${ANSI_COLOR_RESET}")
         endif()
     endif()
-    
+
     # Verify PCH header exists.
     if(NOT EXISTS "${PCH_HEADER_PATH}")
         message(WARNING "${ANSI_COLOR_YELLOW}PCH: Header not found at ${PCH_HEADER_PATH}, disabling PCH${ANSI_COLOR_RESET}")
@@ -405,7 +405,7 @@ endif()
 
 function(cp_add_problem TARGET_NAME SOURCE_FILE)
   add_executable(${TARGET_NAME} ${SOURCE_FILE})
-  
+
   # Set C++23 standard for the target.
   set_target_properties(${TARGET_NAME} PROPERTIES
     CXX_STANDARD 23
@@ -416,40 +416,40 @@ function(cp_add_problem TARGET_NAME SOURCE_FILE)
   # ----- Precompiled Header Integration ----- #
 set(USE_PCH_FOR_TARGET FALSE)
   set(PCH_REASON "")
-  
+
   # Determine if this target should use PCH.
   if(PCH_SUPPORTED)
     # Check if current build type supports PCH.
     if(CMAKE_BUILD_TYPE IN_LIST CP_PCH_TARGET_CONFIGS)
       set(USE_PCH_FOR_TARGET TRUE)
       set(PCH_REASON "PCH enabled for ${CMAKE_BUILD_TYPE}")
-      
+
       # IMPORTANT: Apply PCH directly to the target using CMake's native support.
-      target_precompile_headers(${TARGET_NAME} 
-        PRIVATE 
+      target_precompile_headers(${TARGET_NAME}
+        PRIVATE
           "${PCH_HEADER_PATH}"
       )
-      
+
       # Add PCH-specific definitions.
-      target_compile_definitions(${TARGET_NAME} PRIVATE 
+      target_compile_definitions(${TARGET_NAME} PRIVATE
         PCH_ENABLED
         USE_PCH
       )
-      
+
       # PCH optimization flags (optional, CMake handles most of this automatically).
       if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
         # GCC: Ensure PCH is used correctly.
         # Note: -fpch-preprocess is automatically added by CMake when needed.
-        target_compile_options(${TARGET_NAME} PRIVATE 
+        target_compile_options(${TARGET_NAME} PRIVATE
           -Winvalid-pch  # Warn if PCH is invalid/outdated.
         )
       elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang")
         # Clang: Enable better PCH diagnostics.
-        target_compile_options(${TARGET_NAME} PRIVATE 
+        target_compile_options(${TARGET_NAME} PRIVATE
           -Wno-pch-date-time  # Don't warn about PCH timestamp differences.
         )
       endif()
-      
+
     else()
       set(PCH_REASON "PCH not configured for ${CMAKE_BUILD_TYPE}")
     endif()
@@ -490,30 +490,30 @@ set(USE_PCH_FOR_TARGET FALSE)
     set(COMMON_FLAGS -Wall -Wextra -Wpedantic -Wshadow)
     set(DEBUG_FLAGS -g2 -O0 -fstack-protector-strong)
     set(RELEASE_FLAGS -O2 -funroll-loops -ftree-vectorize -ffast-math)
-    
+
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "(x86_64|AMD64)")
       list(APPEND RELEASE_FLAGS -march=native)
     endif()
-    
+
     # GCC sanitizer flags (might not work on macOS).
     set(SANITIZE_FLAGS -g -O1 -fsanitize=address,undefined,leak
       -fsanitize-address-use-after-scope
       -fno-omit-frame-pointer
       -fno-sanitize-recover=all)
-      
+
   elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang")
     # Clang flags.
     set(COMMON_FLAGS -Wall -Wextra -Wpedantic -Wshadow)
     set(DEBUG_FLAGS -g2 -O0 -fstack-protector-strong)
     set(RELEASE_FLAGS -O2 -funroll-loops -fvectorize)
-    
+
     # Clang sanitizer flags (work well on all platforms).
-    set(SANITIZE_FLAGS -g -O1 
+    set(SANITIZE_FLAGS -g -O1
       -fsanitize=address,undefined
       -fsanitize-address-use-after-scope
       -fno-omit-frame-pointer
       -fno-sanitize-recover=all)
-      
+
     # Add integer and nullability sanitizers on newer Clang.
     if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "10.0")
       list(APPEND SANITIZE_FLAGS -fsanitize=integer,nullability)
@@ -530,7 +530,7 @@ set(USE_PCH_FOR_TARGET FALSE)
     -Wno-sign-conversion
     -Wno-unused-parameter
     -Wno-unused-variable
-    
+
     $<$<CONFIG:Debug>:${DEBUG_FLAGS}>
     $<$<CONFIG:Release>:${RELEASE_FLAGS}>
     $<$<CONFIG:Sanitize>:${SANITIZE_FLAGS}>
@@ -538,7 +538,7 @@ set(USE_PCH_FOR_TARGET FALSE)
 
   # ----- Include directories ----- #
   if(IS_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/algorithms)
-    target_include_directories(${TARGET_NAME} PRIVATE 
+    target_include_directories(${TARGET_NAME} PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}/algorithms
     )
   endif()
@@ -588,7 +588,7 @@ set(USE_PCH_FOR_TARGET FALSE)
     # Strip symbols in release.
     $<$<CONFIG:Release>:-s>
   )
-   
+
   # ----- Platform-specific linking for std::stacktrace ----- #
   # Check for stacktrace support and required libraries.
   if(CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND NOT APPLE)
@@ -596,16 +596,16 @@ set(USE_PCH_FOR_TARGET FALSE)
     include(CheckCXXSourceCompiles)
     set(CMAKE_REQUIRED_FLAGS "-std=c++22")
     set(CMAKE_REQUIRED_LIBRARIES "stdc++_libbacktrace")
-    
+
     check_cxx_source_compiles(
       "#include <stacktrace>
-       int main() { 
-         auto trace = std::stacktrace::current(); 
-         return trace.size(); 
-       }" 
+       int main() {
+         auto trace = std::stacktrace::current();
+         return trace.size();
+       }"
       STACKTRACE_WORKS
     )
-    
+
     if(STACKTRACE_WORKS)
       target_link_libraries(${TARGET_NAME} PRIVATE stdc++_libbacktrace)
       message(STATUS "Stacktrace support enabled for ${TARGET_NAME}")
@@ -613,12 +613,12 @@ set(USE_PCH_FOR_TARGET FALSE)
       target_compile_definitions(${TARGET_NAME} PRIVATE _GLIBCXX_STACKTRACE_DISABLED)
       message(STATUS "Stacktrace support disabled for ${TARGET_NAME} (libraries not found)")
     endif()
-    
+
     # Reset CMAKE_REQUIRED_* variables.
     unset(CMAKE_REQUIRED_FLAGS)
     unset(CMAKE_REQUIRED_LIBRARIES)
   endif()
-  
+
   # Additional linking for debug builds.
   if(CMAKE_BUILD_TYPE MATCHES "Debug|Sanitize")
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND NOT APPLE)
@@ -629,10 +629,10 @@ set(USE_PCH_FOR_TARGET FALSE)
       endif()
     endif()
   endif()
-  
+
   if(USE_PCH_FOR_TARGET)
     set(PCH_STATUS "Yes (Active)")
-    
+
     # Optional: Print PCH file location for debugging.
     if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND CMAKE_VERBOSE_MAKEFILE)
       get_target_property(pch_header ${TARGET_NAME} PRECOMPILE_HEADERS)
@@ -641,7 +641,7 @@ set(USE_PCH_FOR_TARGET FALSE)
   else()
     set(PCH_STATUS "No (${PCH_REASON})")
   endif()
-  
+
   message(STATUS "Added problem: ${TARGET_NAME} "
                  "[Compiler: ${CMAKE_CXX_COMPILER_ID}, "
                  "PCH: ${PCH_STATUS}]")
@@ -669,10 +669,10 @@ endif()
 # ============================================================================ #
 
 add_custom_target(symlink_clangd
-    COMMAND ${CMAKE_COMMAND} -E create_symlink 
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
             "${CMAKE_BINARY_DIR}/compile_commands.json"
             "${CMAKE_SOURCE_DIR}/.ide-config/compile_commands.json"
-    COMMAND ${CMAKE_COMMAND} -E create_symlink 
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
             "${CMAKE_BINARY_DIR}/compile_commands.json"
             "${CMAKE_SOURCE_DIR}/compile_commands.json"
     COMMENT "Creating symlinks for compile_commands.json"
@@ -709,7 +709,11 @@ message(STATUS "│ ${ANSI_COLOR_CYAN}C++ Standard${ANSI_COLOR_RESET}        : C
 # Special note for Sanitize builds
 if(CMAKE_BUILD_TYPE STREQUAL "Sanitize")
     if(USING_CLANG_FOR_SANITIZERS)
-        message(STATUS "│ ${ANSI_COLOR_CYAN}Sanitizer Mode${ANSI_COLOR_RESET}      : ${ANSI_COLOR_GREEN}Using Clang with PCH.h${ANSI_COLOR_RESET}")
+        if(PCH_SUPPORTED)
+            message(STATUS "│ ${ANSI_COLOR_CYAN}Sanitizer Mode${ANSI_COLOR_RESET}      : ${ANSI_COLOR_GREEN}Using Clang with PCH.h${ANSI_COLOR_RESET}")
+        else()
+            message(STATUS "│ ${ANSI_COLOR_CYAN}Sanitizer Mode${ANSI_COLOR_RESET}      : ${ANSI_COLOR_YELLOW}Using Clang (PCH disabled)${ANSI_COLOR_RESET}")
+        endif()
     else()
         message(STATUS "│ ${ANSI_COLOR_CYAN}Sanitizer Mode${ANSI_COLOR_RESET}      : ${ANSI_COLOR_YELLOW}Using GCC (check sanitizer availability)${ANSI_COLOR_RESET}")
     endif()
@@ -733,7 +737,7 @@ endif()
 if(PROBLEM_SOURCES)
     list(LENGTH PROBLEM_SOURCES PROBLEM_COUNT)
     message(STATUS "│ ${ANSI_COLOR_CYAN}Problems Found${ANSI_COLOR_RESET}      : ${PROBLEM_COUNT} C++ source files")
-    
+
     if(PROBLEM_COUNT GREATER 10)
         list(SUBLIST PROBLEM_SOURCES 0 10 SHOWN_SOURCES)
         foreach(source ${SHOWN_SOURCES})
@@ -760,7 +764,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
     message(STATUS "│ ${ANSI_COLOR_GREEN}Performance mode active - optimizations enabled.${ANSI_COLOR_RESET}")
 elseif(CMAKE_BUILD_TYPE STREQUAL "Sanitize")
-    if(USING_CLANG_FOR_SANITIZERS)
+    if(USING_CLANG_FOR_SANITIZERS AND PCH_SUPPORTED)
         message(STATUS "│ ${ANSI_COLOR_CYAN}Using PCH.h as replacement for bits/stdc++.h${ANSI_COLOR_RESET}")
     endif()
     message(STATUS "│ ${ANSI_COLOR_CYAN}Sanitizers active - great for finding bugs!${ANSI_COLOR_RESET}")
