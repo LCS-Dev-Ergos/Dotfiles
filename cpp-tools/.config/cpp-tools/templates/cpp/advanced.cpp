@@ -15,12 +15,14 @@
   #pragma GCC optimize("Ofast,unroll-loops,fast-math,O3,inline-functions")
   #pragma GCC diagnostic push
   #pragma GCC diagnostic ignored "-Wunused-result"
-  // Architecture-specific optimizations:
-  #ifdef __x86_64__
-    #pragma GCC target("avx2,bmi,bmi2,popcnt,lzcnt,sse4.2,fma")
-  #endif
-  #ifdef __aarch64__
-    #pragma GCC target("+simd,+crypto,+fp16")
+  // Keep architecture-specific target tuning opt-in for judge portability.
+  #ifdef CP_ENABLE_ARCH_TARGET_PRAGMAS
+    #if defined(__x86_64__) && !defined(__MINGW32__) && !defined(__MINGW64__)
+      #pragma GCC target("avx2,bmi,bmi2,popcnt,lzcnt,sse4.2,fma")
+    #endif
+    #if defined(__aarch64__) && !defined(__MINGW32__) && !defined(__MINGW64__)
+      #pragma GCC target("+simd,+crypto,+fp16")
+    #endif
   #endif
 #endif
 

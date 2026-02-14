@@ -13,8 +13,8 @@
 // Compiler optimizations:
 #if defined(__GNUC__) && !defined(__clang__)
   #pragma GCC optimize("Ofast,unroll-loops,fast-math,O3")
-  // Apple Silicon optimizations:
-  #ifdef __aarch64__
+  // Keep architecture-specific target tuning opt-in for judge portability.
+  #if defined(CP_ENABLE_ARCH_TARGET_PRAGMAS) && defined(__aarch64__) && !defined(__MINGW32__) && !defined(__MINGW64__)
     #pragma GCC target("+simd")
   #endif
 #endif
