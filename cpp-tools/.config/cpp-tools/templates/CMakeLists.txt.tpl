@@ -696,7 +696,7 @@ add_custom_target(rebuild
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release;Sanitize" CACHE STRING "Supported build types" FORCE)
 
 message(STATUS "")
-message(STATUS "${ANSI_COLOR_BLUE}╔═══----------------- Competitive Programming Setup Summary ----------------═══╗${ANSI_COLOR_RESET}")
+message(STATUS "${ANSI_COLOR_BLUE}╔═══──────────────── COMPETITIVE PROGRAMMING SETUP SUMMARY ─────────────────═══╗${ANSI_COLOR_RESET}")
 message(STATUS "│")
 message(STATUS "│ ${ANSI_COLOR_CYAN}Compiler${ANSI_COLOR_RESET}            : ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
 message(STATUS "│ ${ANSI_COLOR_CYAN}Compiler Path${ANSI_COLOR_RESET}       : ${CMAKE_CXX_COMPILER}")
@@ -767,7 +767,7 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "Sanitize")
     message(STATUS "│ ${ANSI_COLOR_CYAN}Sanitizers active - great for finding bugs!${ANSI_COLOR_RESET}")
 endif()
 
-message(STATUS "${ANSI_COLOR_BLUE}╚═══------------------------------------------------------------------------═══╝${ANSI_COLOR_RESET}")
+message(STATUS "${ANSI_COLOR_BLUE}╚═══────────────────────────────────────────────────────────────────────────═══╝${ANSI_COLOR_RESET}")
 
 # ============================================================================ #
 # End of CMakeLists.txt file.

@@ -89,9 +89,9 @@ endif()
 if(NOT CLANG_EXECUTABLE)
     message(FATAL_ERROR
         "\n"
-        "╔═══------------------------------------------------------------------------═══╗\n"
+        "╔═══────────────────────────────────────────────────────────────────────────═══╗\n"
         "                          CLANG COMPILER NOT FOUND!                             \n"
-        "╚═══------------------------------------------------------------------------═══╝\n"
+        "╚═══────────────────────────────────────────────────────────────────────────═══╝\n"
         "\n"
         "Clang is required for sanitizer builds on this platform.\n"
         "\n"
@@ -104,7 +104,7 @@ if(NOT CLANG_EXECUTABLE)
             "    Homebrew LLVM: brew install llvm\n"
             "\n"
             "After installation, re-run 'cppconf Sanitize clang'.\n"
-            "╬═══------------------------------------------------------------------------═══╬\n")
+            "╬═══────────────────────────────────────────────────────────────────────────═══╬\n")
     else()
         message(FATAL_ERROR
             "  Linux:\n"
@@ -113,7 +113,7 @@ if(NOT CLANG_EXECUTABLE)
             "    Arch: sudo pacman -S clang\n"
             "\n"
             "After installation, re-run 'cppconf Sanitize clang'.\n"
-            "╬═══------------------------------------------------------------------------═══╬\n")
+            "╬═══────────────────────────────────────────────────────────────────────────═══╬\n")
     endif()
 endif()
 
@@ -220,9 +220,9 @@ endif()
 
 # Success message.
 message(STATUS "")
-message(STATUS "╔═══------------------------------------------------------------------------═══╗")
+message(STATUS "╔═══────────────────────────────────────────────────────────────────────────═══╗")
 message(STATUS "                    Clang Toolchain Successfully Configured                     ")
-message(STATUS "╚═══------------------------------------------------------------------------═══╝")
+message(STATUS "╚═══────────────────────────────────────────────────────────────────────────═══╝")
 message(STATUS "  C++ compiler : ${CMAKE_CXX_COMPILER}")
 message(STATUS "  Clang version: ${CLANG_VERSION}")
 if(IS_APPLE_CLANG)
@@ -234,7 +234,7 @@ message(STATUS "  C compiler   : ${CMAKE_C_COMPILER}")
 message(STATUS "  Build type   : ${CMAKE_BUILD_TYPE}")
 message(STATUS "")
 message(STATUS "  Note: Using PCH.h instead of bits/stdc++.h for sanitizer builds")
-message(STATUS "╬═══------------------------------------------------------------------------═══╬")
+message(STATUS "╬═══────────────────────────────────────────────────────────────────────────═══╬")
 message(STATUS "")
 
 # ============================================================================ #
