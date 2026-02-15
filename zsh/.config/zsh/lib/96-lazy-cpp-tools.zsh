@@ -33,7 +33,7 @@ _lazy_cpp_loader() {
   # Cache file paths.
   local _lazy_cpp_cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
   local _lazy_cpp_cache_file="$_lazy_cpp_cache_dir/lazy-cpp-tools.zsh"
-  local _lazy_cpp_cache_version=4
+  local _lazy_cpp_cache_version=5
   local _lazy_cpp_cache_header="# lazy-cpp-tools-version: ${_lazy_cpp_cache_version}"
 
   # Builds the lazy cpp-tools cache file.
@@ -91,7 +91,7 @@ _lazy_cpp_loader() {
     {
       print -r -- "$_lazy_cpp_cache_header"
       print -r -- "# Auto-generated. Do not edit."
-      print -r -- "typeset -gA _LAZY_CPP_SOURCED"
+      print -r -- "typeset -gA _LAZY_CPP_SOURCED=()"
       print -r -- "_lazy_cpp_source_script() {"
       print -r -- '  local script="$1"'
       print -r -- '  [[ -n "${_LAZY_CPP_SOURCED[$script]-}" ]] && return 0'
@@ -160,6 +160,20 @@ _lazy_cpp_loader() {
         zstat -A _lazy_cpp_stat +mtime -- "$_lazy_cpp_script" 2>/dev/null || _lazy_cpp_regen=1
         if (( _lazy_cpp_stat[1] > _lazy_cpp_cache_mtime )); then
           _lazy_cpp_regen=1
+        fi
+      fi
+      # Also check module files for changes.
+      if (( ! _lazy_cpp_regen )); then
+        local _lazy_cpp_mod_dir="${_lazy_cpp_script:h}/modules"
+        if [[ -d "$_lazy_cpp_mod_dir" ]]; then
+          local _lazy_cpp_mod
+          for _lazy_cpp_mod in "$_lazy_cpp_mod_dir"/*.zsh(N); do
+            zstat -A _lazy_cpp_stat +mtime -- "$_lazy_cpp_mod" 2>/dev/null || { _lazy_cpp_regen=1; break; }
+            if (( _lazy_cpp_stat[1] > _lazy_cpp_cache_mtime )); then
+              _lazy_cpp_regen=1
+              break
+            fi
+          done
         fi
       fi
     else

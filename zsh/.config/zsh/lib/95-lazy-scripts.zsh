@@ -38,7 +38,7 @@ _lazy_scripts_loader() {
   # Cache file paths.
   local _lazy_cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
   local _lazy_cache_file="$_lazy_cache_dir/lazy-scripts.zsh"
-  local _lazy_cache_version=3
+  local _lazy_cache_version=4
   local _lazy_cache_header="# lazy-scripts-version: ${_lazy_cache_version}"
 
   # Builds the lazy scripts cache file.
@@ -87,7 +87,7 @@ _lazy_scripts_loader() {
     {
       print -r -- "$_lazy_cache_header"
       print -r -- "# Auto-generated. Do not edit."
-      print -r -- "typeset -gA _LAZY_SCRIPTS_SOURCED"
+      print -r -- "typeset -gA _LAZY_SCRIPTS_SOURCED=()"
       print -r -- "_lazy_source_script() {"
       print -r -- '  local script="$1"'
       print -r -- '  [[ -n "${_LAZY_SCRIPTS_SOURCED[$script]-}" ]] && return 0'
