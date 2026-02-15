@@ -6,17 +6,17 @@
 # Sets workspace paths, colors, script location, and helper functions.
 #
 # Functions:
-#   - _get_default_target  Resolve default C++ target name.
-#   - _normalize_target_name Normalize target identifier (drop extension/path).
-#   - _resolve_target_source Resolve existing source file for a target.
-#   - _check_initialized   Ensure project has CMake setup.
-#   - _check_workspace     Validate working directory is in workspace.
-#   - _problem_label       Normalize problem label for metadata.
-#   - _contest_label       Extract contest label from path.
-#   - _problem_brief       Build contest/problem brief string.
-#   - _format_duration     Format elapsed time values.
-#   - _get_timeout_cmd     Select available timeout command.
-#   - _run_with_timeout    Execute command with timeout fallback.
+#   - _get_default_target     Resolve default C++ target name.
+#   - _normalize_target_name  Normalize target identifier (drop extension/path).
+#   - _resolve_target_source  Resolve existing source file for a target.
+#   - _check_initialized      Ensure project has CMake setup.
+#   - _check_workspace        Validate working directory is in workspace.
+#   - _problem_label          Normalize problem label for metadata.
+#   - _contest_label          Extract contest label from path.
+#   - _problem_brief          Build contest/problem brief string.
+#   - _format_duration        Format elapsed time values.
+#   - _get_timeout_cmd        Select available timeout command.
+#   - _run_with_timeout       Execute command with timeout fallback.
 #
 # ============================================================================ #
 
