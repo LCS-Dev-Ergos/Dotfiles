@@ -30,6 +30,14 @@ else
   SCRIPT_DIR="."
 fi
 
+# Avoid inheriting global CMake launcher variables that can force unusable
+# wrappers (e.g. ccache in restricted environments). Set
+# CP_TOOLS_KEEP_COMPILER_LAUNCHERS=1 to preserve inherited values.
+if [[ "${CP_TOOLS_KEEP_COMPILER_LAUNCHERS:-0}" != "1" ]]; then
+  unset CMAKE_C_COMPILER_LAUNCHER
+  unset CMAKE_CXX_COMPILER_LAUNCHER
+fi
+
 # Source all module files.
 source "$SCRIPT_DIR/modules/00-configuration.zsh"
 source "$SCRIPT_DIR/modules/10-project-setup.zsh"
