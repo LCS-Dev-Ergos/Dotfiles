@@ -16,6 +16,38 @@
 # ============================================================================ #
 
 # -----------------------------------------------------------------------------
+# _cp_link_relative_or_absolute
+# -----------------------------------------------------------------------------
+# Create a symlink preferring relative targets for portability across machines.
+# Falls back to absolute target when relative computation is not available.
+# -----------------------------------------------------------------------------
+_cp_link_relative_or_absolute() {
+  local target="$1"
+  local link_path="$2"
+  local link_target="$target"
+  local link_dir
+  link_dir=$(dirname -- "$link_path")
+
+  if command -v python3 >/dev/null 2>&1; then
+    local maybe_rel=""
+    maybe_rel=$(python3 - "$link_dir" "$target" << 'PY' 2>/dev/null
+import os
+import sys
+
+base_dir = os.path.realpath(sys.argv[1])
+target_path = os.path.realpath(sys.argv[2])
+print(os.path.relpath(target_path, base_dir))
+PY
+    ) || true
+    if [ -n "$maybe_rel" ]; then
+      link_target="$maybe_rel"
+    fi
+  fi
+
+  ln -s "$link_target" "$link_path"
+}
+
+# -----------------------------------------------------------------------------
 # cppinit
 # -----------------------------------------------------------------------------
 # Initialize or verify a competitive programming project directory.
@@ -81,16 +113,28 @@ function cppinit() {
     fi
   fi
 
-  # Create gcc-toolchain.cmake if it doesn't exist.
-  if [ ! -f "gcc-toolchain.cmake" ]; then
-    echo "Creating gcc-toolchain.cmake to enforce GCC usage..."
-    cp "$SCRIPT_DIR/templates/gcc-toolchain.cmake.tpl" ./gcc-toolchain.cmake
+  # Create thin CMakePresets wrapper if it doesn't exist.
+  if [ ! -f "CMakePresets.json" ]; then
+    cat > "CMakePresets.json" << 'EOF'
+{
+  "version": 6,
+  "include": [
+    "algorithms/cmake/CPRoundPresets.json"
+  ]
+}
+EOF
+    echo "Created CMakePresets.json for centralized presets."
   fi
 
-  # Create clang-toolchain.cmake if template exists (for potential sanitizer builds).
-  if [ ! -f "clang-toolchain.cmake" ] && [ -f "$SCRIPT_DIR/templates/clang-toolchain.cmake.tpl" ]; then
-    echo "Creating clang-toolchain.cmake for potential sanitizer usage..."
-    cp "$SCRIPT_DIR/templates/clang-toolchain.cmake.tpl" ./clang-toolchain.cmake
+  # Toolchain files are now centralized (no round-local copies/symlinks).
+  if [ -n "$CP_ALGORITHMS_DIR" ]; then
+    if [ ! -f "$CP_ALGORITHMS_DIR/gcc-toolchain.cmake" ]; then
+      echo "${C_RED}Error: Missing centralized toolchain: $CP_ALGORITHMS_DIR/gcc-toolchain.cmake${C_RESET}" >&2
+      return 1
+    fi
+    if [ ! -f "$CP_ALGORITHMS_DIR/clang-toolchain.cmake" ]; then
+      echo "${C_YELLOW}Warning: Central clang toolchain not found at $CP_ALGORITHMS_DIR/clang-toolchain.cmake${C_RESET}"
+    fi
   fi
 
   # Create .clangd configuration in .ide-configs directory if it doesn't exist.
@@ -150,7 +194,7 @@ EOF
   local master_debug_header="$CP_ALGORITHMS_DIR/libs/debug.h"
   if [ ! -e "algorithms/debug.h" ]; then
     if [ -n "$CP_ALGORITHMS_DIR" ] && [ -f "$master_debug_header" ]; then
-      ln -s "$master_debug_header" "algorithms/debug.h"
+      _cp_link_relative_or_absolute "$master_debug_header" "algorithms/debug.h"
       echo "Created symlink to global debug.h."
     else
       touch "algorithms/debug.h"
@@ -162,7 +206,7 @@ EOF
   local master_templates_dir="$CP_ALGORITHMS_DIR/templates"
   if [ ! -e "algorithms/templates" ]; then
     if [ -n "$CP_ALGORITHMS_DIR" ] && [ -d "$master_templates_dir" ]; then
-      ln -s "$master_templates_dir" "algorithms/templates"
+      _cp_link_relative_or_absolute "$master_templates_dir" "algorithms/templates"
       echo "Created symlink to global templates directory."
     else
       mkdir -p "algorithms/templates"
@@ -174,7 +218,7 @@ EOF
   local master_modules_dir="$CP_ALGORITHMS_DIR/modules"
   if [ ! -e "algorithms/modules" ]; then
     if [ -n "$CP_ALGORITHMS_DIR" ] && [ -d "$master_modules_dir" ]; then
-      ln -s "$master_modules_dir" "algorithms/modules"
+      _cp_link_relative_or_absolute "$master_modules_dir" "algorithms/modules"
       echo "Created symlink to global modules directory."
     else
       mkdir -p "algorithms/modules"
@@ -186,7 +230,7 @@ EOF
   local master_cmake_dir="$CP_ALGORITHMS_DIR/cmake"
   if [ ! -e "algorithms/cmake" ]; then
     if [ -n "$CP_ALGORITHMS_DIR" ] && [ -d "$master_cmake_dir" ]; then
-      ln -s "$master_cmake_dir" "algorithms/cmake"
+      _cp_link_relative_or_absolute "$master_cmake_dir" "algorithms/cmake"
       echo "Created symlink to global CMake helper modules."
     else
       mkdir -p "algorithms/cmake"
@@ -200,7 +244,7 @@ EOF
 
   if [ ! -e "algorithms/PCH.h" ]; then
     if [ -n "$CP_ALGORITHMS_DIR" ] && [ -f "$master_pch_header" ]; then
-      ln -s "$master_pch_header" "algorithms/PCH.h"
+      _cp_link_relative_or_absolute "$master_pch_header" "algorithms/PCH.h"
       echo "Created symlink to global PCH.h (for Clang builds)."
     elif [ -f "$SCRIPT_DIR/templates/cpp/PCH.h" ]; then
       cp "$SCRIPT_DIR/templates/cpp/PCH.h" "algorithms/PCH.h"
@@ -212,7 +256,7 @@ EOF
 
   if [ ! -e "algorithms/PCH_Wrapper.h" ]; then
     if [ -n "$CP_ALGORITHMS_DIR" ] && [ -f "$master_pch_wrapper" ]; then
-      ln -s "$master_pch_wrapper" "algorithms/PCH_Wrapper.h"
+      _cp_link_relative_or_absolute "$master_pch_wrapper" "algorithms/PCH_Wrapper.h"
       echo "Created symlink to global PCH_Wrapper.h."
     elif [ -f "$SCRIPT_DIR/templates/cpp/PCH_Wrapper.h" ]; then
       cp "$SCRIPT_DIR/templates/cpp/PCH_Wrapper.h" "algorithms/PCH_Wrapper.h"
@@ -647,47 +691,87 @@ _cppconf_select_toolchain() {
 
 _cppconf_ensure_toolchain_file() {
   local toolchain_file="$1"
-  if [ -f "$toolchain_file" ]; then
-    return 0
-  fi
-
-  local template_file="$SCRIPT_DIR/templates/${toolchain_file}.tpl"
-  if [ ! -f "$template_file" ]; then
-    echo "${C_RED}Error: Template for $toolchain_file not found.${C_RESET}" >&2
+  if [ -z "$CP_ALGORITHMS_DIR" ]; then
+    echo "${C_RED}Error: CP_ALGORITHMS_DIR is not set. Cannot resolve centralized toolchain.${C_RESET}" >&2
     return 1
   fi
 
-  echo "Creating $toolchain_file from template..."
-  cp "$template_file" ./"$toolchain_file"
+  local resolved="$CP_ALGORITHMS_DIR/$toolchain_file"
+  if [ ! -f "$resolved" ]; then
+    echo "${C_RED}Error: Missing centralized toolchain '$resolved'.${C_RESET}" >&2
+    return 1
+  fi
+
+  echo "$resolved"
 }
 
 _cppconf_rebuild_reason_for_toolchain() {
   local toolchain_file="$1"
+  local toolchain_base="${toolchain_file##*/}"
   [ -f "build/CMakeCache.txt" ] || return 1
 
-  local cached_compiler cached_toolchain cached_toolchain_base
+  local cached_compiler cached_compiler_id cached_toolchain cached_toolchain_base
   cached_compiler=$(grep -E '^CMAKE_CXX_COMPILER:(FILEPATH|PATH|STRING)=' build/CMakeCache.txt | head -n1 | cut -d'=' -f2-)
+  cached_compiler_id=$(grep -E '^CMAKE_CXX_COMPILER_ID:STRING=' build/CMakeCache.txt | head -n1 | cut -d'=' -f2-)
   cached_toolchain=$(grep -E '^CMAKE_TOOLCHAIN_FILE:' build/CMakeCache.txt | head -n1 | cut -d'=' -f2-)
   cached_toolchain_base=${cached_toolchain##*/}
 
-  case "$toolchain_file" in
+  case "$toolchain_base" in
     gcc-toolchain.cmake)
-      if [[ "$cached_compiler" == *clang* ]]; then
+      if [[ "$cached_compiler_id" == *Clang* ]] || { [ -z "$cached_compiler_id" ] && [[ "$cached_compiler" == *clang* ]]; }; then
         echo "cached compiler is Clang"
         return 0
       fi
       ;;
     clang-toolchain.cmake)
-      if [[ "$cached_compiler" == *g++* || "$cached_compiler" == *gcc* ]]; then
+      if [[ "$cached_compiler_id" == "GNU" ]] || { [ -z "$cached_compiler_id" ] && [[ "$cached_compiler" == *g++* || "$cached_compiler" == *gcc* ]]; }; then
         echo "cached compiler is GCC"
         return 0
       fi
       ;;
   esac
 
-  if [ -n "$cached_toolchain_base" ] && [ "$cached_toolchain_base" != "$toolchain_file" ]; then
+  if [ -z "$cached_toolchain_base" ]; then
+    echo "cached toolchain is missing"
+    return 0
+  fi
+
+  if [ -n "$cached_toolchain_base" ] && [ "$cached_toolchain_base" != "$toolchain_base" ]; then
     echo "cached toolchain is '$cached_toolchain_base'"
     return 0
+  fi
+
+  return 1
+}
+
+_cppconf_rebuild_reason_for_stale_cmake_system_toolchain() {
+  local toolchain_file="$1"
+  local toolchain_base="${toolchain_file##*/}"
+  [ -d "build/CMakeFiles" ] || return 1
+
+  local cmake_system_file
+  cmake_system_file=$(find build/CMakeFiles -maxdepth 2 -type f -name CMakeSystem.cmake | head -n1)
+  [ -n "$cmake_system_file" ] || return 1
+
+  local system_toolchain
+  system_toolchain=$(sed -n 's/^[[:space:]]*include("\([^"]*toolchain\.cmake\)")$/\1/p' "$cmake_system_file" | head -n1)
+  [ -n "$system_toolchain" ] || return 1
+
+  local system_toolchain_base="${system_toolchain##*/}"
+  if [ "$system_toolchain_base" != "$toolchain_base" ]; then
+    echo "CMakeSystem.cmake references '$system_toolchain_base'"
+    return 0
+  fi
+
+  if [ "$system_toolchain" != "$toolchain_file" ]; then
+    if [ ! -f "$system_toolchain" ]; then
+      echo "CMakeSystem.cmake references missing '$system_toolchain'"
+      return 0
+    fi
+    if [ -f "$toolchain_file" ]; then
+      echo "CMakeSystem.cmake uses non-centralized '$system_toolchain'"
+      return 0
+    fi
   fi
 
   return 1
@@ -806,21 +890,23 @@ function cppconf() {
   toolchain_name="${${toolchain_selection#*|}%%|*}"
   compiler_choice_for_log="${toolchain_selection##*|}"
 
-  if ! _cppconf_ensure_toolchain_file "$toolchain_file"; then
+  local resolved_toolchain_file
+  resolved_toolchain_file=$(_cppconf_ensure_toolchain_file "$toolchain_file") || {
     return 1
-  fi
+  }
+  toolchain_file="$resolved_toolchain_file"
 
   local rebuild_reason
   rebuild_reason=$(_cppconf_rebuild_reason_for_toolchain "$toolchain_file") || true
+  if [ -z "$rebuild_reason" ]; then
+    rebuild_reason=$(_cppconf_rebuild_reason_for_stale_cmake_system_toolchain "$toolchain_file") || true
+  fi
   if [ -n "$rebuild_reason" ]; then
     echo "${C_YELLOW}Toolchain switch detected (${rebuild_reason}). Recreating build directory...${C_RESET}"
     rm -rf -- build
   fi
 
-  local -a cmake_toolchain_arg=()
-  if [ ! -f "build/CMakeCache.txt" ]; then
-    cmake_toolchain_arg=("-DCMAKE_TOOLCHAIN_FILE=${toolchain_file}")
-  fi
+  local -a cmake_toolchain_arg=("-DCMAKE_TOOLCHAIN_FILE=${toolchain_file}")
 
   if [ "$pch_mode" = "AUTO" ]; then
     if [ "$build_type" = "Debug" ]; then
