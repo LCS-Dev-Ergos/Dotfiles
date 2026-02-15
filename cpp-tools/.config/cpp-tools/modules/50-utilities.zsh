@@ -8,6 +8,7 @@
 # Functions:
 #   - cppclean     Remove build artifacts safely.
 #   - cppdeepclean Remove all generated files.
+#   - cppfocus     Pin the default target used by build/run commands.
 #   - cppwatch     Auto-build on file changes.
 #   - cppstats     Show problem timing statistics.
 #   - cpparchive   Create a contest archive.
@@ -59,6 +60,47 @@ function cppdeepclean() {
   else
     echo "Deep clean cancelled."
   fi
+}
+
+# -----------------------------------------------------------------------------
+# cppfocus
+# -----------------------------------------------------------------------------
+# Set, clear, or inspect the focused target used by default commands.
+#
+# Usage:
+#   cppfocus <target>
+#   cppfocus --clear
+#   cppfocus
+# -----------------------------------------------------------------------------
+function cppfocus() {
+  _check_workspace || return 1
+
+  if [ $# -eq 0 ]; then
+    if [ -n "${CP_FOCUSED_TARGET:-}" ]; then
+      echo "${C_GREEN}Focused target:${C_RESET} ${CP_FOCUSED_TARGET}"
+    else
+      echo "${C_YELLOW}No focused target is set.${C_RESET}"
+    fi
+    echo "${C_CYAN}Current default resolution:${C_RESET} $(_get_default_target)"
+    return 0
+  fi
+
+  if [ "$1" = "--clear" ]; then
+    unset CP_FOCUSED_TARGET
+    echo "${C_GREEN}Focused target cleared.${C_RESET}"
+    return 0
+  fi
+
+  local target_name source_file
+  target_name=$(_normalize_target_name "$1")
+  source_file=$(_resolve_target_source "$target_name")
+  if [ -z "$source_file" ]; then
+    echo "${C_RED}Error: Source file for target '$target_name' not found.${C_RESET}" >&2
+    return 1
+  fi
+
+  export CP_FOCUSED_TARGET="$target_name"
+  echo "${C_GREEN}Focused target set to '${CP_FOCUSED_TARGET}'.${C_RESET}"
 }
 
 # -----------------------------------------------------------------------------
@@ -243,6 +285,16 @@ function cppdiag() {
     echo "   ${C_CYAN}Path:${C_RESET} $FSWATCH_PATH"
   else
     echo "${C_YELLOW}fswatch: Not found (optional, needed for cppwatch)${C_RESET}"
+  fi
+
+  # Check timeout command (required by cppgo/cppstress/cppjudge workflows).
+  local TIMEOUT_PATH
+  TIMEOUT_PATH=$(command -v timeout || command -v gtimeout)
+  if [ -n "$TIMEOUT_PATH" ]; then
+    echo "${C_GREEN}timeout:${C_RESET}"
+    echo "   ${C_CYAN}Path:${C_RESET} $TIMEOUT_PATH"
+  else
+    echo "${C_RED}timeout/gtimeout: Not found (required). Install coreutils.${C_RESET}"
   fi
 
   _print_header "PROJECT CONFIGURATION (in $(pwd))"

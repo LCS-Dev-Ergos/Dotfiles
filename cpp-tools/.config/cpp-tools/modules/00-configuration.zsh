@@ -7,6 +7,8 @@
 #
 # Functions:
 #   - _get_default_target  Resolve default C++ target name.
+#   - _normalize_target_name Normalize target identifier (drop extension/path).
+#   - _resolve_target_source Resolve existing source file for a target.
 #   - _check_initialized   Ensure project has CMake setup.
 #   - _check_workspace     Validate working directory is in workspace.
 #   - _problem_label       Normalize problem label for metadata.
@@ -105,6 +107,17 @@ fi
 # Falls back to "main" when no source files are present.
 # -----------------------------------------------------------------------------
 _get_default_target() {
+  # Honor explicit focus first when set and valid.
+  if [ -n "${CP_FOCUSED_TARGET:-}" ]; then
+    local focused_target focused_source
+    focused_target=$(_normalize_target_name "$CP_FOCUSED_TARGET")
+    focused_source=$(_resolve_target_source "$focused_target")
+    if [ -n "$focused_source" ]; then
+      echo "$focused_target"
+      return 0
+    fi
+  fi
+
   # Find the most recently modified .cpp, .cc, or .cxx file using Zsh glob qualifiers.
   # (.): regular files
   # om: order by modification time (newest first)
@@ -117,6 +130,46 @@ _get_default_target() {
   else
     echo "main"
   fi
+}
+
+# -----------------------------------------------------------------------------
+# _normalize_target_name
+# -----------------------------------------------------------------------------
+# Normalize a target identifier by stripping directory and source extension.
+# -----------------------------------------------------------------------------
+_normalize_target_name() {
+  local raw="$1"
+  raw="${raw:t}"
+  raw="${raw%.cpp}"
+  raw="${raw%.cc}"
+  raw="${raw%.cxx}"
+  echo "$raw"
+}
+
+# -----------------------------------------------------------------------------
+# _resolve_target_source
+# -----------------------------------------------------------------------------
+# Resolve the first existing source path among .cpp/.cc/.cxx for a target.
+#
+# Usage:
+#   _resolve_target_source <target_or_filename>
+# -----------------------------------------------------------------------------
+_resolve_target_source() {
+  local target_name
+  target_name=$(_normalize_target_name "$1")
+
+  [ -z "$target_name" ] && return 1
+
+  local ext candidate
+  for ext in cpp cc cxx; do
+    candidate="${target_name}.${ext}"
+    if [ -f "$candidate" ]; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
 }
 
 # -----------------------------------------------------------------------------
@@ -296,7 +349,7 @@ _get_timeout_cmd() {
 # -----------------------------------------------------------------------------
 # _run_with_timeout
 # -----------------------------------------------------------------------------
-# Run a command with a timeout when possible, with Python fallback.
+# Run a command with a timeout binary.
 #
 # Usage:
 #   _run_with_timeout <duration> <command> [args...]
@@ -308,38 +361,18 @@ _run_with_timeout() {
   local timeout_bin
   timeout_bin=$(_get_timeout_cmd) || true
 
-  if [ -n "$timeout_bin" ]; then
-    "$timeout_bin" "$duration" "$@"
-    return $?
+  if [ -z "$timeout_bin" ]; then
+    if [ -z "${_CP_WARNED_TIMEOUT:-}" ]; then
+      echo "${C_RED}Error: No timeout command found ('timeout' or 'gtimeout').${C_RESET}" >&2
+      echo "${C_YELLOW}Install coreutils (macOS): brew install coreutils${C_RESET}" >&2
+      _CP_WARNED_TIMEOUT=1
+    else
+      echo "${C_RED}Error: timeout utility is required but unavailable.${C_RESET}" >&2
+    fi
+    return 127
   fi
 
-  if command -v python3 >/dev/null 2>&1; then
-    python3 - "$duration" "$@" <<'PY'
-import subprocess, sys
-
-raw_duration = sys.argv[1]
-cmd = sys.argv[2:]
-
-try:
-    timeout = float(raw_duration[:-1]) if raw_duration.endswith("s") else float(raw_duration)
-except Exception:
-    timeout = None
-
-try:
-    result = subprocess.run(cmd, timeout=timeout, check=False)
-    sys.exit(result.returncode)
-except subprocess.TimeoutExpired:
-    sys.exit(124)
-PY
-    return $?
-  fi
-
-  if [ -z "${_CP_WARNED_TIMEOUT:-}" ]; then
-    echo "${C_YELLOW}Warning: No timeout utility available; running without a time limit.${C_RESET}" >&2
-    _CP_WARNED_TIMEOUT=1
-  fi
-
-  "$@"
+  "$timeout_bin" "$duration" "$@"
 }
 
 # ============================================================================ #

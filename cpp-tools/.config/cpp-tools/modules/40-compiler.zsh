@@ -24,8 +24,6 @@
 function cppgcc() {
   local build_type=${1:-Debug}
   echo "${C_CYAN}Switching to GCC toolchain (${build_type})...${C_RESET}"
-  echo "${C_YELLOW}Cleaning build environment first...${C_RESET}"
-  cppclean
   cppconf "$build_type" gcc
 }
 
@@ -40,8 +38,6 @@ function cppgcc() {
 function cppclang() {
   local build_type=${1:-Debug}
   echo "${C_CYAN}Switching to Clang toolchain (${build_type})...${C_RESET}"
-  echo "${C_YELLOW}Cleaning build environment first...${C_RESET}"
-  cppclean
   cppconf "$build_type" clang
 }
 
@@ -52,8 +48,6 @@ function cppclang() {
 # -----------------------------------------------------------------------------
 function cppprof() {
   echo "${C_CYAN}Configuring profiling build with Clang...${C_RESET}"
-  echo "${C_YELLOW}Cleaning build environment first...${C_RESET}"
-  cppclean
   CP_TIMING=1 cppconf Release clang
 }
 

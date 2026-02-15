@@ -182,6 +182,18 @@ EOF
     fi
   fi
 
+  # Link to shared CMake helper modules if available.
+  local master_cmake_dir="$CP_ALGORITHMS_DIR/cmake"
+  if [ ! -e "algorithms/cmake" ]; then
+    if [ -n "$CP_ALGORITHMS_DIR" ] && [ -d "$master_cmake_dir" ]; then
+      ln -s "$master_cmake_dir" "algorithms/cmake"
+      echo "Created symlink to global CMake helper modules."
+    else
+      mkdir -p "algorithms/cmake"
+      echo "${C_YELLOW}Warning: Global CMake helper modules not found. Created a local placeholder.${C_RESET}"
+    fi
+  fi
+
   # Copy or link PCH.h and PCH_Wrapper.h for Clang builds.
   local master_pch_header="$CP_ALGORITHMS_DIR/libs/PCH.h"
   local master_pch_wrapper="$CP_ALGORITHMS_DIR/libs/PCH_Wrapper.h"
@@ -391,15 +403,9 @@ function cppdelete() {
 
   echo "${C_YELLOW}The following files will be deleted:${C_RESET}"
 
-  local problem_name source_file ext file input_file output_file
+  local problem_name source_file file input_file output_file
   for problem_name in "${requested_problems[@]}"; do
-    source_file=""
-    for ext in cpp cc cxx; do
-      if [ -f "${problem_name}.${ext}" ]; then
-        source_file="${problem_name}.${ext}"
-        break
-      fi
-    done
+    source_file=$(_resolve_target_source "$problem_name")
 
     if [ -z "$source_file" ]; then
       missing_problems+=("$problem_name")
@@ -583,222 +589,272 @@ function cppbatch() {
 # Usage:
 #   cppconf [Debug|Release|Sanitize] [gcc|clang|auto] [options]
 # -----------------------------------------------------------------------------
+_cppconf_normalize_build_type() {
+  local raw="${1:l}"
+  case "$raw" in
+    debug) echo "Debug" ;;
+    release) echo "Release" ;;
+    sanitize) echo "Sanitize" ;;
+    *) return 1 ;;
+  esac
+}
+
+_cppconf_parse_on_off() {
+  local raw="${1:l}"
+  case "$raw" in
+    on|true|1|yes) echo "ON" ;;
+    off|false|0|no) echo "OFF" ;;
+    *) return 1 ;;
+  esac
+}
+
+_cppconf_parse_on_off_auto() {
+  local raw="${1:l}"
+  case "$raw" in
+    auto) echo "AUTO" ;;
+    *) _cppconf_parse_on_off "$raw" ;;
+  esac
+}
+
+_cppconf_select_toolchain() {
+  local build_type="$1"
+  local compiler_choice="${2:l}"
+
+  case "$compiler_choice" in
+    gcc|g++)
+      echo "gcc-toolchain.cmake|GCC (forced)|gcc"
+      return 0
+      ;;
+    clang|clang++)
+      echo "clang-toolchain.cmake|Clang/LLVM (forced)|clang"
+      return 0
+      ;;
+    auto|"")
+      if [ "$build_type" = "Sanitize" ] && [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "clang-toolchain.cmake|Clang/LLVM (auto-selected for sanitizers)|auto"
+      elif [ "$build_type" = "Sanitize" ]; then
+        echo "gcc-toolchain.cmake|GCC (auto-selected)|auto"
+      else
+        echo "gcc-toolchain.cmake|GCC (default)|auto"
+      fi
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+_cppconf_ensure_toolchain_file() {
+  local toolchain_file="$1"
+  if [ -f "$toolchain_file" ]; then
+    return 0
+  fi
+
+  local template_file="$SCRIPT_DIR/templates/${toolchain_file}.tpl"
+  if [ ! -f "$template_file" ]; then
+    echo "${C_RED}Error: Template for $toolchain_file not found.${C_RESET}" >&2
+    return 1
+  fi
+
+  echo "Creating $toolchain_file from template..."
+  cp "$template_file" ./"$toolchain_file"
+}
+
+_cppconf_rebuild_reason_for_toolchain() {
+  local toolchain_file="$1"
+  [ -f "build/CMakeCache.txt" ] || return 1
+
+  local cached_compiler cached_toolchain cached_toolchain_base
+  cached_compiler=$(grep -E '^CMAKE_CXX_COMPILER:(FILEPATH|PATH|STRING)=' build/CMakeCache.txt | head -n1 | cut -d'=' -f2-)
+  cached_toolchain=$(grep -E '^CMAKE_TOOLCHAIN_FILE:' build/CMakeCache.txt | head -n1 | cut -d'=' -f2-)
+  cached_toolchain_base=${cached_toolchain##*/}
+
+  case "$toolchain_file" in
+    gcc-toolchain.cmake)
+      if [[ "$cached_compiler" == *clang* ]]; then
+        echo "cached compiler is Clang"
+        return 0
+      fi
+      ;;
+    clang-toolchain.cmake)
+      if [[ "$cached_compiler" == *g++* || "$cached_compiler" == *gcc* ]]; then
+        echo "cached compiler is GCC"
+        return 0
+      fi
+      ;;
+  esac
+
+  if [ -n "$cached_toolchain_base" ] && [ "$cached_toolchain_base" != "$toolchain_file" ]; then
+    echo "cached toolchain is '$cached_toolchain_base'"
+    return 0
+  fi
+
+  return 1
+}
+
 function cppconf() {
-  local build_type=${1:-Debug}
-  local compiler_choice=${2:-auto}
-  local timing_cmake_arg="-DCP_ENABLE_TIMING=OFF" # Timing is OFF by default.
-  local pch_cmake_arg="-DCP_ENABLE_PCH=AUTO" # PCH auto-selection by default.
-  local force_pch_rebuild_arg=""
+  local build_type="Debug"
+  local compiler_choice="auto"
+  local timing_mode="OFF"
+  local pch_mode="AUTO"
+  local force_pch_rebuild="OFF"
 
-  # Parse all arguments.
-  for arg in "$@"; do
-    case $arg in
-        # Case-insensitive matching for build types.
-      [Dd]ebug|[Rr]elease|[Ss]anitize)
-        build_type=$(echo "$arg" | awk '{print toupper(substr($0,1,1)) tolower(substr($0,2))}')
+  local i=1 arg value normalized
+  while [ $i -le $# ]; do
+    arg="${@[i]}"
+    case "$arg" in
+      --build-type|-b)
+        ((i++))
+        if [ $i -gt $# ]; then
+          echo "${C_RED}Error: Missing value after '$arg'.${C_RESET}" >&2
+          return 1
+        fi
+        value="${@[i]}"
+        normalized=$(_cppconf_normalize_build_type "$value") || {
+          echo "${C_RED}Error: Invalid build type '$value'. Use Debug, Release, or Sanitize.${C_RESET}" >&2
+          return 1
+        }
+        build_type="$normalized"
         ;;
-
-        # Compiler override arguments.
-      gcc|g++|clang|clang++|auto)
-        compiler_choice=$(echo "$arg" | tr '[:upper:]' '[:lower:]')
+      --compiler|-c)
+        ((i++))
+        if [ $i -gt $# ]; then
+          echo "${C_RED}Error: Missing value after '$arg'.${C_RESET}" >&2
+          return 1
+        fi
+        compiler_choice="${@[i]}"
         ;;
-
-        # Check for timing argument.
+      --timing)
+        ((i++))
+        if [ $i -gt $# ]; then
+          echo "${C_RED}Error: Missing value after '$arg'.${C_RESET}" >&2
+          return 1
+        fi
+        value=$(_cppconf_parse_on_off "${@[i]}") || {
+          echo "${C_RED}Error: Invalid timing value '${@[i]}'. Use on/off.${C_RESET}" >&2
+          return 1
+        }
+        timing_mode="$value"
+        ;;
+      --pch)
+        ((i++))
+        if [ $i -gt $# ]; then
+          echo "${C_RED}Error: Missing value after '$arg'.${C_RESET}" >&2
+          return 1
+        fi
+        value=$(_cppconf_parse_on_off_auto "${@[i]}") || {
+          echo "${C_RED}Error: Invalid pch value '${@[i]}'. Use on/off/auto.${C_RESET}" >&2
+          return 1
+        }
+        pch_mode="$value"
+        ;;
+      --pch-rebuild|rebuild-pch)
+        force_pch_rebuild="ON"
+        ;;
       timing=*)
-        local value=${arg#*=}
-        if [[ "$value" == "on" || "$value" == "true" ]]; then
-          timing_cmake_arg="-DCP_ENABLE_TIMING=ON"
-        elif [[ "$value" == "off" || "$value" == "false" ]]; then
-          timing_cmake_arg="-DCP_ENABLE_TIMING=OFF"
-        else
-          echo "${C_YELLOW}Warning: Unknown value for 'timing': '$value'. Ignoring.${C_RESET}"
-        fi
+        value=$(_cppconf_parse_on_off "${arg#*=}") || {
+          echo "${C_YELLOW}Warning: Unknown timing value '${arg#*=}'. Ignoring.${C_RESET}"
+          ((i++))
+          continue
+        }
+        timing_mode="$value"
         ;;
-
-        # Check for PCH argument.
       pch=*)
-        local value=${arg#*=}
-        if [[ "$value" == "on" || "$value" == "true" ]]; then
-          pch_cmake_arg="-DCP_ENABLE_PCH=ON"
-        elif [[ "$value" == "off" || "$value" == "false" ]]; then
-          pch_cmake_arg="-DCP_ENABLE_PCH=OFF"
-        elif [[ "$value" == "auto" ]]; then
-          pch_cmake_arg="-DCP_ENABLE_PCH=AUTO"
-        else
-          echo "${C_YELLOW}Warning: Unknown value for 'pch': '$value'. Ignoring.${C_RESET}"
-        fi
+        value=$(_cppconf_parse_on_off_auto "${arg#*=}") || {
+          echo "${C_YELLOW}Warning: Unknown pch value '${arg#*=}'. Ignoring.${C_RESET}"
+          ((i++))
+          continue
+        }
+        pch_mode="$value"
         ;;
-
-        # Check for PCH rebuild argument.
       pch-rebuild=*)
-        local value=${arg#*=}
-        if [[ "$value" == "on" || "$value" == "true" ]]; then
-          force_pch_rebuild_arg="-DCP_FORCE_PCH_REBUILD=ON"
+        value=$(_cppconf_parse_on_off "${arg#*=}") || {
+          echo "${C_YELLOW}Warning: Unknown pch-rebuild value '${arg#*=}'. Ignoring.${C_RESET}"
+          ((i++))
+          continue
+        }
+        if [ "$value" = "ON" ]; then
+          force_pch_rebuild="ON"
         fi
         ;;
-
-        # Shorthand for PCH rebuild.
-      pch-rebuild|rebuild-pch)
-        force_pch_rebuild_arg="-DCP_FORCE_PCH_REBUILD=ON"
+      [Dd]ebug|[Rr]elease|[Ss]anitize)
+        normalized=$(_cppconf_normalize_build_type "$arg") || true
+        [ -n "$normalized" ] && build_type="$normalized"
         ;;
-
-        # Handle unknown arguments.
+      gcc|g++|clang|clang++|auto)
+        compiler_choice="$arg"
+        ;;
       *)
         echo "${C_YELLOW}Warning: Unknown argument '$arg'. Ignoring.${C_RESET}"
         ;;
     esac
+    ((i++))
   done
 
-  # Normalize compiler choice to lowercase.
-  compiler_choice=$(echo "$compiler_choice" | tr '[:upper:]' '[:lower:]')
-
-  # Determine which toolchain to use.
-  local toolchain_file=""
-  local toolchain_name=""
-
-  # Compiler selection logic.
-  case "$compiler_choice" in
-    gcc|g++)
-      toolchain_file="gcc-toolchain.cmake"
-      toolchain_name="GCC (forced)"
-      ;;
-    clang|clang++)
-      toolchain_file="clang-toolchain.cmake"
-      toolchain_name="Clang/LLVM (forced)"
-      ;;
-    auto|"")
-      # Auto-selection based on build type and platform.
-      if [ "$build_type" = "Sanitize" ]; then
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-          # On macOS, prefer Clang for sanitizers.
-          toolchain_file="clang-toolchain.cmake"
-          toolchain_name="Clang/LLVM (auto-selected for sanitizers)"
-        else
-          # On Linux, try GCC first.
-          toolchain_file="gcc-toolchain.cmake"
-          toolchain_name="GCC (auto-selected)"
-        fi
-      else
-        # Default to GCC for Debug/Release.
-        toolchain_file="gcc-toolchain.cmake"
-        toolchain_name="GCC (default)"
-      fi
-      ;;
-    *)
-      echo "${C_RED}Error: Unknown compiler choice '$compiler_choice'${C_RESET}" >&2
-      echo "Valid options: gcc, clang, auto" >&2
-      return 1
-      ;;
-  esac
-
-  # Create toolchain file if it doesn't exist.
-  if [ ! -f "$toolchain_file" ]; then
-    local template_file="$SCRIPT_DIR/templates/${toolchain_file}.tpl"
-    if [ -f "$template_file" ]; then
-      echo "Creating $toolchain_file from template..."
-      cp "$template_file" ./"$toolchain_file"
-    else
-      echo "${C_RED}Error: Template for $toolchain_file not found!${C_RESET}" >&2
-      if [ "$toolchain_file" = "gcc-toolchain.cmake" ]; then
-        echo "${C_YELLOW}Running cppinit to fix missing GCC toolchain...${C_RESET}"
-        cppinit
-      else
-        return 1
-      fi
-    fi
+  if [ -n "$CP_TIMING" ]; then
+    timing_mode="ON"
   fi
 
-  # If the requested compiler family differs from the one cached in build/,
-  # recreate the build directory so CMake actually applies the new toolchain.
-  local rebuild_build_dir=0
-  local rebuild_reason=""
-  if [ -f "build/CMakeCache.txt" ]; then
-    local cached_compiler
-    local cached_toolchain
-    local cached_toolchain_base
+  local toolchain_selection toolchain_file toolchain_name compiler_choice_for_log
+  toolchain_selection=$(_cppconf_select_toolchain "$build_type" "$compiler_choice") || {
+    echo "${C_RED}Error: Unknown compiler choice '$compiler_choice'.${C_RESET}" >&2
+    echo "Valid options: gcc, clang, auto" >&2
+    return 1
+  }
+  toolchain_file="${toolchain_selection%%|*}"
+  toolchain_name="${${toolchain_selection#*|}%%|*}"
+  compiler_choice_for_log="${toolchain_selection##*|}"
 
-    cached_compiler=$(grep -E '^CMAKE_CXX_COMPILER:(FILEPATH|PATH|STRING)=' build/CMakeCache.txt | head -n1 | cut -d'=' -f2-)
-    cached_toolchain=$(grep -E '^CMAKE_TOOLCHAIN_FILE:' build/CMakeCache.txt | head -n1 | cut -d'=' -f2-)
-    cached_toolchain_base=${cached_toolchain##*/}
-
-    case "$toolchain_file" in
-      gcc-toolchain.cmake)
-        if [[ "$cached_compiler" == *clang* ]]; then
-          rebuild_build_dir=1
-          rebuild_reason="cached compiler is Clang"
-        fi
-        ;;
-      clang-toolchain.cmake)
-        if [[ "$cached_compiler" == *g++* || "$cached_compiler" == *gcc* ]]; then
-          rebuild_build_dir=1
-          rebuild_reason="cached compiler is GCC"
-        fi
-        ;;
-    esac
-
-    if [ "$rebuild_build_dir" -eq 0 ] && [ -n "$cached_toolchain_base" ] && [ "$cached_toolchain_base" != "$toolchain_file" ]; then
-      rebuild_build_dir=1
-      rebuild_reason="cached toolchain is '$cached_toolchain_base'"
-    fi
+  if ! _cppconf_ensure_toolchain_file "$toolchain_file"; then
+    return 1
   fi
 
-  if [ "$rebuild_build_dir" -eq 1 ]; then
+  local rebuild_reason
+  rebuild_reason=$(_cppconf_rebuild_reason_for_toolchain "$toolchain_file") || true
+  if [ -n "$rebuild_reason" ]; then
     echo "${C_YELLOW}Toolchain switch detected (${rebuild_reason}). Recreating build directory...${C_RESET}"
     rm -rf -- build
   fi
 
-  # CMAKE_TOOLCHAIN_FILE is meaningful only during first configure of a build dir.
-  # Passing it on subsequent reconfigure triggers noisy warnings in CMake.
-  local cmake_toolchain_arg=()
+  local -a cmake_toolchain_arg=()
   if [ ! -f "build/CMakeCache.txt" ]; then
     cmake_toolchain_arg=("-DCMAKE_TOOLCHAIN_FILE=${toolchain_file}")
   fi
 
-  # Auto-configure PCH based on build type if set to AUTO.
-  if [[ "$pch_cmake_arg" == *"AUTO"* ]]; then
+  if [ "$pch_mode" = "AUTO" ]; then
     if [ "$build_type" = "Debug" ]; then
-      pch_cmake_arg="-DCP_ENABLE_PCH=ON"
+      pch_mode="ON"
     else
-      pch_cmake_arg="-DCP_ENABLE_PCH=OFF"
+      pch_mode="OFF"
     fi
   fi
 
-  # Use array for CMake flags to avoid space issues.
-  local cmake_flags=()
-
-  # Enable timing if requested via environment variable or argument.
-  if [ -n "$CP_TIMING" ]; then
-    timing_cmake_arg="-DCP_ENABLE_TIMING=ON"
+  local -a cmake_flags=(
+    "-DCP_ENABLE_TIMING=${timing_mode}"
+    "-DCP_ENABLE_PCH=${pch_mode}"
+  )
+  if [ "$force_pch_rebuild" = "ON" ]; then
+    cmake_flags+=("-DCP_FORCE_PCH_REBUILD=ON")
   fi
-  cmake_flags+=("$timing_cmake_arg")
-  cmake_flags+=("$pch_cmake_arg")
-
-  # Add PCH rebuild flag if specified.
-  if [ -n "$force_pch_rebuild_arg" ]; then
-    cmake_flags+=("$force_pch_rebuild_arg")
-  fi
-
-  # Enable LTO for Release builds with Clang.
   if [ "$build_type" = "Release" ] && [[ "$toolchain_file" == *"clang"* ]]; then
     cmake_flags+=("-DCP_ENABLE_LTO=ON")
   fi
 
-  # Log the configuration step.
   echo "${C_BLUE}╔═══───────────────────────────────────────────────────────────────────────────═══╗${C_RESET}"
   echo "  ${C_BLUE}Configuring project:${C_RESET}"
   echo "    ${C_CYAN}Build Type:${C_RESET} ${C_YELLOW}${build_type}${C_RESET}"
   echo "    ${C_CYAN}Compiler:${C_RESET} ${C_YELLOW}${toolchain_name}${C_RESET}"
-  echo "    ${C_CYAN}Timing Report:${C_RESET} ${C_YELLOW}${timing_cmake_arg##*=}${C_RESET}"
-  echo "    ${C_CYAN}PCH Support:${C_RESET} ${C_YELLOW}${pch_cmake_arg##*=}${C_RESET}"
-  if [[ "${cmake_flags[*]}" == *"LTO"* ]]; then
+  echo "    ${C_CYAN}Timing Report:${C_RESET} ${C_YELLOW}${timing_mode}${C_RESET}"
+  echo "    ${C_CYAN}PCH Support:${C_RESET} ${C_YELLOW}${pch_mode}${C_RESET}"
+  if [[ "${cmake_flags[*]}" == *"CP_ENABLE_LTO=ON"* ]]; then
     echo "    ${C_CYAN}LTO:${C_RESET} ${C_YELLOW}Enabled${C_RESET}"
   fi
-  if [ -n "$force_pch_rebuild_arg" ]; then
+  if [ "$force_pch_rebuild" = "ON" ]; then
     echo "    ${C_CYAN}PCH Rebuild:${C_RESET} ${C_YELLOW}Forced${C_RESET}"
   fi
   echo "${C_BLUE}╚═══───────────────────────────────────────────────────────────────────────────═══╝${C_RESET}"
 
-  # Run CMake with the selected toolchain - use array expansion.
   if cmake -S . -B build \
     -DCMAKE_BUILD_TYPE="${build_type}" \
     "${cmake_toolchain_arg[@]}" \
@@ -806,8 +862,7 @@ function cppconf() {
     "${cmake_flags[@]}"; then
     echo "${C_GREEN}CMake configuration successful.${C_RESET}"
 
-    # If PCH rebuild was requested, clean PCH first.
-    if [ -n "$force_pch_rebuild_arg" ]; then
+    if [ "$force_pch_rebuild" = "ON" ]; then
       echo "${C_CYAN}Cleaning PCH cache...${C_RESET}"
       if cmake --build build --target pch_clean 2>/dev/null; then
         echo "${C_GREEN}PCH cache cleaned.${C_RESET}"
@@ -816,11 +871,10 @@ function cppconf() {
       fi
     fi
 
-    # Create the symlink for clangd.
     cmake --build build --target symlink_clangd 2>/dev/null || true
 
-    # Save configuration for quick reference.
-    echo "$build_type:$compiler_choice:${pch_cmake_arg##*=}" > .statistics/last_config
+    mkdir -p .statistics
+    echo "$build_type:$compiler_choice_for_log:${pch_mode}" > .statistics/last_config
   else
     echo "${C_RED}CMake configuration failed!${C_RESET}" >&2
     return 1

@@ -44,23 +44,24 @@ function _cppgo_problem() {
   local problem_id="$1"
   local target_name="problem_${problem_id}"
   local input_file="${target_name}.in"
+  local source_file
 
+  source_file=$(_resolve_target_source "$target_name")
   # Check if the target file exists, if not try with numeric suffix.
-  if [ ! -f "${target_name}.cpp" ] && [ ! -f "${target_name}.cc" ] && [ ! -f "${target_name}.cxx" ]; then
+  if [ -z "$source_file" ]; then
     # Try with numeric suffix (problem_A1, problem_A2, etc.).
-    local found_file=""
-    for ext in cpp cc cxx; do
-      for num in {1..9}; do
-        if [ -f "${target_name}${num}.${ext}" ]; then
-          target_name="${target_name}${num}"
-          input_file="${target_name}.in"
-          found_file="${target_name}.${ext}"
-          break 2
-        fi
-      done
+    local num candidate
+    for num in {1..9}; do
+      candidate="${target_name}${num}"
+      source_file=$(_resolve_target_source "$candidate")
+      if [ -n "$source_file" ]; then
+        target_name="$candidate"
+        input_file="${target_name}.in"
+        break
+      fi
     done
 
-    if [ -z "$found_file" ]; then
+    if [ -z "$source_file" ]; then
       echo "${C_RED}Error: No file found for problem '${problem_id}' (tried ${target_name}.* and ${target_name}[1-9].*).${C_RESET}" >&2
       return 1
     fi

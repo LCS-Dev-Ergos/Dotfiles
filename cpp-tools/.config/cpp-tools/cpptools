@@ -1,0 +1,44 @@
+#!/usr/bin/env zsh
+# shellcheck shell=zsh
+
+set -eo pipefail
+
+if [ -n "${BASH_SOURCE[0]:-}" ]; then
+  SCRIPT_PATH="${BASH_SOURCE[0]}"
+elif [ -n "${ZSH_VERSION:-}" ]; then
+  SCRIPT_PATH="${(%):-%x}"
+else
+  SCRIPT_PATH="$0"
+fi
+
+if command -v realpath >/dev/null 2>&1; then
+  SCRIPT_PATH="$(realpath "$SCRIPT_PATH")"
+fi
+
+SCRIPT_DIR="$( cd "$( dirname "$SCRIPT_PATH" )" &> /dev/null && pwd )"
+
+source "$SCRIPT_DIR/competitive.sh"
+
+if (( $# == 0 )); then
+  cpphelp
+  exit 0
+fi
+
+cmd="$1"
+shift
+
+# Normalize dashed forms: "test-submit" => "testsubmit".
+cmd="${cmd//-/}"
+
+# Allow short form: "go A" => "cppgo A"
+if [[ "$cmd" != cpp* ]]; then
+  cmd="cpp${cmd}"
+fi
+
+if ! typeset -f "$cmd" >/dev/null 2>&1; then
+  echo "${C_RED}Error: Unsupported command '$cmd'.${C_RESET}" >&2
+  echo "${C_YELLOW}Tip: run 'cpptools help' to list available commands.${C_RESET}" >&2
+  exit 64
+fi
+
+"$cmd" "$@"

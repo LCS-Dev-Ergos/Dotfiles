@@ -149,16 +149,78 @@ function cpprun() {
 # Build and run a target with optional input file redirection.
 #
 # Usage:
-#   cppgo [target] [input_file]
+#   cppgo [--force] [target] [input_file]
 # -----------------------------------------------------------------------------
 function cppgo() {
   _check_initialized || return 1
-  local target_name=${1:-$(_get_default_target)}
+  local force_rebuild=0
+  local input_override=""
+  local -a positional=()
+  local arg
+
+  while [ $# -gt 0 ]; do
+    arg="$1"
+    case "$arg" in
+      --force)
+        force_rebuild=1
+        shift
+        ;;
+      --input)
+        if [ $# -lt 2 ] || [ -z "${2:-}" ]; then
+          echo "${C_RED}Error: '--input' requires a filename argument.${C_RESET}" >&2
+          echo "Usage: cppgo [--force] [--input <file>] [target] [input_file]" >&2
+          return 1
+        fi
+        input_override="$2"
+        shift 2
+        ;;
+      --)
+        shift
+        while [ $# -gt 0 ]; do
+          positional+=("$1")
+          shift
+        done
+        ;;
+      -*)
+        echo "${C_RED}Error: Unknown option '$arg'.${C_RESET}" >&2
+        echo "Usage: cppgo [--force] [--input <file>] [target] [input_file]" >&2
+        return 1
+        ;;
+      *)
+        positional+=("$arg")
+        shift
+        ;;
+    esac
+  done
+
+  if (( ${#positional[@]} > 2 )); then
+    echo "${C_RED}Error: Too many arguments.${C_RESET}" >&2
+    echo "Usage: cppgo [--force] [--input <file>] [target] [input_file]" >&2
+    return 1
+  fi
+
+  if [ -n "$input_override" ] && [ -n "${positional[2]:-}" ]; then
+    echo "${C_RED}Error: Specify input either via '--input <file>' or positional arg, not both.${C_RESET}" >&2
+    return 1
+  fi
+
+  local target_name=${positional[1]:-$(_get_default_target)}
   local exec_path="./bin/$target_name"
 
   # Default to the problem's own input file if a second argument isn't given.
-  local input_file=${2:-"${target_name}.in"}
+  local input_file=${input_override:-${positional[2]:-"${target_name}.in"}}
   local input_path="input_cases/$input_file"
+
+  if [ "$force_rebuild" -eq 1 ]; then
+    local source_file
+    source_file=$(_resolve_target_source "$target_name")
+    if [ -z "$source_file" ]; then
+      echo "${C_RED}Error: Source file for target '$target_name' not found.${C_RESET}" >&2
+      return 1
+    fi
+    echo "${C_YELLOW}Forcing rebuild for '$source_file' by updating its timestamp...${C_RESET}"
+    touch "$source_file"
+  fi
 
   echo "${C_CYAN}Building target '${C_BOLD}$target_name${C_CYAN}'...${C_RESET}"
   if cppbuild "$target_name"; then
@@ -175,7 +237,7 @@ function cppgo() {
       _run_with_timeout 5s "$exec_path" < "$input_path"
       exit_code=$?
     else
-      if [ -n "$2" ]; then # Warn if a specific file was requested but not found.
+      if [ -n "${positional[2]:-}" ]; then # Warn if a specific file was requested but not found.
         echo "${C_YELLOW}Warning: Input file '$input_path' not found.${C_RESET}" >&2
       fi
       _run_with_timeout 5s "$exec_path"
@@ -213,32 +275,7 @@ function cppgo() {
 #   cppforcego [target]
 # -----------------------------------------------------------------------------
 function cppforcego() {
-  local target
-  target=$(_get_default_target)
-  local exec_name
-  exec_name=$(echo "${1:-$target}" | sed -E 's/\.(cpp|cc|cxx)$//')
-
-  # Find the source file corresponding to the target.
-  local source_file
-  for ext in cpp cc cxx; do
-    if [ -f "${exec_name}.${ext}" ]; then
-      source_file="${exec_name}.${ext}"
-      break
-    fi
-  done
-
-  if [ -z "$source_file" ]; then
-    echo "Error: Source file for target '$exec_name' not found."
-    return 1
-  fi
-
-  echo "Forcing rebuild for '$source_file' by updating its timestamp..."
-  # 'touch' updates the file's modification time, making the build system
-  # think it's new and needs to be recompiled.
-  touch "$source_file"
-
-  # Now, run the regular cppgo command.
-  cppgo "$@"
+  cppgo --force "$@"
 }
 
 # -----------------------------------------------------------------------------
@@ -288,21 +325,23 @@ function cppjudge() {
     return 1
   fi
 
-  # Check for test cases using Zsh globs.
-  local test_files=()
-
-  # Check for numbered test cases: target.1.in, target.2.in, etc.
-  # (N): null glob (empty if no match)
-  # n: numeric sort order
-  test_files=( "$input_dir"/${target_name}.*.in(Nn) )
-
-  # If no numbered test cases found, check for single test case.
-  if (( ${#test_files} == 0 )) && [[ -f "$input_dir/${target_name}.in" ]]; then
-    test_files+=("$input_dir/${target_name}.in")
-  fi
+  # Collect test cases using common naming conventions:
+  #   target.in
+  #   target.1.in / target.01.in
+  #   target_01.in
+  #   target-01.in
+  local -a test_files=(
+    "$input_dir"/${target_name}.in(N)
+    "$input_dir"/${target_name}.*.in(Nn)
+    "$input_dir"/${target_name}_*.in(Nn)
+    "$input_dir"/${target_name}-*.in(Nn)
+  )
+  # Remove duplicates while preserving first-seen order.
+  typeset -U test_files
 
   if (( ${#test_files} == 0 )); then
-    echo "${C_YELLOW}No test cases found for '$target_name' (looked for '${target_name}.*.in' and '${target_name}.in')${C_RESET}"
+    echo "${C_YELLOW}No test cases found for '$target_name'.${C_RESET}"
+    echo "${C_YELLOW}Checked: ${target_name}.in, ${target_name}.*.in, ${target_name}_*.in, ${target_name}-*.in${C_RESET}"
     return 0
   fi
 

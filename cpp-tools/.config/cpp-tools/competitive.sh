@@ -19,7 +19,7 @@
 
 # Detect the script directory for reliable access to modules.
 # This works for both bash and zsh when the script is sourced.
-if [ -n "${BASH_SOURCE[0]}" ]; then
+if [ -n "${BASH_SOURCE[0]:-}" ]; then
   SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 elif [ -n "$ZSH_VERSION" ]; then
   # In zsh, use ${(%):-%x} to get the script path when sourced.
