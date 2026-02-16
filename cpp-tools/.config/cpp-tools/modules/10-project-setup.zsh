@@ -778,14 +778,15 @@ _cppconf_ensure_toolchain_file() {
 }
 
 _cppconf_rebuild_reason_for_toolchain() {
-  local toolchain_file="$1"
+  local build_dir="$1"
+  local toolchain_file="$2"
   local toolchain_base="${toolchain_file##*/}"
-  [ -f "build/CMakeCache.txt" ] || return 1
+  [ -f "$build_dir/CMakeCache.txt" ] || return 1
 
   local cached_compiler cached_compiler_id cached_toolchain cached_toolchain_base
-  cached_compiler=$(grep -E '^CMAKE_CXX_COMPILER:(FILEPATH|PATH|STRING)=' build/CMakeCache.txt | head -n1 | cut -d'=' -f2-)
-  cached_compiler_id=$(grep -E '^CMAKE_CXX_COMPILER_ID:STRING=' build/CMakeCache.txt | head -n1 | cut -d'=' -f2-)
-  cached_toolchain=$(grep -E '^CMAKE_TOOLCHAIN_FILE:' build/CMakeCache.txt | head -n1 | cut -d'=' -f2-)
+  cached_compiler=$(grep -E '^CMAKE_CXX_COMPILER:(FILEPATH|PATH|STRING)=' "$build_dir/CMakeCache.txt" | head -n1 | cut -d'=' -f2-)
+  cached_compiler_id=$(grep -E '^CMAKE_CXX_COMPILER_ID:STRING=' "$build_dir/CMakeCache.txt" | head -n1 | cut -d'=' -f2-)
+  cached_toolchain=$(grep -E '^CMAKE_TOOLCHAIN_FILE:' "$build_dir/CMakeCache.txt" | head -n1 | cut -d'=' -f2-)
   cached_toolchain_base=${cached_toolchain##*/}
 
   case "$toolchain_base" in
@@ -817,12 +818,13 @@ _cppconf_rebuild_reason_for_toolchain() {
 }
 
 _cppconf_rebuild_reason_for_stale_cmake_system_toolchain() {
-  local toolchain_file="$1"
+  local build_dir="$1"
+  local toolchain_file="$2"
   local toolchain_base="${toolchain_file##*/}"
-  [ -d "build/CMakeFiles" ] || return 1
+  [ -d "$build_dir/CMakeFiles" ] || return 1
 
   local cmake_system_file
-  cmake_system_file=$(find build/CMakeFiles -maxdepth 2 -type f -name CMakeSystem.cmake | head -n1)
+  cmake_system_file=$(find "$build_dir/CMakeFiles" -maxdepth 2 -type f -name CMakeSystem.cmake | head -n1)
   [ -n "$cmake_system_file" ] || return 1
 
   local system_toolchain
@@ -952,7 +954,7 @@ function cppconf() {
     timing_mode="ON"
   fi
 
-  local toolchain_selection toolchain_file toolchain_name compiler_choice_for_log
+  local toolchain_selection toolchain_file toolchain_name
   toolchain_selection=$(_cppconf_select_toolchain "$build_type" "$compiler_choice") || {
     echo "${C_RED}Error: Unknown compiler choice '$compiler_choice'.${C_RESET}" >&2
     echo "Valid options: gcc, clang, auto" >&2
@@ -960,13 +962,24 @@ function cppconf() {
   }
   toolchain_file="${toolchain_selection%%|*}"
   toolchain_name="${${toolchain_selection#*|}%%|*}"
-  compiler_choice_for_log="${toolchain_selection##*|}"
 
   local resolved_toolchain_file
   resolved_toolchain_file=$(_cppconf_ensure_toolchain_file "$toolchain_file") || {
     return 1
   }
   toolchain_file="$resolved_toolchain_file"
+
+  local toolchain_base compiler_key build_type_key build_dir
+  toolchain_base="${toolchain_file##*/}"
+  case "$toolchain_base" in
+    clang-toolchain.cmake) compiler_key="clang" ;;
+    *) compiler_key="gcc" ;;
+  esac
+  build_type_key=$(_cp_build_type_key "$build_type") || {
+    echo "${C_RED}Error: Unsupported build type '$build_type'.${C_RESET}" >&2
+    return 1
+  }
+  build_dir=$(_cp_profile_build_dir "$compiler_key" "$build_type_key")
 
   # Keep clangd profile aligned with current host OS also during plain cppconf.
   mkdir -p .ide-configs
@@ -977,20 +990,24 @@ function cppconf() {
   ln -sf .ide-configs/clangd .clangd
 
   local rebuild_reason
-  rebuild_reason=$(_cppconf_rebuild_reason_for_toolchain "$toolchain_file") || true
+  rebuild_reason=$(_cppconf_rebuild_reason_for_toolchain "$build_dir" "$toolchain_file") || true
   if [ -z "$rebuild_reason" ]; then
-    rebuild_reason=$(_cppconf_rebuild_reason_for_stale_cmake_system_toolchain "$toolchain_file") || true
+    rebuild_reason=$(_cppconf_rebuild_reason_for_stale_cmake_system_toolchain "$build_dir" "$toolchain_file") || true
   fi
   if [ -n "$rebuild_reason" ]; then
-    echo "${C_YELLOW}Toolchain switch detected (${rebuild_reason}). Recreating build directory...${C_RESET}"
-    rm -rf -- build
+    echo "${C_YELLOW}Detected stale cache in '${build_dir}' (${rebuild_reason}). Recreating this profile directory...${C_RESET}"
+    rm -rf -- "$build_dir"
   fi
 
   local -a cmake_toolchain_arg=("-DCMAKE_TOOLCHAIN_FILE=${toolchain_file}")
 
   if [ "$pch_mode" = "AUTO" ]; then
     if [ "$build_type" = "Debug" ]; then
-      pch_mode="ON"
+      if [[ "$toolchain_file" == *"clang"* ]]; then
+        pch_mode="OFF"
+      else
+        pch_mode="ON"
+      fi
     else
       pch_mode="OFF"
     fi
@@ -1011,6 +1028,7 @@ function cppconf() {
   echo "  ${C_BLUE}Configuring project:${C_RESET}"
   echo "    ${C_CYAN}Build Type:${C_RESET} ${C_YELLOW}${build_type}${C_RESET}"
   echo "    ${C_CYAN}Compiler:${C_RESET} ${C_YELLOW}${toolchain_name}${C_RESET}"
+  echo "    ${C_CYAN}Build Dir:${C_RESET} ${C_YELLOW}${build_dir}${C_RESET}"
   echo "    ${C_CYAN}Timing Report:${C_RESET} ${C_YELLOW}${timing_mode}${C_RESET}"
   echo "    ${C_CYAN}PCH Support:${C_RESET} ${C_YELLOW}${pch_mode}${C_RESET}"
   if [[ "${cmake_flags[*]}" == *"CP_ENABLE_LTO=ON"* ]]; then
@@ -1021,7 +1039,9 @@ function cppconf() {
   fi
   echo "${C_BLUE}╚═══───────────────────────────────────────────────────────────────────────────═══╝${C_RESET}"
 
-  if cmake -S . -B build \
+  mkdir -p -- "${build_dir:h}"
+
+  if cmake -S . -B "$build_dir" \
     -DCMAKE_BUILD_TYPE="${build_type}" \
     "${cmake_toolchain_arg[@]}" \
     -DCMAKE_CXX_FLAGS="-std=c++23" \
@@ -1030,17 +1050,18 @@ function cppconf() {
 
     if [ "$force_pch_rebuild" = "ON" ]; then
       echo "${C_CYAN}Cleaning PCH cache...${C_RESET}"
-      if cmake --build build --target pch_clean 2>/dev/null; then
+      if cmake --build "$build_dir" --target pch_clean 2>/dev/null; then
         echo "${C_GREEN}PCH cache cleaned.${C_RESET}"
       else
         echo "${C_YELLOW}PCH clean target not available (normal for first run).${C_RESET}"
       fi
     fi
 
-    cmake --build build --target symlink_clangd 2>/dev/null || true
+    cmake --build "$build_dir" --target symlink_clangd 2>/dev/null || true
 
     mkdir -p .statistics
-    echo "$build_type:$compiler_choice_for_log:${pch_mode}" > .statistics/last_config
+    echo "$build_type:$compiler_key:${pch_mode}:$build_dir" > .statistics/last_config
+    _cp_set_active_build_dir "$build_dir"
   else
     echo "${C_RED}CMake configuration failed!${C_RESET}" >&2
     return 1

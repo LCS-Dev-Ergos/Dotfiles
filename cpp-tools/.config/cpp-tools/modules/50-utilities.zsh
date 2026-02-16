@@ -29,6 +29,7 @@ function cppclean() {
   fi
   echo "${C_CYAN}Cleaning project...${C_RESET}"
   rm -rf -- build bin lib
+  rm -f -- .statistics/active_build_dir
   # Also remove the symlink if it exists in the root.
   if [ -L "compile_commands.json" ]; then
     rm -- "compile_commands.json"
@@ -53,7 +54,7 @@ function cppdeepclean() {
   if [[ "$response" =~ ^[Yy]$ ]]; then
     cppclean
     rm -f -- CMakeLists.txt gcc-toolchain.cmake clang-toolchain.cmake .clangd
-    rm -f -- .statistics/contest_metadata .statistics/problem_times .statistics/last_config
+    rm -f -- .statistics/contest_metadata .statistics/problem_times .statistics/last_config .statistics/active_build_dir
     rm -f -- .contest_metadata .problem_times
     rm -rf -- .cache
     echo "${C_GREEN}Deep clean complete.${C_RESET}"
@@ -302,10 +303,13 @@ function cppdiag() {
     echo "${C_GREEN}Found CMakeLists.txt${C_RESET}"
 
     # Check CMake Cache for the configured compiler.
-    if [ -f "build/CMakeCache.txt" ]; then
+    local active_build_dir
+    active_build_dir=$(_cp_get_active_build_dir 2>/dev/null || true)
+    if [ -n "$active_build_dir" ] && [ -f "$active_build_dir/CMakeCache.txt" ]; then
       local cached_compiler
-      cached_compiler=$(grep "CMAKE_CXX_COMPILER:FILEPATH=" build/CMakeCache.txt | cut -d'=' -f2)
+      cached_compiler=$(grep -E '^CMAKE_CXX_COMPILER:(FILEPATH|PATH|STRING)=' "$active_build_dir/CMakeCache.txt" | head -n1 | cut -d'=' -f2-)
       echo "   ${C_CYAN}CMake Cached CXX Compiler:${C_RESET} $cached_compiler"
+      echo "   ${C_CYAN}Active Build Dir:${C_RESET} $active_build_dir"
     else
       echo "   ${C_YELLOW}Info: No CMake cache found. Run 'cppconf' to generate it.${C_RESET}"
     fi

@@ -27,22 +27,28 @@
 function cppbuild() {
   _check_initialized || return 1
   local target_name=${1:-$(_get_default_target)}
-  echo "${C_CYAN}Building target: ${C_BOLD}$target_name${C_RESET}..."
+  local build_dir
+  build_dir=$(_cp_get_active_build_dir) || {
+    echo "${C_RED}Error: No active build profile found. Run 'cppconf' first.${C_RESET}" >&2
+    return 1
+  }
+
+  echo "${C_CYAN}Building target: ${C_BOLD}$target_name${C_RESET} (${C_YELLOW}${build_dir}${C_RESET})..."
 
   # Record start time for total build duration.
   local start_time=$EPOCHREALTIME
 
   # Check if timing is enabled in CMake cache.
   local timing_enabled=false
-  if [ -f "build/CMakeCache.txt" ]; then
-    if grep -q "CP_ENABLE_TIMING:BOOL=ON" build/CMakeCache.txt 2>/dev/null; then
+  if [ -f "$build_dir/CMakeCache.txt" ]; then
+    if grep -q "CP_ENABLE_TIMING:BOOL=ON" "$build_dir/CMakeCache.txt" 2>/dev/null; then
       timing_enabled=true
     fi
   fi
 
   # Capture both stdout and stderr to analyze build output.
   local build_output
-  build_output=$(cmake --build build --target "$target_name" -j 2>&1)
+  build_output=$(cmake --build "$build_dir" --target "$target_name" -j 2>&1)
   local build_status=$?
 
   # Calculate total build time.
@@ -93,7 +99,7 @@ function cppbuild() {
       fi
 
       # Check if this is a Clang build and add trace analysis note.
-      if [ -f "build/CMakeCache.txt" ] && grep -q "clang" build/CMakeCache.txt; then
+      if [ -f "$build_dir/CMakeCache.txt" ] && grep -q "clang" "$build_dir/CMakeCache.txt"; then
         echo ""
         echo -e " Clang compilation finished."
         echo -e " ${C_CYAN}Note: To analyze the detailed trace with Perfetto UI, run:${C_RESET}"

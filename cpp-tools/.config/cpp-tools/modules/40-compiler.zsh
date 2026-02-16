@@ -58,22 +58,28 @@ function cppprof() {
 # -----------------------------------------------------------------------------
 function cppinfo() {
   if [ -f ".statistics/last_config" ]; then
-    local config build_type compiler pch_mode
+    local config build_type compiler pch_mode build_dir
     config=$(cat .statistics/last_config)
-    IFS=: read -r build_type compiler pch_mode <<< "$config"
+    IFS=: read -r build_type compiler pch_mode build_dir <<< "$config"
     echo "${C_CYAN}Current configuration:${C_RESET}"
     echo "  Build Type: ${C_YELLOW}$build_type${C_RESET}"
     echo "  Compiler: ${C_YELLOW}$compiler${C_RESET}"
     if [ -n "$pch_mode" ]; then
       echo "  PCH: ${C_YELLOW}$pch_mode${C_RESET}"
     fi
+    if [ -n "$build_dir" ]; then
+      echo "  Build Dir: ${C_YELLOW}$build_dir${C_RESET}"
+    fi
   else
     echo "${C_YELLOW}No configuration found. Run 'cppconf' first.${C_RESET}"
   fi
 
-  if [ -f "build/CMakeCache.txt" ]; then
+  local active_build_dir
+  active_build_dir=$(_cp_get_active_build_dir 2>/dev/null || true)
+
+  if [ -n "$active_build_dir" ] && [ -f "$active_build_dir/CMakeCache.txt" ]; then
     local actual_compiler
-    actual_compiler=$(grep -E '^CMAKE_CXX_COMPILER:(FILEPATH|PATH|STRING)=' build/CMakeCache.txt | head -n1 | cut -d'=' -f2-)
+    actual_compiler=$(grep -E '^CMAKE_CXX_COMPILER:(FILEPATH|PATH|STRING)=' "$active_build_dir/CMakeCache.txt" | head -n1 | cut -d'=' -f2-)
     if [ -n "$actual_compiler" ]; then
       echo "  Actual Path: ${C_GREEN}$actual_compiler${C_RESET}"
     else
@@ -81,7 +87,7 @@ function cppinfo() {
     fi
 
     # Check for LTO support.
-    if grep -q "INTERPROCEDURAL_OPTIMIZATION.*TRUE" build/CMakeCache.txt 2>/dev/null; then
+    if grep -q "INTERPROCEDURAL_OPTIMIZATION.*TRUE" "$active_build_dir/CMakeCache.txt" 2>/dev/null; then
       echo "  ${C_GREEN}LTO: Enabled${C_RESET}"
     fi
   fi

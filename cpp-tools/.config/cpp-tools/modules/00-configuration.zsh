@@ -173,15 +173,94 @@ _resolve_target_source() {
 }
 
 # -----------------------------------------------------------------------------
+# _cp_build_type_key
+# -----------------------------------------------------------------------------
+# Normalize build type label to path key (debug/release/sanitize).
+# -----------------------------------------------------------------------------
+_cp_build_type_key() {
+  local raw="${1:l}"
+  case "$raw" in
+    debug) echo "debug" ;;
+    release) echo "release" ;;
+    sanitize) echo "sanitize" ;;
+    *) return 1 ;;
+  esac
+}
+
+# -----------------------------------------------------------------------------
+# _cp_profile_build_dir
+# -----------------------------------------------------------------------------
+# Compose compiler/profile-specific build directory path.
+# -----------------------------------------------------------------------------
+_cp_profile_build_dir() {
+  local compiler_key="${1:l}"
+  local build_key="${2:l}"
+  echo "build/${compiler_key}/${build_key}"
+}
+
+# -----------------------------------------------------------------------------
+# _cp_set_active_build_dir
+# -----------------------------------------------------------------------------
+# Persist currently active build directory for other workflows.
+# -----------------------------------------------------------------------------
+_cp_set_active_build_dir() {
+  local build_dir="$1"
+  mkdir -p .statistics
+  printf '%s\n' "$build_dir" > .statistics/active_build_dir
+}
+
+# -----------------------------------------------------------------------------
+# _cp_get_active_build_dir
+# -----------------------------------------------------------------------------
+# Resolve active build directory from metadata with safe fallbacks.
+# -----------------------------------------------------------------------------
+_cp_get_active_build_dir() {
+  local active_file=".statistics/active_build_dir"
+  local active_dir=""
+
+  if [ -f "$active_file" ]; then
+    active_dir=$(head -n 1 "$active_file" | tr -d '\r')
+    if [ -n "$active_dir" ] && [ -f "$active_dir/CMakeCache.txt" ]; then
+      echo "$active_dir"
+      return 0
+    fi
+  fi
+
+  if [ -f "build/CMakeCache.txt" ]; then
+    echo "build"
+    return 0
+  fi
+
+  local fallback_dir
+  for fallback_dir in \
+    build/gcc/debug build/gcc/release build/gcc/sanitize \
+    build/clang/debug build/clang/release build/clang/sanitize
+  do
+    if [ -f "$fallback_dir/CMakeCache.txt" ]; then
+      echo "$fallback_dir"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+# -----------------------------------------------------------------------------
 # _check_initialized
 # -----------------------------------------------------------------------------
-# Verify CMakeLists.txt and build directory exist for a project.
+# Verify the project was initialized and at least one configured build exists.
 # -----------------------------------------------------------------------------
 _check_initialized() {
-  if [ ! -f "CMakeLists.txt" ] || [ ! -d "build" ]; then
+  if [ ! -f "CMakeLists.txt" ]; then
     echo "${C_RED}Error: Project is not initialized. Please run 'cppinit' first.${C_RESET}" >&2
     return 1
   fi
+
+  if ! _cp_get_active_build_dir >/dev/null 2>&1; then
+    echo "${C_RED}Error: No configured build profile found. Run 'cppconf' first.${C_RESET}" >&2
+    return 1
+  fi
+
   return 0
 }
 
