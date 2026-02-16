@@ -50,17 +50,19 @@ PY
 # -----------------------------------------------------------------------------
 # _cp_setup_vscode_configs
 # -----------------------------------------------------------------------------
-# Set up VS Code configuration files by linking to centralized shared files.
-# Keeps existing local files untouched to avoid clobbering user customizations.
+# Set up VS Code configuration by linking to centralized shared entries.
+# Prefers a single .vscode directory symlink on fresh workspaces; falls back to
+# per-entry linking when a local .vscode directory already exists.
 # -----------------------------------------------------------------------------
 _cp_setup_vscode_configs() {
   local vscode_dest_dir=".vscode"
   local master_vscode_dir="$CP_ALGORITHMS_DIR/.vscode"
-  local -a vscode_files=(
+  local -a vscode_entries=(
     "settings.json"
     "tasks.json"
     "launch.json"
     "c_cpp_properties.json"
+    "scripts"
   )
 
   if [ -z "$CP_ALGORITHMS_DIR" ] || [ ! -d "$master_vscode_dir" ]; then
@@ -68,29 +70,45 @@ _cp_setup_vscode_configs() {
     return 0
   fi
 
-  mkdir -p "$vscode_dest_dir"
+  # Fresh workspace: link the whole .vscode directory for full parity.
+  if [ ! -e "$vscode_dest_dir" ] && [ ! -L "$vscode_dest_dir" ]; then
+    _cp_link_relative_or_absolute "$master_vscode_dir" "$vscode_dest_dir"
+    echo "Created centralized VS Code directory symlink: $vscode_dest_dir -> $master_vscode_dir"
+    return 0
+  fi
 
-  local file_name central_file dest_file
-  for file_name in "${vscode_files[@]}"; do
-    central_file="$master_vscode_dir/$file_name"
-    dest_file="$vscode_dest_dir/$file_name"
+  if [ -L "$vscode_dest_dir" ]; then
+    echo "VS Code directory already linked: $vscode_dest_dir"
+    return 0
+  fi
 
-    if [ ! -f "$central_file" ]; then
-      echo "${C_YELLOW}Warning: Missing central VS Code file '$central_file'.${C_RESET}"
+  if [ ! -d "$vscode_dest_dir" ]; then
+    echo "${C_YELLOW}Warning: '$vscode_dest_dir' exists but is not a directory/symlink. Skipping VS Code setup.${C_RESET}"
+    return 0
+  fi
+
+  # Legacy/local .vscode directory: ensure required files and scripts are linked.
+  local entry_name central_entry dest_entry
+  for entry_name in "${vscode_entries[@]}"; do
+    central_entry="$master_vscode_dir/$entry_name"
+    dest_entry="$vscode_dest_dir/$entry_name"
+
+    if [ ! -e "$central_entry" ] && [ ! -L "$central_entry" ]; then
+      echo "${C_YELLOW}Warning: Missing central VS Code entry '$central_entry'.${C_RESET}"
       continue
     fi
 
-    if [ -e "$dest_file" ] || [ -L "$dest_file" ]; then
-      if [ -L "$dest_file" ]; then
-        echo "VS Code config already linked: $dest_file"
+    if [ -e "$dest_entry" ] || [ -L "$dest_entry" ]; then
+      if [ -L "$dest_entry" ]; then
+        echo "VS Code config already linked: $dest_entry"
       else
-        echo "${C_YELLOW}VS Code config exists and was not replaced: $dest_file${C_RESET}"
+        echo "${C_YELLOW}VS Code config exists and was not replaced: $dest_entry${C_RESET}"
       fi
       continue
     fi
 
-    _cp_link_relative_or_absolute "$central_file" "$dest_file"
-    echo "Created VS Code config symlink: $dest_file -> $central_file"
+    _cp_link_relative_or_absolute "$central_entry" "$dest_entry"
+    echo "Created VS Code config symlink: $dest_entry -> $central_entry"
   done
 }
 
