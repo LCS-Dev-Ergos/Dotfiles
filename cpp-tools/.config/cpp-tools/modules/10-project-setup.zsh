@@ -48,6 +48,53 @@ PY
 }
 
 # -----------------------------------------------------------------------------
+# _cp_setup_vscode_configs
+# -----------------------------------------------------------------------------
+# Set up VS Code configuration files by linking to centralized shared files.
+# Keeps existing local files untouched to avoid clobbering user customizations.
+# -----------------------------------------------------------------------------
+_cp_setup_vscode_configs() {
+  local vscode_dest_dir=".vscode"
+  local master_vscode_dir="$CP_ALGORITHMS_DIR/.vscode"
+  local -a vscode_files=(
+    "settings.json"
+    "tasks.json"
+    "launch.json"
+    "c_cpp_properties.json"
+  )
+
+  if [ -z "$CP_ALGORITHMS_DIR" ] || [ ! -d "$master_vscode_dir" ]; then
+    echo "${C_YELLOW}Warning: Central VS Code config directory not found at '$master_vscode_dir'. Skipping VS Code setup.${C_RESET}"
+    return 0
+  fi
+
+  mkdir -p "$vscode_dest_dir"
+
+  local file_name central_file dest_file
+  for file_name in "${vscode_files[@]}"; do
+    central_file="$master_vscode_dir/$file_name"
+    dest_file="$vscode_dest_dir/$file_name"
+
+    if [ ! -f "$central_file" ]; then
+      echo "${C_YELLOW}Warning: Missing central VS Code file '$central_file'.${C_RESET}"
+      continue
+    fi
+
+    if [ -e "$dest_file" ] || [ -L "$dest_file" ]; then
+      if [ -L "$dest_file" ]; then
+        echo "VS Code config already linked: $dest_file"
+      else
+        echo "${C_YELLOW}VS Code config exists and was not replaced: $dest_file${C_RESET}"
+      fi
+      continue
+    fi
+
+    _cp_link_relative_or_absolute "$central_file" "$dest_file"
+    echo "Created VS Code config symlink: $dest_file -> $central_file"
+  done
+}
+
+# -----------------------------------------------------------------------------
 # cppinit
 # -----------------------------------------------------------------------------
 # Initialize or verify a competitive programming project directory.
@@ -251,26 +298,8 @@ EOF
     fi
   fi
 
-  # Set up VS Code configurations if templates are available.
-  local vscode_tpl_dir="$SCRIPT_DIR/templates/vscode"
-  local vscode_dest_dir=".vscode"
-
-  if [ -d "$vscode_tpl_dir" ]; then
-    if [ ! -d "$vscode_dest_dir" ]; then
-      echo "Setting up VS Code configurations..."
-      mkdir -p "$vscode_dest_dir"
-
-      # Loop through all available templates and copy them.
-      for template in "$vscode_tpl_dir"/*.json; do
-        if [ -f "$template" ]; then
-          cp "$template" "$vscode_dest_dir/"
-          echo "  -> Copied template: $(basename "$template")"
-        fi
-      done
-    else
-      echo "VS Code directory already exists. Skipping VS Code setup."
-    fi
-  fi
+  # Set up VS Code configuration links from centralized shared files.
+  _cp_setup_vscode_configs
 
   # Create a basic configuration. This will create the build directory.
   if ! cppconf; then
