@@ -101,12 +101,15 @@ _cp_setup_vscode_configs() {
 # -----------------------------------------------------------------------------
 _cp_select_clangd_profile() {
   local clangd_dir="$CP_ALGORITHMS_DIR/clangd"
-  if [[ "$OSTYPE" == "darwin"* ]]; then
+  local uname_s
+  uname_s=$(uname -s 2>/dev/null || true)
+
+  if [[ "$OSTYPE" == "darwin"* ]] || [ "$uname_s" = "Darwin" ]; then
     echo "$clangd_dir/clangd.macos"
-  elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+  elif [[ "$OSTYPE" == "linux"* ]] || [ "$uname_s" = "Linux" ]; then
     echo "$clangd_dir/clangd.linux"
   else
-    echo "$clangd_dir/clangd.macos"
+    echo "$clangd_dir/clangd.linux"
   fi
 }
 
@@ -114,7 +117,7 @@ _cp_select_clangd_profile() {
 # _cp_setup_clangd_config
 # -----------------------------------------------------------------------------
 # Configure .ide-configs/clangd as a symlink to central OS-specific profile.
-# Keeps explicit local files untouched to avoid clobbering user overrides.
+# Migrates legacy copied profiles and keeps explicit custom files untouched.
 # -----------------------------------------------------------------------------
 _cp_setup_clangd_config() {
   local selected_profile
@@ -126,9 +129,17 @@ _cp_setup_clangd_config() {
   fi
 
   local clangd_dest=".ide-configs/clangd"
+  local linux_profile="$CP_ALGORITHMS_DIR/clangd/clangd.linux"
+  local macos_profile="$CP_ALGORITHMS_DIR/clangd/clangd.macos"
+
   if [ -e "$clangd_dest" ] && [ ! -L "$clangd_dest" ]; then
-    echo "${C_YELLOW}Warning: Local clangd config exists and was not replaced: $clangd_dest${C_RESET}"
-    return 0
+    if cmp -s "$clangd_dest" "$linux_profile" 2>/dev/null || cmp -s "$clangd_dest" "$macos_profile" 2>/dev/null; then
+      rm -f -- "$clangd_dest"
+      echo "Migrated legacy local clangd config to centralized symlink."
+    else
+      echo "${C_YELLOW}Warning: Local clangd config exists and was not replaced: $clangd_dest${C_RESET}"
+      return 0
+    fi
   fi
 
   if [ -L "$clangd_dest" ]; then
@@ -956,6 +967,14 @@ function cppconf() {
     return 1
   }
   toolchain_file="$resolved_toolchain_file"
+
+  # Keep clangd profile aligned with current host OS also during plain cppconf.
+  mkdir -p .ide-configs
+  if ! _cp_setup_clangd_config; then
+    echo "${C_RED}Error: Failed to configure centralized clangd profile.${C_RESET}" >&2
+    return 1
+  fi
+  ln -sf .ide-configs/clangd .clangd
 
   local rebuild_reason
   rebuild_reason=$(_cppconf_rebuild_reason_for_toolchain "$toolchain_file") || true
