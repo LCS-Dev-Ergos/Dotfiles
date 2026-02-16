@@ -95,6 +95,80 @@ _cp_setup_vscode_configs() {
 }
 
 # -----------------------------------------------------------------------------
+# _cp_select_clangd_profile
+# -----------------------------------------------------------------------------
+# Return the central clangd profile path selected for the current OS.
+# -----------------------------------------------------------------------------
+_cp_select_clangd_profile() {
+  local clangd_dir="$CP_ALGORITHMS_DIR/clangd"
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    echo "$clangd_dir/clangd.macos"
+  elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    echo "$clangd_dir/clangd.linux"
+  else
+    echo "$clangd_dir/clangd.macos"
+  fi
+}
+
+# -----------------------------------------------------------------------------
+# _cp_setup_clangd_config
+# -----------------------------------------------------------------------------
+# Configure .ide-configs/clangd as a symlink to central OS-specific profile.
+# Keeps explicit local files untouched to avoid clobbering user overrides.
+# -----------------------------------------------------------------------------
+_cp_setup_clangd_config() {
+  local selected_profile
+  selected_profile="$(_cp_select_clangd_profile)"
+
+  if [ ! -f "$selected_profile" ]; then
+    echo "${C_RED}Error: Missing centralized clangd profile '$selected_profile'.${C_RESET}" >&2
+    return 1
+  fi
+
+  local clangd_dest=".ide-configs/clangd"
+  if [ -e "$clangd_dest" ] && [ ! -L "$clangd_dest" ]; then
+    echo "${C_YELLOW}Warning: Local clangd config exists and was not replaced: $clangd_dest${C_RESET}"
+    return 0
+  fi
+
+  if [ -L "$clangd_dest" ]; then
+    rm -f -- "$clangd_dest"
+  fi
+
+  _cp_link_relative_or_absolute "$selected_profile" "$clangd_dest"
+  echo "Configured .clangd profile from centralized source: $selected_profile"
+}
+
+# -----------------------------------------------------------------------------
+# _cp_problem_template_file
+# -----------------------------------------------------------------------------
+# Resolve centralized C++ problem template path for the requested template type.
+# -----------------------------------------------------------------------------
+_cp_problem_template_file() {
+  local template_type="${1:-base}"
+  local templates_dir="$CP_ALGORITHMS_DIR/templates/cpp"
+
+  if [ -z "$CP_ALGORITHMS_DIR" ] || [ ! -d "$templates_dir" ]; then
+    return 1
+  fi
+
+  case "$template_type" in
+    "pbds")
+      echo "$templates_dir/pbds.cpp"
+      ;;
+    "default")
+      echo "$templates_dir/default.cpp"
+      ;;
+    "advanced")
+      echo "$templates_dir/advanced.cpp"
+      ;;
+    *)
+      echo "$templates_dir/base.cpp"
+      ;;
+  esac
+}
+
+# -----------------------------------------------------------------------------
 # cppinit
 # -----------------------------------------------------------------------------
 # Initialize or verify a competitive programming project directory.
@@ -109,9 +183,9 @@ function cppinit() {
 
   echo "${C_CYAN}Initializing Competitive Programming environment...${C_RESET}"
 
-  # Check for script directory, essential for finding templates.
-  if [ -z "$SCRIPT_DIR" ] || [ ! -d "$SCRIPT_DIR/templates" ]; then
-    echo "${C_RED}Error: SCRIPT_DIR is not set or templates directory is missing.${C_RESET}" >&2
+  # Centralized setup requires a valid Algorithms root.
+  if [ -z "$CP_ALGORITHMS_DIR" ] || [ ! -d "$CP_ALGORITHMS_DIR" ]; then
+    echo "${C_RED}Error: CP_ALGORITHMS_DIR is not set or is invalid.${C_RESET}" >&2
     return 1
   fi
 
@@ -169,19 +243,9 @@ EOF
     fi
   fi
 
-  # Create .clangd configuration in .ide-configs directory if it doesn't exist.
-  if [ ! -f ".ide-configs/clangd" ]; then
-    echo "Creating .clangd configuration from template..."
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-      # macOS template.
-      cp "$SCRIPT_DIR/templates/.clangd.tpl" ./.ide-configs/clangd
-    elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-      # Linux template.
-      cp "$SCRIPT_DIR/templates/.clangd-linux.tpl" ./.ide-configs/clangd
-    else
-      # Fallback to macOS template for other platforms.
-      cp "$SCRIPT_DIR/templates/.clangd.tpl" ./.ide-configs/clangd
-    fi
+  # Configure centralized OS-specific clangd profile.
+  if ! _cp_setup_clangd_config; then
+    return 1
   fi
 
   # Create .gitignore if it doesn't exist.
@@ -278,9 +342,6 @@ EOF
     if [ -n "$CP_ALGORITHMS_DIR" ] && [ -f "$master_pch_header" ]; then
       _cp_link_relative_or_absolute "$master_pch_header" "algorithms/PCH.h"
       echo "Created symlink to global PCH.h (for Clang builds)."
-    elif [ -f "$SCRIPT_DIR/templates/cpp/PCH.h" ]; then
-      cp "$SCRIPT_DIR/templates/cpp/PCH.h" "algorithms/PCH.h"
-      echo "Copied PCH.h template for Clang builds."
     else
       echo "${C_YELLOW}Warning: PCH.h not found. Clang builds may not work properly.${C_RESET}"
     fi
@@ -290,9 +351,6 @@ EOF
     if [ -n "$CP_ALGORITHMS_DIR" ] && [ -f "$master_pch_wrapper" ]; then
       _cp_link_relative_or_absolute "$master_pch_wrapper" "algorithms/PCH_Wrapper.h"
       echo "Created symlink to global PCH_Wrapper.h."
-    elif [ -f "$SCRIPT_DIR/templates/cpp/PCH_Wrapper.h" ]; then
-      cp "$SCRIPT_DIR/templates/cpp/PCH_Wrapper.h" "algorithms/PCH_Wrapper.h"
-      echo "Copied PCH_Wrapper.h template."
     else
       echo "${C_YELLOW}Warning: PCH_Wrapper.h not found. Some builds may not work properly.${C_RESET}"
     fi
@@ -345,21 +403,11 @@ function cppnew() {
     return 1
   fi
 
-  # Determine the template file based on the type.
-  case $template_type in
-    "pbds")
-      template_file="$SCRIPT_DIR/templates/cpp/pbds.cpp"
-      ;;
-    "default")
-      template_file="$SCRIPT_DIR/templates/cpp/default.cpp"
-      ;;
-    "advanced")
-      template_file="$SCRIPT_DIR/templates/cpp/advanced.cpp"
-      ;;
-    *) # Base template.
-      template_file="$SCRIPT_DIR/templates/cpp/base.cpp"
-      ;;
-  esac
+  # Resolve centralized template path based on requested type.
+  template_file="$(_cp_problem_template_file "$template_type")" || {
+    echo "${C_RED}Error: Centralized template directory not found at '$CP_ALGORITHMS_DIR/templates/cpp'.${C_RESET}" >&2
+    return 1
+  }
 
   if [ ! -f "$template_file" ]; then
     echo "${C_RED}Error: Template file '$template_file' not found.${C_RESET}" >&2
