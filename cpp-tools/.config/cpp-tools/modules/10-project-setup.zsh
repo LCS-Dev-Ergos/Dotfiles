@@ -257,7 +257,6 @@ bin/
 lib/
 algorithms/
 not_passed/
-!.vscode/
 .idea/
 .cache/*
 .ide-configs/
