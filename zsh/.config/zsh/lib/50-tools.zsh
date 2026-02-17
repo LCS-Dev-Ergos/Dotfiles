@@ -229,6 +229,53 @@ fi
 # --------- Bat (better cat) --------- #
 export BAT_THEME=tokyonight_night
 
+# ================================ MAN PAGES ================================= #
+
+# Colored man pages: bat > most > less with ANSI colors.
+if command -v bat >/dev/null 2>&1; then
+  export MANPAGER="sh -c 'col -bx | bat -l man -p'"
+  export MANROFFOPT="-c"
+elif command -v most >/dev/null 2>&1; then
+  export MANPAGER="most"
+else
+  export LESS_TERMCAP_mb=$'\e[1;32m'
+  export LESS_TERMCAP_md=$'\e[1;34m'
+  export LESS_TERMCAP_me=$'\e[0m'
+  export LESS_TERMCAP_se=$'\e[0m'
+  export LESS_TERMCAP_so=$'\e[1;33m'
+  export LESS_TERMCAP_ue=$'\e[0m'
+  export LESS_TERMCAP_us=$'\e[1;4;35m'
+fi
+
+# -----------------------------------------------------------------------------
+# hlp — tries tldr first, falls back to man.
+# Usage: hlp <command>
+# -----------------------------------------------------------------------------
+hlp() {
+  if (( $# == 0 )); then
+    echo "Usage: hlp <command>" >&2
+    return 1
+  fi
+
+  local cmd="$1"
+  shift
+
+  # Try tldr first for concise examples; if it fails, fall back to man.
+  if command -v tldr >/dev/null 2>&1 && tldr "$cmd" "$@" 2>/dev/null; then
+    return 0
+  fi
+
+  if command -v man >/dev/null 2>&1; then
+    man "$cmd" "$@"
+    return $?
+  fi
+
+  echo "Neither tldr nor man available for: $cmd" >&2
+  return 1
+}
+
+alias h='hlp'
+
 # ================================ YABAI TOOLS =============================== #
 
 # -----------------------------------------------------------------------------#
