@@ -219,7 +219,6 @@ function _offer_clipboard_copy() {
   echo ""
   printf "Copy to %s? [y/N]: " "$clipboard_name"
   read -r REPLY || return 0
-  echo
   if [[ $REPLY =~ ^[Yy]$ ]]; then
     if "${clipboard_cmd[@]}" < "$file"; then
       echo -e "${C_GREEN}✓ Copied to $clipboard_name${C_RESET}"
@@ -385,8 +384,7 @@ function cppfull() {
   echo -e "${C_BLUE}╚═══──────────────────────────────────────────═══╝${C_RESET}"
 
   # Step 1: Development version test.
-  echo ""
-  echo -e "${C_CYAN}[1/3] Testing development version...${C_RESET}"
+  echo -e "\n${C_CYAN}[1/3] Testing development version...${C_RESET}"
   if ! cppgo "$target_name" "$input_name"; then
     echo -e "${C_RED}✗ Development version failed${C_RESET}" >&2
     return 1
@@ -394,16 +392,14 @@ function cppfull() {
   echo -e "${C_GREEN}✓ Development test passed${C_RESET}"
 
   # Step 2: Generate submission.
-  echo ""
-  echo -e "${C_CYAN}[2/3] Generating submission...${C_RESET}"
+  echo -e "\n${C_CYAN}[2/3] Generating submission...${C_RESET}"
   if ! cppsubmit "$target_name"; then
     echo -e "${C_RED}✗ Submission generation failed${C_RESET}" >&2
     return 1
   fi
 
   # Step 3: Test submission.
-  echo ""
-  echo -e "${C_CYAN}[3/3] Testing submission...${C_RESET}"
+  echo -e "\n${C_CYAN}[3/3] Testing submission...${C_RESET}"
   if ! cpptestsubmit --no-generate "$target_name" "$input_name"; then
     echo -e "${C_RED}✗ Submission test failed${C_RESET}" >&2
     return 1
