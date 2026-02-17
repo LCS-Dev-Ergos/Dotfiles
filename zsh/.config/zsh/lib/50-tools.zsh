@@ -28,7 +28,7 @@
 #
 # ============================================================================ #
 
-# ================================== ATUIN =================================== #
+# ++++++++++++++++++++++++++++++++++ ATUIN +++++++++++++++++++++++++++++++++++ #
 
 # Initialize Atuin (Magical Shell History).
 if command -v atuin >/dev/null 2>&1; then
@@ -48,7 +48,7 @@ if command -v atuin >/dev/null 2>&1; then
   fi
 fi
 
-# =================================== YAZI =================================== #
+# +++++++++++++++++++++++++++++++++++ YAZI +++++++++++++++++++++++++++++++++++ #
 
 # -----------------------------------------------------------------------------
 # y
@@ -62,16 +62,16 @@ fi
 function y() {
   local tmp cwd
   tmp="$(mktemp -t "yazi-cwd.XXXXXX")" || return 1
-  # Ensure cleanup on exit, interrupt, or error.
-  trap "rm -f -- ${(q)tmp}" EXIT INT TERM HUP
-  yazi "$@" --cwd-file="$tmp"
-  IFS= read -r -d '' cwd <"$tmp"
-  [[ -n "$cwd" && "$cwd" != "$PWD" ]] && builtin cd -- "$cwd"
-  trap - EXIT INT TERM HUP
-  rm -f -- "$tmp"
+  {
+    yazi "$@" --cwd-file="$tmp"
+    IFS= read -r -d '' cwd <"$tmp"
+    [[ -n "$cwd" && "$cwd" != "$PWD" ]] && builtin cd -- "$cwd"
+  } always {
+    rm -f -- "$tmp"
+  }
 }
 
-# ============================ LAZY-LOADED TOOLS ============================= #
+# ++++++++++++++++++++++++++++ LAZY-LOADED TOOLS +++++++++++++++++++++++++++++ #
 
 # -----------------------------------------------------------------------------
 # _tools_lazy_init
@@ -115,7 +115,7 @@ else
   add-zsh-hook precmd _tools_lazy_init
 fi
 
-# ============================ FZF CONFIGURATION ============================= #
+# ++++++++++++++++++++++++++++ FZF CONFIGURATION +++++++++++++++++++++++++++++ #
 
 # -----------------------------------------------------------------------------
 # _gen_fzf_default_opts
@@ -144,10 +144,13 @@ _gen_fzf_default_opts() {
   local color0E='#bb9af7' # purple
   local color0F='#cfc9c2' # grey/white
 
-  export FZF_DEFAULT_OPTS="$FZF_DEFAULT_OPTS""\
- --color=bg+:$color01,bg:$color00,spinner:$color0C,hl:$color0D""\
- --color=fg:$color04,header:$color0D,info:$color0A,pointer:$color0C""\
+  local color_opts="\
+ --color=bg+:$color01,bg:$color00,spinner:$color0C,hl:$color0D\
+ --color=fg:$color04,header:$color0D,info:$color0A,pointer:$color0C\
  --color=marker:$color0C,fg+:$color06,prompt:$color0A,hl+:$color0D"
+
+  # Strip any previous color opts to avoid accumulation on re-source.
+  export FZF_DEFAULT_OPTS="${FZF_DEFAULT_OPTS//${~color_opts}/}${color_opts}"
 }
 
 _gen_fzf_default_opts
@@ -184,7 +187,7 @@ _fzf_git_source() {
 
 if [[ "${ZSH_FAST_START:-}" == "1" ]]; then
   : # skip during fast start.
-elif [[ "${ZSH_DEFER_FZF_GIT:-1}" == "1" ]]; then
+elif [[ "${ZSH_DEFER_FZF_GIT:-1}" == "1" ]] && typeset -f _zsh_defer >/dev/null 2>&1; then
   _zsh_defer _fzf_git_source
 else
   _fzf_git_source
@@ -229,7 +232,7 @@ fi
 # --------- Bat (better cat) --------- #
 export BAT_THEME=tokyonight_night
 
-# ================================ MAN PAGES ================================= #
+# ++++++++++++++++++++++++++++++++ MAN PAGES +++++++++++++++++++++++++++++++++ #
 
 # Colored man pages: bat > most > less with ANSI colors.
 if command -v bat >/dev/null 2>&1; then
@@ -276,7 +279,7 @@ hlp() {
 
 alias h='hlp'
 
-# ================================ YABAI TOOLS =============================== #
+# +++++++++++++++++++++++++++++++ YABAI TOOLS ++++++++++++++++++++++++++++++++ #
 
 # -----------------------------------------------------------------------------#
 # yabai_windows_table
@@ -325,7 +328,7 @@ yabai_windows_table() {
   echo "$json"
 }
 
-# ================================= GHOSTTY ================================== #
+# +++++++++++++++++++++++++++++++++ GHOSTTY ++++++++++++++++++++++++++++++++++ #
 
 # Command alias (only needed on macOS where app bundle isn't in PATH).
 # On Linux (Arch), ghostty is typically installed via package manager and already in PATH.
@@ -364,7 +367,7 @@ if [[ "$TERM" == *ghostty* ]]; then
   unfunction _init_ghostty 2>/dev/null
 fi
 
-# =============================== ORBSTACK =================================== #
+# +++++++++++++++++++++++++++++++++ ORBSTACK +++++++++++++++++++++++++++++++++ #
 
 # -----------------------------------------------------------------------------#
 # _orbstack_init
@@ -389,7 +392,7 @@ if [[ -f "$HOME/.orbstack/shell/init.zsh" ]]; then
   fi
 fi
 
-# ================================== KITTY =================================== #
+# ++++++++++++++++++++++++++++++++++ KITTY +++++++++++++++++++++++++++++++++++ #
 
 # -----------------------------------------------------------------------------
 # kitty_save_session
@@ -522,9 +525,6 @@ kget() {
     return 1
   fi
 
-  local -a args=("$@")
-  local last="${args[-1]}"
-
   # Auto-add trailing slash for directory destinations.
   # Heuristic: if multiple files OR last arg has no extension, treat as directory.
   if (( $# > 1 )) && [[ "$last" != */ ]]; then
@@ -559,12 +559,14 @@ kput() {
   local -a files
   if (( $# == 0 )); then
     if command -v fzf >/dev/null 2>&1; then
+      local selection
       if command -v fd >/dev/null 2>&1; then
-        files=("${(@f)$(fd --type f --hidden --exclude .git | fzf --multi --prompt='upload> ')}")
+        selection="$(fd --type f --hidden --exclude .git | fzf --multi --prompt='upload> ')"
       else
-        files=("${(@f)$(find . -type f -not -path '*/.*' 2>/dev/null | fzf --multi --prompt='upload> ')}")
+        selection="$(find . -type f -not -path '*/.*' 2>/dev/null | fzf --multi --prompt='upload> ')"
       fi
-      (( ${#files[@]} == 0 )) && return 1
+      [[ -z "$selection" ]] && return 1
+      files=("${(@f)selection}")
     else
       echo "Usage: kput <local-file>... [remote-destination]" >&2
       return 1
