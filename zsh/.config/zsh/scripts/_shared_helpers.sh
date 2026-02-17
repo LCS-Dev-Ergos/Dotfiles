@@ -21,7 +21,6 @@
 
 # Idempotent guard: skip if already loaded.
 [[ -n "${_SHARED_HELPERS_LOADED:-}" ]] && return 0
-_SHARED_HELPERS_LOADED=1
 
 # ++++++++++++++++++++++++++++++ COLOR HANDLING ++++++++++++++++++++++++++++++ #
 
@@ -231,6 +230,10 @@ _shared_require_command() {
 _shared_confirm() {
   local prompt="${1:-Continue?}"
   local reply
+  if [[ ! -t 0 ]]; then
+    _shared_log error "Cannot prompt: stdin is not a terminal."
+    return 1
+  fi
   printf "%s%s [y/N]: %s" "$C_YELLOW" "$prompt" "$C_RESET"
   read -r reply
   case "$reply" in
@@ -238,6 +241,8 @@ _shared_confirm() {
     *) return 1 ;;
   esac
 }
+
+_SHARED_HELPERS_LOADED=1
 
 # ============================================================================ #
 # End of script.

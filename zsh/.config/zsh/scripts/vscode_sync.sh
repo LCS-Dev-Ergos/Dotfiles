@@ -42,6 +42,7 @@ _VSCODE_SYNC_ITEMS=(
 # manual Profile Export/Import to synchronize profiles across editions.
 
 _VSCODE_SYNC_BACKUP_DIR="${HOME}/.local/share/vscode-sync-backups"
+_VSCODE_SYNC_LOCK_DIR="${TMPDIR:-/tmp}/vscode_sync.lock"
 
 # ++++++++++++++++++++++++++ SHARED HELPERS LOADER +++++++++++++++++++++++++++ #
 
@@ -57,6 +58,40 @@ fi
 unset _vscode_sync_helpers_dir
 
 # +++++++++++++++++++++++++++++ HELPER UTILITIES +++++++++++++++++++++++++++++ #
+
+# -----------------------------------------------------------------------------
+# _vscode_sync_acquire_lock / _vscode_sync_release_lock
+# -----------------------------------------------------------------------------
+# Provides mutual exclusion for mutating operations (setup, remove).
+# Uses mkdir atomicity. Detects and reclaims stale locks from dead processes.
+#
+# Usage:
+#   _vscode_sync_acquire_lock   # returns 1 if another instance is running
+#   _vscode_sync_release_lock   # safe to call even if lock not held
+# -----------------------------------------------------------------------------
+_vscode_sync_acquire_lock() {
+  if mkdir "$_VSCODE_SYNC_LOCK_DIR" 2>/dev/null; then
+    printf "%s" "$$" > "$_VSCODE_SYNC_LOCK_DIR/pid"
+    return 0
+  fi
+  local lock_pid
+  lock_pid=$(cat "$_VSCODE_SYNC_LOCK_DIR/pid" 2>/dev/null)
+  if [[ -n "$lock_pid" ]] && kill -0 "$lock_pid" 2>/dev/null; then
+    _shared_log error "Another vscode_sync operation is running (PID: $lock_pid)."
+    return 1
+  fi
+  rm -rf "$_VSCODE_SYNC_LOCK_DIR"
+  if mkdir "$_VSCODE_SYNC_LOCK_DIR" 2>/dev/null; then
+    printf "%s" "$$" > "$_VSCODE_SYNC_LOCK_DIR/pid"
+    return 0
+  fi
+  _shared_log error "Failed to acquire lock."
+  return 1
+}
+
+_vscode_sync_release_lock() {
+  rm -rf "$_VSCODE_SYNC_LOCK_DIR" 2>/dev/null
+}
 
 # -----------------------------------------------------------------------------
 # _vscode_sync_check_platform
@@ -124,11 +159,11 @@ _vscode_sync_parse_item() {
 # -----------------------------------------------------------------------------
 _vscode_sync_check_vscode_running() {
   local running=0
-  if pgrep -qf "Visual Studio Code\.app" 2>/dev/null; then
+  if pgrep -qf "/Visual Studio Code\.app/Contents/MacOS/" 2>/dev/null; then
     _shared_log warn "VS Code Stable appears to be running."
     running=1
   fi
-  if pgrep -qf "Visual Studio Code - Insiders\.app" 2>/dev/null; then
+  if pgrep -qf "/Visual Studio Code - Insiders\.app/Contents/MacOS/" 2>/dev/null; then
     _shared_log warn "VS Code Insiders appears to be running."
     running=1
   fi
@@ -193,10 +228,10 @@ _vscode_sync_ensure_parent_dir() {
 _vscode_sync_backup_item() {
   local label="$1" target="$2"
   local timestamp
-  timestamp=$(date +%Y%m%d_%H%M%S)
+  timestamp="$(date +%Y%m%d_%H%M%S)_$$"
   local backup_dir="${_VSCODE_SYNC_BACKUP_DIR}/${timestamp}"
 
-  mkdir -p "$backup_dir" || {
+  mkdir -p -m 0700 "$backup_dir" || {
     _shared_log error "Failed to create backup directory: $backup_dir"
     return 1
   }
@@ -289,8 +324,11 @@ _vscode_sync_item_status() {
 #   - May create parent directories for Insiders config.
 # -----------------------------------------------------------------------------
 vscode_sync_setup() {
+  setopt localoptions localtraps
   _shared_init_colors
   _vscode_sync_check_platform || return 1
+  _vscode_sync_acquire_lock || return 1
+  trap '_vscode_sync_release_lock' EXIT
 
   printf "%s%s[+] VS Code Sync Setup (Stable -> Insiders)%s\n\n" "$C_BOLD" "$C_CYAN" "$C_RESET"
 
@@ -335,6 +373,14 @@ vscode_sync_setup() {
       source_missing)
         _shared_log warn "$_label: source not found ($_source), skipping."
         ((skipped++))
+        continue ;;
+    esac
+
+    case "$_target" in
+      "${HOME}"/*) ;;
+      *)
+        _shared_log error "$_label: target path outside HOME, skipping: $_target"
+        ((failed++))
         continue ;;
     esac
 
@@ -489,7 +535,7 @@ vscode_sync_check() {
         ((issues++)) ;;
     esac
 
-    if [[ -L "$_target" ]]; then
+    if [[ -L "$_target" ]] && command -v realpath >/dev/null 2>&1; then
       if ! realpath "$_target" >/dev/null 2>&1; then
         _shared_log error "    Possible circular symlink: $_target"
         ((issues++))
@@ -547,8 +593,11 @@ vscode_sync_check() {
 #   - Creates independent copies of configuration files.
 # -----------------------------------------------------------------------------
 vscode_sync_remove() {
+  setopt localoptions localtraps
   _shared_init_colors
   _vscode_sync_check_platform || return 1
+  _vscode_sync_acquire_lock || return 1
+  trap '_vscode_sync_release_lock' EXIT
 
   printf "%s%s[-] VS Code Sync Remove (Restore Independence)%s\n\n" "$C_BOLD" "$C_CYAN" "$C_RESET"
 

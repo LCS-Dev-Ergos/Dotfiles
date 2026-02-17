@@ -66,8 +66,10 @@ Usage:
 Arguments:
   extensions_dir       Path to VS Code extensions directory (required).
   strategy             newest | oldest | all (default: newest; all = newest alias).
+                       NOTE: 'oldest' removes only ONE oldest duplicate per
+                       group per run. Run multiple times to clean fully.
   dry_run              true | false (default: true).
-  debug                true | false (default: false).
+  debug                true | false (default: false). Enables verbose logging.
   respect_references   true | false (default: true).
 
 Examples:
@@ -75,6 +77,20 @@ Examples:
   vscode_extension_cleaner.sh "$HOME/.vscode/extensions" newest false
   vscode_extension_cleaner.sh "$HOME/.vscode/extensions" oldest true true false
 EOF
+}
+
+# -----------------------------------------------------------------------------
+# _vscode_ext_clean_dbg
+# -----------------------------------------------------------------------------
+# Emits a debug log line when debug mode is active.
+# The flag _vscode_ext_dbg is set by _vscode_ext_clean_run.
+#
+# Usage:
+#   _vscode_ext_clean_dbg "parsed core=%s version=%s" "$core" "$ver"
+# -----------------------------------------------------------------------------
+_vscode_ext_clean_dbg() {
+  [[ "${_vscode_ext_dbg:-false}" == "true" ]] || return 0
+  _shared_log info "[DBG] $*"
 }
 
 # -----------------------------------------------------------------------------
@@ -154,6 +170,12 @@ _vscode_ext_clean_parse_name() {
   if [[ "$folder_name" =~ ^(.*)-([0-9][0-9A-Za-z._+-]*)$ ]]; then
     _vscode_ext_clean_core_name="${match[1]}"
     _vscode_ext_clean_version="${match[2]}"
+    # Move platform suffix (e.g., -darwin-arm64) into core name so that
+    # different platform variants are never grouped as duplicates.
+    if [[ "$_vscode_ext_clean_version" =~ ^(.+)-(darwin|linux|win32|alpine)-(arm64|x64|ia32|armhf)$ ]]; then
+      _vscode_ext_clean_version="${match[1]}"
+      _vscode_ext_clean_core_name="${_vscode_ext_clean_core_name}-${match[2]}-${match[3]}"
+    fi
   fi
 }
 
@@ -271,12 +293,14 @@ _vscode_ext_clean_collect_reference_names() {
   if [[ -f "${extensions_dir}/extensions.json" ]]; then
     manifest_files+=("${extensions_dir}/extensions.json")
   fi
-  if [[ -f "${HOME}/.vscode/extensions/extensions.json" ]]; then
-    manifest_files+=("${HOME}/.vscode/extensions/extensions.json")
-  fi
-  if [[ -f "${HOME}/.vscode-insiders/extensions/extensions.json" ]]; then
-    manifest_files+=("${HOME}/.vscode-insiders/extensions/extensions.json")
-  fi
+  local _extra_manifest
+  for _extra_manifest in \
+    "${HOME}/.vscode/extensions/extensions.json" \
+    "${HOME}/.vscode-insiders/extensions/extensions.json"; do
+    if [[ -f "$_extra_manifest" && "$_extra_manifest" != "${extensions_dir}/extensions.json" ]]; then
+      manifest_files+=("$_extra_manifest")
+    fi
+  done
 
   for profile_root in \
     "${HOME}/Library/Application Support/Code/User/profiles" \
@@ -290,12 +314,20 @@ _vscode_ext_clean_collect_reference_names() {
     fi
   done
 
-  for manifest in "${manifest_files[@]}"; do
-    grep -oE '"relativeLocation":"[^"]+"' "$manifest" 2>/dev/null \
-      | sed -E 's/^"relativeLocation":"([^"]+)"$/\1/' >> "$output_file"
+  local _have_jq=false
+  command -v jq >/dev/null 2>&1 && _have_jq=true
 
-    grep -oE '"path":"[^"]+/extensions/[^"]+"' "$manifest" 2>/dev/null \
-      | sed -E 's#^"path":"[^"]+/extensions/([^"]+)"$#\1#' >> "$output_file"
+  for manifest in "${manifest_files[@]}"; do
+    if [[ "$_have_jq" == true ]]; then
+      jq -r '.[]? | .relativeLocation // empty' "$manifest" 2>/dev/null >> "$output_file"
+      jq -r '.[]? | .location?.path // empty' "$manifest" 2>/dev/null \
+        | sed -n 's#.*/extensions/##p' >> "$output_file"
+    else
+      grep -oE '"relativeLocation":"[^"]+"' "$manifest" 2>/dev/null \
+        | sed -E 's/^"relativeLocation":"([^"]+)"$/\1/' >> "$output_file"
+      grep -oE '"path":"[^"]+/extensions/[^"]+"' "$manifest" 2>/dev/null \
+        | sed -E 's#^"path":"[^"]+/extensions/([^"]+)"$#\1#' >> "$output_file"
+    fi
   done
 
   if [[ -s "$output_file" ]]; then
@@ -407,6 +439,8 @@ _vscode_ext_clean_run() {
     return 1
   fi
 
+  _vscode_ext_dbg="$debug"
+
   _shared_log info "Scanning VS Code extensions in: $folder_path"
   _shared_log info "Strategy: $strategy"
   if [[ "$dry_run" == "true" ]]; then
@@ -449,6 +483,7 @@ _vscode_ext_clean_run() {
     ext_core="$_vscode_ext_clean_core_name"
     ext_version="$_vscode_ext_clean_version"
     ext_mtime=$(_vscode_ext_clean_get_mtime "$ext_path" 2>/dev/null || printf "0")
+    _vscode_ext_clean_dbg "Parsed: ${ext_name} -> core=${ext_core}, version=${ext_version:-<none>}"
     printf "%s|%s|%s|%s|%s\n" "$ext_path" "$ext_name" "$ext_core" "$ext_version" "$ext_mtime" >> "$records_file"
   done < "$all_dirs_file"
 
@@ -513,6 +548,8 @@ _vscode_ext_clean_run() {
         newest_idx=$idx
       fi
     done
+
+    _vscode_ext_clean_dbg "Group '${core}': newest_idx=${newest_idx} (${group_names[newest_idx]})"
 
     local oldest_unreferenced_idx=-1
     for ((idx = 0; idx < group_count; idx++)); do
