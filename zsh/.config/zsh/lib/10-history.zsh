@@ -25,6 +25,7 @@
 
 # Definitions for history file and sizes.
 HISTFILE="${ZDOTDIR:-$HOME}/.zsh_history"
+[[ -f "$HISTFILE" ]] && chmod 600 "$HISTFILE" 2>/dev/null
 HISTSIZE=20000
 SAVEHIST=50000
 setopt BANG_HIST        # support !-style history expansion.

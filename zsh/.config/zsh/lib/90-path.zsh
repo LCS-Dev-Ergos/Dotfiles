@@ -49,7 +49,7 @@ zsh_rebuild_path() {
   cache_signature+="|${GEM_HOME}|${GOPATH}|${GOROOT}|${ANDROID_HOME}"
 
   local cache_ok=false
-  if [[ -r "$cache_file" && -O "$cache_file" ]]; then
+  if [[ -r "$cache_file" && -O "$cache_file" && ! -L "$cache_file" ]]; then
     cache_ok=true
   fi
 

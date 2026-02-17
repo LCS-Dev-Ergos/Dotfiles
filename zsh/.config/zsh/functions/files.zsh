@@ -282,8 +282,10 @@ function extract() {
     content=("${extract_dir}"/*(DNY2))
     if [[ ${#content} -eq 1 && -e "${content[1]}" ]]; then
       if [[ "${content[1]:t}" == "$extract_dir" ]]; then
-        local tmp_name==(:)
-        tmp_name="${tmp_name:t}"
+        local tmp_name="${extract_dir}.tmp.$$.$RANDOM"
+        while [[ -e "$tmp_name" ]]; do
+          tmp_name="${extract_dir}.tmp.$$.$RANDOM"
+        done
         command mv -- "${content[1]}" "$tmp_name" \
           && command rmdir -- "$extract_dir" \
           && command mv -- "$tmp_name" "$extract_dir"
@@ -453,10 +455,14 @@ function count() {
   # Initialize counters for different item types.
   local files=0 dirs=0 hidden=0 symlinks=0 total=0
 
-  # Retrieve file type information for all items in a single find traversal.
+  # Retrieve file type information for all items.
   # BSD find (macOS) doesn't support -printf, so we use a portable approach.
-  local item
-  while IFS= read -r item; do
+  local -a found_items hidden_items
+  local item find_status hidden_find_status
+
+  found_items=( "${(@f)$(find "$canonical_path" -mindepth 1 -maxdepth "$max_depth" 2>/dev/null)}" )
+  find_status=$?
+  for item in "${found_items[@]}"; do
     if [[ -L "$item" ]]; then
       ((symlinks++))
     elif [[ -f "$item" ]]; then
@@ -464,11 +470,16 @@ function count() {
     elif [[ -d "$item" ]]; then
       ((dirs++))
     fi
-  done < <(find "$canonical_path" -mindepth 1 -maxdepth "$max_depth" 2>/dev/null)
+  done
 
   # Count hidden items (names starting with dot).
-  hidden=$(find "$canonical_path" -mindepth 1 -maxdepth "$max_depth" \
-    -name '.*' 2>/dev/null | wc -l | tr -d ' ')
+  hidden_items=( "${(@f)$(find "$canonical_path" -mindepth 1 -maxdepth "$max_depth" -name '.*' 2>/dev/null)}" )
+  hidden_find_status=$?
+  hidden=${#hidden_items[@]}
+
+  if (( find_status != 0 || hidden_find_status != 0 )); then
+    echo "${C_YELLOW}Warning: some entries could not be scanned due to permissions.${C_RESET}" >&2
+  fi
 
   # Calculate total.
   total=$((files + dirs + symlinks))

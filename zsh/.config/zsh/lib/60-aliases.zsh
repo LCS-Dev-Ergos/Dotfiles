@@ -227,7 +227,7 @@ alias kedit='$EDITOR ~/.config/kitty/kitty.conf'
 #   stitle "My Title"
 # -----------------------------------------------------------------------------
 function stitle() {
-  echo -en "\e]2;$@\a"
+  print -Pn "\e]2;${(V)*}\a"
 }
 
 # +++++++++++++++++++++++++++ THEFUCK INTEGRATION ++++++++++++++++++++++++++++ #
@@ -249,14 +249,15 @@ function stitle() {
 if command -v thefuck >/dev/null 2>&1; then
   # Lazy load thefuck to save startup time.
   fuck() {
-    unset -f fuck
+    unfunction fuck 2>/dev/null
     eval "$(thefuck --alias 2>/dev/null)"
-    # The alias is now defined, invoke it.
-    eval "$functions[fuck]" "$@"
-    # Check if alias was created successfully.
+
+    # The alias is now defined, invoke it exactly once.
     if alias fuck >/dev/null 2>&1; then
-      # Invoke the alias.
-      PYTHONIOENCODING=utf-8 thefuck $(fc -ln -1 | tail -n 1) && fc -R
+      builtin eval "fuck ${(q)@}"
+    else
+      echo "${C_RED}Error: failed to initialize thefuck alias.${C_RESET}" >&2
+      return 1
     fi
   }
   alias fk=fuck
@@ -387,12 +388,18 @@ elif [[ "$PLATFORM" == 'Linux' ]]; then
       }
     fi
 
-    # Automatic detection of AUR helper.
-    if pacman -Qi yay &>/dev/null; then
-      aurhelper="yay"
-    elif pacman -Qi paru &>/dev/null; then
-      aurhelper="paru"
-    fi
+    # Detect available AUR helper.
+    _aur_helper() {
+      if pacman -Qi yay &>/dev/null; then
+        print -r -- "yay"
+        return 0
+      fi
+      if pacman -Qi paru &>/dev/null; then
+        print -r -- "paru"
+        return 0
+      fi
+      return 1
+    }
 
     # -------------------------------------------------------------------------
     # in
@@ -415,6 +422,8 @@ elif [[ "$PLATFORM" == 'Linux' ]]; then
       local -a inPkg=("$@")
       local -a arch=()
       local -a aur=()
+      local aurhelper="$(_aur_helper 2>/dev/null)"
+      local pkg
 
       for pkg in "${inPkg[@]}"; do
         if pacman -Si "${pkg}" &>/dev/null; then
@@ -434,14 +443,17 @@ elif [[ "$PLATFORM" == 'Linux' ]]; then
     }
 
     # Aliases for package management on Arch.
-    if [[ -n "$aurhelper" ]]; then
-      alias un='$aurhelper -Rns'
-      alias up='$aurhelper -Syu'
-      alias pl='$aurhelper -Qs'
-      alias pa='$aurhelper -Ss'
-      alias pc='$aurhelper -Sc'
-      alias po='pacman -Qtdq | $aurhelper -Rns -'
-    fi
+    () {
+      local aurhelper="$(_aur_helper 2>/dev/null)"
+      if [[ -n "$aurhelper" ]]; then
+        alias un="${aurhelper} -Rns"
+        alias up="${aurhelper} -Syu"
+        alias pl="${aurhelper} -Qs"
+        alias pa="${aurhelper} -Ss"
+        alias pc="${aurhelper} -Sc"
+        alias po="pacman -Qtdq | ${aurhelper} -Rns -"
+      fi
+    }
 
     # Note: eza aliases (ld, lt) moved to functions/aliases.zsh
 

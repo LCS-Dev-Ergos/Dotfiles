@@ -51,8 +51,13 @@ if [[ "$TERM_PROGRAM" == "vscode" ]]; then
     local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
     local cache_file="$cache_dir/vscode-shell-integration"
     local shell_integration=""
+    local cache_is_secure=false
 
-    if [[ -r "$cache_file" ]]; then
+    if [[ -r "$cache_file" && -O "$cache_file" && ! -L "$cache_file" ]]; then
+      cache_is_secure=true
+    fi
+
+    if $cache_is_secure; then
       IFS= read -r shell_integration < "$cache_file"
     fi
 
@@ -61,7 +66,10 @@ if [[ "$TERM_PROGRAM" == "vscode" ]]; then
         shell_integration="$(code --locate-shell-integration-path zsh 2>/dev/null)"
         if [[ -n "$shell_integration" && -f "$shell_integration" ]]; then
           command mkdir -p "$cache_dir" 2>/dev/null
-          print -r -- "$shell_integration" >| "$cache_file"
+          (
+            umask 077
+            print -r -- "$shell_integration" >| "$cache_file"
+          ) 2>/dev/null
         fi
       fi
     fi

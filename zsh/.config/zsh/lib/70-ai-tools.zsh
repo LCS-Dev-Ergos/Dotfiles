@@ -119,8 +119,9 @@ _fabric_lazy_init() {
 
     if [[ -n "$title" ]]; then
       # Sanitize title (security: prevent path traversal).
-      title="${title//\\/_}"
+      title="${title//[\/\\]/_}"
       title="${title//../_}"
+      title="${title//[[:cntrl:]]/}"
 
       local output_path="$FABRIC_OUTPUT_DIR/${date_stamp}-${title}.md"
 
@@ -142,8 +143,7 @@ _fabric_lazy_init() {
     fi
   }
 
-  # Build all pattern wrapper functions in a single eval (avoids N separate evals).
-  local eval_code=""
+  # Build pattern wrapper functions without eval.
   for pattern_file in "$fabric_patterns_dir"/*; do
     [[ ! -f "$pattern_file" ]] && continue
     typeset pattern_name="${pattern_file:t}"
@@ -154,9 +154,8 @@ _fabric_lazy_init() {
     # Remove any existing alias before creating function.
     unalias "$pattern_name" 2>/dev/null
 
-    eval_code+="function ${pattern_name}() { _fabric_run_pattern ${pattern_name} \"\$@\"; }; "
+    functions[$pattern_name]="_fabric_run_pattern $pattern_name \"\$@\""
   done
-  [[ -n "$eval_code" ]] && eval "$eval_code"
 }
 
 # Initialize Fabric functions unless in fast start mode.
@@ -209,7 +208,7 @@ fabric-list() {
 _zsh_source_opencode_env() {
   if typeset -f _zsh_is_secure_file >/dev/null 2>&1; then
     _zsh_is_secure_file "$HOME/.config/opencode/.env" && source "$HOME/.config/opencode/.env"
-  elif [[ -r "$HOME/.config/opencode/.env" ]]; then
+  elif [[ -r "$HOME/.config/opencode/.env" && -O "$HOME/.config/opencode/.env" && ! -L "$HOME/.config/opencode/.env" ]]; then
     source "$HOME/.config/opencode/.env"
   fi
   unfunction _zsh_source_opencode_env 2>/dev/null
@@ -232,7 +231,7 @@ _zsh_source_opencode_env() {
 _zsh_source_claude_env() {
   if typeset -f _zsh_is_secure_file >/dev/null 2>&1; then
     _zsh_is_secure_file "$HOME/.claude/.env" && source "$HOME/.claude/.env"
-  elif [[ -r "$HOME/.claude/.env" ]]; then
+  elif [[ -r "$HOME/.claude/.env" && -O "$HOME/.claude/.env" && ! -L "$HOME/.claude/.env" ]]; then
     source "$HOME/.claude/.env"
   fi
   unfunction _zsh_source_claude_env 2>/dev/null

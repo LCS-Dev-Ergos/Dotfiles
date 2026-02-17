@@ -67,8 +67,8 @@ function y() {
   yazi "$@" --cwd-file="$tmp"
   IFS= read -r -d '' cwd <"$tmp"
   [[ -n "$cwd" && "$cwd" != "$PWD" ]] && builtin cd -- "$cwd"
-  rm -f -- "$tmp"
   trap - EXIT INT TERM HUP
+  rm -f -- "$tmp"
 }
 
 # ============================ LAZY-LOADED TOOLS ============================= #
@@ -512,12 +512,11 @@ kput() {
   local -a files
   if (( $# == 0 )); then
     if command -v fzf >/dev/null 2>&1; then
-      # Use fd if available, otherwise find.
-      local finder="find . -type f -not -path '*/\.*' 2>/dev/null"
       if command -v fd >/dev/null 2>&1; then
-        finder="fd --type f --hidden --exclude .git"
+        files=("${(@f)$(fd --type f --hidden --exclude .git | fzf --multi --prompt='upload> ')}")
+      else
+        files=("${(@f)$(find . -type f -not -path '*/.*' 2>/dev/null | fzf --multi --prompt='upload> ')}")
       fi
-      files=("${(@f)$(eval "$finder" | fzf --multi --prompt='upload> ')}")
       (( ${#files[@]} == 0 )) && return 1
     else
       echo "Usage: kput <local-file>... [remote-destination]" >&2

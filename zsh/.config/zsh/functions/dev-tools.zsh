@@ -96,8 +96,7 @@ function sysinfo() {
     sw_vers
   elif [[ "$PLATFORM" == "Linux" ]]; then
     if [[ -f /etc/os-release ]]; then
-      . /etc/os-release
-      echo "  $NAME $VERSION"
+      (. /etc/os-release && echo "  $NAME $VERSION")
     fi
     uname -a
   fi

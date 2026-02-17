@@ -36,7 +36,9 @@ typeset -g ZINIT_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/zinit/zinit.git"
 if [[ ! -f "$ZINIT_HOME/zinit.zsh" ]]; then
   command mkdir -p "$ZINIT_HOME:h" 2>/dev/null
   if command -v git >/dev/null 2>&1; then
-    command git clone --depth=1 https://github.com/zdharma-continuum/zinit.git "$ZINIT_HOME" 2>/dev/null || :
+    if ! command git clone --depth=1 https://github.com/zdharma-continuum/zinit.git "$ZINIT_HOME" >/dev/null 2>&1; then
+      print -u2 "Warning: failed to clone zinit repository into $ZINIT_HOME"
+    fi
   fi
 fi
 

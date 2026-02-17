@@ -194,7 +194,8 @@ else
       fi
       # Method 3: Generic fallback by searching in "/usr/lib/jvm".
       if [[ -z "$found_java_home" ]] && [[ -d "/usr/lib/jvm" ]]; then
-        found_java_home=$(find /usr/lib/jvm -maxdepth 1 -type d -name "java-*-openjdk*" | sort -V | tail -n 1)
+        local -a jvm_dirs=(/usr/lib/jvm/java-*-openjdk*(N/On))
+        (( ${#jvm_dirs[@]} )) && found_java_home="${jvm_dirs[1]}"
       fi
       # Export variables only if we found a valid path.
       if [[ -n "$found_java_home" && -d "$found_java_home" ]]; then
@@ -212,8 +213,8 @@ else
       (
         umask 077
         {
-          echo "export JAVA_HOME='$JAVA_HOME'"
-          echo "export PATH='\$JAVA_HOME/bin:\$PATH'"
+          print -r -- "export JAVA_HOME=${(qq)JAVA_HOME}"
+          print -r -- 'export PATH="$JAVA_HOME/bin:$PATH"'
         } >| "$cache_file"
       )
     fi
@@ -331,12 +332,14 @@ fi
 
 # ------------ Perl CPAN ------------- #
 # Only run if the local::lib directory exists.
-local_perl_dir="$HOME/.perl5"
-if [[ -d "$local_perl_dir" ]]; then
-  if command -v perl >/dev/null 2>&1; then
-    eval "$(perl -I"$local_perl_dir/lib/perl5" -Mlocal::lib="$local_perl_dir")" 2>/dev/null
+() {
+  local local_perl_dir="$HOME/.perl5"
+  if [[ -d "$local_perl_dir" ]]; then
+    if command -v perl >/dev/null 2>&1; then
+      eval "$(perl -I"$local_perl_dir/lib/perl5" -Mlocal::lib="$local_perl_dir")" 2>/dev/null
+    fi
   fi
-fi
+}
 
 # -------------- rbenv --------------- #
 if [[ -d "$HOME/.rbenv" ]]; then

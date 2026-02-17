@@ -136,10 +136,20 @@ function portscan() {
     # -w 1: timeout 1 second
     nc -z -v -w 1 "$host" "$start_port"-"$end_port" 2>&1 | grep "succeeded" | sed "s/^/${C_GREEN}/;s/$/${C_RESET}/"
   else
-    # Fallback to pure bash/zsh method
-    for port in $(seq "$start_port" "$end_port"); do
-      (echo >/dev/tcp/"$host"/"$port") &>/dev/null && echo "${C_GREEN}Port $port: OPEN${C_RESET}"
-    done
+    # Fallback to zsh TCP module.
+    if zmodload zsh/net/tcp 2>/dev/null; then
+      local port fd
+      for ((port = start_port; port <= end_port; port++)); do
+        if ztcp "$host" "$port" >/dev/null 2>&1; then
+          fd="$REPLY"
+          ztcp -c "$fd" >/dev/null 2>&1 || :
+          echo "${C_GREEN}Port $port: OPEN${C_RESET}"
+        fi
+      done
+    else
+      echo "${C_RED}Error: netcat not found and zsh/net/tcp module unavailable.${C_RESET}" >&2
+      return 1
+    fi
   fi
 }
 
@@ -220,13 +230,8 @@ function serve() {
   fi
   # Python 2 (fallback).
   if command -v python &>/dev/null; then
-    if [[ "$public_mode" == true ]]; then
-      python -m SimpleHTTPServer "$port"
-    else
-      # Python 2 SimpleHTTPServer doesn't support --bind easily without a custom script.
-      echo "${C_YELLOW}Warning: Python 2 SimpleHTTPServer binds to all interfaces by default.${C_RESET}"
-      python -m SimpleHTTPServer "$port"
-    fi
+    echo "${C_YELLOW}Warning: Python 2 is deprecated and binds on all interfaces by default.${C_RESET}"
+    python -m SimpleHTTPServer "$port"
     return
   fi
 
@@ -294,7 +299,13 @@ function cheat() {
     echo "${C_YELLOW}Usage: cheat <command>${C_RESET}" >&2
     return 1
   fi
-  curl -s "https://cheat.sh/$1" | less -R
+  local query="$1"
+  if typeset -f omz_urlencode >/dev/null 2>&1; then
+    query="$(omz_urlencode "$query")"
+  else
+    query="${query// /+}"
+  fi
+  curl -s "https://cheat.sh/${query}" | less -R
 }
 
 # -----------------------------------------------------------------------------

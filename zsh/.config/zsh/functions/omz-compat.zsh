@@ -206,6 +206,10 @@ copypath() {
 # -----------------------------------------------------------------------------
 # colored-man-pages (adapted from OMZ plugin)
 # -----------------------------------------------------------------------------
+if (( ! ${+fg_bold} || ! ${+reset_color} || ! ${+bg} )); then
+  autoload -Uz colors && colors
+fi
+
 typeset -AHg less_termcap
 less_termcap[mb]="${fg_bold[red]}"
 less_termcap[md]="${fg_bold[red]}"

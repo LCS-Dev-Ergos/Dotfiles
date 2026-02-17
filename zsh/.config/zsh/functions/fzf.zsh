@@ -37,9 +37,15 @@ _fuzzy_change_directory() {
     fzf_options+=("--query=$initial_query")
   fi
 
-  selected_dir=$(find . -maxdepth $max_depth \
-    \( -name .git -o -name node_modules -o -name .venv -o -name target -o -name .cache \) -prune \
-    -o -type d -print 2>/dev/null | fzf "${fzf_options[@]}")
+  if command -v fd >/dev/null 2>&1; then
+    selected_dir=$(fd --type d --max-depth "$max_depth" --hidden \
+      --exclude .git --exclude node_modules --exclude .venv --exclude target --exclude .cache . \
+      2>/dev/null | fzf "${fzf_options[@]}")
+  else
+    selected_dir=$(find . -maxdepth $max_depth \
+      \( -name .git -o -name node_modules -o -name .venv -o -name target -o -name .cache \) -prune \
+      -o -type d -print 2>/dev/null | fzf "${fzf_options[@]}")
+  fi
 
   if [[ -n "$selected_dir" && -d "$selected_dir" ]]; then
     cd "$selected_dir" || return 1
@@ -66,7 +72,13 @@ _fuzzy_edit_search_file() {
     fzf_options+=("--query=$initial_query")
   fi
 
-  selected_file=$(find . -maxdepth $max_depth -type f 2>/dev/null | fzf "${fzf_options[@]}")
+  if command -v fd >/dev/null 2>&1; then
+    selected_file=$(fd --type f --max-depth "$max_depth" --hidden \
+      --exclude .git --exclude node_modules --exclude .venv --exclude target --exclude .cache . \
+      2>/dev/null | fzf "${fzf_options[@]}")
+  else
+    selected_file=$(find . -maxdepth $max_depth -type f 2>/dev/null | fzf "${fzf_options[@]}")
+  fi
 
   if [[ -n "$selected_file" && -f "$selected_file" ]]; then
     if command -v "$EDITOR" &>/dev/null; then
@@ -148,9 +160,9 @@ _fuzzy_search_cmd_history() {
 
   local fzf_query=""
   if [[ -n "$1" ]]; then
-    fzf_query="--query=${(qqq)1}"
+    fzf_query="--query=${(q)1}"
   else
-    fzf_query="--query=${(qqq)LBUFFER}"
+    fzf_query="--query=${(q)LBUFFER}"
   fi
 
   if zmodload -F zsh/parameter p:{commands,history} 2>/dev/null && (( ${+commands[perl]} )); then

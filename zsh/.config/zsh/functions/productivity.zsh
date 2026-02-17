@@ -173,7 +173,7 @@ function bm() {
         fi
 
         local dir
-        dir="$(command awk -F= -v key="$action" '$1 == key { $1 = ""; sub(/^=/, ""); print; exit }' "$bookmarks_file")"
+        dir="$(command awk -v key="$action" 'index($0, key "=") == 1 { print substr($0, length(key) + 2); exit }' "$bookmarks_file")"
         if [[ -n "$dir" ]]; then
           if builtin cd -- "$dir"; then
             echo "${C_GREEN}Jumped to bookmark '$action': $PWD${C_RESET}"
@@ -215,6 +215,7 @@ function cleanup() {
   setopt noxtrace noverbose nullglob
 
   local dry_run=false
+  local min_age_days="${CLEANUP_MIN_AGE_DAYS:-7}"
   case "${1:-}" in
     --dry-run) dry_run=true ;;
     "")
@@ -225,32 +226,48 @@ function cleanup() {
       ;;
   esac
 
-  echo "${C_CYAN}Cleaning temporary files...${C_RESET}"
+  if ! [[ "$min_age_days" =~ ^[0-9]+$ ]]; then
+    min_age_days=7
+  fi
 
-  local -a cleanup_roots=()
+  echo "${C_CYAN}Cleaning temporary files older than ${min_age_days} days...${C_RESET}"
+
+  local -a tmp_roots=()
+  local -a cache_roots=()
   local -a targets=()
-  local root
+  local root item
 
   # Add directories to clean based on platform.
   if [[ "$PLATFORM" == "macOS" ]]; then
-    cleanup_roots+=(
+    tmp_roots+=("/private/var/tmp")
+    cache_roots+=(
       "$HOME/Library/Caches"
       "$HOME/.Trash"
-      "/private/var/tmp"
     )
   fi
 
   # Common directories for all platforms.
-  cleanup_roots+=(
-    "/tmp"
+  tmp_roots+=("/tmp")
+  cache_roots+=(
     "$HOME/.cache"
     "$HOME/.npm/_cacache"
     "$HOME/.yarn/cache"
   )
 
-  for root in "${cleanup_roots[@]}"; do
+  # System temp roots: only user-owned entries, older than threshold.
+  for root in "${tmp_roots[@]}"; do
     [[ -d "$root" ]] || continue
-    targets+=( "$root"/*(DN) )
+    while IFS= read -r -d '' item; do
+      targets+=("$item")
+    done < <(find "$root" -mindepth 1 -maxdepth 1 -user "$USER" -mtime "+$min_age_days" -print0 2>/dev/null)
+  done
+
+  # User cache roots: only top-level entries older than threshold.
+  for root in "${cache_roots[@]}"; do
+    [[ -d "$root" ]] || continue
+    while IFS= read -r -d '' item; do
+      targets+=("$item")
+    done < <(find "$root" -mindepth 1 -maxdepth 1 -mtime "+$min_age_days" -print0 2>/dev/null)
   done
 
   if (( ${#targets[@]} == 0 )); then
