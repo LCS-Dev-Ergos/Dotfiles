@@ -177,6 +177,7 @@ if [[ "$HYDE_ENABLED" == "1" ]]; then
     source "$ZSH_CONFIG_DIR/lib/80-languages.zsh"
     source "$ZSH_CONFIG_DIR/lib/85-completions.zsh"
     source "$ZSH_CONFIG_DIR/lib/90-path.zsh"
+    [[ -f "$ZSH_CONFIG_DIR/lib/94-lazy-loader-core.zsh" ]] && source "$ZSH_CONFIG_DIR/lib/94-lazy-loader-core.zsh"
     [[ -f "$ZSH_CONFIG_DIR/lib/95-lazy-scripts.zsh" ]] && source "$ZSH_CONFIG_DIR/lib/95-lazy-scripts.zsh"
     [[ -f "$ZSH_CONFIG_DIR/lib/96-lazy-cpp-tools.zsh" ]] && source "$ZSH_CONFIG_DIR/lib/96-lazy-cpp-tools.zsh"
 
