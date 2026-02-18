@@ -41,7 +41,7 @@
           "type": "path",
           "style": "plain",
           "foreground": "p:terminal-magenta",
-          "properties": {
+          "options": {
             "style": "full"
           },
           "template": "<b>{{ .Path }}</b> <p:light-sky-blue>\u26a1</>"
@@ -57,7 +57,7 @@
             "{{ if gt .Behind 0 }}p:celeste-blue{{ end }}"
           ],
           "template": "({{ .HEAD }})",
-          "properties": {
+          "options": {
             "fetch_status": true,
             "branch_icon": "\ue725 "
           }
@@ -157,7 +157,7 @@
           "style": "plain",
           "foreground": "p:celeste-blue",
           "template": "{{ if .Context }}{{ if ne .Context \"orbstack\" }}{{ if ne .Context \"default\" }} \uFD31 {{ .Context }}{{ if .Namespace }} :: {{ .Namespace }}{{ end }}{{ end }}{{ end }}{{ end }}",
-          "properties": {
+          "options": {
             "display_error": false
           }
         },
@@ -166,16 +166,14 @@
           "style": "plain",
           "foreground": "p:light-sky-blue",
           "template": "{{ if .Context }}{{ if ne .Context \"orbstack\" }}{{ if ne .Context \"desktop-linux\" }} \uF308 {{ .Context }}{{ end }}{{ end }}{{ end }}",
-          "properties": {
-            "display_error": false
-          }
+          "options": {}
         },
         {
           "type": "executiontime",
           "style": "plain",
           "foreground": "p:terminal-yellow",
           "template": " \uF252 {{ .FormattedMs }}",
-          "properties": {
+          "options": {
             "threshold": 500,
             "style": "austin"
           }
@@ -191,7 +189,9 @@
           "type": "status",
           "style": "plain",
           "foreground": "p:pistachio-green",
-          "foreground_templates": ["{{ if gt .Code 0 }}p:terminal-red{{ end }}"],
+          "foreground_templates": [
+            "{{ if gt .Code 0 }}p:terminal-red{{ end }}"
+          ],
           "template": "{{ if gt .Code 0 }}\uF00D {{ .Code }} {{ end }}"
         },
         {
