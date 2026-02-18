@@ -4,15 +4,28 @@
 # ++++++++++++++++++++ VS CODE SYNC (Stable <-> Insiders) ++++++++++++++++++++ #
 # ============================================================================ #
 # Symlink-based synchronization of VS Code settings and extensions between
-# VS Code Stable and VS Code Insiders on macOS.
+# VS Code Stable and VS Code Insiders on macOS and Linux.
 #
 # This script manages:
-#  - Extensions directory (~/.vscode/extensions -> ~/.vscode-insiders/extensions)
+#  - Extensions (per-extension symlinks with exclusion list)
 #  - User settings (settings.json, keybindings.json, mcp.json)
-#  - Snippets and profiles directories
+#  - Snippets directories
 #  - Backup creation before destructive operations
 #  - Status reporting and health checks
 #  - Clean removal with content restoration
+#
+# Extension sync strategy:
+#  Per-extension symlinks replace the legacy single directory symlink. This
+#  allows platform-specific extensions (e.g. anthropic.claude-code-* with
+#  Mach-O arm64 binaries) and version-incompatible extensions (e.g.
+#  github.copilot-*) to be managed independently by each VS Code edition.
+#  Excluded extensions are not symlinked; VS Code handles them autonomously.
+#
+#  vscode_extension_cleaner canonical source: ~/.vscode/extensions (Stable).
+#  Optionally also run on ~/.vscode-insiders/extensions to clean excluded
+#  extensions managed independently by VS Code Insiders.
+#
+# Supported platforms: macOS, Linux
 #
 # Functions:
 #  vscode_sync_setup   - Create symlinks from Stable to Insiders
@@ -23,26 +36,6 @@
 # Author: XtremeXSPC
 # License: MIT
 # ============================================================================ #
-
-# ++++++++++++++++++++++++++++ SYNC CONFIGURATION ++++++++++++++++++++++++++++ #
-
-# Each entry: "label|source_path|target_path"
-# Source = VS Code Stable (canonical copy)
-# Target = VS Code Insiders (will become a symlink)
-_VSCODE_SYNC_ITEMS=(
-  "Extensions|${HOME}/.vscode/extensions|${HOME}/.vscode-insiders/extensions"
-  "Settings|${HOME}/Library/Application Support/Code/User/settings.json|${HOME}/Library/Application Support/Code - Insiders/User/settings.json"
-  "Keybindings|${HOME}/Library/Application Support/Code/User/keybindings.json|${HOME}/Library/Application Support/Code - Insiders/User/keybindings.json"
-  "Snippets|${HOME}/Library/Application Support/Code/User/snippets|${HOME}/Library/Application Support/Code - Insiders/User/snippets"
-  "MCP Config|${HOME}/Library/Application Support/Code/User/mcp.json|${HOME}/Library/Application Support/Code - Insiders/User/mcp.json"
-)
-# NOTE: VS Code profiles are NOT included here. Profile definitions and
-# extension-profile associations live in globalStorage/state.vscdb (SQLite),
-# not in the profiles/ directory. Use VS Code's built-in Settings Sync or
-# manual Profile Export/Import to synchronize profiles across editions.
-
-_VSCODE_SYNC_BACKUP_DIR="${HOME}/.local/share/vscode-sync-backups"
-_VSCODE_SYNC_LOCK_DIR="${TMPDIR:-/tmp}/vscode_sync.lock"
 
 # ++++++++++++++++++++++++++ SHARED HELPERS LOADER +++++++++++++++++++++++++++ #
 
@@ -56,6 +49,25 @@ else
   return 1 2>/dev/null || exit 1
 fi
 unset _vscode_sync_helpers_dir
+
+# ++++++++++++++++++++++++++ STATIC CONFIGURATION ++++++++++++++++++++++++++++ #
+
+# NOTE: VS Code profiles are NOT included in sync items. Profile definitions
+# live in globalStorage/state.vscdb (SQLite). Use VS Code's built-in Settings
+# Sync or manual Profile Export/Import to synchronize profiles across editions.
+
+_VSCODE_SYNC_BACKUP_DIR="${HOME}/.local/share/vscode-sync-backups"
+_VSCODE_SYNC_LOCK_DIR="${TMPDIR:-/tmp}/vscode_sync.lock"
+
+# Platform-aware config: populated by _vscode_sync_init_config at source time.
+_VSCODE_SYNC_ITEMS=()
+_VSCODE_EXTENSIONS_SRC=""
+_VSCODE_EXTENSIONS_DST=""
+_VSCODE_EXTENSIONS_EXCLUDE=()
+
+# Output vars for _vscode_sync_check_extensions (read by vscode_sync_check).
+_VSCODE_EXT_CHECK_ISSUES=0
+_VSCODE_EXT_CHECK_WARNINGS=0
 
 # +++++++++++++++++++++++++++++ HELPER UTILITIES +++++++++++++++++++++++++++++ #
 
@@ -96,26 +108,26 @@ _vscode_sync_release_lock() {
 # -----------------------------------------------------------------------------
 # _vscode_sync_check_platform
 # -----------------------------------------------------------------------------
-# Verifies the script is running on macOS (Darwin).
-# This script only supports macOS paths and conventions.
+# Verifies the script is running on a supported platform (macOS or Linux).
 #
 # Usage:
 #   _vscode_sync_check_platform
 #
 # Returns:
-#   0 - Running on macOS.
-#   1 - Not on macOS.
+#   0 - Running on macOS or Linux.
+#   1 - Unsupported platform.
 #
 # Side Effects:
-#   - Logs error message if not on macOS.
+#   - Logs error message if platform is unsupported.
 # -----------------------------------------------------------------------------
 _vscode_sync_check_platform() {
   _shared_detect_platform
-  if [[ "${SHARED_PLATFORM:-unknown}" != "macOS" ]]; then
-    _shared_log error "This script only supports macOS. Detected: ${SHARED_PLATFORM:-unknown}"
-    return 1
-  fi
-  return 0
+  case "${SHARED_PLATFORM:-unknown}" in
+    macOS|Linux) return 0 ;;
+    *)
+      _shared_log error "Unsupported platform: ${SHARED_PLATFORM:-unknown}"
+      return 1 ;;
+  esac
 }
 
 # -----------------------------------------------------------------------------
@@ -145,7 +157,7 @@ _vscode_sync_parse_item() {
 # _vscode_sync_check_vscode_running
 # -----------------------------------------------------------------------------
 # Checks if VS Code Stable or Insiders processes are running.
-# Uses pgrep to detect running Electron processes.
+# Detects both macOS (.app) and Linux (process name) patterns.
 #
 # Usage:
 #   _vscode_sync_check_vscode_running
@@ -159,11 +171,21 @@ _vscode_sync_parse_item() {
 # -----------------------------------------------------------------------------
 _vscode_sync_check_vscode_running() {
   local running=0
+  # macOS process patterns
   if pgrep -qf "/Visual Studio Code\.app/Contents/MacOS/" 2>/dev/null; then
     _shared_log warn "VS Code Stable appears to be running."
     running=1
   fi
   if pgrep -qf "/Visual Studio Code - Insiders\.app/Contents/MacOS/" 2>/dev/null; then
+    _shared_log warn "VS Code Insiders appears to be running."
+    running=1
+  fi
+  # Linux process patterns
+  if pgrep -qx "code" 2>/dev/null; then
+    _shared_log warn "VS Code Stable appears to be running."
+    running=1
+  fi
+  if pgrep -qx "code-insiders" 2>/dev/null; then
     _shared_log warn "VS Code Insiders appears to be running."
     running=1
   fi
@@ -174,8 +196,6 @@ _vscode_sync_check_vscode_running() {
 # _vscode_sync_ensure_parent_dir
 # -----------------------------------------------------------------------------
 # Creates parent directory for a target path if it does not exist.
-# Handles the case where VS Code Insiders User directory has not been
-# created yet (e.g., app was never opened).
 #
 # Usage:
 #   _vscode_sync_ensure_parent_dir <target_path>
@@ -186,9 +206,6 @@ _vscode_sync_check_vscode_running() {
 # Returns:
 #   0 - Parent directory exists or was created.
 #   1 - Failed to create parent directory.
-#
-# Side Effects:
-#   - May create directories on disk.
 # -----------------------------------------------------------------------------
 _vscode_sync_ensure_parent_dir() {
   local target="$1"
@@ -208,8 +225,6 @@ _vscode_sync_ensure_parent_dir() {
 # _vscode_sync_backup_item
 # -----------------------------------------------------------------------------
 # Creates a timestamped backup of an existing target before replacement.
-# Backups are stored in ~/.local/share/vscode-sync-backups/<timestamp>/.
-# Handles both files and directories.
 #
 # Usage:
 #   _vscode_sync_backup_item <label> <target_path>
@@ -221,9 +236,6 @@ _vscode_sync_ensure_parent_dir() {
 # Returns:
 #   0 - Backup created successfully.
 #   1 - Backup failed.
-#
-# Side Effects:
-#   - Creates backup directory and copies content.
 # -----------------------------------------------------------------------------
 _vscode_sync_backup_item() {
   local label="$1" target="$2"
@@ -260,15 +272,9 @@ _vscode_sync_backup_item() {
 # _vscode_sync_item_status
 # -----------------------------------------------------------------------------
 # Determines the synchronization status of a single item.
-# Checks source existence, target type (symlink, file, missing),
-# and symlink validity.
 #
 # Usage:
 #   sync_state=$(_vscode_sync_item_status <source> <target>)
-#
-# Arguments:
-#   source - Path to VS Code Stable item (required).
-#   target - Path to VS Code Insiders item (required).
 #
 # Side Effects:
 #   - Outputs one of: synced, symlink_broken, symlink_wrong,
@@ -301,6 +307,357 @@ _vscode_sync_item_status() {
   fi
 }
 
+# ++++++++++++++++++++++ PLATFORM-AWARE CONFIG INIT ++++++++++++++++++++++++++ #
+
+# -----------------------------------------------------------------------------
+# _vscode_sync_init_config
+# -----------------------------------------------------------------------------
+# Initializes platform-aware configuration for sync items and extensions.
+# Called automatically at source time (end of this file).
+#
+# Sets:
+#   _VSCODE_SYNC_ITEMS         - "label|source|target" tuples for settings,
+#                                keybindings, snippets, mcp config.
+#   _VSCODE_EXTENSIONS_SRC     - Canonical extensions directory (Stable).
+#   _VSCODE_EXTENSIONS_DST     - Insiders extensions directory.
+#   _VSCODE_EXTENSIONS_EXCLUDE - Glob patterns for excluded extensions.
+# -----------------------------------------------------------------------------
+_vscode_sync_init_config() {
+  _shared_detect_platform
+  local user_stable user_insiders
+  case "${SHARED_PLATFORM}" in
+    macOS)
+      user_stable="${HOME}/Library/Application Support/Code/User"
+      user_insiders="${HOME}/Library/Application Support/Code - Insiders/User"
+      ;;
+    Linux)
+      user_stable="${HOME}/.config/Code/User"
+      user_insiders="${HOME}/.config/Code - Insiders/User"
+      ;;
+    *)
+      user_stable=""
+      user_insiders=""
+      ;;
+  esac
+
+  _VSCODE_SYNC_ITEMS=(
+    "Settings|${user_stable}/settings.json|${user_insiders}/settings.json"
+    "Keybindings|${user_stable}/keybindings.json|${user_insiders}/keybindings.json"
+    "Snippets|${user_stable}/snippets|${user_insiders}/snippets"
+    "MCP Config|${user_stable}/mcp.json|${user_insiders}/mcp.json"
+  )
+  # Extensions managed separately via per-extension symlinks (see below).
+  _VSCODE_EXTENSIONS_SRC="${HOME}/.vscode/extensions"
+  _VSCODE_EXTENSIONS_DST="${HOME}/.vscode-insiders/extensions"
+  _VSCODE_EXTENSIONS_EXCLUDE=(
+    "anthropic.claude-code-*"  # Platform-specific binary (Mach-O arm64 != linux-x64)
+    "github.copilot-*"         # Version-incompatible between Stable and Insiders
+  )
+}
+
+# ++++++++++++++++++++++++ EXTENSION SYNC HELPERS +++++++++++++++++++++++++++ #
+
+# -----------------------------------------------------------------------------
+# _vscode_sync_ext_is_excluded <name>
+# -----------------------------------------------------------------------------
+# Returns 0 if the extension name matches any pattern in _VSCODE_EXTENSIONS_EXCLUDE.
+# Uses zsh case glob matching (no external dependencies).
+# -----------------------------------------------------------------------------
+_vscode_sync_ext_is_excluded() {
+  local name="$1" pattern
+  for pattern in "${_VSCODE_EXTENSIONS_EXCLUDE[@]}"; do
+    case "$name" in
+      $~pattern) return 0 ;;
+    esac
+  done
+  return 1
+}
+
+# -----------------------------------------------------------------------------
+# _vscode_sync_setup_extensions
+# -----------------------------------------------------------------------------
+# Sets up per-extension symlinks from _VSCODE_EXTENSIONS_SRC to
+# _VSCODE_EXTENSIONS_DST, skipping excluded extensions.
+#
+# Handles migration from legacy directory symlink automatically.
+# Idempotent: already-correct symlinks are skipped.
+#
+# Returns:
+#   0 - Setup completed (possibly with failures logged).
+#   1 - Fatal error (e.g. could not create dst directory).
+# -----------------------------------------------------------------------------
+_vscode_sync_setup_extensions() {
+  setopt localoptions nullglob
+  local src="$_VSCODE_EXTENSIONS_SRC"
+  local dst="$_VSCODE_EXTENSIONS_DST"
+
+  if [[ ! -d "$src" ]]; then
+    _shared_log warn "Extensions: source not found: $src"
+    return 0
+  fi
+
+  # 1. Migration: replace legacy directory symlink with a real directory.
+  if [[ -L "$dst" ]]; then
+    _shared_log info "Extensions: migrating legacy directory symlink to real directory."
+    rm -f "$dst" || {
+      _shared_log error "Extensions: failed to remove legacy symlink: $dst"
+      return 1
+    }
+  fi
+
+  # 2. Ensure destination directory exists.
+  mkdir -p "$dst" || {
+    _shared_log error "Extensions: failed to create directory: $dst"
+    return 1
+  }
+
+  # 3. Create per-extension symlinks.
+  local synced=0 already=0 excluded=0 failed=0
+  local name link link_dest ext_path
+  for ext_path in "$src"/*/; do
+    name="${ext_path%/}"
+    name="${name##*/}"
+
+    if _vscode_sync_ext_is_excluded "$name"; then
+      ((excluded++))
+      continue
+    fi
+
+    link="$dst/$name"
+    if [[ -L "$link" ]]; then
+      link_dest=$(readlink "$link" 2>/dev/null)
+      if [[ "$link_dest" == "$src/$name" && -e "$link" ]]; then
+        ((already++))
+        continue
+      fi
+      # Stale or broken symlink — remove and recreate.
+      rm -f "$link" || {
+        _shared_log error "Extensions: failed to remove stale symlink: $link"
+        ((failed++))
+        continue
+      }
+    elif [[ -d "$link" ]]; then
+      # Real directory (e.g. Insiders installed its own copy) — remove it so
+      # the symlink to Stable's copy can be created.
+      rm -rf "$link" || {
+        _shared_log error "Extensions: failed to remove real directory: $link"
+        ((failed++))
+        continue
+      }
+    fi
+
+    ln -s "$src/$name" "$link" || {
+      _shared_log error "Extensions: failed to create symlink: $link"
+      ((failed++))
+      continue
+    }
+    ((synced++))
+  done
+
+  # 4. Report.
+  _shared_log ok "Extensions: $synced synced, $already already linked, $excluded excluded, $failed failed."
+}
+
+# -----------------------------------------------------------------------------
+# _vscode_sync_status_extensions
+# -----------------------------------------------------------------------------
+# Prints a one-line summary of extension sync status followed by details
+# on excluded and broken-symlink extensions.
+# -----------------------------------------------------------------------------
+_vscode_sync_status_extensions() {
+  setopt localoptions nullglob
+  local src="$_VSCODE_EXTENSIONS_SRC"
+  local dst="$_VSCODE_EXTENSIONS_DST"
+
+  if [[ ! -d "$src" ]]; then
+    printf "  %s[NO SRC]%s  Extensions  Source not found: %s\n" "$C_RED" "$C_RESET" "$src"
+    return
+  fi
+
+  if [[ -L "$dst" ]]; then
+    printf "  %s[LEGACY]%s  Extensions  Legacy directory symlink (run setup to migrate)\n" \
+      "$C_YELLOW" "$C_RESET"
+    return
+  fi
+
+  if [[ ! -d "$dst" ]]; then
+    printf "  %s[MISS]%s    Extensions  Target directory does not exist (not synced)\n" \
+      "$C_RED" "$C_RESET"
+    return
+  fi
+
+  local total=0 symlinked=0 excluded=0 broken=0
+  local excluded_list=() broken_list=()
+  local name ext_path link
+
+  for ext_path in "$src"/*/; do
+    name="${ext_path%/}"
+    name="${name##*/}"
+    ((total++))
+
+    if _vscode_sync_ext_is_excluded "$name"; then
+      ((excluded++))
+      excluded_list+=("$name")
+      continue
+    fi
+
+    link="$dst/$name"
+    if [[ -L "$link" && -e "$link" ]]; then
+      ((symlinked++))
+    elif [[ -L "$link" && ! -e "$link" ]]; then
+      ((broken++))
+      broken_list+=("$name")
+    fi
+  done
+
+  local expected=$(( total - excluded ))
+  printf "  %s[SYNCED]%s  Extensions  %d/%d symlinked, %d excluded, %d broken\n" \
+    "$C_GREEN" "$C_RESET" "$symlinked" "$expected" "$excluded" "$broken"
+
+  if (( ${#excluded_list[@]} > 0 )); then
+    printf "             %sExcluded:%s\n" "$C_BOLD" "$C_RESET"
+    local n
+    for n in "${excluded_list[@]}"; do
+      printf "               - %s\n" "$n"
+    done
+  fi
+
+  if (( ${#broken_list[@]} > 0 )); then
+    printf "             %sBroken symlinks:%s\n" "$C_BOLD" "$C_RESET"
+    local n
+    for n in "${broken_list[@]}"; do
+      printf "               - %s\n" "$n"
+    done
+  fi
+}
+
+# -----------------------------------------------------------------------------
+# _vscode_sync_remove_extensions
+# -----------------------------------------------------------------------------
+# Removes per-extension symlinks from _VSCODE_EXTENSIONS_DST.
+# Real directories (excluded extensions managed by VS Code) are skipped.
+# Handles the legacy directory-symlink case.
+# -----------------------------------------------------------------------------
+_vscode_sync_remove_extensions() {
+  setopt localoptions nullglob
+  local dst="$_VSCODE_EXTENSIONS_DST"
+
+  # Legacy directory symlink.
+  if [[ -L "$dst" ]]; then
+    _shared_log info "Extensions: removing legacy directory symlink."
+    rm -f "$dst" || {
+      _shared_log error "Extensions: failed to remove legacy symlink."
+      return 1
+    }
+    _shared_log ok "Extensions: legacy symlink removed."
+    return 0
+  fi
+
+  if [[ ! -d "$dst" ]]; then
+    _shared_log info "Extensions: target directory does not exist, nothing to do."
+    return 0
+  fi
+
+  local removed=0 skipped=0 failed=0
+  local link_path name
+  for link_path in "$dst"/*/; do
+    name="${link_path%/}"
+    if [[ -L "$name" ]]; then
+      rm -f "$name" || {
+        _shared_log error "Extensions: failed to remove symlink: $name"
+        ((failed++))
+        continue
+      }
+      ((removed++))
+    else
+      # Real directory: excluded extension managed by VS Code — skip.
+      ((skipped++))
+    fi
+  done
+
+  _shared_log ok "Extensions: $removed symlink(s) removed, $skipped real dir(s) skipped, $failed failed."
+}
+
+# -----------------------------------------------------------------------------
+# _vscode_sync_check_extensions
+# -----------------------------------------------------------------------------
+# Validates extension sync health. Results stored in global vars:
+#   _VSCODE_EXT_CHECK_ISSUES   - count of issues (broken symlinks)
+#   _VSCODE_EXT_CHECK_WARNINGS - count of warnings (legacy symlink, wrong targets)
+#
+# Called by vscode_sync_check, which adds these counts to its local counters.
+# -----------------------------------------------------------------------------
+_vscode_sync_check_extensions() {
+  setopt localoptions nullglob
+  local src="$_VSCODE_EXTENSIONS_SRC"
+  local dst="$_VSCODE_EXTENSIONS_DST"
+
+  _VSCODE_EXT_CHECK_ISSUES=0
+  _VSCODE_EXT_CHECK_WARNINGS=0
+
+  printf "  %sChecking:%s Extensions\n" "$C_BOLD" "$C_RESET"
+
+  # Legacy directory symlink.
+  if [[ -L "$dst" ]]; then
+    _shared_log warn "    Extensions target is a legacy directory symlink (run setup to migrate)."
+    ((_VSCODE_EXT_CHECK_WARNINGS++))
+    return 0
+  fi
+
+  if [[ ! -d "$dst" ]]; then
+    _shared_log info "    Extensions target directory does not exist (not yet synced)."
+    return 0
+  fi
+
+  # Check for broken/wrong symlinks in dst.
+  local broken_count=0 outside_count=0
+  local broken_names=() outside_names=()
+  local link_path name link_dest
+
+  for link_path in "$dst"/*/; do
+    name="${link_path%/}"
+    [[ -L "$name" ]] || continue
+    link_dest=$(readlink "$name" 2>/dev/null)
+    if [[ ! -e "$name" ]]; then
+      ((broken_count++))
+      broken_names+=("${name##*/}")
+      ((_VSCODE_EXT_CHECK_ISSUES++))
+    elif [[ "$link_dest" != "$src/"* ]]; then
+      ((outside_count++))
+      outside_names+=("${name##*/}")
+      ((_VSCODE_EXT_CHECK_WARNINGS++))
+    fi
+  done
+
+  # Count excluded extensions (info only).
+  local excluded_count=0 ext_path
+  for ext_path in "$src"/*/; do
+    _vscode_sync_ext_is_excluded "${${ext_path%/}##*/}" && ((excluded_count++))
+  done
+
+  if ((_VSCODE_EXT_CHECK_ISSUES == 0 && _VSCODE_EXT_CHECK_WARNINGS == 0)); then
+    _shared_log ok "    All extension symlinks valid."
+  fi
+
+  if ((broken_count > 0)); then
+    _shared_log error "    $broken_count broken extension symlink(s):"
+    local n
+    for n in "${broken_names[@]}"; do
+      printf "       - %s\n" "$n"
+    done
+  fi
+
+  if ((outside_count > 0)); then
+    _shared_log warn "    $outside_count symlink(s) point outside ${src}:"
+    local n
+    for n in "${outside_names[@]}"; do
+      printf "       - %s\n" "$n"
+    done
+  fi
+
+  _shared_log info "    Excluded: $excluded_count extension(s) matching: ${(j:, :)_VSCODE_EXTENSIONS_EXCLUDE}"
+}
+
 # +++++++++++++++++++++++++++ MAIN SYNC FUNCTIONS ++++++++++++++++++++++++++++ #
 
 # -----------------------------------------------------------------------------
@@ -308,8 +665,9 @@ _vscode_sync_item_status() {
 # -----------------------------------------------------------------------------
 # Creates symlinks from VS Code Stable to VS Code Insiders.
 # Displays a plan of actions, asks for confirmation, backs up existing
-# targets, and creates symlinks. Idempotent: already-synced items are
-# skipped without modification.
+# targets, creates symlinks for settings items, then sets up per-extension
+# symlinks (with automatic migration from legacy directory symlink).
+# Idempotent: already-synced items are skipped without modification.
 #
 # Usage:
 #   vscode_sync_setup
@@ -317,14 +675,9 @@ _vscode_sync_item_status() {
 # Returns:
 #   0 - Setup completed (or aborted by user).
 #   1 - Platform check failed.
-#
-# Side Effects:
-#   - Creates symlinks in VS Code Insiders config directories.
-#   - Backs up existing Insiders files to ~/.local/share/vscode-sync-backups/.
-#   - May create parent directories for Insiders config.
 # -----------------------------------------------------------------------------
 vscode_sync_setup() {
-  setopt localoptions localtraps
+  setopt localoptions localtraps nullglob
   _shared_init_colors
   _vscode_sync_check_platform || return 1
   _vscode_sync_acquire_lock || return 1
@@ -352,6 +705,30 @@ vscode_sync_setup() {
         printf "  %s[LINK]%s  %-12s %s -> %s\n" "$C_BLUE" "$C_RESET" "$_label" "$_target" "$_source" ;;
     esac
   done
+
+  # Extensions planned actions preview.
+  local ext_total=0 ext_excluded=0 ext_name ext_path
+  for ext_path in "$_VSCODE_EXTENSIONS_SRC"/*/; do
+    ext_name="${ext_path%/}"
+    ext_name="${ext_name##*/}"
+    ((ext_total++))
+    _vscode_sync_ext_is_excluded "$ext_name" && ((ext_excluded++))
+  done
+  if [[ -L "$_VSCODE_EXTENSIONS_DST" ]]; then
+    printf "  %s[MIGRATE]%s %-12s Legacy symlink -> per-extension (%d to link, %d excluded)\n" \
+      "$C_YELLOW" "$C_RESET" "Extensions" "$((ext_total - ext_excluded))" "$ext_excluded"
+  else
+    printf "  %s[LINK]%s  %-12s %d to symlink, %d excluded\n" \
+      "$C_BLUE" "$C_RESET" "Extensions" "$((ext_total - ext_excluded))" "$ext_excluded"
+  fi
+  if (( ${#_VSCODE_EXTENSIONS_EXCLUDE[@]} > 0 )); then
+    printf "             Excluded patterns:"
+    local p
+    for p in "${_VSCODE_EXTENSIONS_EXCLUDE[@]}"; do
+      printf " %s" "$p"
+    done
+    printf "\n"
+  fi
   echo
 
   _shared_confirm "Proceed with setup?" || {
@@ -414,17 +791,19 @@ vscode_sync_setup() {
     ((synced++))
   done
 
+  _vscode_sync_setup_extensions
+
   echo
-  printf "%sSummary: %d/%d synced, %d skipped, %d failed.%s\n" \
+  printf "%sSummary: %d/%d items synced, %d skipped, %d failed.%s\n" \
     "$C_BOLD" "$synced" "$total" "$skipped" "$failed" "$C_RESET"
 }
 
 # -----------------------------------------------------------------------------
 # vscode_sync_status
 # -----------------------------------------------------------------------------
-# Displays the current synchronization state of all managed items.
-# Shows whether each item is symlinked, independent, broken, or missing,
-# along with symlink target paths and a summary count.
+# Displays the current synchronization state of all managed items and
+# extension symlinks. Shows whether each item is symlinked, independent,
+# broken, or missing, along with a summary count.
 #
 # Usage:
 #   vscode_sync_status
@@ -432,9 +811,6 @@ vscode_sync_setup() {
 # Returns:
 #   0 - Status displayed successfully.
 #   1 - Platform check failed.
-#
-# Side Effects:
-#   - Outputs formatted status report to stdout.
 # -----------------------------------------------------------------------------
 vscode_sync_status() {
   _shared_init_colors
@@ -468,6 +844,8 @@ vscode_sync_status() {
     esac
   done
 
+  _vscode_sync_status_extensions
+
   echo
   printf "%sSummary: %d/%d items synced.%s\n" "$C_BOLD" "$synced" "$total" "$C_RESET"
 }
@@ -476,9 +854,8 @@ vscode_sync_status() {
 # vscode_sync_check
 # -----------------------------------------------------------------------------
 # Validates the health of VS Code synchronization configuration.
-# Checks source file existence, symlink integrity, permissions, circular
-# symlinks, running processes, and backup state. Reports overall health
-# as HEALTHY, DEGRADED, or UNHEALTHY.
+# Checks source existence, symlink integrity, extension health, running
+# processes, and backup state. Reports HEALTHY, DEGRADED, or UNHEALTHY.
 #
 # Usage:
 #   vscode_sync_check
@@ -486,9 +863,6 @@ vscode_sync_status() {
 # Returns:
 #   0 - Configuration is healthy or degraded (warnings only).
 #   1 - Configuration is unhealthy (errors found) or platform unsupported.
-#
-# Side Effects:
-#   - Outputs formatted health report to stdout/stderr.
 # -----------------------------------------------------------------------------
 vscode_sync_check() {
   _shared_init_colors
@@ -543,6 +917,10 @@ vscode_sync_check() {
     fi
   done
 
+  _vscode_sync_check_extensions
+  ((issues += _VSCODE_EXT_CHECK_ISSUES))
+  ((warnings += _VSCODE_EXT_CHECK_WARNINGS))
+
   echo
   printf "  %sProcess check:%s\n" "$C_BOLD" "$C_RESET"
   if _vscode_sync_check_vscode_running 2>/dev/null; then
@@ -578,8 +956,8 @@ vscode_sync_check() {
 # -----------------------------------------------------------------------------
 # Removes symlinks and restores independent copies for VS Code Insiders.
 # For valid symlinks, copies the actual content back before removing the
-# symlink. For broken symlinks, simply removes them. Uses an atomic
-# temp-copy-then-rename pattern to avoid data loss.
+# symlink. For broken symlinks, simply removes them. Also removes
+# per-extension symlinks (real directories for excluded extensions are kept).
 #
 # Usage:
 #   vscode_sync_remove
@@ -587,13 +965,9 @@ vscode_sync_check() {
 # Returns:
 #   0 - Removal completed (or aborted by user / nothing to do).
 #   1 - Platform check failed.
-#
-# Side Effects:
-#   - Removes symlinks in VS Code Insiders config directories.
-#   - Creates independent copies of configuration files.
 # -----------------------------------------------------------------------------
 vscode_sync_remove() {
-  setopt localoptions localtraps
+  setopt localoptions localtraps nullglob
   _shared_init_colors
   _vscode_sync_check_platform || return 1
   _vscode_sync_acquire_lock || return 1
@@ -623,6 +997,27 @@ vscode_sync_remove() {
       printf "  %s[SKIP]%s    %-12s Not a symlink\n" "$C_GREEN" "$C_RESET" "$_label"
     fi
   done
+
+  # Extensions planned actions preview.
+  if [[ -L "$_VSCODE_EXTENSIONS_DST" ]]; then
+    printf "  %s[RM]%s      %-12s Legacy directory symlink will be removed\n" \
+      "$C_RED" "$C_RESET" "Extensions"
+    any_action=true
+  elif [[ -d "$_VSCODE_EXTENSIONS_DST" ]]; then
+    local ext_rm_count=0 link_path
+    for link_path in "$_VSCODE_EXTENSIONS_DST"/*/; do
+      [[ -L "${link_path%/}" ]] && ((ext_rm_count++))
+    done
+    if ((ext_rm_count > 0)); then
+      printf "  %s[RM]%s      %-12s %d symlink(s) will be removed\n" \
+        "$C_RED" "$C_RESET" "Extensions" "$ext_rm_count"
+      any_action=true
+    else
+      printf "  %s[SKIP]%s    %-12s No symlinks to remove\n" "$C_GREEN" "$C_RESET" "Extensions"
+    fi
+  else
+    printf "  %s[SKIP]%s    %-12s Directory does not exist\n" "$C_GREEN" "$C_RESET" "Extensions"
+  fi
   echo
 
   if [[ "$any_action" == false ]]; then
@@ -684,10 +1079,14 @@ vscode_sync_remove() {
     fi
   done
 
+  _vscode_sync_remove_extensions
+
   echo
   printf "%sSummary: %d restored, %d broken removed, %d skipped, %d failed.%s\n" \
     "$C_BOLD" "$restored" "$removed" "$skipped" "$failed" "$C_RESET"
 }
 
 # ============================================================================ #
+# Source-time initialization.
+_vscode_sync_init_config
 # End of script.
