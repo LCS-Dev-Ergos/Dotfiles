@@ -135,6 +135,9 @@ if [[ "$PLATFORM" == 'macOS' ]]; then
 fi
 
 if [[ "$PLATFORM" == 'Linux' && "$ARCH_LINUX" == true ]]; then
+  # 1Password SSH agent socket.
+  export SSH_AUTH_SOCK="$HOME/.1password/agent.sock"
+
   # Set Electron flags.
   export ELECTRON_OZONE_PLATFORM_HINT="wayland"
   export NATIVE_WAYLAND="1"
