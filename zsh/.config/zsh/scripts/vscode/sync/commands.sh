@@ -38,11 +38,11 @@ vscode_sync_setup() {
 
   printf "%s%s[+] VS Code Sync Setup (Stable -> Insiders)%s\n\n" "$C_BOLD" "$C_CYAN" "$C_RESET"
 
-  _vscode_sync_check_vscode_running || {
-    _shared_log warn "Modifying symlinks while VS Code is running may cause issues."
-    _shared_log warn "Consider closing both editors before proceeding."
-    echo
-  }
+  if ! _vscode_sync_check_vscode_running; then
+    _shared_log error "Refusing to run setup while VS Code is open."
+    _shared_log error "Close VS Code Stable and Insiders, then retry."
+    return 1
+  fi
 
   printf "%sPlanned actions:%s\n" "$C_BOLD" "$C_RESET"
   local _label _source _target item sync_state
@@ -82,6 +82,8 @@ vscode_sync_setup() {
     done
     printf "\n"
   fi
+  _shared_log warn "Extension sync mirrors Stable installed extensions into Insiders (except exclusions)."
+  _shared_log warn "This can influence profile extension state managed by VS Code."
   echo
 
   _shared_confirm "Proceed with setup?" || {
@@ -89,6 +91,11 @@ vscode_sync_setup() {
     return 0
   }
   echo
+
+  _vscode_sync_backup_profile_state || {
+    _shared_log error "Aborting: failed to snapshot profile state."
+    return 1
+  }
 
   local synced=0 skipped=0 failed=0 total=${#_VSCODE_SYNC_ITEMS[@]}
   for item in "${_VSCODE_SYNC_ITEMS[@]}"; do
@@ -335,10 +342,11 @@ vscode_sync_remove() {
 
   printf "%s%s[-] VS Code Sync Remove (Restore Independence)%s\n\n" "$C_BOLD" "$C_CYAN" "$C_RESET"
 
-  _vscode_sync_check_vscode_running || {
-    _shared_log warn "Consider closing both editors before proceeding."
-    echo
-  }
+  if ! _vscode_sync_check_vscode_running; then
+    _shared_log error "Refusing to run remove while VS Code is open."
+    _shared_log error "Close VS Code Stable and Insiders, then retry."
+    return 1
+  fi
 
   printf "%sPlanned actions:%s\n" "$C_BOLD" "$C_RESET"
   local _label _source _target item dest
@@ -390,6 +398,11 @@ vscode_sync_remove() {
     return 0
   }
   echo
+
+  _vscode_sync_backup_profile_state || {
+    _shared_log error "Aborting: failed to snapshot profile state."
+    return 1
+  }
 
   local restored=0 removed=0 skipped=0 failed=0 total=${#_VSCODE_SYNC_ITEMS[@]}
   for item in "${_VSCODE_SYNC_ITEMS[@]}"; do

@@ -108,11 +108,13 @@ _vscode_ext_clean_get_mtime() {
   local target_path="$1"
   local mtime
 
-  if mtime=$(stat -f %m "$target_path" 2>/dev/null); then
+  if mtime=$(command stat -f %m -- "$target_path" 2>/dev/null) \
+    && [[ "$mtime" =~ ^[0-9]+$ ]]; then
     printf "%s\n" "$mtime"
     return 0
   fi
-  if mtime=$(stat -c %Y "$target_path" 2>/dev/null); then
+  if mtime=$(command stat -c %Y -- "$target_path" 2>/dev/null) \
+    && [[ "$mtime" =~ ^[0-9]+$ ]]; then
     printf "%s\n" "$mtime"
     return 0
   fi
@@ -312,7 +314,7 @@ _vscode_ext_clean_collect_reference_names() {
   local manifest_files=()
   local profile_root
 
-  : > "$output_file"
+  : >| "$output_file" || return 1
 
   if [[ -f "${extensions_dir}/extensions.json" ]]; then
     manifest_files+=("${extensions_dir}/extensions.json")
@@ -343,21 +345,21 @@ _vscode_ext_clean_collect_reference_names() {
 
   for manifest in "${manifest_files[@]}"; do
     if [[ "$_have_jq" == true ]]; then
-      jq -r '.[]? | .relativeLocation // empty' "$manifest" 2>/dev/null >> "$output_file"
+      jq -r '.[]? | .relativeLocation // empty' "$manifest" 2>/dev/null >>| "$output_file"
       jq -r '.[]? | .location?.path // empty' "$manifest" 2>/dev/null \
-        | sed -n 's#.*/extensions/##p' >> "$output_file"
+        | sed -n 's#.*/extensions/##p' >>| "$output_file"
     else
       grep -oE '"relativeLocation":"[^"]+"' "$manifest" 2>/dev/null \
-        | sed -E 's/^"relativeLocation":"([^"]+)"$/\1/' >> "$output_file"
+        | sed -E 's/^"relativeLocation":"([^"]+)"$/\1/' >>| "$output_file"
       grep -oE '"path":"[^"]+/extensions/[^"]+"' "$manifest" 2>/dev/null \
-        | sed -E 's#^"path":"[^"]+/extensions/([^"]+)"$#\1#' >> "$output_file"
+        | sed -E 's#^"path":"[^"]+/extensions/([^"]+)"$#\1#' >>| "$output_file"
     fi
   done
 
   if [[ -s "$output_file" ]]; then
     local tmp_sorted="${output_file}.sorted"
-    sed '/^[[:space:]]*$/d' "$output_file" | LC_ALL=C sort -u > "$tmp_sorted"
-    mv "$tmp_sorted" "$output_file"
+    sed '/^[[:space:]]*$/d' "$output_file" | LC_ALL=C sort -u >| "$tmp_sorted"
+    command mv -f -- "$tmp_sorted" "$output_file"
   fi
 
   return 0
@@ -421,7 +423,7 @@ _vscode_ext_clean_validate_strategy() {
 #   _vscode_ext_clean_run <dir> [strategy] [dry_run] [debug] [respect_refs]
 # -----------------------------------------------------------------------------
 _vscode_ext_clean_run() {
-  setopt localoptions localtraps ksharrays
+  setopt localoptions localtraps ksharrays noxtrace noverbose
 
   local folder_path="$1"
   local requested_strategy="${2:-$_VSCODE_EXT_CLEAN_DEFAULT_STRATEGY}"
@@ -496,9 +498,8 @@ _vscode_ext_clean_run() {
     return 0
   fi
 
-  : > "$records_file"
-  : > "$to_delete_file"
-  : > "$referenced_names_file"
+  : >| "$records_file" || return 1
+  : >| "$to_delete_file" || return 1
 
   local ext_path ext_name ext_core ext_version ext_mtime
   while IFS= read -r ext_path; do
@@ -507,8 +508,9 @@ _vscode_ext_clean_run() {
     ext_core="$_vscode_ext_clean_core_name"
     ext_version="$_vscode_ext_clean_version"
     ext_mtime=$(_vscode_ext_clean_get_mtime "$ext_path" 2>/dev/null || printf "0")
+    [[ "$ext_mtime" =~ ^[0-9]+$ ]] || ext_mtime="0"
     _vscode_ext_clean_dbg "Parsed: ${ext_name} -> core=${ext_core}, version=${ext_version:-<none>}"
-    printf "%s|%s|%s|%s|%s\n" "$ext_path" "$ext_name" "$ext_core" "$ext_version" "$ext_mtime" >> "$records_file"
+    printf "%s|%s|%s|%s|%s\n" "$ext_path" "$ext_name" "$ext_core" "$ext_version" "$ext_mtime" >>| "$records_file"
   done < "$all_dirs_file"
 
   if [[ "$respect_refs" == "true" ]]; then
@@ -523,7 +525,7 @@ _vscode_ext_clean_run() {
     _shared_log warn "Reference protection disabled."
   fi
 
-  cut -d'|' -f3 "$records_file" | LC_ALL=C sort -u > "$cores_file"
+  cut -d'|' -f3 "$records_file" | LC_ALL=C sort -u >| "$cores_file"
 
   local core
   local duplicate_groups=0
@@ -607,7 +609,7 @@ _vscode_ext_clean_run() {
             continue
           fi
 
-          printf "%s\n" "${group_paths[idx]}" >> "$to_delete_file"
+          printf "%s\n" "${group_paths[idx]}" >>| "$to_delete_file"
           ((planned_deletions++))
         done
         ;;
@@ -616,7 +618,7 @@ _vscode_ext_clean_run() {
           _shared_log warn "No unreferenced candidate found for oldest strategy."
           continue
         fi
-        printf "%s\n" "${group_paths[oldest_unreferenced_idx]}" >> "$to_delete_file"
+        printf "%s\n" "${group_paths[oldest_unreferenced_idx]}" >>| "$to_delete_file"
         ((planned_deletions++))
         ;;
     esac
@@ -635,7 +637,7 @@ _vscode_ext_clean_run() {
   fi
 
   local final_delete_file="${temp_dir}/to_delete_unique.txt"
-  LC_ALL=C sort -u "$to_delete_file" > "$final_delete_file"
+  LC_ALL=C sort -u "$to_delete_file" >| "$final_delete_file"
   local delete_count
   delete_count=$(wc -l < "$final_delete_file" | tr -d ' ')
 

@@ -24,6 +24,8 @@ _VSCODE_SYNC_ITEMS=()
 _VSCODE_EXTENSIONS_SRC=""
 _VSCODE_EXTENSIONS_DST=""
 _VSCODE_EXTENSIONS_EXCLUDE=()
+_VSCODE_USER_STABLE=""
+_VSCODE_USER_INSIDERS=""
 
 # Output vars for _vscode_sync_check_extensions (read by vscode_sync_check).
 _VSCODE_EXT_CHECK_ISSUES=0
@@ -282,6 +284,57 @@ _vscode_sync_backup_item() {
 }
 
 # -----------------------------------------------------------------------------
+# _vscode_sync_backup_profile_state
+# -----------------------------------------------------------------------------
+# Creates a profile-state snapshot before mutating operations.
+# Captures state.vscdb for Stable/Insiders to support manual rollback.
+#
+# Returns:
+#   0 - Snapshot created (or no files found to snapshot).
+#   1 - Snapshot failed.
+# -----------------------------------------------------------------------------
+_vscode_sync_backup_profile_state() {
+  local state_stable="${_VSCODE_USER_STABLE}/globalStorage/state.vscdb"
+  local state_insiders="${_VSCODE_USER_INSIDERS}/globalStorage/state.vscdb"
+
+  if [[ ! -f "$state_stable" && ! -f "$state_insiders" ]]; then
+    _shared_log info "Profile state snapshot: no state.vscdb files found."
+    return 0
+  fi
+
+  local timestamp snapshot_dir copied=0
+  timestamp="$(date +%Y%m%d_%H%M%S)_$$"
+  snapshot_dir="${_VSCODE_SYNC_BACKUP_DIR}/${timestamp}_profile-state"
+
+  mkdir -p "$snapshot_dir" || {
+    _shared_log error "Profile state snapshot failed: cannot create $snapshot_dir"
+    return 1
+  }
+  chmod 700 "$snapshot_dir" 2>/dev/null
+
+  if [[ -f "$state_stable" ]]; then
+    cp "$state_stable" "$snapshot_dir/state.stable.vscdb" || {
+      _shared_log error "Profile state snapshot failed for Stable: $state_stable"
+      return 1
+    }
+    ((copied++))
+  fi
+
+  if [[ -f "$state_insiders" ]]; then
+    cp "$state_insiders" "$snapshot_dir/state.insiders.vscdb" || {
+      _shared_log error "Profile state snapshot failed for Insiders: $state_insiders"
+      return 1
+    }
+    ((copied++))
+  fi
+
+  if (( copied > 0 )); then
+    _shared_log ok "Profile state snapshot created: $snapshot_dir"
+  fi
+  return 0
+}
+
+# -----------------------------------------------------------------------------
 # _vscode_sync_item_status
 # -----------------------------------------------------------------------------
 # Determines the synchronization status of a single item.
@@ -352,6 +405,9 @@ _vscode_sync_init_config() {
       user_insiders=""
       ;;
   esac
+
+  _VSCODE_USER_STABLE="$user_stable"
+  _VSCODE_USER_INSIDERS="$user_insiders"
 
   _VSCODE_SYNC_ITEMS=(
     "Settings|${user_stable}/settings.json|${user_insiders}/settings.json"
