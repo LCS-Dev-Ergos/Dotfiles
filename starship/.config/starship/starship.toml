@@ -118,7 +118,7 @@ add_newline = false
 command_timeout = 2000
 
 # Timeout for file scanning in milliseconds
-scan_timeout = 100
+scan_timeout = 1000
 
 # Active color palette
 palette = 'tokyo-night'
@@ -258,18 +258,18 @@ ignore_submodules = true
 [git_status]
 style = 'red'
 format = '([\[$all_status$ahead_behind\]]($style) )'
-conflicted = '󰩬 ${count}'
-ahead = '󰜷 ${count}'
-behind = '󰜮 ${count}'
-diverged = '󰘻 󰜷 ${ahead_count}󰜮 ${behind_count}'
+conflicted = '󰩬 ${count} '
+ahead = '󰜷 ${count} '
+behind = '󰜮 ${count} '
+diverged = '󰘻 󰜷 ${ahead_count} 󰜮 ${behind_count} '
 up_to_date = ''
-untracked = '󰟢 ${count}'
-stashed = '󰏗 ${count}'
-modified = '󰏫 ${count}'
-staged = '󰐙 ${count}'
-renamed = '󰑕 ${count}'
-deleted = '󰆴 ${count}'
-typechanged = '󰦒 ${count}'
+untracked = '󰟢 ${count} '
+stashed = '󰏗 ${count} '
+modified = '󰏫 ${count} '
+staged = '󰐙 ${count} '
+renamed = '󰑕 ${count} '
+deleted = '󰆴 ${count} '
+typechanged = '󰦒 ${count} '
 ignore_submodules = true
 windows_starship = '/mnt/c/Program Files/starship/bin/starship.exe'
 
