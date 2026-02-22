@@ -296,6 +296,11 @@ fi
 #   Final PATH assembly and cleanup. Rebuilds PATH in deterministic order with
 #   version manager shims at top priority. Removes duplicates and orphaned paths.
 #
+# 94-lazy-loader-core.zsh
+#   Core logic for lazy-loading scripts and functions on demand. Provides helper
+#   functions to queue and load heavy function files after startup, and to source
+#   scripts from ~/.config/zsh/scripts/ on demand.
+#
 # 95-lazy-scripts.zsh:
 #   Lazy loader for ~/.config/zsh/scripts (on-demand sourcing).
 #

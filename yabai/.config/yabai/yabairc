@@ -28,7 +28,7 @@ yabai -m config external_bar all:40:0 \
     active_window_opacity 1.0 \
     normal_window_opacity 0.975 \
     window_opacity_duration 0.1 \
-    window_animation_duration 0.2 \
+    window_animation_duration 0.25 \
     window_animation_easing ease_out_quint \
     insert_feedback_color 0xff565f89 \
     auto_balance off \
