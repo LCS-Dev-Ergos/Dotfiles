@@ -26,7 +26,7 @@ $git_branch\
 $git_commit\
 $git_state\
 $git_metrics\
-$git_status\
+$custom\
 $hg_branch\
 $pijul_channel\
 $package\
@@ -89,7 +89,6 @@ $nats\
 $direnv\
 $env_var\
 $crystal\
-$custom\
 $sudo\
 $fill\
 $kubernetes\
@@ -256,22 +255,14 @@ format = '([+$added]($added_style) )([-$deleted]($deleted_style) )'
 ignore_submodules = true
 
 [git_status]
+disabled = true
+
+[custom.git_status]
 style = 'red'
-format = '([\[$all_status$ahead_behind\]]($style) )'
-conflicted = '󰩬 ${count} '
-ahead = '󰜷 ${count} '
-behind = '󰜮 ${count} '
-diverged = '󰘻 󰜷 ${ahead_count} 󰜮 ${behind_count} '
-up_to_date = ''
-untracked = '󰟢 ${count} '
-stashed = '󰏗 ${count} '
-modified = '󰏫 ${count} '
-staged = '󰐙 ${count} '
-renamed = '󰑕 ${count} '
-deleted = '󰆴 ${count} '
-typechanged = '󰦒 ${count} '
-ignore_submodules = true
-windows_starship = '/mnt/c/Program Files/starship/bin/starship.exe'
+format = '([\[$output\]]($style) )'
+command = '$HOME/.config/starship/scripts/git_status.sh'
+when = 'git rev-parse --git-dir > /dev/null 2>&1'
+shell = ['bash', '--noprofile', '--norc']
 
 [hg_branch]
 disabled = true
