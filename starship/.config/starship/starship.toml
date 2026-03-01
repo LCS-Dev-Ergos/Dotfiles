@@ -247,7 +247,7 @@ am = 'AM'
 am_or_rebase = 'AM/REBASE'
 
 [git_metrics]
-disabled = false
+disabled = true
 added_style = 'bold green'
 deleted_style = 'bold red'
 only_nonzero_diffs = true
@@ -259,10 +259,11 @@ disabled = true
 
 [custom.git_status]
 style = 'red'
-format = '([\[$output\]]($style) )'
-command = '$HOME/.config/starship/scripts/git_status.sh'
-when = 'git rev-parse --git-dir > /dev/null 2>&1'
-shell = ['bash', '--noprofile', '--norc']
+format = '($output )'
+command = 'source $HOME/.config/starship/scripts/git_status.sh'
+when = true
+unsafe_no_escape = true
+shell = ['zsh', '-df']
 
 [hg_branch]
 disabled = true
