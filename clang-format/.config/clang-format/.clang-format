@@ -1,27 +1,26 @@
-# Based on LLVM style with customizations
-BasedOnStyle: Google
+# Based on the LLVM style with customizations.
+BasedOnStyle: LLVM
 
-# Keep the * operator close to the type
+# Keep the * operator close to the type.
 PointerAlignment: Left
 
-# Limit for the length of each line
-ColumnLimit: 100
+# Limit for the length of each line.
+ColumnLimit: 120
 
-# Indentation size (2 spaces for consistency with C/C++)
+# Indentation size (2 spaces for consistency with C/C++).
 IndentWidth: 2
 
-# Use spaces instead of tabs
+# Use spaces instead of tabs.
 UseTab: Never
 
-# Namespace indentation
-NamespaceIndentation: All
-
-# Force template declaration on a new line
+# Force template declaration on a new line.
 AlwaysBreakTemplateDeclarations: Yes
 
-# Function argument formatting
+# Function arguments formatting.
 AlignAfterOpenBracket: AlwaysBreak
 AllowShortFunctionsOnASingleLine: InlineOnly
+AllowAllParametersOfDeclarationOnNextLine: true
+AllowAllArgumentsOnNextLine: true
 BreakBeforeBraces: Custom
 BraceWrapping:
   AfterClass: false
@@ -32,42 +31,104 @@ BraceWrapping:
   BeforeElse: false
   IndentBraces: false
 
-# Prefer includes to be sorted
-SortIncludes: true
-
-# Align parameters to improve readability
+# Align parameters to improve readability.
 AlignConsecutiveDeclarations: true
 AlignConsecutiveAssignments: true
 AlignTrailingComments: true
 
-# Spacing
+# Spacing.
 SpaceBeforeParens: ControlStatements
 SpacesInParentheses: false
 SpacesInSquareBrackets: false
 SpacesInAngles: false
 
-# Configure struct and class handling
+# Configure handling of structs and classes.
 AlwaysBreakAfterReturnType: None
 AllowShortBlocksOnASingleLine: false
 BinPackParameters: false
+BinPackArguments: true
 
-# Configure handling of operators and parameters
+# Configure handling of operators and parameters.
 BreakBeforeBinaryOperators: NonAssignment
 BreakConstructorInitializers: AfterColon
 
-# Macro names always in uppercase
+# Macro names always in uppercase.
 MacroBlockBegin: AlwaysBreak
 MacroBlockEnd: AlwaysBreak
 
-# Configure preprocessing directives indentation
-IndentPPDirectives: None
+# Penalties to make breaks smarter.
+PenaltyReturnTypeOnItsOwnLine: 60
+PenaltyBreakBeforeFirstCallParameter: 100
+PenaltyBreakString: 1000
+PenaltyExcessCharacter: 1200000
 
-# Indent width for preprocessing directives
-PPIndentWidth: 2
+# Modern C++20/23: requires, concepts, constraints.
+Standard: c++20
+IndentRequiresClause: true
+RequiresClausePosition: OwnLine
+RequiresExpressionIndentation: OuterScope
+BreakBeforeConceptDeclarations: Always
 
-# Don't reformat macros
-DisableFormat: false
+# Handling constructor initializer lists.
+PackConstructorInitializers: CurrentLine
+ConstructorInitializerIndentWidth: 4
 
-# Keep macro definitions formatting
-KeepEmptyLinesAtTheStartOfBlocks: false
-MaxEmptyLinesToKeep: 1
+# Lambdas and trailing return types.
+LambdaBodyIndentation: Signature
+AllowShortLambdasOnASingleLine: All
+
+# Namespace indentation.
+CompactNamespaces: false
+NamespaceIndentation: None
+
+# Modern C++ attributes [[nodiscard]], [[maybe_unused]], etc.
+SpaceBeforeCpp11BracedList: false
+Cpp11BracedListStyle: true
+
+# Align operands in multi-line expressions.
+AlignOperands: Align
+
+# Include headers handling.
+IncludeBlocks: Regroup
+SortIncludes: CaseSensitive
+IncludeCategories:
+  - Regex: '^".*\.hpp"'
+    Priority: 1
+  - Regex: "^<ads/.*>"
+    Priority: 2
+  - Regex: '^<.*\.h>'
+    Priority: 3
+  - Regex: "^<.*>"
+    Priority: 4
+
+# Separation between definitions.
+SeparateDefinitionBlocks: Always
+MaxEmptyLinesToKeep: 2
+
+# Handling classes and structs.
+EmptyLineBeforeAccessModifier: LogicalBlock
+EmptyLineAfterAccessModifier: Never
+
+# References alignment (like pointers).
+ReferenceAlignment: Left
+SpaceAroundPointerQualifiers: Default
+
+# Const/volatile qualifiers.
+QualifierAlignment: Leave
+
+# Comments and documentation.
+ReflowComments: true
+CommentPragmas: "^(!|/)"
+
+# Formatting numeric literals with separators.
+IntegerLiteralSeparator:
+  Binary: 4
+  Decimal: 3
+  Hex: 4
+
+# C++23 options.
+InsertBraces: false
+RemoveSemicolon: false
+
+# Compact namespaces for short namespaces.
+ShortNamespaceLines: 10
