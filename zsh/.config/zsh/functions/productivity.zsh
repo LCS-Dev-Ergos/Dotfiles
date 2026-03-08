@@ -312,10 +312,20 @@ function zshcache() {
 
   for arg in "$@"; do
     case "$arg" in
-      --dry-run) dry_run=true ;;
-      --rebuild) rebuild=true ;;
-      --compile) compile=true ;;
-      --quiet) quiet=true ;;
+      --dry-run|--dryrun) dry_run=true ;;
+      --rebuild)          rebuild=true ;;
+      --compile)          compile=true ;;
+      --quiet)            quiet=true ;;
+      --help)
+        echo "Usage: zshcache [--dry-run] [--rebuild] [--compile] [--quiet] [--help]"
+        echo "  Cleans stale entries and rebuilds the zsh completion cache."
+        echo ""
+        echo "  --dry-run  Preview what would be removed without making changes"
+        echo "  --rebuild  Run compinit after cleanup to rebuild the cache"
+        echo "  --compile  Compile zsh files to .zwc bytecode"
+        echo "  --quiet    Suppress informational output"
+        return 0 ;;
+      *) echo "zshcache: unknown option: $arg" >&2; return 1 ;;
     esac
   done
 
@@ -340,13 +350,39 @@ function zshcache() {
   # Custom caches created by this config.
   targets+=( "$xdg_cache/zsh"/* )
 
+  # Broken symlinks in the zinit completions directory.
+  local zinit_completions="${XDG_DATA_HOME:-$HOME/.local/share}/zinit/completions"
+  local -a broken_links=()
+  local _link
+  if [[ -d "$zinit_completions" ]]; then
+    for _link in "$zinit_completions"/_*(N@); do
+      [[ ! -e "$_link" ]] && broken_links+=("$_link")
+    done
+  fi
+
   if [[ "$dry_run" == true ]]; then
     [[ "$quiet" == true ]] || echo "${C_YELLOW}DRY RUN - Zsh cache files that would be removed:${C_RESET}"
     for item in "${targets[@]}"; do
       [[ "$quiet" == true ]] || echo "  $item"
     done
+    if (( ${#broken_links[@]} )); then
+      [[ "$quiet" == true ]] || echo "${C_YELLOW}Broken zinit symlinks that would be removed:${C_RESET}"
+      for _link in "${broken_links[@]}"; do
+        [[ "$quiet" == true ]] || echo "  $_link"
+      done
+    fi
+    [[ "$rebuild" == true ]] && { [[ "$quiet" == true ]] || echo "${C_YELLOW}DRY RUN - compinit rebuild skipped.${C_RESET}"; }
+    [[ "$compile" == true ]] && { [[ "$quiet" == true ]] || echo "${C_YELLOW}DRY RUN - zcompile skipped.${C_RESET}"; }
+    return 0
   else
     (( ${#targets[@]} )) && command rm -rf -- "${targets[@]}" 2>/dev/null
+    # Remove broken symlinks.
+    # Safety: must be a broken symlink (-L, !-e) within the expected directory.
+    for _link in "${broken_links[@]}"; do
+      if [[ "$_link" == "${zinit_completions}/"* && -L "$_link" && ! -e "$_link" ]]; then
+        command rm -- "$_link" 2>/dev/null
+      fi
+    done
     [[ "$quiet" == true ]] || echo "${C_GREEN}Zsh cache cleanup completed.${C_RESET}"
   fi
 
@@ -388,16 +424,22 @@ function zshcache() {
 
   if [[ "$rebuild" == true ]]; then
     autoload -Uz compinit
-    compinit -C
-    [[ "$quiet" == true ]] || echo "${C_GREEN}compinit rebuilt.${C_RESET}"
+    local _compdump="${ZSH_COMPDUMP:-${xdg_cache}/zsh/.zcompdump-${HOST}}"
+    local _insecure_mode="-i"
+    [[ "${ZSH_DISABLE_COMPFIX:-false}" == true ]] && _insecure_mode="-u"
+    command mkdir -p "${xdg_cache}/zsh" 2>/dev/null
+    if compinit "$_insecure_mode" -d "$_compdump" 2>/dev/null; then
+      # Update stamp and signature so next startup uses the fast path (compinit -C).
+      : >| "${xdg_cache}/zsh/compinit.last" 2>/dev/null
+      print -r -- "${_compdump}|${(j.:.)fpath}" >| "${xdg_cache}/zsh/compinit.sig" 2>/dev/null
+      [[ "$quiet" == true ]] || echo "${C_GREEN}compinit rebuilt.${C_RESET}"
+    else
+      echo "${C_RED}zshcache: compinit returned an error.${C_RESET}" >&2
+    fi
   fi
 
   if [[ "$compile" == true ]]; then
-    if [[ "$dry_run" == true ]]; then
-      [[ "$quiet" == true ]] || echo "${C_YELLOW}DRY RUN - zcompile skipped.${C_RESET}"
-    else
-      _zshcache_compile
-    fi
+    _zshcache_compile
   fi
 
   unfunction _zshcache_compile 2>/dev/null
