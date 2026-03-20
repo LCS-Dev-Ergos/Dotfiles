@@ -38,6 +38,7 @@ _VSCODE_EXT_CLEAN_DEFAULT_STRATEGY="newest"
 _VSCODE_EXT_CLEAN_DEFAULT_DRY_RUN="true"
 _VSCODE_EXT_CLEAN_DEFAULT_DEBUG="false"
 _VSCODE_EXT_CLEAN_DEFAULT_RESPECT_REFERENCES="true"
+_VSCODE_EXT_CLEAN_DEFAULT_AUTO_CONFIRM="false"
 
 # ++++++++++++++++++++++++++ SHARED HELPERS LOADER +++++++++++++++++++++++++++ #
 
@@ -90,6 +91,70 @@ _vscode_ext_clean_usage() {
 _vscode_ext_clean_dbg() {
   [[ "${_vscode_ext_dbg:-false}" == "true" ]] || return 0
   _shared_log info "[DBG] $*"
+}
+
+# -----------------------------------------------------------------------------
+# _vscode_ext_clean_python_available / _vscode_ext_clean_use_python
+# -----------------------------------------------------------------------------
+# Optional Python backend gate used during the staged migration.
+# -----------------------------------------------------------------------------
+_vscode_ext_clean_python_available() {
+  command -v python3 >/dev/null 2>&1 && [[ -r "${_VSCODE_MODULE_ROOT}/py/cli.py" ]]
+}
+
+_vscode_ext_clean_use_python() {
+  case "${VSCODE_SYNC_USE_PYTHON:-0}" in
+    1|true|TRUE|yes|YES|on|ON) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+_vscode_ext_clean_run_python() {
+  local folder_path="$1"
+  local requested_strategy="${2:-$_VSCODE_EXT_CLEAN_DEFAULT_STRATEGY}"
+  local dry_run="${3:-$_VSCODE_EXT_CLEAN_DEFAULT_DRY_RUN}"
+  local debug="${4:-$_VSCODE_EXT_CLEAN_DEFAULT_DEBUG}"
+  local respect_refs="${5:-$_VSCODE_EXT_CLEAN_DEFAULT_RESPECT_REFERENCES}"
+  local auto_confirm="${6:-$_VSCODE_EXT_CLEAN_DEFAULT_AUTO_CONFIRM}"
+  local strategy
+
+  strategy=$(_vscode_ext_clean_validate_strategy "$requested_strategy") || {
+    _shared_log error "Invalid strategy: $requested_strategy (use newest|oldest|all)."
+    return 1
+  }
+
+  if ! _shared_is_bool "$dry_run"; then
+    _shared_log error "Invalid dry_run value: $dry_run (use true|false)."
+    return 1
+  fi
+  if ! _shared_is_bool "$debug"; then
+    _shared_log error "Invalid debug value: $debug (use true|false)."
+    return 1
+  fi
+  if ! _shared_is_bool "$respect_refs"; then
+    _shared_log error "Invalid respect_references value: $respect_refs (use true|false)."
+    return 1
+  fi
+  if ! _shared_is_bool "$auto_confirm"; then
+    _shared_log error "Invalid auto_confirm value: $auto_confirm (use true|false)."
+    return 1
+  fi
+
+  local -a cmd=(
+    python3
+    "${_VSCODE_MODULE_ROOT}/py/cli.py"
+    clean
+    "$folder_path"
+    --home "$HOME"
+    --strategy "$strategy"
+  )
+
+  [[ "$respect_refs" == "true" ]] || cmd+=(--no-respect-references)
+  [[ "$dry_run" == "true" ]] || cmd+=(--apply)
+  [[ "$auto_confirm" == "true" ]] && cmd+=(--yes)
+
+  [[ "$debug" == "true" ]] && _shared_log info "Cleaner: using Python backend."
+  "${cmd[@]}"
 }
 
 # -----------------------------------------------------------------------------
@@ -163,12 +228,54 @@ _vscode_ext_clean_make_temp_dir() {
     return 0
   fi
 
-  local cache_root="${HOME}/.cache/vscode-extension-cleaner"
+  local cache_root="${XDG_CACHE_HOME:-$HOME/.cache}/vscode-extension-cleaner"
   mkdir -p "$cache_root" 2>/dev/null || return 1
-  temp_dir="${cache_root}/run.$$.$(date +%s)"
-  mkdir "$temp_dir" 2>/dev/null || return 1
-  printf "%s\n" "$temp_dir"
-  return 0
+
+  if temp_dir=$(mktemp -d "${cache_root}/run.XXXXXXXX" 2>/dev/null); then
+    printf "%s\n" "$temp_dir"
+    return 0
+  fi
+
+  local attempt=0
+  while (( attempt < 20 )); do
+    temp_dir="${cache_root}/run.$$.$EPOCHSECONDS.$RANDOM.$attempt"
+    if mkdir "$temp_dir" 2>/dev/null; then
+      printf "%s\n" "$temp_dir"
+      return 0
+    fi
+    ((attempt++))
+  done
+
+  return 1
+}
+
+# -----------------------------------------------------------------------------
+# _vscode_ext_clean_make_quarantine_dir
+# -----------------------------------------------------------------------------
+# Creates a timestamped quarantine directory for non-destructive cleanup moves.
+# Falls back to ~/.local/share/vscode-sync-backups when the sync core is not
+# loaded in the current shell.
+# -----------------------------------------------------------------------------
+_vscode_ext_clean_make_quarantine_dir() {
+  local root_path="$1"
+  local primary_backup_root="${_VSCODE_SYNC_BACKUP_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/vscode-sync-backups}"
+  local fallback_backup_root="${root_path:h}/.vscode-sync-backups"
+  local timestamp root_fragment quarantine_dir backup_root
+
+  timestamp="$(date +%Y%m%d_%H%M%S)_$$"
+  root_fragment="${root_path#${HOME}/}"
+  root_fragment="${root_fragment//\//__}"
+  [[ -n "$root_fragment" ]] || root_fragment="extensions"
+
+  for backup_root in "$primary_backup_root" "$fallback_backup_root"; do
+    quarantine_dir="${backup_root}/${timestamp}_extension-cleaner-quarantine/${root_fragment}"
+    if mkdir -p "$quarantine_dir" 2>/dev/null; then
+      printf "%s\n" "$quarantine_dir"
+      return 0
+    fi
+  done
+
+  return 1
 }
 
 # -----------------------------------------------------------------------------
@@ -298,8 +405,8 @@ _vscode_ext_clean_version_cmp() {
 # _vscode_ext_clean_collect_reference_names
 # -----------------------------------------------------------------------------
 # Collects referenced extension folder names from VS Code manifests:
-#   - extensions/extensions.json
-#   - User profile extensions.json files (Stable + Insiders)
+#   - the target root's extensions/extensions.json
+#   - profile manifests relevant to the same extension root
 #
 # Usage:
 #   _vscode_ext_clean_collect_reference_names <extensions_dir> <output_file>
@@ -310,35 +417,47 @@ _vscode_ext_clean_version_cmp() {
 _vscode_ext_clean_collect_reference_names() {
   local extensions_dir="$1"
   local output_file="$2"
+  local canonical_extensions_dir="${extensions_dir:a}"
   local manifest
   local manifest_files=()
   local profile_root
+  local scope="local"
 
   : >| "$output_file" || return 1
 
   if [[ -f "${extensions_dir}/extensions.json" ]]; then
     manifest_files+=("${extensions_dir}/extensions.json")
   fi
-  local _extra_manifest
-  for _extra_manifest in \
-    "${HOME}/.vscode/extensions/extensions.json" \
-    "${HOME}/.vscode-insiders/extensions/extensions.json"; do
-    if [[ -f "$_extra_manifest" && "$_extra_manifest" != "${extensions_dir}/extensions.json" ]]; then
-      manifest_files+=("$_extra_manifest")
-    fi
-  done
 
-  for profile_root in \
-    "${HOME}/Library/Application Support/Code/User/profiles" \
-    "${HOME}/Library/Application Support/Code - Insiders/User/profiles" \
-    "${HOME}/.config/Code/User/profiles" \
-    "${HOME}/.config/Code - Insiders/User/profiles"; do
-    if [[ -d "$profile_root" ]]; then
-      while IFS= read -r manifest; do
-        manifest_files+=("$manifest")
-      done < <(find "$profile_root" -mindepth 2 -maxdepth 2 -type f -name "extensions.json" 2>/dev/null)
-    fi
-  done
+  case "$canonical_extensions_dir" in
+    "${HOME}/.vscode/extensions") scope="stable" ;;
+    "${HOME}/.vscode-insiders/extensions") scope="insiders" ;;
+  esac
+
+  case "$scope" in
+    stable)
+      for profile_root in \
+        "${HOME}/Library/Application Support/Code/User/profiles" \
+        "${HOME}/.config/Code/User/profiles"; do
+        if [[ -d "$profile_root" ]]; then
+          while IFS= read -r manifest; do
+            manifest_files+=("$manifest")
+          done < <(find "$profile_root" -mindepth 2 -maxdepth 2 -type f -name "extensions.json" 2>/dev/null)
+        fi
+      done
+      ;;
+    insiders)
+      for profile_root in \
+        "${HOME}/Library/Application Support/Code - Insiders/User/profiles" \
+        "${HOME}/.config/Code - Insiders/User/profiles"; do
+        if [[ -d "$profile_root" ]]; then
+          while IFS= read -r manifest; do
+            manifest_files+=("$manifest")
+          done < <(find "$profile_root" -mindepth 2 -maxdepth 2 -type f -name "extensions.json" 2>/dev/null)
+        fi
+      done
+      ;;
+  esac
 
   local _have_jq=false
   command -v jq >/dev/null 2>&1 && _have_jq=true
@@ -361,6 +480,46 @@ _vscode_ext_clean_collect_reference_names() {
     sed '/^[[:space:]]*$/d' "$output_file" | LC_ALL=C sort -u >| "$tmp_sorted"
     command mv -f -- "$tmp_sorted" "$output_file"
   fi
+
+  return 0
+}
+
+# -----------------------------------------------------------------------------
+# _vscode_ext_clean_build_effective_reference_names
+# -----------------------------------------------------------------------------
+# Reduces raw manifest references to the subset that should actively protect
+# installed folders in the current extension root.
+#
+# Rules:
+#   - only references to folders currently installed in <extensions_dir> matter
+#   - every installed folder still referenced by a manifest is protected
+#     conservatively, even if it looks older than another installed version
+# -----------------------------------------------------------------------------
+_vscode_ext_clean_build_effective_reference_names() {
+  setopt localoptions ksharrays
+
+  local extensions_dir="$1"
+  local raw_reference_file="$2"
+  local protected_reference_file="$3"
+  local stale_reference_file="$4"
+  local work_dir="$5"
+
+  : >| "$protected_reference_file" || return 1
+  : >| "$stale_reference_file" || return 1
+  [[ -s "$raw_reference_file" ]] || return 0
+
+  local installed_names_file="${work_dir}/installed_names.txt"
+  local installed_referenced_file="${work_dir}/installed_referenced.txt"
+  find "$extensions_dir" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; \
+    | LC_ALL=C sort -u >| "$installed_names_file"
+
+  grep -Fxf "$installed_names_file" "$raw_reference_file" 2>/dev/null \
+    | LC_ALL=C sort -u >| "$installed_referenced_file"
+
+  [[ -s "$installed_referenced_file" ]] || return 0
+
+  LC_ALL=C sort -u "$installed_referenced_file" >| "$protected_reference_file"
+  : >| "$stale_reference_file" || return 1
 
   return 0
 }
@@ -430,6 +589,7 @@ _vscode_ext_clean_run() {
   local dry_run="${3:-$_VSCODE_EXT_CLEAN_DEFAULT_DRY_RUN}"
   local debug="${4:-$_VSCODE_EXT_CLEAN_DEFAULT_DEBUG}"
   local respect_refs="${5:-$_VSCODE_EXT_CLEAN_DEFAULT_RESPECT_REFERENCES}"
+  local auto_confirm="${6:-$_VSCODE_EXT_CLEAN_DEFAULT_AUTO_CONFIRM}"
   local strategy
 
   _shared_init_colors
@@ -443,6 +603,7 @@ _vscode_ext_clean_run() {
     _shared_log error "Invalid directory: $folder_path"
     return 1
   fi
+  folder_path="${folder_path:a}"
 
   strategy=$(_vscode_ext_clean_validate_strategy "$requested_strategy") || {
     _shared_log error "Invalid strategy: $requested_strategy (use newest|oldest|all)."
@@ -464,19 +625,19 @@ _vscode_ext_clean_run() {
     _shared_log error "Invalid respect_references value: $respect_refs (use true|false)."
     return 1
   fi
+  if ! _shared_is_bool "$auto_confirm"; then
+    _shared_log error "Invalid auto_confirm value: $auto_confirm (use true|false)."
+    return 1
+  fi
 
   _vscode_ext_dbg="$debug"
 
   _shared_log info "Scanning VS Code extensions in: $folder_path"
   _shared_log info "Strategy: $strategy"
   if [[ "$dry_run" == "true" ]]; then
-    _shared_log info "Running in DRY-RUN mode (no deletions)."
+    _shared_log info "Running in DRY-RUN mode (no quarantine moves)."
   else
-    _shared_log warn "Running in DELETE mode (permanent removal)."
-    _shared_confirm "Proceed with deletion?" || {
-      _shared_log info "Aborted by user."
-      return 0
-    }
+    _shared_log warn "Running in QUARANTINE mode (non-destructive move)."
   fi
 
   local temp_dir
@@ -484,13 +645,19 @@ _vscode_ext_clean_run() {
     _shared_log error "Failed to create temporary working directory."
     return 1
   }
-  trap 'rm -rf "$temp_dir"' EXIT
+  trap "rm -rf -- ${(q)temp_dir}" EXIT
 
   local all_dirs_file="${temp_dir}/all_dirs.txt"
   local records_file="${temp_dir}/records.txt"
   local cores_file="${temp_dir}/cores.txt"
   local to_delete_file="${temp_dir}/to_delete.txt"
+  local raw_referenced_names_file="${temp_dir}/referenced_names.raw.txt"
   local referenced_names_file="${temp_dir}/referenced_names.txt"
+  local stale_referenced_names_file="${temp_dir}/referenced_names.stale.txt"
+  local reference_work_dir="${temp_dir}/reference-analysis"
+  local raw_reference_count=0 protected_reference_count=0 stale_reference_count=0
+
+  mkdir -p "$reference_work_dir" || return 1
 
   find "$folder_path" -mindepth 1 -maxdepth 1 -type d > "$all_dirs_file"
   if [[ ! -s "$all_dirs_file" ]]; then
@@ -514,10 +681,33 @@ _vscode_ext_clean_run() {
   done < "$all_dirs_file"
 
   if [[ "$respect_refs" == "true" ]]; then
-    _vscode_ext_clean_collect_reference_names "$folder_path" "$referenced_names_file"
+    _vscode_ext_clean_collect_reference_names "$folder_path" "$raw_referenced_names_file" || {
+      _shared_log error "Failed to collect reference manifests."
+      return 1
+    }
+    _vscode_ext_clean_build_effective_reference_names \
+      "$folder_path" \
+      "$raw_referenced_names_file" \
+      "$referenced_names_file" \
+      "$stale_referenced_names_file" \
+      "$reference_work_dir" || {
+      _shared_log error "Failed to evaluate effective reference protection."
+      return 1
+    }
+
+    [[ -s "$raw_referenced_names_file" ]] && raw_reference_count=$(wc -l < "$raw_referenced_names_file" | tr -d ' ')
+    [[ -s "$referenced_names_file" ]] && protected_reference_count=$(wc -l < "$referenced_names_file" | tr -d ' ')
+    [[ -s "$stale_referenced_names_file" ]] && stale_reference_count=$(wc -l < "$stale_referenced_names_file" | tr -d ' ')
+
     if [[ -s "$referenced_names_file" ]]; then
       _shared_log info "Reference protection enabled."
-      _shared_log info "Found $(wc -l < "$referenced_names_file" | tr -d ' ') referenced extension entries."
+      _shared_log info "Collected ${raw_reference_count} raw reference entr$( (( raw_reference_count == 1 )) && printf 'y' || printf 'ies' )."
+      _shared_log info "Protected ${protected_reference_count} installed reference entr$( (( protected_reference_count == 1 )) && printf 'y' || printf 'ies' ) for this directory."
+      if (( stale_reference_count > 0 )); then
+        _shared_log info "Ignored ${stale_reference_count} stale referenced version(s) shadowed by newer installed refs."
+      fi
+    elif (( raw_reference_count > 0 )); then
+      _shared_log warn "Reference protection enabled, but no collected references match folders currently installed in: $folder_path"
     else
       _shared_log warn "Reference protection enabled, but no references were found."
     fi
@@ -531,13 +721,18 @@ _vscode_ext_clean_run() {
   local duplicate_groups=0
   local planned_deletions=0
   local protected_skips=0
+  local -a group_paths=()
+  local -a group_names=()
+  local -a group_versions=()
+  local -a group_mtimes=()
+  local group_count idx modified_date newest_idx cmp oldest_unreferenced_idx
 
   while IFS= read -r core; do
-    local group_paths=()
-    local group_names=()
-    local group_versions=()
-    local group_mtimes=()
-    local group_count=0
+    group_paths=()
+    group_names=()
+    group_versions=()
+    group_mtimes=()
+    group_count=0
 
     while IFS='|' read -r ext_path ext_name ext_core ext_version ext_mtime; do
       [[ "$ext_core" == "$core" ]] || continue
@@ -555,15 +750,14 @@ _vscode_ext_clean_run() {
     ((duplicate_groups++))
     printf "\n%sExtension '%s' has %d installed versions:%s\n" "$C_BOLD" "$core" "$group_count" "$C_RESET"
 
-    local idx modified_date
     for ((idx = 0; idx < group_count; idx++)); do
       modified_date=$(_vscode_ext_clean_epoch_to_date "${group_mtimes[idx]}")
       printf "  - %s (version: %s, modified: %s)\n" \
         "${group_paths[idx]}" "${group_versions[idx]:-unknown}" "$modified_date"
     done
 
-    local newest_idx=0
-    local cmp
+    newest_idx=0
+    cmp=""
     for ((idx = 1; idx < group_count; idx++)); do
       cmp=$(_vscode_ext_clean_version_cmp "${group_versions[idx]}" "${group_versions[newest_idx]}")
       if (( cmp > 0 )); then
@@ -577,7 +771,7 @@ _vscode_ext_clean_run() {
 
     _vscode_ext_clean_dbg "Group '${core}': newest_idx=${newest_idx} (${group_names[newest_idx]})"
 
-    local oldest_unreferenced_idx=-1
+    oldest_unreferenced_idx=-1
     for ((idx = 0; idx < group_count; idx++)); do
       if [[ "$respect_refs" == "true" ]] && _vscode_ext_clean_is_referenced "${group_names[idx]}" "$referenced_names_file"; then
         continue
@@ -626,13 +820,13 @@ _vscode_ext_clean_run() {
 
   echo
   _shared_log info "Duplicate groups found: $duplicate_groups"
-  _shared_log info "Planned deletions: $planned_deletions"
+  _shared_log info "Planned quarantine moves: $planned_deletions"
   if (( protected_skips > 0 )); then
     _shared_log info "Skipped due to references: $protected_skips"
   fi
 
   if [[ ! -s "$to_delete_file" ]]; then
-    _shared_log ok "No extension folders selected for deletion."
+    _shared_log ok "No extension folders selected for quarantine."
     return 0
   fi
 
@@ -641,16 +835,30 @@ _vscode_ext_clean_run() {
   local delete_count
   delete_count=$(wc -l < "$final_delete_file" | tr -d ' ')
 
-  printf "\n%sFolders selected for deletion:%s\n" "$C_BOLD" "$C_RESET"
+  printf "\n%sFolders selected for quarantine:%s\n" "$C_BOLD" "$C_RESET"
   sed 's/^/  - /' "$final_delete_file"
 
   if [[ "$dry_run" == "true" ]]; then
     echo
-    _shared_log ok "Dry run complete. $delete_count folder(s) would be deleted."
+    _shared_log ok "Dry run complete. $delete_count folder(s) would be quarantined."
     return 0
   fi
 
-  local deleted_count=0 failed_count=0
+  if [[ "$auto_confirm" != "true" ]]; then
+    _shared_confirm "Proceed with quarantine move?" || {
+      _shared_log info "Aborted by user."
+      return 0
+    }
+  fi
+
+  local quarantine_dir=""
+  quarantine_dir=$(_vscode_ext_clean_make_quarantine_dir "$folder_path") || {
+    _shared_log error "Failed to create quarantine directory."
+    return 1
+  }
+
+  local quarantined_count=0 failed_count=0
+  local quarantine_target="" attempt=0
   while IFS= read -r ext_path; do
     if [[ -z "$ext_path" ]]; then
       continue
@@ -658,25 +866,33 @@ _vscode_ext_clean_run() {
     case "$ext_path" in
       "$folder_path"/*) ;;
       *)
-        _shared_log error "Refusing to delete outside target directory: $ext_path"
+        _shared_log error "Refusing to quarantine outside target directory: $ext_path"
         ((failed_count++))
         continue
         ;;
     esac
 
     if [[ -d "$ext_path" ]]; then
-      if rm -rf "$ext_path"; then
-        _shared_log ok "Deleted: $ext_path"
-        ((deleted_count++))
+      quarantine_target="${quarantine_dir}/$(basename "$ext_path")"
+      attempt=1
+      while [[ -e "$quarantine_target" ]]; do
+        quarantine_target="${quarantine_dir}/$(basename "$ext_path").${attempt}"
+        ((attempt++))
+      done
+
+      if mv "$ext_path" "$quarantine_target"; then
+        _shared_log ok "Quarantined: $ext_path -> $quarantine_target"
+        ((quarantined_count++))
       else
-        _shared_log error "Failed to delete: $ext_path"
+        _shared_log error "Failed to quarantine: $ext_path"
         ((failed_count++))
       fi
     fi
   done < "$final_delete_file"
 
   echo
-  _shared_log info "Deletion summary: $deleted_count deleted, $failed_count failed."
+  _shared_log info "Cleanup summary: $quarantined_count quarantined, $failed_count failed."
+  _shared_log info "Quarantine directory: $quarantine_dir"
   if (( failed_count > 0 )); then
     return 1
   fi
@@ -692,6 +908,13 @@ _vscode_ext_clean_run() {
 #   vscode_clean_extensions <dir> [strategy] [dry_run] [debug] [respect_refs]
 # -----------------------------------------------------------------------------
 vscode_clean_extensions() {
+  if _vscode_ext_clean_use_python; then
+    if _vscode_ext_clean_python_available; then
+      _vscode_ext_clean_run_python "$@"
+      return $?
+    fi
+    _shared_log warn "Cleaner: Python backend requested but unavailable, falling back to shell."
+  fi
   _vscode_ext_clean_run "$@"
 }
 
@@ -714,7 +937,7 @@ _vscode_ext_clean_main() {
     _vscode_ext_clean_usage
     return 1
   fi
-  _vscode_ext_clean_run "$@"
+  vscode_clean_extensions "$@"
 }
 
 # ============================================================================ #

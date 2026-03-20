@@ -212,7 +212,11 @@ _vscode_sync_ensure_parent_dir() {
 # -----------------------------------------------------------------------------
 _vscode_sync_path_is_within_home() {
   local path="$1"
-  [[ -n "$path" && "$path" == "${HOME}/"* ]]
+  [[ -n "$path" ]] || return 1
+
+  local canonical_home="${HOME:a}"
+  local canonical_path="${path:a}"
+  [[ "$canonical_path" == "$canonical_home" || "$canonical_path" == "${canonical_home}/"* ]]
 }
 
 # -----------------------------------------------------------------------------
@@ -233,6 +237,41 @@ _vscode_sync_validate_extensions_paths() {
     return 1
   fi
   return 0
+}
+
+# -----------------------------------------------------------------------------
+# _vscode_sync_make_temp_dir
+# -----------------------------------------------------------------------------
+# Creates a temporary working directory for CLI user-data roots and transient
+# sync metadata. Falls back to ~/.cache/vscode-sync when mktemp is unavailable.
+# -----------------------------------------------------------------------------
+_vscode_sync_make_temp_dir() {
+  local temp_dir
+
+  if temp_dir=$(mktemp -d 2>/dev/null); then
+    printf "%s\n" "$temp_dir"
+    return 0
+  fi
+
+  local cache_root="${XDG_CACHE_HOME:-$HOME/.cache}/vscode-sync"
+  mkdir -p "$cache_root" 2>/dev/null || return 1
+
+  if temp_dir=$(mktemp -d "${cache_root}/run.XXXXXXXX" 2>/dev/null); then
+    printf "%s\n" "$temp_dir"
+    return 0
+  fi
+
+  local attempt=0
+  while (( attempt < 20 )); do
+    temp_dir="${cache_root}/run.$$.$EPOCHSECONDS.$RANDOM.$attempt"
+    if mkdir "$temp_dir" 2>/dev/null; then
+      printf "%s\n" "$temp_dir"
+      return 0
+    fi
+    ((attempt++))
+  done
+
+  return 1
 }
 
 # -----------------------------------------------------------------------------
@@ -287,7 +326,8 @@ _vscode_sync_backup_item() {
 # _vscode_sync_backup_profile_state
 # -----------------------------------------------------------------------------
 # Creates a profile-state snapshot before mutating operations.
-# Captures state.vscdb for Stable/Insiders to support manual rollback.
+# Captures state.vscdb plus root/profile extensions manifests for Stable and
+# Insiders to support manual rollback of profile-specific extension selection.
 #
 # Returns:
 #   0 - Snapshot created (or no files found to snapshot).
@@ -296,15 +336,41 @@ _vscode_sync_backup_item() {
 _vscode_sync_backup_profile_state() {
   local state_stable="${_VSCODE_USER_STABLE}/globalStorage/state.vscdb"
   local state_insiders="${_VSCODE_USER_INSIDERS}/globalStorage/state.vscdb"
-
-  if [[ ! -f "$state_stable" && ! -f "$state_insiders" ]]; then
-    _shared_log info "Profile state snapshot: no state.vscdb files found."
-    return 0
-  fi
+  local -a manifest_candidates=(
+    "${_VSCODE_EXTENSIONS_SRC}/extensions.json"
+    "${_VSCODE_EXTENSIONS_DST}/extensions.json"
+  )
+  local manifest_path profile_root
+  local has_snapshot_inputs=false
 
   local timestamp snapshot_dir copied=0
   timestamp="$(date +%Y%m%d_%H%M%S)_$$"
   snapshot_dir="${_VSCODE_SYNC_BACKUP_DIR}/${timestamp}_profile-state"
+
+  if [[ -f "$state_stable" || -f "$state_insiders" ]]; then
+    has_snapshot_inputs=true
+  fi
+  for manifest_path in "${manifest_candidates[@]}"; do
+    if [[ -f "$manifest_path" ]]; then
+      has_snapshot_inputs=true
+      break
+    fi
+  done
+  if ! $has_snapshot_inputs; then
+    for profile_root in \
+      "${_VSCODE_USER_STABLE}/profiles" \
+      "${_VSCODE_USER_INSIDERS}/profiles"; do
+      if [[ -d "$profile_root" ]]; then
+        has_snapshot_inputs=true
+        break
+      fi
+    done
+  fi
+
+  if ! $has_snapshot_inputs; then
+    _shared_log info "Profile state snapshot: no profile state or manifest files found."
+    return 0
+  fi
 
   mkdir -p "$snapshot_dir" || {
     _shared_log error "Profile state snapshot failed: cannot create $snapshot_dir"
@@ -327,6 +393,45 @@ _vscode_sync_backup_profile_state() {
     }
     ((copied++))
   fi
+
+  local manifests_snapshot_dir="${snapshot_dir}/manifests"
+  local manifest_dest
+
+  for manifest_path in "${manifest_candidates[@]}"; do
+    [[ -f "$manifest_path" ]] || continue
+    manifest_dest="${manifests_snapshot_dir}/${manifest_path#${HOME}/}"
+    mkdir -p "${manifest_dest:h}" || {
+      _shared_log error "Profile state snapshot failed: cannot create ${manifest_dest:h}"
+      return 1
+    }
+    cp "$manifest_path" "$manifest_dest" || {
+      _shared_log error "Profile state snapshot failed for manifest: $manifest_path"
+      return 1
+    }
+    ((copied++))
+  done
+
+  for profile_root in \
+    "${_VSCODE_USER_STABLE}/profiles" \
+    "${_VSCODE_USER_INSIDERS}/profiles"; do
+    [[ -d "$profile_root" ]] || continue
+    while IFS= read -r manifest_path; do
+      [[ -n "$manifest_path" ]] || continue
+      manifest_dest="${manifests_snapshot_dir}/${manifest_path#${HOME}/}"
+      mkdir -p "${manifest_dest:h}" || {
+        _shared_log error "Profile state snapshot failed: cannot create ${manifest_dest:h}"
+        return 1
+      }
+      cp "$manifest_path" "$manifest_dest" || {
+        _shared_log error "Profile state snapshot failed for profile manifest: $manifest_path"
+        return 1
+      }
+      ((copied++))
+    done < <(
+      find "$profile_root" -mindepth 2 -maxdepth 2 -type f -name "extensions.json" 2>/dev/null |
+        LC_ALL=C sort
+    )
+  done
 
   if (( copied > 0 )); then
     _shared_log ok "Profile state snapshot created: $snapshot_dir"

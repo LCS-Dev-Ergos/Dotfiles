@@ -12,6 +12,14 @@
 
 # ++++++++++++++++++++++++++ EXTENSION SYNC HELPERS ++++++++++++++++++++++++++ #
 
+_vscode_sync_extensions_use_python() {
+  _vscode_python_backend_enabled && _vscode_python_backend_available
+}
+
+_vscode_sync_extensions_run_python() {
+  python3 "${_VSCODE_MODULE_ROOT}/py/cli.py" "$@"
+}
+
 # -----------------------------------------------------------------------------
 # _vscode_sync_ext_is_excluded <name>
 # -----------------------------------------------------------------------------
@@ -26,6 +34,90 @@ _vscode_sync_ext_is_excluded() {
     esac
   done
   return 1
+}
+
+# -----------------------------------------------------------------------------
+# _vscode_sync_ext_folder_to_id <folder_name>
+# -----------------------------------------------------------------------------
+# Converts a versioned extension folder name into the Marketplace extension ID.
+# Example:
+#   github.copilot-chat-0.41.2026032001        -> github.copilot-chat
+#   anthropic.claude-code-2.1.79-darwin-arm64  -> anthropic.claude-code
+# -----------------------------------------------------------------------------
+_vscode_sync_ext_folder_to_id() {
+  local folder_name="$1"
+  local ext_id="$folder_name"
+
+  if [[ "$ext_id" =~ ^(.*)-([0-9][0-9A-Za-z._+-]*)$ ]]; then
+    ext_id="${match[1]}"
+  fi
+  if [[ "$ext_id" =~ ^(.+)-(darwin|linux|win32|alpine)-(arm64|x64|ia32|armhf)$ ]]; then
+    ext_id="${match[1]}"
+  fi
+
+  printf "%s\n" "$ext_id"
+}
+
+# -----------------------------------------------------------------------------
+# _vscode_sync_list_missing_extension_links
+# -----------------------------------------------------------------------------
+# Prints missing or non-symlinked extension names that should currently be
+# mirrored from Stable into the Insiders extension root.
+# -----------------------------------------------------------------------------
+_vscode_sync_list_missing_extension_links() {
+  setopt localoptions nullglob
+  local src="$_VSCODE_EXTENSIONS_SRC"
+  local dst="$_VSCODE_EXTENSIONS_DST"
+  local ext_path name link
+
+  for ext_path in "$src"/*(N/); do
+    name="${ext_path:t}"
+    _vscode_sync_ext_is_excluded "$name" && continue
+    link="$dst/$name"
+    [[ -L "$link" && -e "$link" ]] && continue
+    print -r -- "$name"
+  done
+}
+
+# -----------------------------------------------------------------------------
+# _vscode_sync_list_unmanaged_extension_dirs
+# -----------------------------------------------------------------------------
+# Prints real Insiders extension directories that are not excluded and should
+# therefore be replaced by symlinks or removed as leftovers.
+# -----------------------------------------------------------------------------
+_vscode_sync_list_unmanaged_extension_dirs() {
+  setopt localoptions nullglob
+  local dst="$_VSCODE_EXTENSIONS_DST"
+  local entry_path name
+
+  for entry_path in "$dst"/*(N); do
+    [[ -d "$entry_path" ]] || continue
+    [[ -L "$entry_path" ]] && continue
+    name="${entry_path:t}"
+    _vscode_sync_ext_is_excluded "$name" && continue
+    print -r -- "$name"
+  done
+}
+
+# -----------------------------------------------------------------------------
+# _vscode_sync_list_native_excluded_extension_ids
+# -----------------------------------------------------------------------------
+# Prints unique extension IDs for excluded extensions that are currently stored
+# as real directories in the Insiders extension root.
+# -----------------------------------------------------------------------------
+_vscode_sync_list_native_excluded_extension_ids() {
+  setopt localoptions nullglob
+  local dst="$_VSCODE_EXTENSIONS_DST"
+  local entry_path name ext_id
+
+  for entry_path in "$dst"/*(N); do
+    [[ -d "$entry_path" ]] || continue
+    [[ -L "$entry_path" ]] && continue
+    name="${entry_path:t}"
+    _vscode_sync_ext_is_excluded "$name" || continue
+    ext_id=$(_vscode_sync_ext_folder_to_id "$name")
+    [[ -n "$ext_id" ]] && print -r -- "$ext_id"
+  done | LC_ALL=C sort -u
 }
 
 # -----------------------------------------------------------------------------
@@ -48,6 +140,16 @@ _vscode_sync_setup_extensions() {
 
   _vscode_sync_validate_extensions_paths || return 1
 
+  if _vscode_sync_extensions_use_python; then
+    _shared_log info "Extensions: using Python backend for setup."
+    _vscode_sync_extensions_run_python \
+      setup-extensions \
+      "$src" \
+      "$dst" \
+      --home "$HOME"
+    return $?
+  fi
+
   if [[ ! -d "$src" ]]; then
     _shared_log warn "Extensions: source not found: $src"
     return 0
@@ -69,7 +171,7 @@ _vscode_sync_setup_extensions() {
   }
 
   # 3. Create per-extension symlinks.
-  local synced=0 already=0 excluded=0 excluded_unlinked=0 failed=0
+  local synced=0 already=0 excluded=0 excluded_unlinked=0 unmanaged_removed=0 failed=0
   local name link link_dest ext_path
   for ext_path in "$src"/*(N/); do
     name="${ext_path%/}"
@@ -142,8 +244,32 @@ _vscode_sync_setup_extensions() {
     fi
   done
 
+  # Remove unmanaged real directories left behind by Insiders updates.
+  local unmanaged_dir unmanaged_name
+  for unmanaged_dir in "$dst"/*(N); do
+    [[ -d "$unmanaged_dir" ]] || continue
+    [[ -L "$unmanaged_dir" ]] && continue
+    unmanaged_name="${unmanaged_dir##*/}"
+
+    if _vscode_sync_ext_is_excluded "$unmanaged_name"; then
+      continue
+    fi
+    if ! _vscode_sync_path_is_within_home "$unmanaged_dir"; then
+      _shared_log error "Extensions: unmanaged directory outside HOME, skipping: $unmanaged_dir"
+      ((failed++))
+      continue
+    fi
+
+    rm -rf "$unmanaged_dir" || {
+      _shared_log error "Extensions: failed to remove unmanaged directory: $unmanaged_dir"
+      ((failed++))
+      continue
+    }
+    ((unmanaged_removed++))
+  done
+
   # 4. Report.
-  _shared_log ok "Extensions: $synced synced, $already already linked, $excluded excluded, $excluded_unlinked excluded-unlinked, $failed failed."
+  _shared_log ok "Extensions: $synced synced, $already already linked, $excluded excluded, $excluded_unlinked excluded-unlinked, $unmanaged_removed unmanaged-removed, $failed failed."
   (( failed == 0 ))
 }
 
@@ -157,6 +283,15 @@ _vscode_sync_status_extensions() {
   setopt localoptions nullglob
   local src="$_VSCODE_EXTENSIONS_SRC"
   local dst="$_VSCODE_EXTENSIONS_DST"
+
+  if _vscode_sync_extensions_use_python; then
+    _vscode_sync_extensions_run_python \
+      extension-status \
+      "$src" \
+      "$dst" \
+      --home "$HOME"
+    return $?
+  fi
 
   if [[ ! -d "$src" ]]; then
     printf "  %s[NO SRC]%s  Extensions  Source not found: %s\n" "$C_RED" "$C_RESET" "$src"
@@ -175,9 +310,9 @@ _vscode_sync_status_extensions() {
     return
   fi
 
-  local total=0 symlinked=0 excluded=0 excluded_linked=0 broken=0
-  local excluded_list=() excluded_linked_list=() broken_list=()
-  local name ext_path link
+  local total=0 symlinked=0 excluded=0 excluded_linked=0 broken=0 missing=0 unmanaged=0
+  local excluded_list=() excluded_linked_list=() broken_list=() missing_list=() unmanaged_list=()
+  local name ext_path link n
 
   for ext_path in "$src"/*(N/); do
     name="${ext_path%/}"
@@ -201,16 +336,40 @@ _vscode_sync_status_extensions() {
     elif [[ -L "$link" && ! -e "$link" ]]; then
       ((broken++))
       broken_list+=("$name")
+    else
+      ((missing++))
+      missing_list+=("$name")
     fi
   done
 
+  local unmanaged_path
+  for unmanaged_path in "$dst"/*(N); do
+    [[ -d "$unmanaged_path" ]] || continue
+    [[ -L "$unmanaged_path" ]] && continue
+    name="${unmanaged_path:t}"
+    if _vscode_sync_ext_is_excluded "$name"; then
+      continue
+    fi
+    ((unmanaged++))
+    unmanaged_list+=("$name")
+  done
+
   local expected=$(( total - excluded ))
-  printf "  %s[SYNCED]%s  Extensions  %d/%d symlinked, %d excluded, %d broken\n" \
-    "$C_GREEN" "$C_RESET" "$symlinked" "$expected" "$excluded" "$broken"
+  local ext_label="SYNCED"
+  local ext_color="$C_GREEN"
+  if (( broken > 0 )); then
+    ext_label="BROKEN"
+    ext_color="$C_RED"
+  elif (( missing > 0 || unmanaged > 0 || excluded_linked > 0 )); then
+    ext_label="DRIFT"
+    ext_color="$C_YELLOW"
+  fi
+
+  printf "  %s[%s]%s  Extensions  %d/%d symlinked, %d missing, %d excluded, %d broken, %d unmanaged\n" \
+    "$ext_color" "$ext_label" "$C_RESET" "$symlinked" "$expected" "$missing" "$excluded" "$broken" "$unmanaged"
 
   if (( ${#excluded_list[@]} > 0 )); then
     printf "             %sExcluded:%s\n" "$C_BOLD" "$C_RESET"
-    local n
     for n in "${excluded_list[@]}"; do
       printf "               - %s\n" "$n"
     done
@@ -218,16 +377,28 @@ _vscode_sync_status_extensions() {
 
   if (( ${#excluded_linked_list[@]} > 0 )); then
     printf "             %sExcluded but symlinked (run setup to fix):%s\n" "$C_BOLD" "$C_RESET"
-    local n
     for n in "${excluded_linked_list[@]}"; do
+      printf "               - %s\n" "$n"
+    done
+  fi
+
+  if (( ${#missing_list[@]} > 0 )); then
+    printf "             %sMissing expected symlinks:%s\n" "$C_BOLD" "$C_RESET"
+    for n in "${missing_list[@]}"; do
       printf "               - %s\n" "$n"
     done
   fi
 
   if (( ${#broken_list[@]} > 0 )); then
     printf "             %sBroken symlinks:%s\n" "$C_BOLD" "$C_RESET"
-    local n
     for n in "${broken_list[@]}"; do
+      printf "               - %s\n" "$n"
+    done
+  fi
+
+  if (( ${#unmanaged_list[@]} > 0 )); then
+    printf "             %sUnmanaged real directories:%s\n" "$C_BOLD" "$C_RESET"
+    for n in "${unmanaged_list[@]}"; do
       printf "               - %s\n" "$n"
     done
   fi
@@ -308,6 +479,32 @@ _vscode_sync_check_extensions() {
   _VSCODE_EXT_CHECK_ISSUES=0
   _VSCODE_EXT_CHECK_WARNINGS=0
 
+  if _vscode_sync_extensions_use_python; then
+    local counts_output issues_value warnings_value
+    _vscode_sync_extensions_run_python \
+      extension-check \
+      "$src" \
+      "$dst" \
+      --home "$HOME"
+
+    counts_output=$(
+      _vscode_sync_extensions_run_python \
+        extension-check \
+        "$src" \
+        "$dst" \
+        --home "$HOME" \
+        --counts-only 2>/dev/null
+    ) || return 1
+
+    issues_value=$(printf "%s\n" "$counts_output" | sed -n 's/^ISSUES=//p' | tail -n 1)
+    warnings_value=$(printf "%s\n" "$counts_output" | sed -n 's/^WARNINGS=//p' | tail -n 1)
+    [[ "$issues_value" =~ ^[0-9]+$ ]] || issues_value=0
+    [[ "$warnings_value" =~ ^[0-9]+$ ]] || warnings_value=0
+    _VSCODE_EXT_CHECK_ISSUES=$issues_value
+    _VSCODE_EXT_CHECK_WARNINGS=$warnings_value
+    return 0
+  fi
+
   printf "  %sChecking:%s Extensions\n" "$C_BOLD" "$C_RESET"
 
   # Legacy directory symlink.
@@ -323,9 +520,9 @@ _vscode_sync_check_extensions() {
   fi
 
   # Check for broken/wrong symlinks in dst.
-  local broken_count=0 outside_count=0 excluded_linked_count=0
-  local broken_names=() outside_names=() excluded_linked_names=()
-  local link_path name link_dest
+  local broken_count=0 outside_count=0 excluded_linked_count=0 missing_count=0 unmanaged_count=0
+  local broken_names=() outside_names=() excluded_linked_names=() missing_names=() unmanaged_names=()
+  local link_path name link_dest n
 
   for link_path in "$dst"/*(N); do
     [[ -L "$link_path" ]] || continue
@@ -357,13 +554,27 @@ _vscode_sync_check_extensions() {
     fi
   done
 
+  local missing_name unmanaged_name
+  while IFS= read -r missing_name; do
+    [[ -n "$missing_name" ]] || continue
+    ((missing_count++))
+    missing_names+=("$missing_name")
+    ((_VSCODE_EXT_CHECK_WARNINGS++))
+  done < <(_vscode_sync_list_missing_extension_links)
+
+  while IFS= read -r unmanaged_name; do
+    [[ -n "$unmanaged_name" ]] || continue
+    ((unmanaged_count++))
+    unmanaged_names+=("$unmanaged_name")
+    ((_VSCODE_EXT_CHECK_WARNINGS++))
+  done < <(_vscode_sync_list_unmanaged_extension_dirs)
+
   if ((_VSCODE_EXT_CHECK_ISSUES == 0 && _VSCODE_EXT_CHECK_WARNINGS == 0)); then
     _shared_log ok "    All extension symlinks valid."
   fi
 
   if ((broken_count > 0)); then
     _shared_log error "    $broken_count broken extension symlink(s):"
-    local n
     for n in "${broken_names[@]}"; do
       printf "       - %s\n" "$n"
     done
@@ -371,7 +582,6 @@ _vscode_sync_check_extensions() {
 
   if ((outside_count > 0)); then
     _shared_log warn "    $outside_count symlink(s) point outside ${src}:"
-    local n
     for n in "${outside_names[@]}"; do
       printf "       - %s\n" "$n"
     done
@@ -379,8 +589,21 @@ _vscode_sync_check_extensions() {
 
   if ((excluded_linked_count > 0)); then
     _shared_log warn "    $excluded_linked_count excluded extension(s) are still symlinked:"
-    local n
     for n in "${excluded_linked_names[@]}"; do
+      printf "       - %s\n" "$n"
+    done
+  fi
+
+  if ((missing_count > 0)); then
+    _shared_log warn "    $missing_count expected extension symlink(s) are missing:"
+    for n in "${missing_names[@]}"; do
+      printf "       - %s\n" "$n"
+    done
+  fi
+
+  if ((unmanaged_count > 0)); then
+    _shared_log warn "    $unmanaged_count unmanaged real extension directories found in Insiders:"
+    for n in "${unmanaged_names[@]}"; do
       printf "       - %s\n" "$n"
     done
   fi

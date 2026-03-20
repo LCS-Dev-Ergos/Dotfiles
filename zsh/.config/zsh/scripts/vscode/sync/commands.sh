@@ -8,10 +8,111 @@
 #  - vscode_sync_status
 #  - vscode_sync_check
 #  - vscode_sync_remove
+#  - vscode_sync_update
 # Coordinates core helpers and extension internals.
 # ============================================================================ #
 
 # +++++++++++++++++++++++++++ MAIN SYNC FUNCTIONS ++++++++++++++++++++++++++++ #
+
+# -----------------------------------------------------------------------------
+# _vscode_sync_update_usage
+# -----------------------------------------------------------------------------
+# Prints command usage for vscode_sync_update.
+# -----------------------------------------------------------------------------
+_vscode_sync_update_usage() {
+  printf "%s\n" \
+    "Usage:" \
+    "  vscode_sync_update [--dry-run|-n] [--skip-clean]" \
+    "" \
+    "Options:" \
+    "  --dry-run, -n  Show the planned update/repair workflow without changing anything." \
+    "  --skip-clean   Skip duplicate cleanup in the shared Stable extensions root." \
+    "  --help, -h     Show this help message."
+}
+
+# -----------------------------------------------------------------------------
+# _vscode_sync_load_cleaner_module
+# -----------------------------------------------------------------------------
+# Lazily loads the extension cleaner so the update flow can reuse its duplicate
+# pruning logic without forcing the module into every shell session.
+# -----------------------------------------------------------------------------
+_vscode_sync_load_cleaner_module() {
+  typeset -f _vscode_ext_clean_run >/dev/null 2>&1 && return 0
+
+  local cleaner_module="${_VSCODE_MODULE_ROOT}/extension_cleaner.sh"
+  if [[ ! -r "$cleaner_module" ]]; then
+    _shared_log error "VS Code extension cleaner module not found: $cleaner_module"
+    return 1
+  fi
+
+  # shellcheck disable=SC1090
+  source "$cleaner_module" || {
+    _shared_log error "Failed to load VS Code extension cleaner module."
+    return 1
+  }
+}
+
+# -----------------------------------------------------------------------------
+# _vscode_sync_update_shared_extensions
+# -----------------------------------------------------------------------------
+# Updates the canonical Stable-managed extension root using the real VS Code
+# user-data state so profile-aware extension bookkeeping stays consistent.
+# -----------------------------------------------------------------------------
+_vscode_sync_update_shared_extensions() {
+  _shared_log info "Updating shared extensions via Stable CLI."
+  command code \
+    --extensions-dir "$_VSCODE_EXTENSIONS_SRC" \
+    --update-extensions
+}
+
+# -----------------------------------------------------------------------------
+# _vscode_sync_update_native_excluded_extensions
+# -----------------------------------------------------------------------------
+# Updates only the Insiders-native excluded extensions. Shared extensions are
+# intentionally left to the Stable-managed canonical root.
+# -----------------------------------------------------------------------------
+_vscode_sync_update_native_excluded_extensions() {
+  local -a ext_ids=("$@")
+  local ext_id
+  local updated=0 failed=0
+
+  if (( ${#ext_ids[@]} == 0 )); then
+    _shared_log info "No Insiders-native excluded extensions detected."
+    return 0
+  fi
+
+  for ext_id in "${ext_ids[@]}"; do
+    _shared_log info "Updating Insiders-native extension: $ext_id"
+    command code-insiders \
+      --extensions-dir "$_VSCODE_EXTENSIONS_DST" \
+      --install-extension "$ext_id" \
+      --force || {
+        _shared_log warn "Skipping failed Insiders-native extension update: $ext_id"
+        ((failed++))
+        continue
+      }
+    ((updated++))
+  done
+
+  if (( failed > 0 )); then
+    _shared_log warn "Insiders-native extension updates completed with $failed failure(s); existing installed versions were left untouched."
+  else
+    _shared_log ok "Updated $updated Insiders-native excluded extension(s)."
+  fi
+
+  return 0
+}
+
+# -----------------------------------------------------------------------------
+# _vscode_sync_cleanup_shared_extensions
+# -----------------------------------------------------------------------------
+# Quarantines duplicate versions from the canonical Stable root after updates.
+# -----------------------------------------------------------------------------
+_vscode_sync_cleanup_shared_extensions() {
+  _vscode_sync_load_cleaner_module || return 1
+  _shared_log info "Cleaning duplicate versions in the shared Stable root via quarantine."
+  _vscode_ext_clean_run "$_VSCODE_EXTENSIONS_SRC" newest false false true true
+}
 
 # -----------------------------------------------------------------------------
 # vscode_sync_setup
@@ -83,7 +184,7 @@ vscode_sync_setup() {
     printf "\n"
   fi
   _shared_log warn "Extension sync mirrors Stable installed extensions into Insiders (except exclusions)."
-  _shared_log warn "This can influence profile extension state managed by VS Code."
+  _shared_log info "Profile manifests are treated as read-only by the sync workflow."
   echo
 
   _shared_confirm "Proceed with setup?" || {
@@ -161,6 +262,178 @@ vscode_sync_setup() {
   printf "%sSummary: %d/%d items synced, %d skipped, %d failed.%s\n" \
     "$C_BOLD" "$synced" "$total" "$skipped" "$failed" "$C_RESET"
   (( failed == 0 ))
+}
+
+# -----------------------------------------------------------------------------
+# vscode_sync_update
+# -----------------------------------------------------------------------------
+# Orchestrates extension updates with Stable as the canonical shared root and
+# Insiders handling only the explicitly excluded/native extensions.
+#
+# Usage:
+#   vscode_sync_update [--dry-run|-n] [--skip-clean]
+#
+# Returns:
+#   0 - Update/repair completed successfully or dry-run finished.
+#   1 - One or more update/repair steps failed.
+#   2 - Invalid arguments.
+# -----------------------------------------------------------------------------
+vscode_sync_update() {
+  setopt localoptions localtraps nullglob
+  _shared_init_colors
+  _vscode_sync_check_platform || return 1
+
+  local dry_run=false
+  local skip_clean=false
+  local arg
+  for arg in "$@"; do
+    case "$arg" in
+      --dry-run|-n) dry_run=true ;;
+      --skip-clean) skip_clean=true ;;
+      --help|-h)
+        _vscode_sync_update_usage
+        return 0
+        ;;
+      *)
+        _shared_log error "Unknown option: $arg"
+        _vscode_sync_update_usage
+        return 2
+        ;;
+    esac
+  done
+
+  _shared_require_command code "VS Code Stable CLI not found: code" || return 1
+  _shared_require_command code-insiders "VS Code Insiders CLI not found: code-insiders" || return 1
+
+  printf "%s%s[~] VS Code Extension Update%s\n\n" "$C_BOLD" "$C_CYAN" "$C_RESET"
+
+  local -a native_excluded_ids=() missing_links=() unmanaged_dirs=()
+  local entry
+  while IFS= read -r entry; do
+    [[ -n "$entry" ]] && native_excluded_ids+=("$entry")
+  done < <(_vscode_sync_list_native_excluded_extension_ids)
+  while IFS= read -r entry; do
+    [[ -n "$entry" ]] && missing_links+=("$entry")
+  done < <(_vscode_sync_list_missing_extension_links)
+  while IFS= read -r entry; do
+    [[ -n "$entry" ]] && unmanaged_dirs+=("$entry")
+  done < <(_vscode_sync_list_unmanaged_extension_dirs)
+
+  printf "%sPlanned actions:%s\n" "$C_BOLD" "$C_RESET"
+  printf "  %s[UPDATE]%s Shared extensions root via Stable CLI: %s\n" \
+    "$C_BLUE" "$C_RESET" "$_VSCODE_EXTENSIONS_SRC"
+  if [[ "$skip_clean" == "true" ]]; then
+    printf "  %s[SKIP]%s   Shared duplicate cleanup disabled\n" "$C_YELLOW" "$C_RESET"
+  else
+    printf "  %s[CLEAN]%s  Shared duplicate cleanup enabled for: %s\n" \
+      "$C_BLUE" "$C_RESET" "$_VSCODE_EXTENSIONS_SRC"
+  fi
+  if (( ${#native_excluded_ids[@]} > 0 )); then
+    printf "  %s[UPDATE]%s %d Insiders-native excluded extension(s)\n" \
+      "$C_BLUE" "$C_RESET" "${#native_excluded_ids[@]}"
+    local ext_id
+    for ext_id in "${native_excluded_ids[@]}"; do
+      printf "             - %s\n" "$ext_id"
+    done
+  else
+    printf "  %s[SKIP]%s   No Insiders-native excluded extensions detected\n" \
+      "$C_GREEN" "$C_RESET"
+  fi
+  printf "  %s[REPAIR]%s Reconcile symlinks in: %s\n" \
+    "$C_BLUE" "$C_RESET" "$_VSCODE_EXTENSIONS_DST"
+  if (( ${#missing_links[@]} > 0 )); then
+    printf "             Missing expected links: %d\n" "${#missing_links[@]}"
+  fi
+  if (( ${#unmanaged_dirs[@]} > 0 )); then
+    printf "             Unmanaged real directories: %d\n" "${#unmanaged_dirs[@]}"
+  fi
+  echo
+
+  if [[ "$dry_run" == "true" ]]; then
+    _shared_log ok "Dry run complete. No changes were made."
+    return 0
+  fi
+
+  if ! _vscode_sync_check_vscode_running; then
+    _shared_log error "Refusing to run update while VS Code is open."
+    _shared_log error "Close VS Code Stable and Insiders, then retry."
+    return 1
+  fi
+
+  _vscode_sync_check_extensions || return 1
+  if (( _VSCODE_EXT_CHECK_ISSUES > 0 )); then
+    _shared_log error "Refusing to run update while extension state has unresolved issues."
+    _shared_log error "Repair or re-import profiles first, then retry."
+    return 1
+  fi
+
+  _shared_confirm "Proceed with update and repair?" || {
+    _shared_log info "Aborted by user."
+    return 0
+  }
+  echo
+
+  _vscode_sync_acquire_lock || return 1
+  trap '_vscode_sync_release_lock' EXIT
+
+  _vscode_sync_backup_profile_state || {
+    _shared_log error "Aborting: failed to snapshot profile state."
+    return 1
+  }
+
+  local completed=0 failed=0
+
+  _vscode_sync_update_shared_extensions || {
+    _shared_log error "Shared Stable extension update failed."
+    return 1
+  }
+  ((completed++))
+
+  if [[ "$skip_clean" != "true" ]]; then
+    _vscode_sync_cleanup_shared_extensions || {
+      _shared_log error "Shared Stable duplicate cleanup failed."
+      return 1
+    }
+    ((completed++))
+  fi
+
+  if (( ${#native_excluded_ids[@]} > 0 )); then
+    _vscode_sync_update_native_excluded_extensions "${native_excluded_ids[@]}" || {
+      _shared_log error "Insiders-native excluded extension update failed."
+      return 1
+    }
+    ((completed++))
+  fi
+
+  if _vscode_python_backend_available; then
+    _shared_log info "Using Python backend for extension reconcile after update."
+    _vscode_sync_extensions_run_python \
+      setup-extensions \
+      "$_VSCODE_EXTENSIONS_SRC" \
+      "$_VSCODE_EXTENSIONS_DST" \
+      --home "$HOME" || failed=1
+  else
+    _vscode_sync_setup_extensions || failed=1
+  fi
+  if (( failed == 0 )); then
+    ((completed++))
+  fi
+
+  echo
+  _vscode_sync_status_extensions
+  echo
+  printf "%sSummary: %d step(s) completed, %d failed.%s\n" \
+    "$C_BOLD" "$completed" "$failed" "$C_RESET"
+  (( failed == 0 ))
+}
+
+# -----------------------------------------------------------------------------
+# vscode_update_extensions
+# -----------------------------------------------------------------------------
+# Convenience alias for the orchestrated update workflow.
+# -----------------------------------------------------------------------------
+vscode_update_extensions() {
+  vscode_sync_update "$@"
 }
 
 # -----------------------------------------------------------------------------

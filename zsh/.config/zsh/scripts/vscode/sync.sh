@@ -10,6 +10,8 @@
 #  - vscode_sync_status
 #  - vscode_sync_check
 #  - vscode_sync_remove
+#  - vscode_sync_update
+#  - vscode_update_extensions
 # ============================================================================ #
 
 [[ -n "${_VSCODE_SYNC_MODULE_LOADED:-}" ]] && return 0
