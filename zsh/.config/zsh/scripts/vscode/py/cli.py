@@ -588,7 +588,6 @@ def _run_extension_check(args: argparse.Namespace) -> int:
     issues = (
         symlink_plan.broken_count
         + manifest_plan.remove_count
-        + manifest_plan.preserved_missing_profile_count
     )
     warnings = (
         symlink_plan.missing_count
@@ -597,6 +596,7 @@ def _run_extension_check(args: argparse.Namespace) -> int:
         + symlink_plan.excluded_symlinked_count
         + symlink_plan.stale_managed_count
         + manifest_plan.update_count
+        + manifest_plan.preserved_missing_profile_count
     )
 
     if args.json_output:
@@ -654,7 +654,8 @@ def _run_recover_missing(args: argparse.Namespace) -> int:
         for task in plan.install_tasks:
             print(
                 f"  - install\t{task.installer}\t{task.install_root}\t"
-                f"{task.install_spec}\trequests={task.request_count}"
+                f"{task.install_spec}\trequests={task.request_count}\t"
+                f"profile={task.profile_name or '-'}"
             )
         for task in plan.alias_tasks:
             print(f"  - alias\t{task.alias_path}\t->\t{task.target_path}")

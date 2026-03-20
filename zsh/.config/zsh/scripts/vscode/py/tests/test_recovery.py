@@ -57,9 +57,21 @@ class RecoveryPlannerTests(unittest.TestCase):
             stable_root = home / ".vscode/extensions"
             insiders_root = home / ".vscode-insiders/extensions"
             profile_dir = home / "Library/Application Support/Code/User/profiles/profile-a"
+            global_storage = home / "Library/Application Support/Code/User/globalStorage"
             stable_root.mkdir(parents=True)
             insiders_root.mkdir(parents=True)
             profile_dir.mkdir(parents=True)
+            global_storage.mkdir(parents=True)
+            (global_storage / "storage.json").write_text(
+                json.dumps(
+                    {
+                        "userDataProfiles": [
+                            {"location": "profile-a", "name": "LCS.Python"},
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
 
             (profile_dir / "extensions.json").write_text(
                 json.dumps(
@@ -89,6 +101,7 @@ class RecoveryPlannerTests(unittest.TestCase):
             self.assertEqual(len(plan.install_tasks), 1)
             self.assertEqual(plan.install_tasks[0].installer, "code")
             self.assertEqual(plan.install_tasks[0].install_spec, "foo.ext@1.0.0")
+            self.assertEqual(plan.install_tasks[0].profile_name, "LCS.Python")
 
 
 if __name__ == "__main__":

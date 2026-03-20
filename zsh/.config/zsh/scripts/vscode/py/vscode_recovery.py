@@ -26,6 +26,7 @@ class RecoveryRequest:
     folder_name: str
     install_root: Path
     installer: str
+    profile_name: str | None = None
 
     @property
     def install_spec(self) -> str:
@@ -44,6 +45,7 @@ class RecoveryRequest:
             "folder_name": self.folder_name,
             "install_root": str(self.install_root),
             "installer": self.installer,
+            "profile_name": self.profile_name,
             "install_spec": self.install_spec,
         }
 
@@ -55,6 +57,7 @@ class RecoveryInstallTask:
     extension_id: str
     version: str | None
     request_count: int
+    profile_name: str | None = None
 
     @property
     def install_spec(self) -> str:
@@ -69,6 +72,7 @@ class RecoveryInstallTask:
             "extension_id": self.extension_id,
             "version": self.version,
             "request_count": self.request_count,
+            "profile_name": self.profile_name,
             "install_spec": self.install_spec,
         }
 
@@ -144,6 +148,49 @@ def _load_manifest_item(manifest_path: Path, entry_index: int) -> dict | None:
     if not isinstance(item, dict):
         return None
     return item
+
+
+def _profile_name_map_for_root(profile_root: Path) -> dict[str, str]:
+    user_root = profile_root.parent
+    storage_path = user_root / "globalStorage" / "storage.json"
+    if not storage_path.is_file():
+        return {}
+
+    try:
+        payload = json.loads(storage_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+    if not isinstance(payload, dict):
+        return {}
+
+    profiles_payload = payload.get("userDataProfiles")
+    if not isinstance(profiles_payload, list):
+        return {}
+
+    mapping: dict[str, str] = {}
+    for item in profiles_payload:
+        if not isinstance(item, dict):
+            continue
+        location = item.get("location")
+        name = item.get("name")
+        if isinstance(location, str) and location.strip() and isinstance(name, str) and name.strip():
+            mapping[location.strip()] = name.strip()
+    return mapping
+
+
+def _profile_name_maps(config: VscodePathsConfig) -> tuple[dict[str, str], dict[str, str]]:
+    stable_map: dict[str, str] = {}
+    insiders_map: dict[str, str] = {}
+
+    for root in config.stable_profile_roots:
+        if root.is_dir():
+            stable_map.update(_profile_name_map_for_root(root))
+    for root in config.insiders_profile_roots:
+        if root.is_dir():
+            insiders_map.update(_profile_name_map_for_root(root))
+
+    return stable_map, insiders_map
 
 
 def _requested_version(item: dict | None, folder_name: str) -> str | None:
@@ -257,6 +304,7 @@ def plan_missing_extension_recovery(
     stable_root = canonicalize_path(stable_dir)
     insiders_root = canonicalize_path(insiders_dir)
     resolved_patterns = tuple(exclude_patterns or DEFAULT_EXTENSION_EXCLUDE_PATTERNS)
+    stable_profile_names, insiders_profile_names = _profile_name_maps(resolved_config)
 
     manifest_plan = plan_manifest_repairs(
         stable_root,
@@ -300,6 +348,13 @@ def plan_missing_extension_recovery(
             stable_root=stable_root,
             insiders_root=insiders_root,
         )
+        profile_name = None
+        if decision.source_kind == "profile":
+            profile_id = decision.manifest_path.parent.name
+            if decision.edition.value == "stable":
+                profile_name = stable_profile_names.get(profile_id)
+            else:
+                profile_name = insiders_profile_names.get(profile_id)
 
         requests.append(
             RecoveryRequest(
@@ -312,6 +367,7 @@ def plan_missing_extension_recovery(
                 folder_name=decision.current_folder_name,
                 install_root=install_root,
                 installer=installer,
+                profile_name=profile_name,
             )
         )
 
@@ -325,7 +381,13 @@ def plan_missing_extension_recovery(
         )
         if candidate:
             continue
-        key = (request.installer, request.install_root, request.extension_id, request.version)
+        key = (
+            request.installer,
+            request.install_root,
+            request.extension_id,
+            request.version,
+            request.profile_name,
+        )
         install_requests[key] = install_requests.get(key, 0) + 1
 
     install_tasks = tuple(
@@ -337,10 +399,17 @@ def plan_missing_extension_recovery(
                     extension_id=extension_id,
                     version=version,
                     request_count=count,
+                    profile_name=profile_name,
                 )
-                for (installer, install_root, extension_id, version), count in install_requests.items()
+                for (installer, install_root, extension_id, version, profile_name), count in install_requests.items()
             ),
-            key=lambda task: (task.installer, str(task.install_root), task.extension_id, task.version or ""),
+            key=lambda task: (
+                task.installer,
+                str(task.install_root),
+                task.extension_id,
+                task.version or "",
+                task.profile_name or "",
+            ),
         )
     )
 
@@ -384,20 +453,22 @@ def _run_install_task(task: RecoveryInstallTask) -> bool:
         if install_spec in attempted:
             continue
         attempted.add(install_spec)
+        command = [
+            task.installer,
+            "--extensions-dir",
+            str(task.install_root),
+        ]
+        if task.profile_name:
+            command.extend(["--profile", task.profile_name])
+        command.extend(
+            [
+                "--install-extension",
+                install_spec,
+                "--force",
+            ]
+        )
         try:
-            result = subprocess.run(
-                [
-                    task.installer,
-                    "--extensions-dir",
-                    str(task.install_root),
-                    "--install-extension",
-                    install_spec,
-                    "--force",
-                ],
-                capture_output=True,
-                text=True,
-                timeout=90,
-            )
+            result = subprocess.run(command, capture_output=True, text=True, timeout=90)
         except subprocess.TimeoutExpired:
             continue
         if result.returncode == 0:
