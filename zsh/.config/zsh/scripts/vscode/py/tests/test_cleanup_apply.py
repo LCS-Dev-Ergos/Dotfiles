@@ -1,0 +1,49 @@
+from __future__ import annotations
+
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+from _support import MODULE_ROOT
+
+from vscode_cleanup import apply_cleanup_plan, deletable_paths_from_plan
+from vscode_config import VscodePathsConfig
+from vscode_models import CleanupStrategy
+from vscode_planner import plan_extension_cleanup
+
+
+class CleanupApplyTests(unittest.TestCase):
+    def test_apply_cleanup_plan_deletes_only_planned_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "extensions"
+            root.mkdir()
+            old_dir = root / "foo.ext-1.0.0"
+            new_dir = root / "foo.ext-2.0.0"
+            old_dir.mkdir()
+            new_dir.mkdir()
+            (root / "extensions.json").write_text(
+                json.dumps([{"relativeLocation": "foo.ext-2.0.0"}]),
+                encoding="utf-8",
+            )
+
+            plan = plan_extension_cleanup(
+                root,
+                strategy=CleanupStrategy.NEWEST,
+                respect_references=True,
+                config=VscodePathsConfig.from_home(temp_dir),
+            )
+            self.assertEqual(deletable_paths_from_plan(plan), (old_dir,))
+
+            report = apply_cleanup_plan(plan)
+
+            self.assertFalse(old_dir.exists())
+            self.assertTrue(new_dir.exists())
+            self.assertEqual(len(report.quarantined_paths), 1)
+            self.assertTrue(report.quarantined_paths[0].is_dir())
+            self.assertEqual(report.quarantined_paths[0].name, old_dir.name)
+            self.assertEqual(report.failed_paths, ())
+
+
+if __name__ == "__main__":
+    unittest.main()

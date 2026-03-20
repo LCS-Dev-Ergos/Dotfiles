@@ -1,0 +1,149 @@
+from __future__ import annotations
+
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+from _support import MODULE_ROOT
+
+from vscode_config import VscodePathsConfig
+from vscode_sync_apply import apply_extension_setup
+
+
+class ApplyExtensionSetupTests(unittest.TestCase):
+    def test_migrates_unmanaged_real_dir_without_rewriting_profile_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            home = Path(temp_dir)
+            stable_root = home / ".vscode/extensions"
+            insiders_root = home / ".vscode-insiders/extensions"
+            profile_dir = home / "Library/Application Support/Code - Insiders/User/profiles/profile-a"
+            stable_root.mkdir(parents=True)
+            insiders_root.mkdir(parents=True)
+            profile_dir.mkdir(parents=True)
+
+            unmanaged_dir = insiders_root / "xaver.clang-format-1.9.0"
+            unmanaged_dir.mkdir()
+            (stable_root / "shared.ok-1.0.0").mkdir()
+            (insiders_root / "shared.ok-1.0.0").symlink_to(stable_root / "shared.ok-1.0.0")
+
+            manifest_path = profile_dir / "extensions.json"
+            manifest_path.write_text(
+                json.dumps(
+                    [
+                        {
+                            "identifier": {"id": "xaver.clang-format"},
+                            "version": "1.9.0",
+                            "relativeLocation": "xaver.clang-format-1.9.0",
+                            "location": {
+                                "$mid": 1,
+                                "path": str(insiders_root / "xaver.clang-format-1.9.0"),
+                                "scheme": "file",
+                            },
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            report = apply_extension_setup(
+                stable_root,
+                insiders_root,
+                config=VscodePathsConfig.from_home(home),
+            )
+
+            self.assertEqual(report.migrated_count, 1)
+            migrated_target = stable_root / "xaver.clang-format-1.9.0"
+            self.assertTrue(migrated_target.is_dir())
+            self.assertTrue((insiders_root / "xaver.clang-format-1.9.0").is_symlink())
+
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(payload[0]["relativeLocation"], "xaver.clang-format-1.9.0")
+            self.assertEqual(
+                payload[0]["location"]["path"],
+                str(insiders_root / "xaver.clang-format-1.9.0"),
+            )
+            self.assertEqual(report.manifest_apply_report.updated_entries, 0)
+            self.assertEqual(report.manifest_apply_report.removed_entries, 0)
+
+    def test_removes_stale_symlink_but_preserves_profile_selection(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            home = Path(temp_dir)
+            stable_root = home / ".vscode/extensions"
+            insiders_root = home / ".vscode-insiders/extensions"
+            profile_dir = home / "Library/Application Support/Code - Insiders/User/profiles/profile-a"
+            stable_root.mkdir(parents=True)
+            insiders_root.mkdir(parents=True)
+            profile_dir.mkdir(parents=True)
+
+            (insiders_root / "ghost.ext-1.0.0").symlink_to(stable_root / "ghost.ext-1.0.0")
+            manifest_path = profile_dir / "extensions.json"
+            manifest_path.write_text(
+                json.dumps(
+                    [
+                        {
+                            "identifier": {"id": "ghost.ext"},
+                            "version": "1.0.0",
+                            "relativeLocation": "ghost.ext-1.0.0",
+                            "location": {
+                                "$mid": 1,
+                                "path": str(insiders_root / "ghost.ext-1.0.0"),
+                                "scheme": "file",
+                            },
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            report = apply_extension_setup(
+                stable_root,
+                insiders_root,
+                config=VscodePathsConfig.from_home(home),
+            )
+
+            self.assertEqual(report.removed_stale_symlink_count, 1)
+            self.assertFalse((insiders_root / "ghost.ext-1.0.0").exists())
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(payload[0]["relativeLocation"], "ghost.ext-1.0.0")
+
+    def test_setup_leaves_profile_manifest_unchanged_in_read_only_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            home = Path(temp_dir)
+            stable_root = home / ".vscode/extensions"
+            insiders_root = home / ".vscode-insiders/extensions"
+            profile_dir = home / "Library/Application Support/Code/User/profiles/profile-a"
+            stable_root.mkdir(parents=True)
+            insiders_root.mkdir(parents=True)
+            profile_dir.mkdir(parents=True)
+
+            (stable_root / "foo.ext-2.0.0").mkdir()
+            manifest_path = profile_dir / "extensions.json"
+            original_payload = [
+                {
+                    "identifier": {"id": "foo.ext"},
+                    "version": "1.0.0",
+                    "relativeLocation": "foo.ext-1.0.0",
+                    "location": {
+                        "$mid": 1,
+                        "path": str(stable_root / "foo.ext-1.0.0"),
+                        "scheme": "file",
+                    },
+                }
+            ]
+            manifest_path.write_text(json.dumps(original_payload), encoding="utf-8")
+
+            report = apply_extension_setup(
+                stable_root,
+                insiders_root,
+                config=VscodePathsConfig.from_home(home),
+            )
+
+            self.assertEqual(report.manifest_apply_report.updated_entries, 0)
+            self.assertEqual(report.manifest_apply_report.removed_entries, 0)
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(payload, original_payload)
+
+
+if __name__ == "__main__":
+    unittest.main()

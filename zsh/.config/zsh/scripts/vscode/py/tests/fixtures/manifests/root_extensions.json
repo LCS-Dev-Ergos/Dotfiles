@@ -1,0 +1,25 @@
+[
+  {
+    "identifier": {
+      "id": "ms-python.python"
+    },
+    "relativeLocation": "ms-python.python-2026.5.0"
+  },
+  {
+    "identifier": {
+      "id": "ms-toolsai.jupyter"
+    },
+    "location": {
+      "path": "/tmp/extensions/ms-toolsai.jupyter-2026.4.0"
+    }
+  },
+  {
+    "identifier": {
+      "id": "github.copilot-chat"
+    },
+    "location": {
+      "path": "C:\\\\Users\\\\test\\\\.vscode\\\\extensions\\\\github.copilot-chat-0.43.2026032001"
+    }
+  }
+]
+
