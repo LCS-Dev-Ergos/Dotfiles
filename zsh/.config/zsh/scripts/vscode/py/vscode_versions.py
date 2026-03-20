@@ -1,3 +1,12 @@
+# ============================================================================ #
+"""
+Version comparison helpers for VS Code extension folders.
+
+Author: XtremeXSPC
+Version:
+"""
+# ============================================================================ #
+
 from __future__ import annotations
 
 import re
@@ -6,7 +15,7 @@ _TOKEN_SPLIT_RE = re.compile(r"[._+-]")
 
 
 def compare_versions(left: str | None, right: str | None) -> int:
-    """Compare VS Code extension versions using shell-compatible token rules."""
+    """Compare two extension versions using shell-compatible token rules."""
     if not left and not right:
         return 0
     if not left:
@@ -47,4 +56,3 @@ def compare_versions(left: str | None, right: str | None) -> int:
             return -1
 
     return 0
-

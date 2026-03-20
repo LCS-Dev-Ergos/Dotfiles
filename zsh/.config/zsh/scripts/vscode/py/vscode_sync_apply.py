@@ -1,3 +1,12 @@
+# ============================================================================ #
+"""
+Apply helpers for the non-destructive Stable-to-Insiders sync workflow.
+
+Author: XtremeXSPC
+Version:
+"""
+# ============================================================================ #
+
 from __future__ import annotations
 
 import shutil
@@ -10,12 +19,14 @@ from vscode_planner import plan_insiders_symlink_state
 
 
 def _is_lexically_within_root(path: Path, root: Path) -> bool:
+    """Return ``True`` when ``path`` is lexically contained inside ``root``."""
     path = path.expanduser()
     root = root.expanduser()
     return path == root or root in path.parents
 
 
 def _safe_remove_path(path: Path, *, root: Path) -> bool:
+    """Remove a path only when it stays inside the managed root."""
     if not _is_lexically_within_root(path, root):
         return False
     if path.is_symlink() or path.exists():
@@ -27,6 +38,7 @@ def _safe_remove_path(path: Path, *, root: Path) -> bool:
 
 
 def _safe_create_symlink(*, link_path: Path, target_path: Path, root: Path) -> bool:
+    """Create or replace a symlink only when the link lives inside the managed root."""
     if not _is_lexically_within_root(link_path, root):
         return False
     link_path.parent.mkdir(parents=True, exist_ok=True)

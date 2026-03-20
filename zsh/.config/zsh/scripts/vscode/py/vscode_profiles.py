@@ -1,3 +1,12 @@
+# ============================================================================ #
+"""
+Manifest planning helpers for VS Code root and profile extension metadata.
+
+Author: XtremeXSPC
+Version:
+"""
+# ============================================================================ #
+
 from __future__ import annotations
 
 import json
@@ -31,6 +40,7 @@ class ProfileManifestSafetyError(RuntimeError):
 
 
 def _load_manifest_payload(manifest_path: Path) -> list[dict]:
+    """Load a manifest payload and keep only dictionary entries."""
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     if not isinstance(payload, list):
         return []
@@ -44,6 +54,7 @@ def _manifest_context(
     stable_dir: Path,
     insiders_dir: Path,
 ) -> tuple[VscodeEdition, str, Path]:
+    """Return the edition, source kind, and install root for a manifest path."""
     canonical_manifest_path = canonicalize_path(manifest_path)
 
     if canonical_manifest_path == stable_dir / "extensions.json":
@@ -62,6 +73,7 @@ def _manifest_context(
 
 
 def _sort_installs_by_preference(installs: list[ExtensionInstall]) -> list[ExtensionInstall]:
+    """Sort installs so the most desirable candidate appears first."""
     def sort_key(install: ExtensionInstall) -> tuple[int, int, str]:
         mtime = install.mtime or 0
         return (0, mtime, install.folder_name)
@@ -84,6 +96,7 @@ def _sort_installs_by_preference(installs: list[ExtensionInstall]) -> list[Exten
 def _build_extension_indexes(
     installs: list[ExtensionInstall],
 ) -> tuple[dict[str, list[ExtensionInstall]], dict[str, ExtensionInstall]]:
+    """Build lookup tables keyed by extension ID and by folder name."""
     installs_by_id: dict[str, list[ExtensionInstall]] = defaultdict(list)
     installs_by_name: dict[str, ExtensionInstall] = {}
     for install in installs:
@@ -97,6 +110,7 @@ def _build_extension_indexes(
 
 
 def _extract_current_folder_name(item: dict) -> str | None:
+    """Extract the referenced extension folder name from a manifest item."""
     relative_location = item.get("relativeLocation")
     if isinstance(relative_location, str) and relative_location.strip():
         return relative_location.strip().strip("/")
@@ -113,6 +127,7 @@ def _extract_current_folder_name(item: dict) -> str | None:
 
 
 def _extract_extension_id(item: dict, current_folder_name: str | None) -> str | None:
+    """Extract the Marketplace extension ID from a manifest item."""
     identifier = item.get("identifier")
     if isinstance(identifier, dict):
         extension_id = identifier.get("id")
@@ -130,6 +145,7 @@ def _excluded_for_entry(
     current_folder_name: str | None,
     exclude_patterns: tuple[str, ...],
 ) -> bool:
+    """Return ``True`` when a manifest entry should be treated as excluded."""
     if current_folder_name and is_excluded_extension(current_folder_name, exclude_patterns):
         return True
     if extension_id and is_excluded_extension(f"{extension_id}-candidate", exclude_patterns):
@@ -149,6 +165,7 @@ def _best_candidate_for_entry(
     insiders_by_name: dict[str, ExtensionInstall],
     exclude_patterns: tuple[str, ...],
 ) -> tuple[str | None, Path | None]:
+    """Select the best installed folder that can satisfy a manifest entry."""
     if extension_id:
         excluded_entry = _excluded_for_entry(extension_id, current_folder_name, exclude_patterns)
 
@@ -189,7 +206,7 @@ def plan_manifest_repairs(
     config: VscodePathsConfig | None = None,
     exclude_patterns: tuple[str, ...] | list[str] | None = None,
 ) -> ManifestRepairPlan:
-    """Plan updates/removals for Stable and Insiders extensions manifests."""
+    """Plan safe manifest updates and removals for Stable and Insiders."""
     resolved_config = config or VscodePathsConfig.from_home()
     stable_root = canonicalize_path(stable_dir)
     insiders_root = canonicalize_path(insiders_dir)
@@ -297,6 +314,7 @@ def plan_manifest_repairs(
 
 
 def is_preserved_missing_profile_decision(decision: ManifestRepairDecision) -> bool:
+    """Return ``True`` when a decision preserves an unresolved profile selection."""
     return (
         decision.action == ManifestAction.KEEP
         and decision.source_kind == "profile"
@@ -360,6 +378,7 @@ def apply_manifest_repair_plan(plan: ManifestRepairPlan) -> ManifestApplyReport:
 
 
 def _snapshot_manifest_payloads(manifest_paths: set[Path]) -> dict[Path, list[dict]]:
+    """Snapshot manifest payloads so a later failure can be rolled back."""
     snapshots: dict[Path, list[dict]] = {}
     for manifest_path in manifest_paths:
         snapshots[manifest_path] = deepcopy(_load_manifest_payload(manifest_path))
@@ -367,6 +386,7 @@ def _snapshot_manifest_payloads(manifest_paths: set[Path]) -> dict[Path, list[di
 
 
 def _restore_manifest_payloads(snapshots: dict[Path, list[dict]]) -> None:
+    """Restore manifest payloads from an in-memory snapshot."""
     for manifest_path, payload in snapshots.items():
         manifest_path.write_text(
             json.dumps(payload, indent=2) + "\n",
@@ -375,6 +395,7 @@ def _restore_manifest_payloads(snapshots: dict[Path, list[dict]]) -> None:
 
 
 def _profile_entry_signature(item: dict) -> dict:
+    """Return the stable, non-location portion of a profile manifest entry."""
     return {
         key: deepcopy(value)
         for key, value in item.items()
@@ -383,6 +404,7 @@ def _profile_entry_signature(item: dict) -> dict:
 
 
 def _profile_manifest_signature(payload: list[dict]) -> list[dict]:
+    """Build a comparable signature for the user-visible profile selection state."""
     return [_profile_entry_signature(item) for item in payload if isinstance(item, dict)]
 
 

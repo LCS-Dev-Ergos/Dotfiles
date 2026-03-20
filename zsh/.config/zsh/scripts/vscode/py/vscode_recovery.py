@@ -1,3 +1,12 @@
+# ============================================================================ #
+"""
+Recovery helpers for reinstalling or aliasing missing manifest-requested extensions.
+
+Author: XtremeXSPC
+Version:
+"""
+# ============================================================================ #
+
 from __future__ import annotations
 
 import json
@@ -17,6 +26,8 @@ from vscode_versions import compare_versions
 
 @dataclass(frozen=True, slots=True)
 class RecoveryRequest:
+    """Represent one missing extension request inferred from a manifest entry."""
+
     manifest_path: Path
     entry_index: int
     edition: str
@@ -30,11 +41,13 @@ class RecoveryRequest:
 
     @property
     def install_spec(self) -> str:
+        """Return the extension spec suitable for a CLI install command."""
         if self.version:
             return f"{self.extension_id}@{self.version}"
         return self.extension_id
 
     def to_dict(self) -> dict[str, str | int | None]:
+        """Serialize the recovery request into a JSON-friendly mapping."""
         return {
             "manifest_path": str(self.manifest_path),
             "entry_index": self.entry_index,
@@ -52,6 +65,8 @@ class RecoveryRequest:
 
 @dataclass(frozen=True, slots=True)
 class RecoveryInstallTask:
+    """Represent one CLI install action needed by the recovery workflow."""
+
     installer: str
     install_root: Path
     extension_id: str
@@ -61,11 +76,13 @@ class RecoveryInstallTask:
 
     @property
     def install_spec(self) -> str:
+        """Return the extension spec suitable for a CLI install command."""
         if self.version:
             return f"{self.extension_id}@{self.version}"
         return self.extension_id
 
     def to_dict(self) -> dict[str, str | int | None]:
+        """Serialize the install task into a JSON-friendly mapping."""
         return {
             "installer": self.installer,
             "install_root": str(self.install_root),
@@ -79,12 +96,15 @@ class RecoveryInstallTask:
 
 @dataclass(frozen=True, slots=True)
 class RecoveryAliasTask:
+    """Represent one compatibility alias to create for a missing folder name."""
+
     alias_path: Path
     target_path: Path
     extension_id: str
     folder_name: str
 
     def to_dict(self) -> dict[str, str]:
+        """Serialize the alias task into a JSON-friendly mapping."""
         return {
             "alias_path": str(self.alias_path),
             "target_path": str(self.target_path),
@@ -95,6 +115,8 @@ class RecoveryAliasTask:
 
 @dataclass(frozen=True, slots=True)
 class RecoveryPlan:
+    """Capture the recovery work needed for missing manifest-requested installs."""
+
     stable_dir: Path
     insiders_dir: Path
     requests: tuple[RecoveryRequest, ...]
@@ -102,6 +124,7 @@ class RecoveryPlan:
     alias_tasks: tuple[RecoveryAliasTask, ...]
 
     def to_dict(self) -> dict[str, object]:
+        """Serialize the recovery plan into a JSON-friendly mapping."""
         return {
             "stable_dir": str(self.stable_dir),
             "insiders_dir": str(self.insiders_dir),
@@ -116,6 +139,8 @@ class RecoveryPlan:
 
 @dataclass(frozen=True, slots=True)
 class RecoveryApplyReport:
+    """Summarize the result of applying a missing-extension recovery plan."""
+
     attempted_installs: tuple[str, ...]
     successful_installs: tuple[str, ...]
     failed_installs: tuple[str, ...]
@@ -126,6 +151,7 @@ class RecoveryApplyReport:
     setup_migrated_count: int
 
     def to_dict(self) -> dict[str, object]:
+        """Serialize the recovery apply report into a JSON-friendly mapping."""
         return {
             "attempted_installs": list(self.attempted_installs),
             "successful_installs": list(self.successful_installs),
@@ -139,6 +165,7 @@ class RecoveryApplyReport:
 
 
 def _load_manifest_item(manifest_path: Path, entry_index: int) -> dict | None:
+    """Load a single manifest item by index from an ``extensions.json`` file."""
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     if not isinstance(payload, list):
         return None
@@ -151,6 +178,7 @@ def _load_manifest_item(manifest_path: Path, entry_index: int) -> dict | None:
 
 
 def _profile_name_map_for_root(profile_root: Path) -> dict[str, str]:
+    """Build a profile-id to profile-name map for one VS Code profile root."""
     user_root = profile_root.parent
     storage_path = user_root / "globalStorage" / "storage.json"
     if not storage_path.is_file():
@@ -180,6 +208,7 @@ def _profile_name_map_for_root(profile_root: Path) -> dict[str, str]:
 
 
 def _profile_name_maps(config: VscodePathsConfig) -> tuple[dict[str, str], dict[str, str]]:
+    """Collect profile-name maps for Stable and Insiders profile roots."""
     stable_map: dict[str, str] = {}
     insiders_map: dict[str, str] = {}
 
@@ -194,6 +223,7 @@ def _profile_name_maps(config: VscodePathsConfig) -> tuple[dict[str, str], dict[
 
 
 def _requested_version(item: dict | None, folder_name: str) -> str | None:
+    """Determine which extension version a manifest entry is asking for."""
     if item:
         version = item.get("version")
         if isinstance(version, str) and version.strip():
@@ -202,6 +232,7 @@ def _requested_version(item: dict | None, folder_name: str) -> str | None:
 
 
 def _current_manifest_root(edition: str, stable_root: Path, insiders_root: Path) -> Path:
+    """Return the install root associated with a manifest edition string."""
     return stable_root if edition == "stable" else insiders_root
 
 
@@ -213,6 +244,7 @@ def _install_context(
     stable_root: Path,
     insiders_root: Path,
 ) -> tuple[str, Path]:
+    """Choose the installer binary and target root for a recovery request."""
     if is_excluded_extension(folder_name, exclude_patterns) or is_excluded_extension(
         f"{extension_id}-candidate",
         exclude_patterns,
@@ -227,6 +259,7 @@ def _select_best_install(
     extension_id: str,
     requested_version: str | None,
 ) -> ExtensionInstall | None:
+    """Select the best currently installed candidate for a recovery request."""
     candidates = [
         install
         for install in installs
@@ -264,6 +297,7 @@ def _build_alias_tasks(
     stable_root: Path,
     insiders_root: Path,
 ) -> tuple[RecoveryAliasTask, ...]:
+    """Build alias tasks for requests already satisfiable by existing installs."""
     stable_installs = scan_extension_root(stable_root)
     insiders_installs = scan_extension_root(insiders_root)
 
@@ -300,6 +334,7 @@ def plan_missing_extension_recovery(
     config: VscodePathsConfig | None = None,
     exclude_patterns: tuple[str, ...] | list[str] | None = None,
 ) -> RecoveryPlan:
+    """Plan installs and aliases needed to satisfy missing manifest references."""
     resolved_config = config or VscodePathsConfig.from_home()
     stable_root = canonicalize_path(stable_dir)
     insiders_root = canonicalize_path(insiders_dir)
@@ -429,6 +464,7 @@ def plan_missing_extension_recovery(
 
 
 def _safe_replace_alias(alias_path: Path, target_path: Path, *, root: Path) -> bool:
+    """Create or replace a compatibility alias inside a managed root."""
     if alias_path != root and root not in alias_path.parents:
         return False
     if target_path != root and root not in target_path.parents:
@@ -444,6 +480,7 @@ def _safe_replace_alias(alias_path: Path, target_path: Path, *, root: Path) -> b
 
 
 def _run_install_task(task: RecoveryInstallTask) -> bool:
+    """Run one recovery install task and report whether it succeeded."""
     specs = [task.install_spec]
     if task.version:
         specs.append(task.extension_id)
@@ -484,6 +521,7 @@ def apply_missing_extension_recovery(
     config: VscodePathsConfig | None = None,
     exclude_patterns: tuple[str, ...] | list[str] | None = None,
 ) -> RecoveryApplyReport:
+    """Apply a recovery plan and then reconcile the shared Insiders symlink state."""
     resolved_config = config or VscodePathsConfig.from_home()
     resolved_patterns = tuple(exclude_patterns or DEFAULT_EXTENSION_EXCLUDE_PATTERNS)
     attempted_installs: list[str] = []

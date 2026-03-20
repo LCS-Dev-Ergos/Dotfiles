@@ -1,3 +1,12 @@
+# ============================================================================ #
+"""
+Filesystem scanners for VS Code extension install directories.
+
+Author: XtremeXSPC
+Version:
+"""
+# ============================================================================ #
+
 from __future__ import annotations
 
 import os
@@ -14,7 +23,7 @@ _PLATFORM_SUFFIX_RE = re.compile(
 
 
 def parse_extension_folder_name(folder_name: str) -> ParsedExtensionFolder:
-    """Parse a versioned VS Code extension folder name."""
+    """Parse a versioned VS Code extension folder name into structured fields."""
     core_name = folder_name
     version: str | None = None
     extension_id = folder_name
@@ -43,6 +52,7 @@ def parse_extension_folder_name(folder_name: str) -> ParsedExtensionFolder:
 
 
 def _resolve_symlink_target(entry: Path, raw_target: str) -> Path:
+    """Resolve a symlink target relative to the entry that owns the link."""
     target_path = Path(raw_target)
     if target_path.is_absolute():
         return canonicalize_path(target_path)
@@ -54,7 +64,7 @@ def scan_extension_root(
     *,
     edition: VscodeEdition = VscodeEdition.LOCAL,
 ) -> list[ExtensionInstall]:
-    """Scan an extension root and return parsed extension entries."""
+    """Scan an extension root and return normalized install metadata."""
     root = canonicalize_path(extensions_dir)
     if not root.exists() or not root.is_dir():
         return []
@@ -92,4 +102,3 @@ def scan_extension_root(
         )
 
     return installs
-

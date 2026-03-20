@@ -1,3 +1,12 @@
+# ============================================================================ #
+"""
+Configuration helpers for VS Code extension roots and profile discovery.
+
+Author: XtremeXSPC
+Version:
+"""
+# ============================================================================ #
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -14,6 +23,8 @@ DEFAULT_EXTENSION_EXCLUDE_PATTERNS = (
 
 @dataclass(frozen=True, slots=True)
 class VscodePathsConfig:
+    """Describe the filesystem roots used by the VS Code sync backend."""
+
     home: Path
     stable_extensions_dir: Path
     insiders_extensions_dir: Path
@@ -22,6 +33,7 @@ class VscodePathsConfig:
 
     @classmethod
     def from_home(cls, home: str | Path | None = None) -> "VscodePathsConfig":
+        """Build a configuration object from a HOME directory."""
         home_path = canonicalize_path(home or Path.home())
 
         return cls(
@@ -39,6 +51,7 @@ class VscodePathsConfig:
         )
 
     def scope_for_extensions_dir(self, extensions_dir: str | Path) -> VscodeEdition:
+        """Return the VS Code edition associated with an extensions directory."""
         canonical_extensions_dir = canonicalize_path(extensions_dir)
         if canonical_extensions_dir == self.stable_extensions_dir:
             return VscodeEdition.STABLE
@@ -47,6 +60,7 @@ class VscodePathsConfig:
         return VscodeEdition.LOCAL
 
     def profile_roots_for_extensions_dir(self, extensions_dir: str | Path) -> tuple[Path, ...]:
+        """Return the profile roots relevant to the given extensions directory."""
         scope = self.scope_for_extensions_dir(extensions_dir)
         if scope == VscodeEdition.STABLE:
             return self.stable_profile_roots

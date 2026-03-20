@@ -1,3 +1,12 @@
+# ============================================================================ #
+"""
+Command-line interface for the VS Code sync Python backend.
+
+Author: XtremeXSPC
+Version:
+"""
+# ============================================================================ #
+
 from __future__ import annotations
 
 import argparse
@@ -21,6 +30,7 @@ from vscode_sync_apply import apply_extension_setup
 
 
 def _parse_edition(value: str) -> VscodeEdition:
+    """Parse a CLI edition argument into a ``VscodeEdition`` value."""
     try:
         return VscodeEdition(value)
     except ValueError as exc:
@@ -30,6 +40,7 @@ def _parse_edition(value: str) -> VscodeEdition:
 
 
 def _build_parser() -> argparse.ArgumentParser:
+    """Build and return the top-level CLI argument parser."""
     parser = argparse.ArgumentParser(
         description="Read-only Python tools for VS Code extension sync analysis."
     )
@@ -237,11 +248,13 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _emit_json(payload: object) -> int:
+    """Print a JSON payload and return a successful exit code."""
     print(json.dumps(payload, indent=2, sort_keys=True))
     return 0
 
 
 def _run_scan(args: argparse.Namespace) -> int:
+    """Handle the ``scan`` subcommand."""
     installs = scan_extension_root(args.extensions_dir, edition=args.edition)
     if args.json_output:
         return _emit_json([install.to_dict() for install in installs])
@@ -262,6 +275,7 @@ def _run_scan(args: argparse.Namespace) -> int:
 
 
 def _run_references(args: argparse.Namespace) -> int:
+    """Handle the ``references`` subcommand."""
     config = VscodePathsConfig.from_home(args.home) if args.home else VscodePathsConfig.from_home()
 
     if args.entries:
@@ -281,6 +295,7 @@ def _run_references(args: argparse.Namespace) -> int:
 
 
 def _run_plan_cleanup(args: argparse.Namespace) -> int:
+    """Handle the ``plan-cleanup`` subcommand."""
     config = VscodePathsConfig.from_home(args.home) if args.home else VscodePathsConfig.from_home()
     plan = plan_extension_cleanup(
         args.extensions_dir,
@@ -309,6 +324,7 @@ def _run_plan_cleanup(args: argparse.Namespace) -> int:
 
 
 def _run_plan_links(args: argparse.Namespace) -> int:
+    """Handle the ``plan-links`` subcommand."""
     exclude_patterns = tuple(args.exclude or DEFAULT_EXTENSION_EXCLUDE_PATTERNS)
     plan = plan_insiders_symlink_state(
         args.stable_dir,
@@ -335,6 +351,7 @@ def _run_plan_links(args: argparse.Namespace) -> int:
 
 
 def _run_clean(args: argparse.Namespace) -> int:
+    """Handle the ``clean`` subcommand."""
     config = VscodePathsConfig.from_home(args.home) if args.home else VscodePathsConfig.from_home()
     plan = plan_extension_cleanup(
         args.extensions_dir,
@@ -419,12 +436,14 @@ def _run_clean(args: argparse.Namespace) -> int:
 
 
 def _resolve_shared_args(args: argparse.Namespace) -> tuple[VscodePathsConfig, tuple[str, ...]]:
+    """Resolve shared HOME/configuration arguments used by multi-root commands."""
     config = VscodePathsConfig.from_home(args.home) if getattr(args, "home", None) else VscodePathsConfig.from_home()
     exclude_patterns = tuple(getattr(args, "exclude", None) or DEFAULT_EXTENSION_EXCLUDE_PATTERNS)
     return config, exclude_patterns
 
 
 def _run_plan_manifests(args: argparse.Namespace) -> int:
+    """Handle the ``plan-manifests`` subcommand."""
     config, exclude_patterns = _resolve_shared_args(args)
     plan = plan_manifest_repairs(
         args.stable_dir,
@@ -457,6 +476,7 @@ def _run_plan_manifests(args: argparse.Namespace) -> int:
 
 
 def _run_repair_manifests(args: argparse.Namespace) -> int:
+    """Handle the ``repair-manifests`` subcommand."""
     config, exclude_patterns = _resolve_shared_args(args)
     plan = plan_manifest_repairs(
         args.stable_dir,
@@ -486,6 +506,7 @@ def _run_repair_manifests(args: argparse.Namespace) -> int:
 
 
 def _combined_extension_state(args: argparse.Namespace):
+    """Return the symlink and manifest plans for the selected roots."""
     config, exclude_patterns = _resolve_shared_args(args)
     symlink_plan = plan_insiders_symlink_state(
         args.stable_dir,
@@ -502,6 +523,7 @@ def _combined_extension_state(args: argparse.Namespace):
 
 
 def _run_setup_extensions(args: argparse.Namespace) -> int:
+    """Handle the ``setup-extensions`` subcommand."""
     config, exclude_patterns = _resolve_shared_args(args)
     report = apply_extension_setup(
         args.stable_dir,
@@ -533,6 +555,7 @@ def _run_setup_extensions(args: argparse.Namespace) -> int:
 
 
 def _run_extension_status(args: argparse.Namespace) -> int:
+    """Handle the ``extension-status`` subcommand."""
     symlink_plan, manifest_plan = _combined_extension_state(args)
     if args.json_output:
         return _emit_json(
@@ -584,6 +607,7 @@ def _run_extension_status(args: argparse.Namespace) -> int:
 
 
 def _run_extension_check(args: argparse.Namespace) -> int:
+    """Handle the ``extension-check`` subcommand."""
     symlink_plan, manifest_plan = _combined_extension_state(args)
     issues = (
         symlink_plan.broken_count
@@ -636,6 +660,7 @@ def _run_extension_check(args: argparse.Namespace) -> int:
 
 
 def _run_recover_missing(args: argparse.Namespace) -> int:
+    """Handle the ``recover-missing`` subcommand."""
     config, exclude_patterns = _resolve_shared_args(args)
     plan = plan_missing_extension_recovery(
         args.stable_dir,
@@ -686,6 +711,7 @@ def _run_recover_missing(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the VS Code sync Python CLI."""
     parser = _build_parser()
     args = parser.parse_args(argv)
 

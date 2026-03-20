@@ -1,3 +1,12 @@
+# ============================================================================ #
+"""
+Planning helpers for cleanup and Stable-to-Insiders extension sync.
+
+Author: XtremeXSPC
+Version:
+"""
+# ============================================================================ #
+
 from __future__ import annotations
 
 from fnmatch import fnmatchcase
@@ -31,6 +40,7 @@ def _build_effective_reference_names(
     installs: list[ExtensionInstall],
     raw_reference_names: list[str],
 ) -> tuple[list[str], list[str]]:
+    """Split raw manifest references into installed protected names and stale names."""
     installed_by_name = {install.folder_name: install for install in installs}
     protected_names = sorted(
         {
@@ -43,6 +53,7 @@ def _build_effective_reference_names(
 
 
 def _select_newest_install(group: list[ExtensionInstall]) -> ExtensionInstall:
+    """Select the newest install from a duplicate group."""
     newest = group[0]
     for install in group[1:]:
         cmp = compare_versions(install.version, newest.version)
@@ -59,6 +70,7 @@ def _select_oldest_unreferenced_install(
     *,
     protected_names: set[str],
 ) -> ExtensionInstall | None:
+    """Select the oldest install that is not protected by manifest references."""
     oldest: ExtensionInstall | None = None
     for install in group:
         if install.folder_name in protected_names:
@@ -84,7 +96,7 @@ def plan_extension_cleanup(
     respect_references: bool = True,
     config: VscodePathsConfig | None = None,
 ) -> CleanupPlan:
-    """Build a deterministic cleanup plan for a VS Code extension root."""
+    """Build a deterministic duplicate-cleanup plan for one extension root."""
     root = canonicalize_path(extensions_dir)
     scoped_config = config or VscodePathsConfig.from_home()
     installs = [

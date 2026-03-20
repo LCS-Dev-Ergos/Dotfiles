@@ -1,3 +1,12 @@
+# ============================================================================ #
+"""
+Manifest parsing helpers for VS Code extension and profile metadata.
+
+Author: XtremeXSPC
+Version:
+"""
+# ============================================================================ #
+
 from __future__ import annotations
 
 import json
@@ -13,6 +22,7 @@ class ManifestParseError(RuntimeError):
 
 
 def _extract_folder_name_from_location_path(location_path: str) -> str | None:
+    """Extract the extension folder name from an absolute manifest location path."""
     normalized_path = location_path.replace("\\", "/")
     marker = "/extensions/"
     if marker not in normalized_path:
@@ -30,7 +40,7 @@ def parse_manifest_reference_entries(
     *,
     source_kind: str = "manifest",
 ) -> list[ReferenceEntry]:
-    """Parse all extension folder references from a VS Code extensions.json file."""
+    """Parse all extension folder references from a VS Code ``extensions.json`` file."""
     canonical_manifest_path = canonicalize_path(manifest_path)
 
     try:
@@ -86,7 +96,7 @@ def iter_manifest_paths_for_extensions_dir(
     *,
     config: VscodePathsConfig | None = None,
 ) -> list[tuple[Path, str]]:
-    """Return all manifest paths relevant to the selected extension root."""
+    """Return the root and profile manifests relevant to an extensions directory."""
     resolved_config = config or VscodePathsConfig.from_home()
     canonical_extensions_dir = canonicalize_path(extensions_dir)
     manifest_paths: list[tuple[Path, str]] = []
@@ -114,7 +124,7 @@ def collect_reference_entries(
     *,
     config: VscodePathsConfig | None = None,
 ) -> list[ReferenceEntry]:
-    """Collect structured reference entries for a root and its relevant profiles."""
+    """Collect structured manifest references for a root and its relevant profiles."""
     entries: list[ReferenceEntry] = []
     for manifest_path, source_kind in iter_manifest_paths_for_extensions_dir(
         extensions_dir,
@@ -137,4 +147,3 @@ def collect_reference_names(
     """Collect unique referenced folder names relevant to the selected root."""
     names = {entry.folder_name for entry in collect_reference_entries(extensions_dir, config=config)}
     return sorted(names)
-

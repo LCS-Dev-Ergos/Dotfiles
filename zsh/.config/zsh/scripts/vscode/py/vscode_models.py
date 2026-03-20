@@ -1,3 +1,12 @@
+# ============================================================================ #
+"""
+Shared data models used by the VS Code sync Python backend.
+
+Author: XtremeXSPC
+Version:
+"""
+# ============================================================================ #
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -6,23 +15,31 @@ from pathlib import Path
 
 
 class VscodeEdition(StrEnum):
+    """Identify which VS Code channel owns an extension root."""
+
     LOCAL = "local"
     STABLE = "stable"
     INSIDERS = "insiders"
 
 
 class CleanupStrategy(StrEnum):
+    """Enumerate the duplicate cleanup strategies supported by the backend."""
+
     NEWEST = "newest"
     OLDEST = "oldest"
 
 
 class CleanupAction(StrEnum):
+    """Describe the action chosen for a duplicate extension install."""
+
     KEEP = "keep"
     DELETE = "delete"
     SKIP_REFERENCED = "skip_referenced"
 
 
 class SymlinkAction(StrEnum):
+    """Describe the current state of an Insiders extension entry."""
+
     LINKED = "linked"
     MISSING = "missing"
     BROKEN = "broken"
@@ -34,6 +51,8 @@ class SymlinkAction(StrEnum):
 
 
 class ManifestAction(StrEnum):
+    """Describe the action planned for a manifest entry."""
+
     KEEP = "keep"
     UPDATE = "update"
     REMOVE = "remove"
@@ -41,12 +60,15 @@ class ManifestAction(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class ParsedExtensionFolder:
+    """Represent the parsed components of a versioned extension folder name."""
+
     folder_name: str
     extension_id: str
     core_name: str
     version: str | None
 
     def to_dict(self) -> dict[str, str | None]:
+        """Serialize the parsed folder metadata into a JSON-friendly mapping."""
         return {
             "folder_name": self.folder_name,
             "extension_id": self.extension_id,
@@ -57,6 +79,8 @@ class ParsedExtensionFolder:
 
 @dataclass(frozen=True, slots=True)
 class ExtensionInstall:
+    """Represent a discovered extension install inside an extensions root."""
+
     folder_name: str
     extension_id: str
     core_name: str
@@ -70,6 +94,7 @@ class ExtensionInstall:
     mtime: int | None
 
     def to_dict(self) -> dict[str, str | int | bool | None]:
+        """Serialize the install metadata into a JSON-friendly mapping."""
         return {
             "folder_name": self.folder_name,
             "extension_id": self.extension_id,
@@ -89,11 +114,14 @@ class ExtensionInstall:
 
 @dataclass(frozen=True, slots=True)
 class ReferenceEntry:
+    """Represent a folder reference found in a VS Code manifest file."""
+
     folder_name: str
     manifest_path: Path
     source_kind: str
 
     def to_dict(self) -> dict[str, str]:
+        """Serialize the manifest reference into a JSON-friendly mapping."""
         return {
             "folder_name": self.folder_name,
             "manifest_path": str(self.manifest_path),
@@ -103,6 +131,8 @@ class ReferenceEntry:
 
 @dataclass(frozen=True, slots=True)
 class CleanupDecision:
+    """Describe how a single installed extension folder should be handled."""
+
     folder_name: str
     path: Path
     core_name: str
@@ -112,6 +142,7 @@ class CleanupDecision:
     referenced: bool = False
 
     def to_dict(self) -> dict[str, str | bool | None]:
+        """Serialize the cleanup decision into a JSON-friendly mapping."""
         return {
             "folder_name": self.folder_name,
             "path": str(self.path),
@@ -125,6 +156,8 @@ class CleanupDecision:
 
 @dataclass(frozen=True, slots=True)
 class CleanupGroupPlan:
+    """Group cleanup decisions for all installed versions of one extension core."""
+
     core_name: str
     installs: tuple[ExtensionInstall, ...]
     newest_folder_name: str
@@ -132,6 +165,7 @@ class CleanupGroupPlan:
     decisions: tuple[CleanupDecision, ...]
 
     def to_dict(self) -> dict[str, object]:
+        """Serialize the group cleanup plan into a JSON-friendly mapping."""
         return {
             "core_name": self.core_name,
             "installs": [install.to_dict() for install in self.installs],
@@ -143,6 +177,8 @@ class CleanupGroupPlan:
 
 @dataclass(frozen=True, slots=True)
 class CleanupPlan:
+    """Capture the full duplicate-cleanup plan for one extension root."""
+
     root: Path
     strategy: CleanupStrategy
     respect_references: bool
@@ -155,6 +191,7 @@ class CleanupPlan:
     groups: tuple[CleanupGroupPlan, ...]
 
     def to_dict(self) -> dict[str, object]:
+        """Serialize the cleanup plan into a JSON-friendly mapping."""
         return {
             "root": str(self.root),
             "strategy": self.strategy.value,
@@ -171,6 +208,8 @@ class CleanupPlan:
 
 @dataclass(frozen=True, slots=True)
 class CleanupApplyReport:
+    """Summarize the result of applying a cleanup plan in quarantine mode."""
+
     root: Path
     quarantine_root: Path
     quarantined_paths: tuple[Path, ...]
@@ -178,9 +217,11 @@ class CleanupApplyReport:
 
     @property
     def deleted_paths(self) -> tuple[Path, ...]:
+        """Expose quarantined paths using the legacy deleted-paths name."""
         return self.quarantined_paths
 
     def to_dict(self) -> dict[str, object]:
+        """Serialize the cleanup apply report into a JSON-friendly mapping."""
         return {
             "root": str(self.root),
             "quarantine_root": str(self.quarantine_root),
@@ -195,6 +236,8 @@ class CleanupApplyReport:
 
 @dataclass(frozen=True, slots=True)
 class SymlinkDecision:
+    """Describe the expected or observed state for one Insiders extension entry."""
+
     folder_name: str
     action: SymlinkAction
     reason: str
@@ -202,6 +245,7 @@ class SymlinkDecision:
     target_path: Path | None = None
 
     def to_dict(self) -> dict[str, str | None]:
+        """Serialize the symlink decision into a JSON-friendly mapping."""
         return {
             "folder_name": self.folder_name,
             "action": self.action.value,
@@ -213,6 +257,8 @@ class SymlinkDecision:
 
 @dataclass(frozen=True, slots=True)
 class SymlinkPlan:
+    """Capture the read-only symlink state between Stable and Insiders."""
+
     stable_dir: Path
     insiders_dir: Path
     exclude_patterns: tuple[str, ...]
@@ -229,6 +275,7 @@ class SymlinkPlan:
     decisions: tuple[SymlinkDecision, ...]
 
     def to_dict(self) -> dict[str, object]:
+        """Serialize the symlink plan into a JSON-friendly mapping."""
         return {
             "stable_dir": str(self.stable_dir),
             "insiders_dir": str(self.insiders_dir),
@@ -249,6 +296,8 @@ class SymlinkPlan:
 
 @dataclass(frozen=True, slots=True)
 class ManifestRepairDecision:
+    """Describe the action planned for one manifest entry."""
+
     manifest_path: Path
     entry_index: int
     edition: VscodeEdition
@@ -260,6 +309,7 @@ class ManifestRepairDecision:
     reason: str
 
     def to_dict(self) -> dict[str, str | int | None]:
+        """Serialize the manifest repair decision into a JSON-friendly mapping."""
         return {
             "manifest_path": str(self.manifest_path),
             "entry_index": self.entry_index,
@@ -275,6 +325,8 @@ class ManifestRepairDecision:
 
 @dataclass(frozen=True, slots=True)
 class ManifestRepairPlan:
+    """Capture the full repair plan for root and profile manifests."""
+
     stable_dir: Path
     insiders_dir: Path
     update_count: int
@@ -284,6 +336,7 @@ class ManifestRepairPlan:
     decisions: tuple[ManifestRepairDecision, ...]
 
     def to_dict(self) -> dict[str, object]:
+        """Serialize the manifest repair plan into a JSON-friendly mapping."""
         return {
             "stable_dir": str(self.stable_dir),
             "insiders_dir": str(self.insiders_dir),
@@ -297,11 +350,14 @@ class ManifestRepairPlan:
 
 @dataclass(frozen=True, slots=True)
 class ManifestApplyReport:
+    """Summarize the result of applying a manifest repair plan."""
+
     updated_entries: int
     removed_entries: int
     touched_manifests: tuple[Path, ...]
 
     def to_dict(self) -> dict[str, object]:
+        """Serialize the manifest apply report into a JSON-friendly mapping."""
         return {
             "updated_entries": self.updated_entries,
             "removed_entries": self.removed_entries,
@@ -311,6 +367,8 @@ class ManifestApplyReport:
 
 @dataclass(frozen=True, slots=True)
 class ExtensionSetupReport:
+    """Summarize the result of repairing the Insiders extension tree."""
+
     linked_count: int
     relinked_count: int
     migrated_count: int
@@ -319,6 +377,7 @@ class ExtensionSetupReport:
     manifest_apply_report: ManifestApplyReport
 
     def to_dict(self) -> dict[str, object]:
+        """Serialize the extension setup report into a JSON-friendly mapping."""
         return {
             "linked_count": self.linked_count,
             "relinked_count": self.relinked_count,
