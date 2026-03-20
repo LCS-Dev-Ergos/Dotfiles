@@ -316,6 +316,45 @@ blog_safe_clear_dir() {
     find "$target_dir" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + 2>/dev/null
 }
 
+# -----------------------------------------------------------------------------
+# _blog_validate_config_permissions
+# -----------------------------------------------------------------------------
+# Validates that a config file is owned by the current user and not
+# world-writable before sourcing it, preventing code injection attacks.
+#
+# Usage:
+#   _blog_validate_config_permissions <file_path>
+#
+# Returns:
+#   0 - File is safe to source.
+#   1 - Ownership or permissions check failed.
+# -----------------------------------------------------------------------------
+_blog_validate_config_permissions() {
+    local file="$1"
+    local file_uid file_perms
+
+    if [[ "$PLATFORM" == "macOS" ]]; then
+        file_uid=$(stat -f '%u' "$file" 2>/dev/null)
+        file_perms=$(stat -f '%Lp' "$file" 2>/dev/null)
+    else
+        file_uid=$(stat -c '%u' "$file" 2>/dev/null)
+        file_perms=$(stat -c '%a' "$file" 2>/dev/null)
+    fi
+
+    if [[ "$file_uid" != "$(id -u)" ]]; then
+        blog_error "Config file not owned by current user (uid=$file_uid): $file"
+        return 1
+    fi
+
+    # Reject world-writable files (octal others-write bit = 002).
+    if (( (8#${file_perms:-000}) & 8#002 )); then
+        blog_error "Config file is world-writable, refusing to source: $file"
+        return 1
+    fi
+
+    return 0
+}
+
 # +++++++++++++++++++++++++ CONFIGURATION MANAGEMENT +++++++++++++++++++++++++ #
 
 # Configuration file path.
@@ -345,7 +384,7 @@ blog_set_defaults() {
     BLOG_DEST_PATH="${BLOG_DEST_PATH:-$ALLOWED_BLOG_ROOT/CS-Topics/content/posts}"
 
     # Python scripts.
-    BLOG_SCRIPTS_DIR="${BLOG_SCRIPT_DIR/python}"
+    BLOG_SCRIPTS_DIR="${BLOG_SCRIPTS_DIR:-$ALLOWED_BLOG_ROOT/Automatic-Updates}"
     BLOG_IMAGES_SCRIPT="${BLOG_IMAGES_SCRIPT:-$BLOG_SCRIPTS_DIR/images.py}"
     BLOG_HASH_GENERATOR="${BLOG_HASH_GENERATOR:-$BLOG_SCRIPTS_DIR/generate_hashes.py}"
     BLOG_FRONTMATTER_SCRIPT="${BLOG_FRONTMATTER_SCRIPT:-$BLOG_SCRIPTS_DIR/update_frontmatter.py}"
@@ -353,7 +392,7 @@ blog_set_defaults() {
 
     # Repository configuration.
     BLOG_REPO_PATH="${BLOG_REPO_PATH:-$ALLOWED_BLOG_ROOT}"
-    BLOG_REPO_URL="${BLOG_REPO_URL:-git@github.com:XtremeXSPC/LCS.Dev-Blog.git}"
+    BLOG_REPO_URL="${BLOG_REPO_URL:-git@github.com:XtremeXSPC/CS-Topics-Blog.git}"
 
     # Backup settings.
     BLOG_BACKUP_DIR="${BLOG_BACKUP_DIR:-$ALLOWED_BLOG_ROOT/backups}"
@@ -390,6 +429,7 @@ blog_load_config() {
 
     if [[ -f "$BLOG_CONFIG_FILE" ]]; then
         blog_debug "Loading configuration from: $BLOG_CONFIG_FILE"
+        _blog_validate_config_permissions "$BLOG_CONFIG_FILE" || return 1
         source "$BLOG_CONFIG_FILE"
     else
         blog_warn "Configuration file not found: $BLOG_CONFIG_FILE"
@@ -454,7 +494,7 @@ BLOG_HASH_FILE="\$BLOG_SCRIPTS_DIR/.file_hashes"
 
 # Git repository:
 BLOG_REPO_PATH="$ALLOWED_BLOG_ROOT"
-BLOG_REPO_URL="git@github.com:XtremeXSPC/LCS.Dev-Blog.git"
+BLOG_REPO_URL="git@github.com:XtremeXSPC/CS-Topics-Blog.git"
 
 # Backup and performance:
 BLOG_BACKUP_DIR="$ALLOWED_BLOG_ROOT/backups"
@@ -543,10 +583,12 @@ blog_cleanup_backups() {
         return 0
     fi
 
-    local backup_count=$(find "$BLOG_BACKUP_DIR" -maxdepth 1 -type d -name "*_[0-9]*" | wc -l)
-    if [[ $backup_count -gt $BLOG_KEEP_BACKUPS ]]; then
+    local backup_count
+    backup_count=$(find "$BLOG_BACKUP_DIR" -maxdepth 1 -type d -name "*_[0-9]*" | wc -l | tr -d ' ')
+    if (( backup_count > BLOG_KEEP_BACKUPS )); then
         blog_info "Cleaning old backups (found: $backup_count, keeping: $BLOG_KEEP_BACKUPS)"
-        find "$BLOG_BACKUP_DIR" -maxdepth 1 -type d -name "*_[0-9]*" | sort | head -n -$BLOG_KEEP_BACKUPS | xargs rm -rf
+        local to_delete=$(( backup_count - BLOG_KEEP_BACKUPS ))
+        find "$BLOG_BACKUP_DIR" -maxdepth 1 -type d -name "*_[0-9]*" | sort | head -n "$to_delete" | xargs rm -rf
     fi
 }
 
@@ -728,12 +770,14 @@ blog_detect_git_changes() {
 
     if [[ ! -d ".git" ]]; then
         blog_warn "Git repository not found, treating all files as changed"
+        BLOG_CHANGED_FILES=()
         cd "$current_dir"
         return 0
     fi
 
     # Get list of changed files (modified, new, deleted).
-    local git_status=$(git status --porcelain 2>/dev/null)
+    local git_status
+    git_status=$(git status --porcelain 2>/dev/null)
 
     if [[ -z "$git_status" ]]; then
         blog_info "No changes detected by Git"
@@ -746,8 +790,16 @@ blog_detect_git_changes() {
     BLOG_CHANGED_FILES=()
     while IFS= read -r line; do
         if [[ -n "$line" ]]; then
-            # Extract filename (remove status indicators).
-            local file=$(echo "$line" | sed 's/^...//')
+            # Extract status code and filename.
+            local status_code="${line:0:2}"
+            local raw_file="${line:3}"
+            # Handle renames/copies: "R  old -> new" — use the destination name.
+            local file
+            if [[ "$status_code" == R* ]] || [[ "$status_code" == C* ]]; then
+                file="${raw_file##* -> }"
+            else
+                file="$raw_file"
+            fi
             # Only include markdown files in content/posts.
             if [[ "$file" == *"content/posts"*".md" ]]; then
                 BLOG_CHANGED_FILES+=("$file")
@@ -807,7 +859,8 @@ blog_detect_hash_changes() {
         blog_success "Hash generation completed"
 
         if [[ "$BLOG_DRY_RUN" != "true" ]] && [[ -f "$BLOG_HASH_FILE" ]]; then
-            local hash_count=$(wc -l < "$BLOG_HASH_FILE")
+            local hash_count
+            hash_count=$(wc -l < "$BLOG_HASH_FILE" | tr -d ' ')
             blog_info "Generated hashes for $hash_count files"
         fi
         return 0
@@ -978,8 +1031,9 @@ blog_sync_posts() {
             blog_success "Synchronization completed"
 
             # Verify integrity post-sync.
-            local src_count=$(find "$BLOG_SOURCE_PATH" -name "*.md" -type f | wc -l)
-            local dest_count=$(find "$BLOG_DEST_PATH" -name "*.md" -type f | wc -l)
+            local src_count dest_count
+            src_count=$(find "$BLOG_SOURCE_PATH" -name "*.md" -type f | wc -l | tr -d ' ')
+            dest_count=$(find "$BLOG_DEST_PATH" -name "*.md" -type f | wc -l | tr -d ' ')
             blog_info "Markdown files - Source: $src_count, Destination: $dest_count"
 
             if [[ $src_count -ne $dest_count ]]; then
@@ -1145,7 +1199,7 @@ blog_process_images() {
 
     blog_info "Processing markdown images"
 
-    if blog_run_with_timeout $BLOG_DEFAULT_TIMEOUT "python images processor" python3 "$BLOG_IMAGES_SCRIPT"; then
+    if blog_run_with_timeout $BLOG_DEFAULT_TIMEOUT "python images processor" python3 "$BLOG_IMAGES_SCRIPT" "$BLOG_DEST_PATH" "$BLOG_IMAGES_PATH"; then
         blog_success "Image processing completed"
         return 0
     else
@@ -1180,28 +1234,27 @@ blog_build_hugo() {
     blog_check_command hugo || return 1
     blog_check_dir "$BLOG_DIR" "Blog" || return 1
 
-    local current_dir="$(pwd)"
-    cd "$BLOG_DIR" || {
-        blog_error "Cannot access: $BLOG_DIR"
-        return 1
-    }
-
     blog_info "Building Hugo in: $BLOG_DIR"
 
-    if blog_run_with_timeout $BLOG_DEFAULT_TIMEOUT "hugo build" hugo; then
-        if [[ -d "public" ]]; then
-            local file_count=$(find public -type f | wc -l)
-            blog_success "Hugo build completed - $file_count files generated"
-            cd "$current_dir"
-            return 0
-        else
-            blog_error "Build completed but 'public' directory not found"
-            cd "$current_dir"
-            return 1
-        fi
-    else
+    local build_result=0
+    # Run hugo inside a subshell to avoid changing the caller's working directory.
+    (
+        cd "$BLOG_DIR" || { blog_error "Cannot access: $BLOG_DIR"; exit 1; }
+        blog_run_with_timeout $BLOG_DEFAULT_TIMEOUT "hugo build" hugo
+    ) || build_result=$?
+
+    if (( build_result != 0 )); then
         blog_error "Hugo build failed"
-        cd "$current_dir"
+        return 1
+    fi
+
+    if [[ -d "$BLOG_DIR/public" ]]; then
+        local file_count
+        file_count=$(find "$BLOG_DIR/public" -type f | wc -l | tr -d ' ')
+        blog_success "Hugo build completed - $file_count files generated"
+        return 0
+    else
+        blog_error "Build completed but 'public' directory not found"
         return 1
     fi
 }
@@ -1252,10 +1305,10 @@ blog_commit_changes() {
     blog_info "Committing changes: $commit_message"
 
     if [[ "$BLOG_DRY_RUN" == "true" ]]; then
-        blog_info "[DRY-RUN] git add ."
+        blog_info "[DRY-RUN] git add CS-Topics/ .gitignore .gitmodules .github/"
         blog_info "[DRY-RUN] git commit -m '$commit_message'"
     else
-        git add . || {
+        git add CS-Topics/ .gitignore .gitmodules .github/ 2>/dev/null; git add -u || {
             blog_error "Git add failed"
             cd "$current_dir"
             return 1
@@ -1450,7 +1503,7 @@ blog_run_all() {
         "blog_build_hugo"
         "blog_commit_changes"
         "blog_push_main"
-        "blog_deploy_hostinger"
+        # Deployment is handled by GitHub Actions on push to main.
     )
 
     # Execute all steps.
@@ -1507,7 +1560,7 @@ blog_status() {
     # This function doesn't require location validation as it's just showing info.
     blog_set_defaults
     if [[ -f "$BLOG_CONFIG_FILE" ]]; then
-        source "$BLOG_CONFIG_FILE"
+        _blog_validate_config_permissions "$BLOG_CONFIG_FILE" && source "$BLOG_CONFIG_FILE"
     fi
 
     blog_info "Version: $VERSION"
@@ -1590,8 +1643,7 @@ ${C_BOLD}USAGE:${C_RESET}
         ${C_CYAN}blog_process_images${C_RESET}        - Process images in posts
         ${C_CYAN}blog_build_hugo${C_RESET}            - Build Hugo site
         ${C_CYAN}blog_commit_changes${C_RESET}        - Commit changes to Git
-        ${C_CYAN}blog_push_main${C_RESET}             - Push to main branch
-        ${C_CYAN}blog_deploy_hostinger${C_RESET}      - Deploy to hostinger branch
+        ${C_CYAN}blog_push_main${C_RESET}             - Push to main branch (triggers GitHub Pages deploy)
 
     Orchestration:
         ${C_GREEN}blog_run_all${C_RESET}               - Execute all steps in sequence
