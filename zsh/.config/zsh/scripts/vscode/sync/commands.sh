@@ -8,6 +8,22 @@
 # keeps the public zsh command surface, confirmation prompts, and locks.
 # ============================================================================ #
 
+# -----------------------------------------------------------------------------
+# _vscode_sync_run_python_command
+# -----------------------------------------------------------------------------
+# Delegates a Python sync subcommand to the extensions module with standard
+# arguments (source, destination, --home).
+#
+# Usage:
+#   _vscode_sync_run_python_command <subcommand> [--extra-args ...]
+#
+# Arguments:
+#   subcommand - Python subcommand name (e.g. sync-status, sync-setup).
+#   ...        - Additional arguments forwarded to the Python script.
+#
+# Returns:
+#   Exit code from _vscode_sync_extensions_run_python.
+# -----------------------------------------------------------------------------
 _vscode_sync_run_python_command() {
   local subcommand="$1"
   shift
@@ -19,7 +35,14 @@ _vscode_sync_run_python_command() {
     "$@"
 }
 
-
+# -----------------------------------------------------------------------------
+# _vscode_sync_update_usage
+# -----------------------------------------------------------------------------
+# Prints usage help for the vscode_sync_update command to stdout.
+#
+# Usage:
+#   _vscode_sync_update_usage
+# -----------------------------------------------------------------------------
 _vscode_sync_update_usage() {
   printf "%s\n" \
     "Usage:" \
@@ -31,7 +54,20 @@ _vscode_sync_update_usage() {
     "  --help, -h     Show this help message."
 }
 
-
+# -----------------------------------------------------------------------------
+# vscode_sync_setup
+# -----------------------------------------------------------------------------
+# Interactive setup: mirrors Stable extensions into Insiders via symlinks.
+# Requires no VS Code instances running; acquires lock and creates a profile
+# state snapshot before delegating to the Python sync-setup subcommand.
+#
+# Usage:
+#   vscode_sync_setup
+#
+# Returns:
+#   0 - Setup completed or aborted by user.
+#   1 - Platform check, Python check, lock, or VS Code running.
+# -----------------------------------------------------------------------------
 vscode_sync_setup() {
   setopt localoptions localtraps
   _shared_init_colors
@@ -70,7 +106,27 @@ vscode_sync_setup() {
   _vscode_sync_run_python_command sync-setup
 }
 
-
+# -----------------------------------------------------------------------------
+# vscode_sync_update
+# -----------------------------------------------------------------------------
+# Maintains the shared extensions root and reconciles Insiders state.
+# Supports --dry-run for a read-only preview, and --skip-clean to skip
+# duplicate cleanup in the shared Stable root. Acquires lock and requires
+# no VS Code instances running (unless dry-run).
+#
+# Usage:
+#   vscode_sync_update [--dry-run|-n] [--skip-clean] [--help|-h]
+#
+# Options:
+#   --dry-run, -n  Show planned actions without making changes.
+#   --skip-clean   Skip duplicate cleanup in the shared Stable extensions root.
+#   --help, -h     Show usage help.
+#
+# Returns:
+#   0 - Update completed or aborted by user.
+#   1 - Platform, Python, lock, VS Code running, or extension issues.
+#   2 - Unknown option.
+# -----------------------------------------------------------------------------
 vscode_sync_update() {
   setopt localoptions localtraps
   _shared_init_colors
@@ -82,17 +138,17 @@ vscode_sync_update() {
   local arg
   for arg in "$@"; do
     case "$arg" in
-      --dry-run|-n) dry_run=true ;;
-      --skip-clean) skip_clean=true ;;
-      --help|-h)
-        _vscode_sync_update_usage
-        return 0
-        ;;
-      *)
-        _shared_log error "Unknown option: $arg"
-        _vscode_sync_update_usage
-        return 2
-        ;;
+    --dry-run | -n) dry_run=true ;;
+    --skip-clean) skip_clean=true ;;
+    --help | -h)
+      _vscode_sync_update_usage
+      return 0
+      ;;
+    *)
+      _shared_log error "Unknown option: $arg"
+      _vscode_sync_update_usage
+      return 2
+      ;;
     esac
   done
 
@@ -118,7 +174,7 @@ vscode_sync_update() {
   fi
 
   _vscode_sync_check_extensions || return 1
-  if (( _VSCODE_EXT_CHECK_ISSUES > 0 )); then
+  if ((_VSCODE_EXT_CHECK_ISSUES > 0)); then
     _shared_log error "Refusing to run update while extension state has unresolved issues."
     _shared_log error "Repair or re-import profiles first, then retry."
     return 1
@@ -146,12 +202,31 @@ vscode_sync_update() {
   _vscode_sync_run_python_command "${apply_args[@]}"
 }
 
-
+# -----------------------------------------------------------------------------
+# vscode_update_extensions
+# -----------------------------------------------------------------------------
+# Compatibility alias for vscode_sync_update. Forwards all arguments unchanged.
+#
+# Usage:
+#   vscode_update_extensions [--dry-run|-n] [--skip-clean]
+# -----------------------------------------------------------------------------
 vscode_update_extensions() {
   vscode_sync_update "$@"
 }
 
-
+# -----------------------------------------------------------------------------
+# vscode_sync_status
+# -----------------------------------------------------------------------------
+# Displays current sync state by delegating to the Python sync-status
+# subcommand. No lock is acquired; safe to run while VS Code is open.
+#
+# Usage:
+#   vscode_sync_status
+#
+# Returns:
+#   0 - Status displayed successfully.
+#   1 - Platform check, Python check, or sync-status failed.
+# -----------------------------------------------------------------------------
 vscode_sync_status() {
   _shared_init_colors
   _vscode_sync_check_platform || return 1
@@ -161,7 +236,20 @@ vscode_sync_status() {
   _vscode_sync_run_python_command sync-status
 }
 
-
+# -----------------------------------------------------------------------------
+# vscode_sync_check
+# -----------------------------------------------------------------------------
+# Runs a health check: Python sync-check, VS Code process detection, and
+# backup directory inspection. Reports overall health as HEALTHY, DEGRADED,
+# or UNHEALTHY based on issue and warning counts.
+#
+# Usage:
+#   vscode_sync_check
+#
+# Returns:
+#   0 - HEALTHY or DEGRADED state.
+#   1 - UNHEALTHY state (one or more errors).
+# -----------------------------------------------------------------------------
 vscode_sync_check() {
   _shared_init_colors
   _vscode_sync_check_platform || return 1
@@ -208,7 +296,21 @@ vscode_sync_check() {
   return $check_status
 }
 
-
+# -----------------------------------------------------------------------------
+# vscode_sync_remove
+# -----------------------------------------------------------------------------
+# Interactive removal: replaces symlinks with independent copies, restoring
+# Insiders extension independence. Requires no VS Code instances running;
+# acquires lock and creates a profile state snapshot before delegating to
+# the Python sync-remove subcommand.
+#
+# Usage:
+#   vscode_sync_remove
+#
+# Returns:
+#   0 - Removal completed or aborted by user.
+#   1 - Platform check, Python check, lock, or VS Code running.
+# -----------------------------------------------------------------------------
 vscode_sync_remove() {
   setopt localoptions localtraps
   _shared_init_colors
