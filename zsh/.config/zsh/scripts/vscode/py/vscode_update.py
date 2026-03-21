@@ -2,6 +2,21 @@
 """
 Extension update planning and apply helpers for the VS Code sync workflow.
 
+The update workflow proceeds in several phases:
+
+1. Plan (`build_extension_update_plan`): Snapshot the current symlink
+   and cleanup state before any mutations.
+2. Shared Stable update: Invoke `code --update-extensions` against the
+   Stable root so all shared extensions receive marketplace updates.
+3. Post-update cleanup: Re-scan the Stable root and quarantine old
+   duplicate versions left behind by the update.
+4. Native excluded updates: For extensions excluded from symlink sharing
+   (e.g. Claude Code, Copilot), perform an isolated update in a temporary
+   root, then promote the new version into the real Insiders root with
+   rollback-safe directory swaps.
+5. Reconciliation: Repair symlinks and manifests so Insiders reflects
+   the newly updated Stable state.
+
 Author: XtremeXSPC
 Version: 1.0.0
 """
@@ -20,9 +35,20 @@ from pathlib import Path
 
 from vscode_cleanup import apply_cleanup_plan
 from vscode_config import DEFAULT_EXTENSION_EXCLUDE_PATTERNS, VscodePathsConfig
-from vscode_models import CleanupPlan, ExtensionInstall, ExtensionSetupReport, ManifestRepairPlan, SymlinkPlan, VscodeEdition
 from vscode_fs import canonicalize_path, is_within_directory
-from vscode_planner import is_excluded_extension, plan_extension_cleanup, plan_insiders_symlink_state
+from vscode_models import (
+    CleanupPlan,
+    ExtensionInstall,
+    ExtensionSetupReport,
+    ManifestRepairPlan,
+    SymlinkPlan,
+    VscodeEdition,
+)
+from vscode_planner import (
+    is_excluded_extension,
+    plan_extension_cleanup,
+    plan_insiders_symlink_state,
+)
 from vscode_profiles import plan_manifest_repairs
 from vscode_scanner import scan_extension_root
 from vscode_sync_apply import apply_extension_setup
@@ -97,6 +123,7 @@ def _run_cli_command(
     capture_output: bool = False,
 ) -> subprocess.CompletedProcess[object]:
     """Run a VS Code CLI command and optionally capture its output."""
+
     return subprocess.run(
         command,
         timeout=_UPDATE_TIMEOUT_SECONDS,
@@ -111,6 +138,7 @@ def _collect_native_excluded_extension_ids(
     exclude_patterns: tuple[str, ...],
 ) -> tuple[str, ...]:
     """Collect excluded extension IDs currently managed as real Insiders directories."""
+
     extension_ids = {
         install.extension_id
         for install in scan_extension_root(insiders_dir)
@@ -121,6 +149,7 @@ def _collect_native_excluded_extension_ids(
 
 def _ordered_unique(items: list[str]) -> tuple[str, ...]:
     """Return input items once, preserving their first-seen order."""
+
     seen: set[str] = set()
     ordered: list[str] = []
     for item in items:
@@ -133,6 +162,7 @@ def _ordered_unique(items: list[str]) -> tuple[str, ...]:
 
 def _parse_shared_updated_extension_ids(output: str) -> tuple[str, ...]:
     """Extract unique updated extension IDs from VS Code CLI output."""
+
     updated_ids = [
         match.group(1)
         for line in output.splitlines()
@@ -146,6 +176,7 @@ def _list_native_excluded_installs(
     extension_id: str,
 ) -> tuple[ExtensionInstall, ...]:
     """Return the real Insiders installs currently present for one excluded extension."""
+
     installs = [
         install
         for install in scan_extension_root(insiders_dir, edition=VscodeEdition.INSIDERS)
@@ -154,8 +185,11 @@ def _list_native_excluded_installs(
     return tuple(installs)
 
 
-def _select_latest_install(installs: tuple[ExtensionInstall, ...]) -> ExtensionInstall | None:
+def _select_latest_install(
+    installs: tuple[ExtensionInstall, ...],
+) -> ExtensionInstall | None:
     """Return the newest install using version, mtime, and folder name as tie-breakers."""
+
     latest: ExtensionInstall | None = None
     for install in installs:
         if latest is None:
@@ -181,7 +215,8 @@ def _select_latest_install(installs: tuple[ExtensionInstall, ...]) -> ExtensionI
 
 
 def _is_newer_install(candidate: ExtensionInstall, current: ExtensionInstall) -> bool:
-    """Return ``True`` when ``candidate`` should replace ``current`` in the real root."""
+    """Return `True` when `candidate` should replace `current` in the real root."""
+
     version_cmp = compare_versions(candidate.version, current.version)
     if version_cmp > 0:
         return True
@@ -192,6 +227,7 @@ def _is_newer_install(candidate: ExtensionInstall, current: ExtensionInstall) ->
 
 def _make_native_update_temp_root(home: Path) -> tempfile.TemporaryDirectory[str]:
     """Create a temporary root used to stage one isolated excluded-extension update."""
+
     temp_parent = canonicalize_path(home / ".cache/vscode-sync")
     temp_parent.mkdir(parents=True, exist_ok=True)
     return tempfile.TemporaryDirectory(
@@ -202,6 +238,7 @@ def _make_native_update_temp_root(home: Path) -> tempfile.TemporaryDirectory[str
 
 def _make_native_update_backup_root(home: Path, extension_id: str) -> Path:
     """Create a unique backup directory for one excluded-extension promotion."""
+
     backup_parent = canonicalize_path(home / ".local/share/vscode-sync-backups")
     backup_parent.mkdir(parents=True, exist_ok=True)
 
@@ -223,7 +260,8 @@ def _make_native_update_backup_root(home: Path, extension_id: str) -> Path:
 
 
 def _unique_backup_target(backup_root: Path, path: Path) -> Path:
-    """Return a unique backup destination for ``path`` inside ``backup_root``."""
+    """Return a unique backup destination for `path` inside `backup_root`."""
+
     candidate = backup_root / path.name
     if not candidate.exists():
         return candidate
@@ -244,6 +282,7 @@ def _promote_native_excluded_update(
     home: Path,
 ) -> bool:
     """Promote a staged excluded update into the real Insiders root with rollback safety."""
+
     if not staged_install.path.is_dir():
         return False
 
@@ -255,7 +294,9 @@ def _promote_native_excluded_update(
         return False
 
     conflict_path = canonicalize_path(target_path)
-    if (conflict_path.exists() or conflict_path.is_symlink()) and conflict_path not in paths_to_backup:
+    if (
+        conflict_path.exists() or conflict_path.is_symlink()
+    ) and conflict_path not in paths_to_backup:
         paths_to_backup.append(conflict_path)
 
     backup_root = _make_native_update_backup_root(home, extension_id)
@@ -295,6 +336,7 @@ def _update_native_excluded_extension(
     home: Path,
 ) -> str:
     """Run an isolated update-only flow for one Insiders-native excluded extension."""
+
     current_installs = _list_native_excluded_installs(insiders_dir, extension_id)
     current_install = _select_latest_install(current_installs)
     if current_install is None or not current_install.path.is_dir():
@@ -349,6 +391,7 @@ def build_extension_update_plan(
     exclude_patterns: tuple[str, ...] | list[str] | None = None,
 ) -> ExtensionUpdatePlan:
     """Build a deterministic update plan for the shared extension workflow."""
+
     resolved_config = config or VscodePathsConfig.from_home()
     stable_root = Path(stable_dir).expanduser().resolve(strict=False)
     insiders_root = Path(insiders_dir).expanduser().resolve(strict=False)
@@ -393,6 +436,7 @@ def _build_runtime_cleanup_plan(
     config: VscodePathsConfig,
 ) -> CleanupPlan:
     """Recompute cleanup actions against the live shared root after Stable updates."""
+
     return plan_extension_cleanup(
         stable_dir,
         config=config,
@@ -407,6 +451,7 @@ def apply_extension_update(
     exclude_patterns: tuple[str, ...] | list[str] | None = None,
 ) -> ExtensionUpdateReport:
     """Apply an extension update plan end to end."""
+
     resolved_config = config or VscodePathsConfig.from_home()
     resolved_patterns = tuple(exclude_patterns or DEFAULT_EXTENSION_EXCLUDE_PATTERNS)
 

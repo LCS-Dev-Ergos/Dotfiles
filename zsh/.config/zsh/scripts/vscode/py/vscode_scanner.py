@@ -2,6 +2,19 @@
 """
 Filesystem scanners for VS Code extension install directories.
 
+VS Code names extension folders as `<publisher>.<name>-<version>` with an
+optional platform triple appended (e.g. `<version>-darwin-arm64`).  The parser
+separates these components so that different versions of the same extension
+can be grouped for duplicate cleanup.
+
+Folder-name grammar (simplified):
+    extension-id "-" version                  (e.g. foo.bar-1.0.0)
+    extension-id "-" version "-" arch "-" os  (e.g. foo.bar-1.0.0-darwin-arm64)
+
+The version suffix is detected greedily: `_VERSION_SUFFIX_RE` captures the
+trailing `-<digits-and-dots>`, and `_PLATFORM_SUFFIX_RE` further peels
+off `-<os>-<arch>` from that version token when present.
+
 Author: XtremeXSPC
 Version: 1.0.0
 """
@@ -17,13 +30,12 @@ from vscode_fs import canonicalize_path, safe_mtime
 from vscode_models import ExtensionInstall, ParsedExtensionFolder, VscodeEdition
 
 _VERSION_SUFFIX_RE = re.compile(r"^(.*)-([0-9][0-9A-Za-z._+-]*)$")
-_PLATFORM_SUFFIX_RE = re.compile(
-    r"^(.+)-(darwin|linux|win32|alpine)-(arm64|x64|ia32|armhf)$"
-)
+_PLATFORM_SUFFIX_RE = re.compile(r"^(.+)-(darwin|linux|win32|alpine)-(arm64|x64|ia32|armhf)$")
 
 
 def parse_extension_folder_name(folder_name: str) -> ParsedExtensionFolder:
     """Parse a versioned VS Code extension folder name into structured fields."""
+
     core_name = folder_name
     version: str | None = None
     extension_id = folder_name
@@ -34,6 +46,8 @@ def parse_extension_folder_name(folder_name: str) -> ParsedExtensionFolder:
         version = version_match.group(2)
         extension_id = version_match.group(1)
 
+        # Platform-qualified versions like "1.0.0-darwin-arm64" need the
+        # platform triple peeled off and appended to core_name instead.
         platform_match = _PLATFORM_SUFFIX_RE.match(version)
         if platform_match:
             version = platform_match.group(1)
@@ -53,6 +67,7 @@ def parse_extension_folder_name(folder_name: str) -> ParsedExtensionFolder:
 
 def _resolve_symlink_target(entry: Path, raw_target: str) -> Path:
     """Resolve a symlink target relative to the entry that owns the link."""
+
     target_path = Path(raw_target)
     if target_path.is_absolute():
         return canonicalize_path(target_path)
@@ -65,6 +80,7 @@ def scan_extension_root(
     edition: VscodeEdition = VscodeEdition.LOCAL,
 ) -> list[ExtensionInstall]:
     """Scan an extension root and return normalized install metadata."""
+
     root = canonicalize_path(extensions_dir)
     if not root.exists() or not root.is_dir():
         return []

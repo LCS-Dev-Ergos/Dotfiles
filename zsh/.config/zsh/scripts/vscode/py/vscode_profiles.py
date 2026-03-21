@@ -2,6 +2,23 @@
 """
 Manifest planning helpers for VS Code root and profile extension metadata.
 
+When VS Code upgrades or reinstalls an extension the on-disk folder name
+changes (e.g. `foo-1.0.0` becomes `foo-2.0.0`), but profile manifests
+may still reference the old name.  This module:
+
+1. Plans repairs: Cross-references every manifest entry against the
+   currently installed extension set to decide whether the entry should be
+   kept, updated (rebound to a newer folder), or removed (orphaned).
+2. Applies safely: Writes manifest changes atomically and rolls back
+   if applying them would alter the "user-visible" profile selection (i.e.
+   the set of extension identifiers the user has explicitly enabled).
+
+Profile manifest safety invariant
+    A profile manifest's "selection" is the subset of entry metadata that
+    determines *which* extensions the user chose (the `identifier` and any
+    UI-facing metadata).  The repair workflow must only touch path/version
+    fields, never the selection, otherwise VS Code may re-prompt the user.
+
 Author: XtremeXSPC
 Version: 1.0.0
 """
@@ -11,10 +28,10 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 from collections import defaultdict
 from copy import deepcopy
 from pathlib import Path
-import tempfile
 
 from vscode_config import DEFAULT_EXTENSION_EXCLUDE_PATTERNS, VscodePathsConfig
 from vscode_fs import canonicalize_path
@@ -43,6 +60,7 @@ class ProfileManifestSafetyError(RuntimeError):
 
 def _load_manifest_payload(manifest_path: Path) -> list[dict]:
     """Load a manifest payload and keep only dictionary entries."""
+
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     if not isinstance(payload, list):
         return []
@@ -57,6 +75,7 @@ def _manifest_context(
     insiders_dir: Path,
 ) -> tuple[VscodeEdition, str, Path]:
     """Return the edition, source kind, and install root for a manifest path."""
+
     canonical_manifest_path = canonicalize_path(manifest_path)
 
     if canonical_manifest_path == stable_dir / "extensions.json":
@@ -74,8 +93,11 @@ def _manifest_context(
     return (config.scope_for_extensions_dir(stable_dir), "local", stable_dir)
 
 
-def _sort_installs_by_preference(installs: list[ExtensionInstall]) -> list[ExtensionInstall]:
+def _sort_installs_by_preference(
+    installs: list[ExtensionInstall],
+) -> list[ExtensionInstall]:
     """Sort installs so the most desirable candidate appears first."""
+
     def sort_key(install: ExtensionInstall) -> tuple[int, int, str]:
         mtime = install.mtime or 0
         return (0, mtime, install.folder_name)
@@ -99,6 +121,7 @@ def _build_extension_indexes(
     installs: list[ExtensionInstall],
 ) -> tuple[dict[str, list[ExtensionInstall]], dict[str, ExtensionInstall]]:
     """Build lookup tables keyed by extension ID and by folder name."""
+
     installs_by_id: dict[str, list[ExtensionInstall]] = defaultdict(list)
     installs_by_name: dict[str, ExtensionInstall] = {}
     for install in installs:
@@ -113,6 +136,7 @@ def _build_extension_indexes(
 
 def _extract_current_folder_name(item: dict) -> str | None:
     """Extract the referenced extension folder name from a manifest item."""
+
     relative_location = item.get("relativeLocation")
     if isinstance(relative_location, str) and relative_location.strip():
         return relative_location.strip().strip("/")
@@ -130,6 +154,7 @@ def _extract_current_folder_name(item: dict) -> str | None:
 
 def _extract_extension_id(item: dict, current_folder_name: str | None) -> str | None:
     """Extract the Marketplace extension ID from a manifest item."""
+
     identifier = item.get("identifier")
     if isinstance(identifier, dict):
         extension_id = identifier.get("id")
@@ -148,6 +173,7 @@ def _excluded_for_entry(
     exclude_patterns: tuple[str, ...],
 ) -> bool:
     """Return ``True`` when a manifest entry should be treated as excluded."""
+
     if current_folder_name and is_excluded_extension(current_folder_name, exclude_patterns):
         return True
     if extension_id and is_excluded_extension_id(extension_id, exclude_patterns):
@@ -168,35 +194,58 @@ def _best_candidate_for_entry(
     exclude_patterns: tuple[str, ...],
 ) -> tuple[str | None, Path | None]:
     """Select the best installed folder that can satisfy a manifest entry."""
+
     if extension_id:
         excluded_entry = _excluded_for_entry(extension_id, current_folder_name, exclude_patterns)
 
         if edition == VscodeEdition.STABLE:
             candidates = stable_by_id.get(extension_id, [])
             if candidates:
-                return (candidates[0].folder_name, current_root / candidates[0].folder_name)
+                return (
+                    candidates[0].folder_name,
+                    current_root / candidates[0].folder_name,
+                )
         elif excluded_entry:
-            candidates = [install for install in insiders_by_id.get(extension_id, []) if not install.is_symlink]
+            candidates = [
+                install
+                for install in insiders_by_id.get(extension_id, [])
+                if not install.is_symlink
+            ]
             if not candidates:
                 candidates = insiders_by_id.get(extension_id, [])
             if candidates:
-                return (candidates[0].folder_name, current_root / candidates[0].folder_name)
+                return (
+                    candidates[0].folder_name,
+                    current_root / candidates[0].folder_name,
+                )
         else:
             candidates = stable_by_id.get(extension_id, [])
             if candidates:
-                return (candidates[0].folder_name, current_root / candidates[0].folder_name)
+                return (
+                    candidates[0].folder_name,
+                    current_root / candidates[0].folder_name,
+                )
 
             fallback_candidates = insiders_by_id.get(extension_id, [])
             if fallback_candidates:
-                return (fallback_candidates[0].folder_name, current_root / fallback_candidates[0].folder_name)
+                return (
+                    fallback_candidates[0].folder_name,
+                    current_root / fallback_candidates[0].folder_name,
+                )
 
     if current_folder_name:
         if edition == VscodeEdition.STABLE and current_folder_name in stable_by_name:
             current_install = stable_by_name[current_folder_name]
-            return (current_install.folder_name, current_root / current_install.folder_name)
+            return (
+                current_install.folder_name,
+                current_root / current_install.folder_name,
+            )
         if edition == VscodeEdition.INSIDERS and current_folder_name in insiders_by_name:
             current_install = insiders_by_name[current_folder_name]
-            return (current_install.folder_name, current_root / current_install.folder_name)
+            return (
+                current_install.folder_name,
+                current_root / current_install.folder_name,
+            )
 
     return (None, None)
 
@@ -209,6 +258,7 @@ def plan_manifest_repairs(
     exclude_patterns: tuple[str, ...] | list[str] | None = None,
 ) -> ManifestRepairPlan:
     """Plan safe manifest updates and removals for Stable and Insiders."""
+
     resolved_config = config or VscodePathsConfig.from_home()
     stable_root = canonicalize_path(stable_dir)
     insiders_root = canonicalize_path(insiders_dir)
@@ -317,6 +367,7 @@ def plan_manifest_repairs(
 
 def is_preserved_missing_profile_decision(decision: ManifestRepairDecision) -> bool:
     """Return ``True`` when a decision preserves an unresolved profile selection."""
+
     return (
         decision.action == ManifestAction.KEEP
         and decision.source_kind == "profile"
@@ -326,12 +377,13 @@ def is_preserved_missing_profile_decision(decision: ManifestRepairDecision) -> b
 
 def build_update_only_manifest_plan(plan: ManifestRepairPlan) -> ManifestRepairPlan:
     """Return a plan that applies only safe manifest updates and skips removals."""
+
     filtered_decisions = tuple(
-        decision
-        for decision in plan.decisions
-        if decision.action != ManifestAction.REMOVE
+        decision for decision in plan.decisions if decision.action != ManifestAction.REMOVE
     )
-    update_count = sum(1 for decision in filtered_decisions if decision.action == ManifestAction.UPDATE)
+    update_count = sum(
+        1 for decision in filtered_decisions if decision.action == ManifestAction.UPDATE
+    )
     keep_count = sum(1 for decision in filtered_decisions if decision.action == ManifestAction.KEEP)
     return ManifestRepairPlan(
         stable_dir=plan.stable_dir,
@@ -346,6 +398,7 @@ def build_update_only_manifest_plan(plan: ManifestRepairPlan) -> ManifestRepairP
 
 def apply_manifest_repair_plan(plan: ManifestRepairPlan) -> ManifestApplyReport:
     """Apply planned manifest repairs in place."""
+
     grouped: dict[Path, list[ManifestRepairDecision]] = defaultdict(list)
     for decision in plan.decisions:
         if decision.action != ManifestAction.KEEP:
@@ -372,7 +425,11 @@ def apply_manifest_repair_plan(plan: ManifestRepairPlan) -> ManifestApplyReport:
 
             updated_item = dict(item)
             if decision.desired_folder_name:
-                current_root = plan.stable_dir if decision.edition == VscodeEdition.STABLE else plan.insiders_dir
+                current_root = (
+                    plan.stable_dir
+                    if decision.edition == VscodeEdition.STABLE
+                    else plan.insiders_dir
+                )
                 updated_item["relativeLocation"] = decision.desired_folder_name
                 location = dict(updated_item.get("location") or {})
                 location["path"] = str(current_root / decision.desired_folder_name)
@@ -398,6 +455,7 @@ def apply_manifest_repair_plan(plan: ManifestRepairPlan) -> ManifestApplyReport:
 
 def _snapshot_manifest_payloads(manifest_paths: set[Path]) -> dict[Path, list[dict]]:
     """Snapshot manifest payloads so a later failure can be rolled back."""
+
     snapshots: dict[Path, list[dict]] = {}
     for manifest_path in manifest_paths:
         snapshots[manifest_path] = deepcopy(_load_manifest_payload(manifest_path))
@@ -406,6 +464,7 @@ def _snapshot_manifest_payloads(manifest_paths: set[Path]) -> dict[Path, list[di
 
 def _write_manifest_payload_atomically(manifest_path: Path, payload: list[dict]) -> None:
     """Write a manifest payload atomically via a temporary sibling file."""
+
     serialized_payload = json.dumps(payload, indent=2) + "\n"
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     fd, temp_name = tempfile.mkstemp(
@@ -429,12 +488,14 @@ def _write_manifest_payload_atomically(manifest_path: Path, payload: list[dict])
 
 def _restore_manifest_payloads(snapshots: dict[Path, list[dict]]) -> None:
     """Restore manifest payloads from an in-memory snapshot."""
+
     for manifest_path, payload in snapshots.items():
         _write_manifest_payload_atomically(manifest_path, payload)
 
 
 def _profile_entry_signature(item: dict) -> dict:
     """Return the stable, non-location portion of a profile manifest entry."""
+
     return {
         key: deepcopy(value)
         for key, value in item.items()
@@ -444,20 +505,20 @@ def _profile_entry_signature(item: dict) -> dict:
 
 def _profile_manifest_signature(payload: list[dict]) -> list[dict]:
     """Build a comparable signature for the user-visible profile selection state."""
+
     return [_profile_entry_signature(item) for item in payload if isinstance(item, dict)]
 
 
 def apply_manifest_repair_plan_safely(plan: ManifestRepairPlan) -> ManifestApplyReport:
     """Apply manifest repairs with rollback if profile selection changes."""
+
     touched_manifests = {
         decision.manifest_path
         for decision in plan.decisions
         if decision.action != ManifestAction.KEEP
     }
     profile_manifests = {
-        decision.manifest_path
-        for decision in plan.decisions
-        if decision.source_kind == "profile"
+        decision.manifest_path for decision in plan.decisions if decision.source_kind == "profile"
     }
 
     if not touched_manifests:

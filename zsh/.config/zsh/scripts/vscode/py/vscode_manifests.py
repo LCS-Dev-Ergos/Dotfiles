@@ -2,6 +2,16 @@
 """
 Manifest parsing helpers for VS Code extension and profile metadata.
 
+VS Code stores extension references in `extensions.json` files located at
+two levels:
+    - Root manifest      -- `<extensions-dir>/extensions.json`
+    - Profile manifests  -- `<profile-dir>/extensions.json`
+
+Each manifest entry may reference a folder via `relativeLocation` (simple string)
+or via a nested `location.path` (absolute URI).  This module normalises both
+formats into `~vscode_models.ReferenceEntry` objects and aggregates references
+across root and profile manifests for a given extensions directory.
+
 Author: XtremeXSPC
 Version: 1.0.0
 """
@@ -23,6 +33,7 @@ class ManifestParseError(RuntimeError):
 
 def extract_folder_name_from_location_path(location_path: str) -> str | None:
     """Extract the extension folder name from an absolute manifest location path."""
+
     normalized_path = location_path.replace("\\", "/")
     marker = "/extensions/"
     if marker not in normalized_path:
@@ -43,7 +54,8 @@ def parse_manifest_reference_entries(
     *,
     source_kind: str = "manifest",
 ) -> list[ReferenceEntry]:
-    """Parse all extension folder references from a VS Code ``extensions.json`` file."""
+    """Parse all extension folder references from a VS Code `extensions.json` file."""
+
     canonical_manifest_path = canonicalize_path(manifest_path)
 
     try:
@@ -100,6 +112,7 @@ def iter_manifest_paths_for_extensions_dir(
     config: VscodePathsConfig | None = None,
 ) -> list[tuple[Path, str]]:
     """Return the root and profile manifests relevant to an extensions directory."""
+
     resolved_config = config or VscodePathsConfig.from_home()
     canonical_extensions_dir = canonicalize_path(extensions_dir)
     manifest_paths: list[tuple[Path, str]] = []
@@ -128,6 +141,7 @@ def collect_reference_entries(
     config: VscodePathsConfig | None = None,
 ) -> list[ReferenceEntry]:
     """Collect structured manifest references for a root and its relevant profiles."""
+
     entries: list[ReferenceEntry] = []
     for manifest_path, source_kind in iter_manifest_paths_for_extensions_dir(
         extensions_dir,
@@ -148,5 +162,8 @@ def collect_reference_names(
     config: VscodePathsConfig | None = None,
 ) -> list[str]:
     """Collect unique referenced folder names relevant to the selected root."""
-    names = {entry.folder_name for entry in collect_reference_entries(extensions_dir, config=config)}
+
+    names = {
+        entry.folder_name for entry in collect_reference_entries(extensions_dir, config=config)
+    }
     return sorted(names)

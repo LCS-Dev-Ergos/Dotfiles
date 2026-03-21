@@ -2,6 +2,19 @@
 """
 Planning helpers for cleanup and Stable-to-Insiders extension sync.
 
+Cleanup planning (`plan_extension_cleanup`):
+    Groups extension installs by their *core name* (extension ID without the
+    version suffix), then picks which versions to keep or quarantine based on
+    the chosen `CleanupStrategy` and an optional manifest-reference
+    guard that protects folders still referenced by any `extensions.json`.
+
+Symlink drift planning (`plan_insiders_symlink_state`):
+    Scans both the Stable and Insiders extension roots and classifies every
+    Insiders entry relative to the expected shared-symlink state.  Results
+    are expressed as a :class:`SymlinkPlan` of `SymlinkDecision` objects
+    covering linked, missing, broken, wrong-target, unmanaged, excluded,
+    stale-managed, and excluded-but-symlinked states.
+
 Author: XtremeXSPC
 Version: 1.0.0
 """
@@ -34,11 +47,13 @@ from vscode_versions import compare_versions
 
 def is_excluded_extension(folder_name: str, patterns: tuple[str, ...] | list[str]) -> bool:
     """Return True when the folder name matches one of the exclusion patterns."""
+
     return any(fnmatchcase(folder_name, pattern) for pattern in patterns)
 
 
 def is_excluded_extension_id(extension_id: str, patterns: tuple[str, ...] | list[str]) -> bool:
     """Return True when a bare extension ID matches an exclusion pattern."""
+
     normalized_id = extension_id.strip()
     if not normalized_id:
         return False
@@ -58,6 +73,7 @@ def _build_effective_reference_names(
     prune_stale_references: bool,
 ) -> tuple[list[str], list[str]]:
     """Split raw manifest references into installed protected names and stale names."""
+
     installed_by_name = {install.folder_name: install for install in installs}
     installs_by_extension_id: dict[str, list[ExtensionInstall]] = defaultdict(list)
     reference_names_by_extension_id: dict[str, set[str]] = defaultdict(set)
@@ -71,21 +87,29 @@ def _build_effective_reference_names(
     protected_names: set[str] = set()
     stale_names: set[str] = set()
 
+    # Build two indexes: folder-name -> install for O(1) lookups,
+    # and extension-id -> [install] for grouping by extension identity.
     for extension_id, reference_names in reference_names_by_extension_id.items():
         referenced_installs = [
-            installed_by_name[name]
-            for name in sorted(reference_names)
-            if name in installed_by_name
+            installed_by_name[name] for name in sorted(reference_names) if name in installed_by_name
         ]
         if referenced_installs:
+            # At least one referenced version is installed.  Pick the
+            # newest and decide what to do with the rest.
             preferred_install = _select_newest_install(referenced_installs)
-            stale_names.update(name for name in reference_names if name != preferred_install.folder_name)
+            stale_names.update(
+                name for name in reference_names if name != preferred_install.folder_name
+            )
             if prune_stale_references:
+                # Only protect the newest; older shadowed refs become stale.
                 protected_names.add(preferred_install.folder_name)
             else:
+                # Conservative: protect every referenced version that exists.
                 protected_names.update(install.folder_name for install in referenced_installs)
             continue
 
+        # No installed folder matches any of the references for this ID.
+        # Mark all references as stale if a *different* version exists.
         if extension_id in installs_by_extension_id:
             stale_names.update(reference_names)
 
@@ -94,6 +118,7 @@ def _build_effective_reference_names(
 
 def _select_newest_install(group: list[ExtensionInstall]) -> ExtensionInstall:
     """Select the newest install from a duplicate group."""
+
     newest = group[0]
     for install in group[1:]:
         cmp = compare_versions(install.version, newest.version)
@@ -111,6 +136,7 @@ def _select_oldest_unreferenced_install(
     protected_names: set[str],
 ) -> ExtensionInstall | None:
     """Select the oldest install that is not protected by manifest references."""
+
     oldest: ExtensionInstall | None = None
     for install in group:
         if install.folder_name in protected_names:
@@ -138,6 +164,7 @@ def plan_extension_cleanup(
     config: VscodePathsConfig | None = None,
 ) -> CleanupPlan:
     """Build a deterministic duplicate-cleanup plan for one extension root."""
+
     root = canonicalize_path(extensions_dir)
     scoped_config = config or VscodePathsConfig.from_home()
     installs = [
@@ -268,7 +295,13 @@ def plan_extension_cleanup(
                     oldest_unreferenced.folder_name if oldest_unreferenced else None
                 ),
                 decisions=tuple(
-                    sorted(decisions, key=lambda decision: (decision.folder_name, decision.action.value))
+                    sorted(
+                        decisions,
+                        key=lambda decision: (
+                            decision.folder_name,
+                            decision.action.value,
+                        ),
+                    )
                 ),
             )
         )
@@ -295,6 +328,7 @@ def plan_insiders_symlink_state(
     exclude_patterns: tuple[str, ...] | list[str] | None = None,
 ) -> SymlinkPlan:
     """Build a read-only plan describing symlink drift between Stable and Insiders."""
+
     stable_root = canonicalize_path(stable_dir)
     insiders_root = canonicalize_path(insiders_dir)
     resolved_patterns = tuple(exclude_patterns or DEFAULT_EXTENSION_EXCLUDE_PATTERNS)
@@ -406,6 +440,10 @@ def plan_insiders_symlink_state(
             )
         )
 
+    # Second pass: inspect Insiders entries that have NO counterpart in Stable.
+    # These are either unmanaged real directories (Insiders-only installs that
+    # should be migrated) or stale managed symlinks whose Stable source was
+    # deleted or excluded from sync.
     for install in insiders_installs:
         if install.folder_name in stable_names:
             continue

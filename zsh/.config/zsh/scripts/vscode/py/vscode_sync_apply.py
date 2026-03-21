@@ -2,6 +2,26 @@
 """
 Apply helpers for the non-destructive Stable-to-Insiders sync workflow.
 
+`apply_extension_setup` repairs the Insiders extension tree so that every
+shared extension appears as a symlink pointing into the Stable root.  The
+function handles:
+
+1. Missing links: Creates new symlinks for Stable extensions not yet
+   linked into Insiders.
+2. Broken / wrong-target links: Removes and recreates symlinks that
+   no longer resolve to the expected Stable target.
+3. Unmanaged real directories: Migrates Insiders-only installs into the
+   Stable root and replaces them with symlinks, keeping the folder accessible
+   from both editions.
+4. Stale managed symlinks: Removes symlinks whose Stable source has been
+   deleted or excluded from sync management.
+5. Manifest rebinding: After symlink repair, updates profile manifests
+   to point at the correct folder names via the update-only (no-removal)
+   repair pipeline.
+
+All mutations are guarded by lexical root checks to prevent path-traversal
+attacks on the managed extension directories.
+
 Author: XtremeXSPC
 Version: 1.0.0
 """
@@ -28,7 +48,8 @@ from vscode_profiles import (
 
 
 def _is_lexically_within_root(path: Path, root: Path) -> bool:
-    """Return ``True`` when ``path`` is lexically contained inside ``root``."""
+    """Return `True` when `path` is lexically contained inside `root`."""
+
     path = path.expanduser()
     root = root.expanduser()
     return path == root or root in path.parents
@@ -36,6 +57,7 @@ def _is_lexically_within_root(path: Path, root: Path) -> bool:
 
 def _safe_remove_path(path: Path, *, root: Path) -> bool:
     """Remove a path only when it stays inside the managed root."""
+
     if not _is_lexically_within_root(path, root):
         return False
     if path.is_symlink() or path.exists():
@@ -48,6 +70,7 @@ def _safe_remove_path(path: Path, *, root: Path) -> bool:
 
 def _safe_create_symlink(*, link_path: Path, target_path: Path, root: Path) -> bool:
     """Create or replace a symlink only when the link lives inside the managed root."""
+
     if not _is_lexically_within_root(link_path, root):
         return False
     link_path.parent.mkdir(parents=True, exist_ok=True)
@@ -65,6 +88,7 @@ def apply_extension_setup(
     exclude_patterns: tuple[str, ...] | list[str] | None = None,
 ) -> ExtensionSetupReport:
     """Apply symlink repair, managed directory migration, and update-only manifest rebinds."""
+
     resolved_config = config or VscodePathsConfig.from_home()
     stable_root = canonicalize_path(stable_dir)
     insiders_root = canonicalize_path(insiders_dir)
@@ -93,7 +117,9 @@ def apply_extension_setup(
 
         if decision.action == SymlinkAction.MISSING:
             if expected_target.is_dir():
-                _safe_create_symlink(link_path=path, target_path=expected_target, root=insiders_root)
+                _safe_create_symlink(
+                    link_path=path, target_path=expected_target, root=insiders_root
+                )
                 linked_count += 1
             continue
 
@@ -101,7 +127,9 @@ def apply_extension_setup(
             if path.exists() or path.is_symlink():
                 _safe_remove_path(path, root=insiders_root)
             if expected_target.is_dir():
-                _safe_create_symlink(link_path=path, target_path=expected_target, root=insiders_root)
+                _safe_create_symlink(
+                    link_path=path, target_path=expected_target, root=insiders_root
+                )
                 relinked_count += 1
             continue
 
@@ -159,6 +187,7 @@ def apply_extension_remove(
     exclude_patterns: tuple[str, ...] | list[str] | None = None,
 ) -> ExtensionRemoveReport:
     """Remove sync-managed extension symlinks from the Insiders root."""
+
     del stable_dir, config, exclude_patterns
 
     insiders_root = Path(insiders_dir).expanduser()

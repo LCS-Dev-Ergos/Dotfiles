@@ -2,6 +2,20 @@
 """
 Recovery helpers for reinstalling or aliasing missing manifest-requested extensions.
 
+When a profile or root manifest references an extension folder that no longer
+exists on disk, this module plans a recovery workflow with two strategies:
+
+1. Alias: If a different version of the same extension is already installed,
+   a symlink is created at the missing folder name pointing to the best
+   available install. This is non-destructive and instant.
+2. Install: If no suitable candidate exists, a `code` or `code-insiders` CLI
+   install command is scheduled. Excluded extensions are always installed
+   via `code-insiders` so they remain native to the Insiders root.
+
+The recovery plan is consumed by `apply_missing_extension_recovery`, which
+runs install tasks, creates aliases, and then reconciles the shared
+Insiders symlink state via `~vscode_sync_apply.apply_extension_setup`.
+
 Author: XtremeXSPC
 Version: 1.0.0
 """
@@ -165,7 +179,8 @@ class RecoveryApplyReport:
 
 
 def _load_manifest_item(manifest_path: Path, entry_index: int) -> dict | None:
-    """Load a single manifest item by index from an ``extensions.json`` file."""
+    """Load a single manifest item by index from an `extensions.json` file."""
+
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     if not isinstance(payload, list):
         return None
@@ -179,6 +194,7 @@ def _load_manifest_item(manifest_path: Path, entry_index: int) -> dict | None:
 
 def _profile_name_map_for_root(profile_root: Path) -> dict[str, str]:
     """Build a profile-id to profile-name map for one VS Code profile root."""
+
     user_root = profile_root.parent
     storage_path = user_root / "globalStorage" / "storage.json"
     if not storage_path.is_file():
@@ -202,13 +218,21 @@ def _profile_name_map_for_root(profile_root: Path) -> dict[str, str]:
             continue
         location = item.get("location")
         name = item.get("name")
-        if isinstance(location, str) and location.strip() and isinstance(name, str) and name.strip():
+        if (
+            isinstance(location, str)
+            and location.strip()
+            and isinstance(name, str)
+            and name.strip()
+        ):
             mapping[location.strip()] = name.strip()
     return mapping
 
 
-def _profile_name_maps(config: VscodePathsConfig) -> tuple[dict[str, str], dict[str, str]]:
+def _profile_name_maps(
+    config: VscodePathsConfig,
+) -> tuple[dict[str, str], dict[str, str]]:
     """Collect profile-name maps for Stable and Insiders profile roots."""
+
     stable_map: dict[str, str] = {}
     insiders_map: dict[str, str] = {}
 
@@ -224,6 +248,7 @@ def _profile_name_maps(config: VscodePathsConfig) -> tuple[dict[str, str], dict[
 
 def _requested_version(item: dict | None, folder_name: str) -> str | None:
     """Determine which extension version a manifest entry is asking for."""
+
     if item:
         version = item.get("version")
         if isinstance(version, str) and version.strip():
@@ -233,6 +258,7 @@ def _requested_version(item: dict | None, folder_name: str) -> str | None:
 
 def _current_manifest_root(edition: str, stable_root: Path, insiders_root: Path) -> Path:
     """Return the install root associated with a manifest edition string."""
+
     return stable_root if edition == "stable" else insiders_root
 
 
@@ -245,6 +271,7 @@ def _install_context(
     insiders_root: Path,
 ) -> tuple[str, Path]:
     """Choose the installer binary and target root for a recovery request."""
+
     if is_excluded_extension(folder_name, exclude_patterns) or is_excluded_extension_id(
         extension_id,
         exclude_patterns,
@@ -260,6 +287,7 @@ def _select_best_install(
     requested_version: str | None,
 ) -> ExtensionInstall | None:
     """Select the best currently installed candidate for a recovery request."""
+
     candidates = [
         install
         for install in installs
@@ -300,6 +328,7 @@ def _build_alias_tasks(
     insiders_installs: list[ExtensionInstall] | None = None,
 ) -> tuple[RecoveryAliasTask, ...]:
     """Build alias tasks for requests already satisfiable by existing installs."""
+
     resolved_stable_installs = stable_installs or scan_extension_root(stable_root)
     resolved_insiders_installs = insiders_installs or scan_extension_root(insiders_root)
 
@@ -328,7 +357,12 @@ def _build_alias_tasks(
             folder_name=request.folder_name,
         )
 
-    return tuple(sorted(alias_tasks.values(), key=lambda task: (str(task.alias_path), str(task.target_path))))
+    return tuple(
+        sorted(
+            alias_tasks.values(),
+            key=lambda task: (str(task.alias_path), str(task.target_path)),
+        )
+    )
 
 
 def plan_missing_extension_recovery(
@@ -339,6 +373,7 @@ def plan_missing_extension_recovery(
     exclude_patterns: tuple[str, ...] | list[str] | None = None,
 ) -> RecoveryPlan:
     """Plan installs and aliases needed to satisfy missing manifest references."""
+
     resolved_config = config or VscodePathsConfig.from_home()
     stable_root = canonicalize_path(stable_dir)
     insiders_root = canonicalize_path(insiders_dir)
@@ -412,7 +447,9 @@ def plan_missing_extension_recovery(
 
     install_requests: dict[tuple[str, Path, str, str | None], int] = {}
     for request in requests:
-        candidate_pool = stable_installs if request.install_root == stable_root else insiders_installs
+        candidate_pool = (
+            stable_installs if request.install_root == stable_root else insiders_installs
+        )
         candidate = _select_best_install(
             candidate_pool,
             extension_id=request.extension_id,
@@ -440,7 +477,13 @@ def plan_missing_extension_recovery(
                     request_count=count,
                     profile_name=profile_name,
                 )
-                for (installer, install_root, extension_id, version, profile_name), count in install_requests.items()
+                for (
+                    installer,
+                    install_root,
+                    extension_id,
+                    version,
+                    profile_name,
+                ), count in install_requests.items()
             ),
             key=lambda task: (
                 task.installer,
@@ -453,7 +496,12 @@ def plan_missing_extension_recovery(
     )
 
     alias_tasks = _build_alias_tasks(
-        tuple(sorted(requests, key=lambda request: (str(request.manifest_path), request.entry_index))),
+        tuple(
+            sorted(
+                requests,
+                key=lambda request: (str(request.manifest_path), request.entry_index),
+            )
+        ),
         stable_root=stable_root,
         insiders_root=insiders_root,
         stable_installs=stable_installs,
@@ -463,7 +511,12 @@ def plan_missing_extension_recovery(
     return RecoveryPlan(
         stable_dir=stable_root,
         insiders_dir=insiders_root,
-        requests=tuple(sorted(requests, key=lambda request: (str(request.manifest_path), request.entry_index))),
+        requests=tuple(
+            sorted(
+                requests,
+                key=lambda request: (str(request.manifest_path), request.entry_index),
+            )
+        ),
         install_tasks=install_tasks,
         alias_tasks=alias_tasks,
     )
@@ -471,6 +524,7 @@ def plan_missing_extension_recovery(
 
 def _safe_replace_alias(alias_path: Path, target_path: Path, *, root: Path) -> bool:
     """Create or replace a compatibility alias inside a managed root."""
+
     if alias_path != root and root not in alias_path.parents:
         return False
     if target_path != root and root not in target_path.parents:
@@ -487,6 +541,7 @@ def _safe_replace_alias(alias_path: Path, target_path: Path, *, root: Path) -> b
 
 def _run_install_task(task: RecoveryInstallTask) -> bool:
     """Run one recovery install task and report whether it succeeded."""
+
     specs = [task.install_spec]
     if task.version:
         specs.append(task.extension_id)
@@ -528,6 +583,7 @@ def apply_missing_extension_recovery(
     exclude_patterns: tuple[str, ...] | list[str] | None = None,
 ) -> RecoveryApplyReport:
     """Apply a recovery plan and then reconcile the shared Insiders symlink state."""
+
     resolved_config = config or VscodePathsConfig.from_home()
     resolved_patterns = tuple(exclude_patterns or DEFAULT_EXTENSION_EXCLUDE_PATTERNS)
     attempted_installs: list[str] = []

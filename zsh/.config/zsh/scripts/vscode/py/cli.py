@@ -2,6 +2,30 @@
 """
 Command-line interface for the VS Code sync Python backend.
 
+Exposes all backend operations as `argparse` subcommands.  Every subcommand
+accepts `--json` for machine-readable output and works with either local or
+remote extension directories.
+
+Subcommand Groups
+    Scanning / inspection:
+        `scan`, `references`, `plan-links`, `extension-status`,
+        `extension-check`, `sync-status`, `sync-check`
+
+    Cleanup:
+        `plan-cleanup``, `clean`
+
+    Manifest repair:
+        `plan-manifests``, `repair-manifests`
+
+    Setup / teardown:
+        `setup-extensions``, `remove-extensions``, `sync-setup``, `sync-remove`
+
+    Recovery:
+        `recover-missing`
+
+    Updates:
+        `update-extensions``, `sync-update`
+
 Author: XtremeXSPC
 Version: 1.0.0
 """
@@ -13,10 +37,16 @@ import argparse
 import json
 from pathlib import Path
 
-from vscode_config import DEFAULT_EXTENSION_EXCLUDE_PATTERNS, VscodePathsConfig
 from vscode_cleanup import apply_cleanup_plan, deletable_paths_from_plan
+from vscode_config import DEFAULT_EXTENSION_EXCLUDE_PATTERNS, VscodePathsConfig
 from vscode_manifests import collect_reference_entries, collect_reference_names
-from vscode_models import CleanupStrategy, ManifestAction, SyncItemStatus, SymlinkAction, VscodeEdition
+from vscode_models import (
+    CleanupStrategy,
+    ManifestAction,
+    SymlinkAction,
+    SyncItemStatus,
+    VscodeEdition,
+)
 from vscode_planner import plan_extension_cleanup, plan_insiders_symlink_state
 from vscode_profiles import (
     ProfileManifestSafetyError,
@@ -24,15 +54,23 @@ from vscode_profiles import (
     is_preserved_missing_profile_decision,
     plan_manifest_repairs,
 )
-from vscode_recovery import apply_missing_extension_recovery, plan_missing_extension_recovery
+from vscode_recovery import (
+    apply_missing_extension_recovery,
+    plan_missing_extension_recovery,
+)
 from vscode_scanner import scan_extension_root
 from vscode_sync_apply import apply_extension_remove, apply_extension_setup
-from vscode_sync_workflow import apply_sync_remove, apply_sync_setup, collect_sync_status
+from vscode_sync_workflow import (
+    apply_sync_remove,
+    apply_sync_setup,
+    collect_sync_status,
+)
 from vscode_update import apply_extension_update, build_extension_update_plan
 
 
 def _parse_edition(value: str) -> VscodeEdition:
     """Parse a CLI edition argument into a ``VscodeEdition`` value."""
+
     try:
         return VscodeEdition(value)
     except ValueError as exc:
@@ -43,9 +81,8 @@ def _parse_edition(value: str) -> VscodeEdition:
 
 def _build_parser() -> argparse.ArgumentParser:
     """Build and return the top-level CLI argument parser."""
-    parser = argparse.ArgumentParser(
-        description="Python backend for the VS Code sync workflow."
-    )
+
+    parser = argparse.ArgumentParser(description="Python backend for the VS Code sync workflow.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     scan_parser = subparsers.add_parser("scan", help="Scan an extension root.")
@@ -375,27 +412,32 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _emit_json(payload: object) -> int:
     """Print a JSON payload and return a successful exit code."""
+
     print(json.dumps(payload, indent=2, sort_keys=True))
     return 0
 
 
 def _print_section(title: str) -> None:
     """Print a consistently formatted section title."""
+
     print(title)
 
 
 def _print_metric(label: str, value: object) -> None:
     """Print one aligned key/value metric."""
+
     print(f"  {label:<24} {value}")
 
 
 def _print_list_item(value: object, *, prefix: str = "-") -> None:
     """Print one indented list item."""
+
     print(f"    {prefix} {value}")
 
 
 def _run_scan(args: argparse.Namespace) -> int:
-    """Handle the ``scan`` subcommand."""
+    """Handle the `scan` subcommand."""
+
     installs = scan_extension_root(args.extensions_dir, edition=args.edition)
     if args.json_output:
         return _emit_json([install.to_dict() for install in installs])
@@ -416,7 +458,8 @@ def _run_scan(args: argparse.Namespace) -> int:
 
 
 def _run_references(args: argparse.Namespace) -> int:
-    """Handle the ``references`` subcommand."""
+    """Handle the `references` subcommand."""
+
     config = VscodePathsConfig.from_home(args.home) if args.home else VscodePathsConfig.from_home()
 
     if args.entries:
@@ -436,7 +479,8 @@ def _run_references(args: argparse.Namespace) -> int:
 
 
 def _run_plan_cleanup(args: argparse.Namespace) -> int:
-    """Handle the ``plan-cleanup`` subcommand."""
+    """Handle the `plan-cleanup` subcommand."""
+
     config = VscodePathsConfig.from_home(args.home) if args.home else VscodePathsConfig.from_home()
     plan = plan_extension_cleanup(
         args.extensions_dir,
@@ -466,7 +510,8 @@ def _run_plan_cleanup(args: argparse.Namespace) -> int:
 
 
 def _run_plan_links(args: argparse.Namespace) -> int:
-    """Handle the ``plan-links`` subcommand."""
+    """Handle the `plan-links` subcommand."""
+
     exclude_patterns = tuple(args.exclude or DEFAULT_EXTENSION_EXCLUDE_PATTERNS)
     plan = plan_insiders_symlink_state(
         args.stable_dir,
@@ -493,7 +538,8 @@ def _run_plan_links(args: argparse.Namespace) -> int:
 
 
 def _run_clean(args: argparse.Namespace) -> int:
-    """Handle the ``clean`` subcommand."""
+    """Handle the `clean` subcommand."""
+
     config = VscodePathsConfig.from_home(args.home) if args.home else VscodePathsConfig.from_home()
     plan = plan_extension_cleanup(
         args.extensions_dir,
@@ -533,17 +579,17 @@ def _run_clean(args: argparse.Namespace) -> int:
         if args.json_output:
             return _emit_json(
                 {
-                        "plan": plan.to_dict(),
-                        "apply_report": {
-                            "root": str(plan.root),
-                            "quarantine_root": None,
-                            "quarantined_paths": [],
-                            "deleted_paths": [],
-                            "failed_paths": [],
-                            "quarantined_count": 0,
-                            "deleted_count": 0,
-                            "failed_count": 0,
-                        },
+                    "plan": plan.to_dict(),
+                    "apply_report": {
+                        "root": str(plan.root),
+                        "quarantine_root": None,
+                        "quarantined_paths": [],
+                        "deleted_paths": [],
+                        "failed_paths": [],
+                        "quarantined_count": 0,
+                        "deleted_count": 0,
+                        "failed_count": 0,
+                    },
                 }
             )
         _print_section("Cleanup Apply")
@@ -580,15 +626,23 @@ def _run_clean(args: argparse.Namespace) -> int:
     return 0 if not report.failed_paths else 1
 
 
-def _resolve_shared_args(args: argparse.Namespace) -> tuple[VscodePathsConfig, tuple[str, ...]]:
+def _resolve_shared_args(
+    args: argparse.Namespace,
+) -> tuple[VscodePathsConfig, tuple[str, ...]]:
     """Resolve shared HOME/configuration arguments used by multi-root commands."""
-    config = VscodePathsConfig.from_home(args.home) if getattr(args, "home", None) else VscodePathsConfig.from_home()
+
+    config = (
+        VscodePathsConfig.from_home(args.home)
+        if getattr(args, "home", None)
+        else VscodePathsConfig.from_home()
+    )
     exclude_patterns = tuple(getattr(args, "exclude", None) or DEFAULT_EXTENSION_EXCLUDE_PATTERNS)
     return config, exclude_patterns
 
 
 def _run_plan_manifests(args: argparse.Namespace) -> int:
-    """Handle the ``plan-manifests`` subcommand."""
+    """Handle the `plan-manifests` subcommand."""
+
     config, exclude_patterns = _resolve_shared_args(args)
     plan = plan_manifest_repairs(
         args.stable_dir,
@@ -603,12 +657,11 @@ def _run_plan_manifests(args: argparse.Namespace) -> int:
     print(f"manifest_updates={plan.update_count}")
     print(f"manifest_removals={plan.remove_count}")
     print(f"manifest_keeps={plan.keep_count}")
-    print(
-        "manifest_preserved_missing_profiles="
-        f"{plan.preserved_missing_profile_count}"
-    )
+    print(f"manifest_preserved_missing_profiles={plan.preserved_missing_profile_count}")
     for decision in plan.decisions:
-        if decision.action == ManifestAction.KEEP and not is_preserved_missing_profile_decision(decision):
+        if decision.action == ManifestAction.KEEP and not is_preserved_missing_profile_decision(
+            decision
+        ):
             continue
         label = decision.action.value
         if is_preserved_missing_profile_decision(decision):
@@ -621,7 +674,8 @@ def _run_plan_manifests(args: argparse.Namespace) -> int:
 
 
 def _run_repair_manifests(args: argparse.Namespace) -> int:
-    """Handle the ``repair-manifests`` subcommand."""
+    """Handle the `repair-manifests` subcommand."""
+
     config, exclude_patterns = _resolve_shared_args(args)
     plan = plan_manifest_repairs(
         args.stable_dir,
@@ -640,10 +694,7 @@ def _run_repair_manifests(args: argparse.Namespace) -> int:
 
     print(f"Updated entries: {report.updated_entries}")
     print(f"Removed entries: {report.removed_entries}")
-    print(
-        "Preserved unresolved profile entries: "
-        f"{plan.preserved_missing_profile_count}"
-    )
+    print(f"Preserved unresolved profile entries: {plan.preserved_missing_profile_count}")
     print(f"Touched manifests: {len(report.touched_manifests)}")
     for path in report.touched_manifests:
         print(f"  - {path}")
@@ -652,6 +703,7 @@ def _run_repair_manifests(args: argparse.Namespace) -> int:
 
 def _combined_extension_state(args: argparse.Namespace):
     """Return the symlink and manifest plans for the selected roots."""
+
     config, exclude_patterns = _resolve_shared_args(args)
     symlink_plan = plan_insiders_symlink_state(
         args.stable_dir,
@@ -669,6 +721,7 @@ def _combined_extension_state(args: argparse.Namespace):
 
 def _extension_health_counts(symlink_plan, manifest_plan) -> tuple[int, int]:
     """Return issue and warning counts for extension health checks."""
+
     issues = symlink_plan.broken_count + manifest_plan.remove_count
     warnings = (
         symlink_plan.missing_count
@@ -682,7 +735,8 @@ def _extension_health_counts(symlink_plan, manifest_plan) -> tuple[int, int]:
 
 
 def _run_setup_extensions(args: argparse.Namespace) -> int:
-    """Handle the ``setup-extensions`` subcommand."""
+    """Handle the `setup-extensions` subcommand."""
+
     config, exclude_patterns = _resolve_shared_args(args)
     try:
         report = apply_extension_setup(
@@ -716,7 +770,8 @@ def _run_setup_extensions(args: argparse.Namespace) -> int:
 
 
 def _run_remove_extensions(args: argparse.Namespace) -> int:
-    """Handle the ``remove-extensions`` subcommand."""
+    """Handle the `remove-extensions` subcommand."""
+
     config, exclude_patterns = _resolve_shared_args(args)
     report = apply_extension_remove(
         args.stable_dir,
@@ -737,7 +792,8 @@ def _run_remove_extensions(args: argparse.Namespace) -> int:
 
 
 def _run_extension_status(args: argparse.Namespace) -> int:
-    """Handle the ``extension-status`` subcommand."""
+    """Handle the `extension-status` subcommand."""
+
     symlink_plan, manifest_plan = _combined_extension_state(args)
     if args.json_output:
         return _emit_json(
@@ -770,7 +826,9 @@ def _run_extension_status(args: argparse.Namespace) -> int:
         _print_list_item(f"{decision.folder_name} [{decision.action.value}] {decision.reason}")
 
     for decision in manifest_plan.decisions:
-        if decision.action == ManifestAction.KEEP and not is_preserved_missing_profile_decision(decision):
+        if decision.action == ManifestAction.KEEP and not is_preserved_missing_profile_decision(
+            decision
+        ):
             continue
         label = decision.action.value
         if is_preserved_missing_profile_decision(decision):
@@ -783,7 +841,8 @@ def _run_extension_status(args: argparse.Namespace) -> int:
 
 
 def _run_extension_check(args: argparse.Namespace) -> int:
-    """Handle the ``extension-check`` subcommand."""
+    """Handle the `extension-check` subcommand."""
+
     symlink_plan, manifest_plan = _combined_extension_state(args)
     issues, warnings = _extension_health_counts(symlink_plan, manifest_plan)
 
@@ -819,7 +878,8 @@ def _run_extension_check(args: argparse.Namespace) -> int:
 
 
 def _run_sync_status(args: argparse.Namespace) -> int:
-    """Handle the ``sync-status`` subcommand."""
+    """Handle the `sync-status` subcommand."""
+
     config, exclude_patterns = _resolve_shared_args(args)
     report = collect_sync_status(
         args.stable_dir,
@@ -850,7 +910,10 @@ def _run_sync_status(args: argparse.Namespace) -> int:
             print(f"  [NO SRC]  {item.label:<12} Source not found: {item.source_path}")
 
     _print_section("Extensions")
-    _print_metric("Linked", f"{report.symlink_plan.linked_count}/{report.symlink_plan.expected_link_count}")
+    _print_metric(
+        "Linked",
+        f"{report.symlink_plan.linked_count}/{report.symlink_plan.expected_link_count}",
+    )
     _print_metric("Missing", report.symlink_plan.missing_count)
     _print_metric("Broken", report.symlink_plan.broken_count)
     _print_metric("Unmanaged", report.symlink_plan.unmanaged_count)
@@ -862,12 +925,16 @@ def _run_sync_status(args: argparse.Namespace) -> int:
             f"{report.manifest_plan.update_count} update candidate(s), {report.manifest_plan.remove_count} removal candidate(s)",
         )
     if report.manifest_plan.preserved_missing_profile_count:
-        _print_metric("Preserved profile drift", report.manifest_plan.preserved_missing_profile_count)
+        _print_metric(
+            "Preserved profile drift",
+            report.manifest_plan.preserved_missing_profile_count,
+        )
     return 0
 
 
 def _run_sync_check(args: argparse.Namespace) -> int:
-    """Handle the ``sync-check`` subcommand."""
+    """Handle the `sync-check` subcommand."""
+
     config, exclude_patterns = _resolve_shared_args(args)
     report = collect_sync_status(
         args.stable_dir,
@@ -907,7 +974,10 @@ def _run_sync_check(args: argparse.Namespace) -> int:
             _print_metric("reason", f"source_missing ({item.source_path})")
 
     _print_section("Extensions")
-    _print_metric("Linked", f"{report.symlink_plan.linked_count}/{report.symlink_plan.expected_link_count}")
+    _print_metric(
+        "Linked",
+        f"{report.symlink_plan.linked_count}/{report.symlink_plan.expected_link_count}",
+    )
     _print_metric("Missing", report.symlink_plan.missing_count)
     _print_metric("Broken", report.symlink_plan.broken_count)
     _print_metric("Unmanaged", report.symlink_plan.unmanaged_count)
@@ -916,7 +986,10 @@ def _run_sync_check(args: argparse.Namespace) -> int:
         _print_metric("Manifest updates", report.manifest_plan.update_count)
         _print_metric("Manifest removals", report.manifest_plan.remove_count)
     if report.manifest_plan.preserved_missing_profile_count:
-        _print_metric("Preserved profile drift", report.manifest_plan.preserved_missing_profile_count)
+        _print_metric(
+            "Preserved profile drift",
+            report.manifest_plan.preserved_missing_profile_count,
+        )
     _print_section("Health")
     _print_metric("Issues", report.issues)
     _print_metric("Warnings", report.warnings)
@@ -926,7 +999,8 @@ def _run_sync_check(args: argparse.Namespace) -> int:
 
 
 def _run_sync_setup(args: argparse.Namespace) -> int:
-    """Handle the ``sync-setup`` subcommand."""
+    """Handle the `sync-setup` subcommand."""
+
     config, exclude_patterns = _resolve_shared_args(args)
     try:
         report = apply_sync_setup(
@@ -950,13 +1024,20 @@ def _run_sync_setup(args: argparse.Namespace) -> int:
     _print_metric("Migrated unmanaged", report.extension_report.migrated_count)
     _print_metric("Removed stale", report.extension_report.removed_stale_symlink_count)
     _print_metric("Skipped excluded", report.extension_report.skipped_excluded_symlink_count)
-    _print_metric("Manifest updates", report.extension_report.manifest_apply_report.updated_entries)
-    _print_metric("Manifest removals", report.extension_report.manifest_apply_report.removed_entries)
+    _print_metric(
+        "Manifest updates",
+        report.extension_report.manifest_apply_report.updated_entries,
+    )
+    _print_metric(
+        "Manifest removals",
+        report.extension_report.manifest_apply_report.removed_entries,
+    )
     return 0 if report.failed_count == 0 else 1
 
 
 def _run_sync_remove(args: argparse.Namespace) -> int:
-    """Handle the ``sync-remove`` subcommand."""
+    """Handle the `sync-remove` subcommand."""
+
     config, exclude_patterns = _resolve_shared_args(args)
     report = apply_sync_remove(
         args.stable_dir,
@@ -980,7 +1061,8 @@ def _run_sync_remove(args: argparse.Namespace) -> int:
 
 
 def _run_update_extensions(args: argparse.Namespace) -> int:
-    """Handle the ``update-extensions`` subcommand."""
+    """Handle the `update-extensions` subcommand."""
+
     config, exclude_patterns = _resolve_shared_args(args)
     plan = build_extension_update_plan(
         args.stable_dir,
@@ -1082,7 +1164,8 @@ def _run_update_extensions(args: argparse.Namespace) -> int:
 
 
 def _run_recover_missing(args: argparse.Namespace) -> int:
-    """Handle the ``recover-missing`` subcommand."""
+    """Handle the `recover-missing` subcommand."""
+
     config, exclude_patterns = _resolve_shared_args(args)
     plan = plan_missing_extension_recovery(
         args.stable_dir,
@@ -1134,6 +1217,7 @@ def _run_recover_missing(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     """Run the VS Code sync Python CLI."""
+
     parser = _build_parser()
     args = parser.parse_args(argv)
 

@@ -2,6 +2,16 @@
 """
 Cleanup application helpers for duplicate VS Code extension installs.
 
+Rather than deleting folders outright, the cleanup workflow "quarantines"
+selected directories by moving them into a timestamped backup hierarchy under
+`~/.local/share/vscode-sync-backups/` (or `$VSCODE_SYNC_BACKUP_DIR` when set).
+This ensures that accidental data loss can be recovered manually.
+
+Quarantine directory layout:
+    <backup-root>/<timestamp>_<pid>_extension-cleaner-quarantine/<root-fragment>/
+        <folder-name>
+        <folder-name>.1          # when the name already existed
+
 Author: XtremeXSPC
 Version: 1.0.0
 """
@@ -22,6 +32,7 @@ _MAX_QUARANTINE_SUFFIX_ATTEMPTS = 10000
 
 def deletable_paths_from_plan(plan: CleanupPlan) -> tuple[Path, ...]:
     """Return the unique, sorted set of paths selected for quarantine."""
+
     paths = {
         canonicalize_path(decision.path)
         for group in plan.groups
@@ -33,6 +44,7 @@ def deletable_paths_from_plan(plan: CleanupPlan) -> tuple[Path, ...]:
 
 def _cleanup_backup_roots(root: Path) -> tuple[Path, ...]:
     """Return the candidate backup roots that can host cleanup quarantine data."""
+
     env_root = os.environ.get("VSCODE_SYNC_BACKUP_DIR")
     candidates: list[Path] = []
     if env_root:
@@ -46,6 +58,7 @@ def _cleanup_backup_roots(root: Path) -> tuple[Path, ...]:
 
 def _cleanup_quarantine_root(root: Path) -> Path:
     """Create and return a unique quarantine directory for a cleanup run."""
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     suffix = f"{timestamp}_{os.getpid()}_extension-cleaner-quarantine"
     root_fragment = str(root).replace(str(Path.home()), "HOME").strip("/").replace("/", "__")
@@ -65,6 +78,7 @@ def _cleanup_quarantine_root(root: Path) -> Path:
 
 def _unique_quarantine_target(quarantine_root: Path, source_path: Path) -> Path:
     """Return a unique destination path inside the quarantine directory."""
+
     candidate = quarantine_root / source_path.name
     if not candidate.exists():
         return candidate
@@ -79,6 +93,7 @@ def _unique_quarantine_target(quarantine_root: Path, source_path: Path) -> Path:
 
 def apply_cleanup_plan(plan: CleanupPlan) -> CleanupApplyReport:
     """Apply a cleanup plan by moving selected directories into quarantine."""
+
     root = canonicalize_path(plan.root)
     quarantine_root = _cleanup_quarantine_root(root)
 

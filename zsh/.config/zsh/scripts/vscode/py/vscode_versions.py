@@ -2,6 +2,15 @@
 """
 Version comparison helpers for VS Code extension folders.
 
+Implements a shell-compatible (`sort -V` style) comparison that handles
+the heterogeneous version strings produced by the VS Code marketplace:
+numeric segments are compared as integers, non-numeric segments use
+case-insensitive lexicographic order, and numeric segments always sort
+after non-numeric ones (`1.0.0-1 > 1.0.0-beta`).
+
+Tokens are split on `.`, `_`, `+`, and `-`.  Shorter version strings
+are zero-padded so that `1.0` equals `1.0.0`.
+
 Author: XtremeXSPC
 Version: 1.0.0
 """
@@ -16,6 +25,7 @@ _TOKEN_SPLIT_RE = re.compile(r"[._+-]")
 
 def compare_versions(left: str | None, right: str | None) -> int:
     """Compare two extension versions using shell-compatible token rules."""
+
     if not left and not right:
         return 0
     if not left:

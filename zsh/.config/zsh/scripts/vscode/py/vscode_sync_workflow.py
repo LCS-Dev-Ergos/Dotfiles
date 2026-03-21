@@ -2,6 +2,22 @@
 """
 Top-level VS Code sync workflow helpers.
 
+Orchestrates the full sync lifecycle which consists of two layers:
+
+Non-extension items (settings, keybindings, snippets, MCP config):
+    These are plain files or directories symlinked from the Stable user-data
+    directory into the Insiders user-data directory. The workflow backs up
+    existing targets before replacing them.
+
+Extensions:
+    Delegated to `vscode_sync_apply` which handles symlink repair,
+    directory migration, and manifest rebinding.
+
+The workflow exposes three entry points:
+    - `collect_sync_status`  -- read-only health report
+    - `apply_sync_setup`     -- create/update all sync links
+    - `apply_sync_remove`    -- restore independent copies and remove links
+
 Author: XtremeXSPC
 Version: 1.0.0
 """
@@ -18,9 +34,6 @@ from pathlib import Path
 from vscode_config import DEFAULT_EXTENSION_EXCLUDE_PATTERNS, VscodePathsConfig
 from vscode_fs import canonicalize_path, is_within_directory
 from vscode_models import (
-    ExtensionRemoveReport,
-    ExtensionSetupReport,
-    ManifestApplyReport,
     SyncItem,
     SyncItemDecision,
     SyncItemStatus,
@@ -42,6 +55,7 @@ SYNC_ITEM_SPECS = (
 
 def detect_user_dirs(home: str | Path | None = None) -> tuple[Path, Path]:
     """Return the active Stable and Insiders user directories for this HOME."""
+
     home_path = Path(home or Path.home()).expanduser()
     mac_stable = home_path / "Library/Application Support/Code/User"
     mac_insiders = home_path / "Library/Application Support/Code - Insiders/User"
@@ -59,6 +73,7 @@ def detect_user_dirs(home: str | Path | None = None) -> tuple[Path, Path]:
 
 def build_sync_items(home: str | Path | None = None) -> tuple[SyncItem, ...]:
     """Build the managed non-extension sync items for this HOME."""
+
     stable_user_dir, insiders_user_dir = detect_user_dirs(home)
     return tuple(
         SyncItem(
@@ -72,6 +87,7 @@ def build_sync_items(home: str | Path | None = None) -> tuple[SyncItem, ...]:
 
 def evaluate_sync_item(item: SyncItem) -> SyncItemDecision:
     """Return the current sync state for one managed non-extension item."""
+
     source_exists = item.source_path.exists() or item.source_path.is_symlink()
     if not source_exists:
         return SyncItemDecision(
@@ -138,6 +154,7 @@ def evaluate_sync_item(item: SyncItem) -> SyncItemDecision:
 
 def _extension_health_counts(symlink_plan, manifest_plan) -> tuple[int, int]:
     """Return issue and warning counts for extension health."""
+
     issues = symlink_plan.broken_count + manifest_plan.remove_count
     warnings = (
         symlink_plan.missing_count
@@ -150,12 +167,18 @@ def _extension_health_counts(symlink_plan, manifest_plan) -> tuple[int, int]:
     return issues, warnings
 
 
-def _item_health_counts(item_decisions: tuple[SyncItemDecision, ...]) -> tuple[int, int]:
+def _item_health_counts(
+    item_decisions: tuple[SyncItemDecision, ...],
+) -> tuple[int, int]:
     """Return issue and warning counts for non-extension sync items."""
+
     issues = 0
     warnings = 0
     for decision in item_decisions:
-        if decision.status in {SyncItemStatus.SOURCE_MISSING, SyncItemStatus.SYMLINK_BROKEN}:
+        if decision.status in {
+            SyncItemStatus.SOURCE_MISSING,
+            SyncItemStatus.SYMLINK_BROKEN,
+        }:
             issues += 1
         if decision.status == SyncItemStatus.SYMLINK_WRONG:
             warnings += 1
@@ -172,6 +195,7 @@ def collect_sync_status(
     exclude_patterns: tuple[str, ...] | list[str] | None = None,
 ) -> SyncStatusReport:
     """Collect the top-level sync status for items plus extensions."""
+
     config = VscodePathsConfig.from_home(home)
     resolved_patterns = tuple(exclude_patterns or DEFAULT_EXTENSION_EXCLUDE_PATTERNS)
     item_decisions = tuple(evaluate_sync_item(item) for item in build_sync_items(config.home))
@@ -199,6 +223,7 @@ def collect_sync_status(
 
 def _safe_remove_existing(path: Path, *, home: Path) -> None:
     """Remove an existing path only when it stays within HOME."""
+
     if not is_within_directory(path, home):
         raise ValueError(f"path outside HOME: {path}")
     if path.is_symlink() or path.exists():
@@ -210,6 +235,7 @@ def _safe_remove_existing(path: Path, *, home: Path) -> None:
 
 def _copy_path(source: Path, destination: Path) -> None:
     """Copy a file or directory to a destination path."""
+
     destination.parent.mkdir(parents=True, exist_ok=True)
     if source.is_dir() and not source.is_symlink():
         shutil.copytree(source, destination, symlinks=True)
@@ -219,6 +245,7 @@ def _copy_path(source: Path, destination: Path) -> None:
 
 def _make_backup_root(home: Path) -> Path:
     """Create and return a dedicated backup directory for one apply run."""
+
     backup_parent = canonicalize_path(home / ".local/share/vscode-sync-backups")
     backup_parent.mkdir(parents=True, exist_ok=True)
     timestamp = time.strftime("%Y%m%d_%H%M%S")
@@ -234,6 +261,7 @@ def _make_backup_root(home: Path) -> Path:
 
 def _backup_target_if_needed(target: Path, label: str, *, backup_root: Path) -> None:
     """Back up an existing target before replacing it."""
+
     if not target.exists():
         return
     safe_label = "".join(char for char in label.replace(" ", "_") if char.isalnum() or char in "_-")
@@ -249,6 +277,7 @@ def apply_sync_setup(
     exclude_patterns: tuple[str, ...] | list[str] | None = None,
 ) -> SyncSetupReport:
     """Apply the top-level sync setup workflow for items and extensions."""
+
     config = VscodePathsConfig.from_home(home)
     home_path = config.home
     backup_root = _make_backup_root(home_path)
@@ -324,6 +353,7 @@ def apply_sync_remove(
     exclude_patterns: tuple[str, ...] | list[str] | None = None,
 ) -> SyncRemoveReport:
     """Apply the top-level sync removal workflow for items and extensions."""
+
     config = VscodePathsConfig.from_home(home)
     home_path = config.home
     item_reports: list[SyncItemDecision] = []
@@ -341,7 +371,9 @@ def apply_sync_remove(
 
         try:
             if item.target_path.exists():
-                temp_target = item.target_path.with_name(f"{item.target_path.name}.vscode_sync_tmp.{os.getpid()}")
+                temp_target = item.target_path.with_name(
+                    f"{item.target_path.name}.vscode_sync_tmp.{os.getpid()}"
+                )
                 _copy_path(item.source_path, temp_target)
                 _safe_remove_existing(item.target_path, home=home_path)
                 shutil.move(str(temp_target), str(item.target_path))
