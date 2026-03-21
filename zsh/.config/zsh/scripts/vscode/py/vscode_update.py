@@ -303,6 +303,8 @@ def _promote_native_excluded_update(
     moved_backups: list[tuple[Path, Path]] = []
 
     try:
+        # Move current installs out of the way first. This guarantees we can
+        # atomically promote the staged directory into its final name.
         for source_path in paths_to_backup:
             if not is_within_directory(source_path, insiders_dir):
                 raise RuntimeError("refusing to back up a path outside the Insiders root")
@@ -472,8 +474,14 @@ def apply_extension_update(
     shared_update_succeeded = shared_update_completed.returncode == 0
     if not shared_update_succeeded:
         raise RuntimeError("Shared Stable extension update failed.")
+    shared_stdout = (
+        shared_update_completed.stdout if isinstance(shared_update_completed.stdout, str) else ""
+    )
+    shared_stderr = (
+        shared_update_completed.stderr if isinstance(shared_update_completed.stderr, str) else ""
+    )
     shared_updated_extension_ids = _parse_shared_updated_extension_ids(
-        (shared_update_completed.stdout or "") + "\n" + (shared_update_completed.stderr or "")
+        shared_stdout + "\n" + shared_stderr
     )
 
     cleanup_quarantined_count = 0

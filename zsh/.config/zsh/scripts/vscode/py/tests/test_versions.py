@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import unittest
 
-from _support import MODULE_ROOT
-
 from vscode_versions import compare_versions
 
 

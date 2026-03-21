@@ -528,6 +528,8 @@ def apply_manifest_repair_plan_safely(plan: ManifestRepairPlan) -> ManifestApply
             touched_manifests=(),
         )
 
+    # Snapshot everything we might touch so we can always roll back to a
+    # byte-for-byte valid manifest state.
     snapshots = _snapshot_manifest_payloads(touched_manifests | profile_manifests)
     profile_signatures_before = {
         manifest_path: _profile_manifest_signature(payload)
@@ -543,6 +545,8 @@ def apply_manifest_repair_plan_safely(plan: ManifestRepairPlan) -> ManifestApply
             "Manifest repair failed; restored manifest snapshot."
         ) from exc
 
+    # Compare pre/post profile signatures to enforce the safety invariant:
+    # path/version fields may change, but user-visible profile selection cannot.
     changed_profiles: list[Path] = []
     for manifest_path, signature_before in profile_signatures_before.items():
         signature_after = _profile_manifest_signature(_load_manifest_payload(manifest_path))

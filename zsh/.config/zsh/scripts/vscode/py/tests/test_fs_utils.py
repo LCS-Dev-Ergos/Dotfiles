@@ -6,8 +6,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from _support import MODULE_ROOT
-
 from vscode_fs import canonicalize_path, is_within_directory
 
 
@@ -18,7 +16,7 @@ class CanonicalizePathTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             candidate = root / "child/../grandchild"
-            self.assertEqual(canonicalize_path(candidate), root / "grandchild")
+            self.assertEqual(canonicalize_path(candidate), canonicalize_path(root / "grandchild"))
 
 
 class IsWithinDirectoryTests(unittest.TestCase):

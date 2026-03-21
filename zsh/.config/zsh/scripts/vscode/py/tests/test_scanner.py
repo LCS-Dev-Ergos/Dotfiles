@@ -6,8 +6,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from _support import MODULE_ROOT
-
 from vscode_models import VscodeEdition
 from vscode_scanner import parse_extension_folder_name, scan_extension_root
 

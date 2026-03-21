@@ -7,7 +7,6 @@ import unittest
 from pathlib import Path
 
 from _support import MODULE_ROOT
-
 from vscode_config import VscodePathsConfig
 from vscode_manifests import (
     collect_reference_entries,
@@ -30,9 +29,7 @@ class ParseManifestReferenceEntriesTests(unittest.TestCase):
     def test_extracts_relative_and_absolute_location_entries(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             manifest_path = Path(temp_dir) / "extensions.json"
-            manifest_path.write_text(
-                _fixture_text("root_extensions.json"), encoding="utf-8"
-            )
+            manifest_path.write_text(_fixture_text("root_extensions.json"), encoding="utf-8")
 
             entries = parse_manifest_reference_entries(manifest_path)
 
@@ -62,9 +59,7 @@ class CollectReferenceNamesTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            stable_profile_dir = (
-                home / "Library/Application Support/Code/User/profiles/profile-a"
-            )
+            stable_profile_dir = home / "Library/Application Support/Code/User/profiles/profile-a"
             stable_profile_dir.mkdir(parents=True)
             (stable_profile_dir / "extensions.json").write_text(
                 _fixture_text("stable_profile_extensions.json"),
@@ -72,8 +67,7 @@ class CollectReferenceNamesTests(unittest.TestCase):
             )
 
             insiders_profile_dir = (
-                home
-                / "Library/Application Support/Code - Insiders/User/profiles/profile-b"
+                home / "Library/Application Support/Code - Insiders/User/profiles/profile-b"
             )
             insiders_profile_dir.mkdir(parents=True)
             (insiders_profile_dir / "extensions.json").write_text(
@@ -105,9 +99,7 @@ class CollectReferenceNamesTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            entries = collect_reference_entries(
-                root, config=VscodePathsConfig.from_home(temp_dir)
-            )
+            entries = collect_reference_entries(root, config=VscodePathsConfig.from_home(temp_dir))
 
             self.assertTrue(all(entry.source_kind == "root" for entry in entries))
             self.assertEqual(len(entries), 3)

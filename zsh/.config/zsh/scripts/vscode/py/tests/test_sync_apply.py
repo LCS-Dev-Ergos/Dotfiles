@@ -7,9 +7,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from _support import MODULE_ROOT
-
 from vscode_config import VscodePathsConfig
+from vscode_fs import canonicalize_path
 from vscode_sync_apply import apply_extension_remove, apply_extension_setup
 
 
@@ -26,8 +25,7 @@ class ApplyExtensionSetupTests(unittest.TestCase):
             stable_root = home / ".vscode/extensions"
             insiders_root = home / ".vscode-insiders/extensions"
             profile_dir = (
-                home
-                / "Library/Application Support/Code - Insiders/User/profiles/profile-a"
+                home / "Library/Application Support/Code - Insiders/User/profiles/profile-a"
             )
             stable_root.mkdir(parents=True)
             insiders_root.mkdir(parents=True)
@@ -36,9 +34,7 @@ class ApplyExtensionSetupTests(unittest.TestCase):
             unmanaged_dir = insiders_root / "xaver.clang-format-1.9.0"
             unmanaged_dir.mkdir()
             (stable_root / "shared.ok-1.0.0").mkdir()
-            (insiders_root / "shared.ok-1.0.0").symlink_to(
-                stable_root / "shared.ok-1.0.0"
-            )
+            (insiders_root / "shared.ok-1.0.0").symlink_to(stable_root / "shared.ok-1.0.0")
 
             manifest_path = profile_dir / "extensions.json"
             manifest_path.write_text(
@@ -87,16 +83,13 @@ class ApplyExtensionSetupTests(unittest.TestCase):
             stable_root = home / ".vscode/extensions"
             insiders_root = home / ".vscode-insiders/extensions"
             profile_dir = (
-                home
-                / "Library/Application Support/Code - Insiders/User/profiles/profile-a"
+                home / "Library/Application Support/Code - Insiders/User/profiles/profile-a"
             )
             stable_root.mkdir(parents=True)
             insiders_root.mkdir(parents=True)
             profile_dir.mkdir(parents=True)
 
-            (insiders_root / "ghost.ext-1.0.0").symlink_to(
-                stable_root / "ghost.ext-1.0.0"
-            )
+            (insiders_root / "ghost.ext-1.0.0").symlink_to(stable_root / "ghost.ext-1.0.0")
             manifest_path = profile_dir / "extensions.json"
             manifest_path.write_text(
                 json.dumps(
@@ -134,9 +127,7 @@ class ApplyExtensionSetupTests(unittest.TestCase):
             home = Path(temp_dir)
             stable_root = home / ".vscode/extensions"
             insiders_root = home / ".vscode-insiders/extensions"
-            profile_dir = (
-                home / "Library/Application Support/Code/User/profiles/profile-a"
-            )
+            profile_dir = home / "Library/Application Support/Code/User/profiles/profile-a"
             stable_root.mkdir(parents=True)
             insiders_root.mkdir(parents=True)
             profile_dir.mkdir(parents=True)
@@ -169,7 +160,8 @@ class ApplyExtensionSetupTests(unittest.TestCase):
             self.assertEqual(payload[0]["relativeLocation"], "foo.ext-2.0.0")
             self.assertEqual(payload[0]["version"], "2.0.0")
             self.assertEqual(
-                payload[0]["location"]["path"], str(stable_root / "foo.ext-2.0.0")
+                payload[0]["location"]["path"],
+                str(canonicalize_path(stable_root / "foo.ext-2.0.0")),
             )
 
 
@@ -201,7 +193,7 @@ class ApplyExtensionRemoveTests(unittest.TestCase):
 
     def test_remove_deletes_legacy_root_symlink(self) -> None:
         """A symlink replacing the entire Insiders extensions directory should be removed."""
-        
+
         with tempfile.TemporaryDirectory() as temp_dir:
             home = Path(temp_dir)
             stable_root = home / ".vscode/extensions"

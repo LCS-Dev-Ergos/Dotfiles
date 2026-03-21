@@ -445,7 +445,7 @@ def plan_missing_extension_recovery(
             )
         )
 
-    install_requests: dict[tuple[str, Path, str, str | None], int] = {}
+    install_requests: dict[tuple[str, Path, str, str | None, str | None], int] = {}
     for request in requests:
         candidate_pool = (
             stable_installs if request.install_root == stable_root else insiders_installs

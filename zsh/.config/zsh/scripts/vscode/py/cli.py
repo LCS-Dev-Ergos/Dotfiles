@@ -1081,6 +1081,7 @@ def _run_update_extensions(args: argparse.Namespace) -> int:
         if plan.skip_clean:
             _print_metric("Cleanup", "disabled")
         else:
+            assert plan.cleanup_plan is not None
             _print_metric("Cleanup", "enabled")
             _print_metric("Duplicate groups", plan.cleanup_plan.duplicate_group_count)
             _print_metric("Current quarantine plan", plan.cleanup_plan.planned_deletion_count)

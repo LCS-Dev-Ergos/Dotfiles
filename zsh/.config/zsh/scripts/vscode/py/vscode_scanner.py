@@ -48,10 +48,11 @@ def parse_extension_folder_name(folder_name: str) -> ParsedExtensionFolder:
 
         # Platform-qualified versions like "1.0.0-darwin-arm64" need the
         # platform triple peeled off and appended to core_name instead.
-        platform_match = _PLATFORM_SUFFIX_RE.match(version)
-        if platform_match:
-            version = platform_match.group(1)
-            core_name = f"{core_name}-{platform_match.group(2)}-{platform_match.group(3)}"
+        if version is not None:
+            platform_match = _PLATFORM_SUFFIX_RE.match(version)
+            if platform_match:
+                version = platform_match.group(1)
+                core_name = f"{core_name}-{platform_match.group(2)}-{platform_match.group(3)}"
 
     extension_platform_match = _PLATFORM_SUFFIX_RE.match(extension_id)
     if extension_platform_match:

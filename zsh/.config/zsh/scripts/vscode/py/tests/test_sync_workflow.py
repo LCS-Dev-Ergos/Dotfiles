@@ -18,7 +18,7 @@ class SyncWorkflowTests(unittest.TestCase):
         """All four managed items should be reported as SYNCED when symlinks are correct."""
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            home = Path(temp_dir)
+            home = Path(temp_dir).resolve(strict=False)
             stable_user = home / "Library/Application Support/Code/User"
             insiders_user = home / "Library/Application Support/Code - Insiders/User"
             stable_extensions = home / ".vscode/extensions"
@@ -32,15 +32,11 @@ class SyncWorkflowTests(unittest.TestCase):
 
             (stable_user / "settings.json").write_text("{}", encoding="utf-8")
             (stable_user / "keybindings.json").write_text("[]", encoding="utf-8")
-            (stable_user / "snippets" / "python.json").write_text(
-                "{}", encoding="utf-8"
-            )
+            (stable_user / "snippets" / "python.json").write_text("{}", encoding="utf-8")
             (stable_user / "mcp.json").write_text("{}", encoding="utf-8")
 
             (insiders_user / "settings.json").symlink_to(stable_user / "settings.json")
-            (insiders_user / "keybindings.json").symlink_to(
-                stable_user / "keybindings.json"
-            )
+            (insiders_user / "keybindings.json").symlink_to(stable_user / "keybindings.json")
             (insiders_user / "snippets").symlink_to(stable_user / "snippets")
             (insiders_user / "mcp.json").symlink_to(stable_user / "mcp.json")
 
@@ -58,7 +54,7 @@ class SyncWorkflowTests(unittest.TestCase):
         """Setup should replace existing independent Insiders files with symlinks to Stable."""
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            home = Path(temp_dir)
+            home = Path(temp_dir).resolve(strict=False)
             stable_user = home / "Library/Application Support/Code/User"
             insiders_user = home / "Library/Application Support/Code - Insiders/User"
             stable_extensions = home / ".vscode/extensions"
@@ -71,14 +67,10 @@ class SyncWorkflowTests(unittest.TestCase):
 
             (stable_user / "settings.json").write_text("{}", encoding="utf-8")
             (stable_user / "keybindings.json").write_text("[]", encoding="utf-8")
-            (stable_user / "snippets" / "python.json").write_text(
-                "{}", encoding="utf-8"
-            )
+            (stable_user / "snippets" / "python.json").write_text("{}", encoding="utf-8")
             (stable_user / "mcp.json").write_text("{}", encoding="utf-8")
 
-            (insiders_user / "settings.json").write_text(
-                '{"old":true}', encoding="utf-8"
-            )
+            (insiders_user / "settings.json").write_text('{"old":true}', encoding="utf-8")
 
             report = apply_sync_setup(stable_extensions, insiders_extensions, home=home)
 
@@ -95,9 +87,9 @@ class SyncWorkflowTests(unittest.TestCase):
 
     def test_apply_sync_remove_restores_independent_copies(self):
         """Remove should copy Stable source content back to Insiders, replacing symlinks."""
-        
+
         with tempfile.TemporaryDirectory() as temp_dir:
-            home = Path(temp_dir)
+            home = Path(temp_dir).resolve(strict=False)
             stable_user = home / "Library/Application Support/Code/User"
             insiders_user = home / "Library/Application Support/Code - Insiders/User"
             stable_extensions = home / ".vscode/extensions"
@@ -110,15 +102,11 @@ class SyncWorkflowTests(unittest.TestCase):
 
             (stable_user / "settings.json").write_text("{}", encoding="utf-8")
             (stable_user / "keybindings.json").write_text("[]", encoding="utf-8")
-            (stable_user / "snippets" / "python.json").write_text(
-                "{}", encoding="utf-8"
-            )
+            (stable_user / "snippets" / "python.json").write_text("{}", encoding="utf-8")
             (stable_user / "mcp.json").write_text("{}", encoding="utf-8")
 
             apply_sync_setup(stable_extensions, insiders_extensions, home=home)
-            report = apply_sync_remove(
-                stable_extensions, insiders_extensions, home=home
-            )
+            report = apply_sync_remove(stable_extensions, insiders_extensions, home=home)
 
             self.assertEqual(report.failed_count, 0)
             self.assertEqual(report.extension_report.removed_entry_symlink_count, 0)

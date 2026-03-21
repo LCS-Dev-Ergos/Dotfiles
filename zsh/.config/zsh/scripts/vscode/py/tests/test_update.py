@@ -206,15 +206,13 @@ class ExtensionUpdateReportTests(unittest.TestCase):
                 ("anthropic.claude-code", "github.copilot-chat"),
             )
             self.assertEqual(report.excluded_updates_applied, ())
-            self.assertEqual(
-                report.excluded_updates_current, ("anthropic.claude-code",)
-            )
+            self.assertEqual(report.excluded_updates_current, ("anthropic.claude-code",))
             self.assertEqual(report.excluded_updates_failed, ("github.copilot-chat",))
             self.assertEqual(report.shared_updated_extension_ids, ())
 
     def test_apply_extension_update_replans_cleanup_after_shared_update(self) -> None:
         """Post-update cleanup must re-scan the root and quarantine old duplicates left by the update."""
-        
+
         with tempfile.TemporaryDirectory() as temp_dir:
             home = Path(temp_dir)
             stable_root = home / ".vscode/extensions"

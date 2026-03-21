@@ -7,8 +7,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from _support import MODULE_ROOT
-
 from vscode_config import VscodePathsConfig
 from vscode_models import (
     ManifestAction,
@@ -32,12 +30,11 @@ class ManifestRepairPlanTests(unittest.TestCase):
         """An Insiders profile referencing an old version should be rebound to the current one."""
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            home = Path(temp_dir)
+            home = Path(temp_dir).resolve(strict=False)
             stable_root = home / ".vscode/extensions"
             insiders_root = home / ".vscode-insiders/extensions"
             profile_dir = (
-                home
-                / "Library/Application Support/Code - Insiders/User/profiles/profile-a"
+                home / "Library/Application Support/Code - Insiders/User/profiles/profile-a"
             )
             stable_root.mkdir(parents=True)
             insiders_root.mkdir(parents=True)
@@ -82,19 +79,18 @@ class ManifestRepairPlanTests(unittest.TestCase):
             self.assertEqual(payload[0]["relativeLocation"], "foo.ext-2.0.0")
             self.assertEqual(payload[0]["version"], "2.0.0")
             self.assertEqual(
-                payload[0]["location"]["path"], str(insiders_root / "foo.ext-2.0.0")
+                payload[0]["location"]["path"],
+                str(insiders_root / "foo.ext-2.0.0"),
             )
 
     def test_preserves_missing_profile_entry_instead_of_removing_it(self) -> None:
         """Profile entries for extensions not installed anywhere must be kept (not removed)."""
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            home = Path(temp_dir)
+            home = Path(temp_dir).resolve(strict=False)
             stable_root = home / ".vscode/extensions"
             insiders_root = home / ".vscode-insiders/extensions"
-            profile_dir = (
-                home / "Library/Application Support/Code/User/profiles/profile-a"
-            )
+            profile_dir = home / "Library/Application Support/Code/User/profiles/profile-a"
             stable_root.mkdir(parents=True)
             insiders_root.mkdir(parents=True)
             profile_dir.mkdir(parents=True)
@@ -136,7 +132,7 @@ class ManifestRepairPlanTests(unittest.TestCase):
         """Root-manifest entries with no installed extension should be removed."""
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            home = Path(temp_dir)
+            home = Path(temp_dir).resolve(strict=False)
             stable_root = home / ".vscode/extensions"
             insiders_root = home / ".vscode-insiders/extensions"
             stable_root.mkdir(parents=True)
@@ -178,7 +174,7 @@ class ManifestRepairPlanTests(unittest.TestCase):
         """build_update_only_manifest_plan must strip REMOVE decisions."""
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            home = Path(temp_dir)
+            home = Path(temp_dir).resolve(strict=False)
             stable_root = home / ".vscode/extensions"
             insiders_root = home / ".vscode-insiders/extensions"
             stable_root.mkdir(parents=True)
@@ -218,12 +214,10 @@ class ManifestRepairPlanTests(unittest.TestCase):
         """Removing a profile entry must trigger a rollback via ProfileManifestSafetyError."""
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            home = Path(temp_dir)
+            home = Path(temp_dir).resolve(strict=False)
             stable_root = home / ".vscode/extensions"
             insiders_root = home / ".vscode-insiders/extensions"
-            profile_dir = (
-                home / "Library/Application Support/Code/User/profiles/profile-a"
-            )
+            profile_dir = home / "Library/Application Support/Code/User/profiles/profile-a"
             stable_root.mkdir(parents=True)
             insiders_root.mkdir(parents=True)
             profile_dir.mkdir(parents=True)
@@ -276,12 +270,10 @@ class ManifestRepairPlanTests(unittest.TestCase):
 
     def test_atomic_manifest_write_replaces_content_cleanly(self) -> None:
         """Atomic write must fully replace the previous file content."""
-        
+
         with tempfile.TemporaryDirectory() as temp_dir:
             manifest_path = Path(temp_dir) / "extensions.json"
-            manifest_path.write_text(
-                '[{"relativeLocation":"old.ext-1.0.0"}]\n', encoding="utf-8"
-            )
+            manifest_path.write_text('[{"relativeLocation":"old.ext-1.0.0"}]\n', encoding="utf-8")
 
             _write_manifest_payload_atomically(
                 manifest_path,

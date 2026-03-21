@@ -8,14 +8,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from _support import MODULE_ROOT
-
 from vscode_cleanup import (
     _cleanup_backup_roots,
     apply_cleanup_plan,
     deletable_paths_from_plan,
 )
 from vscode_config import VscodePathsConfig
+from vscode_fs import canonicalize_path
 from vscode_models import CleanupStrategy
 from vscode_planner import plan_extension_cleanup
 
@@ -44,7 +43,10 @@ class CleanupApplyTests(unittest.TestCase):
                 respect_references=True,
                 config=VscodePathsConfig.from_home(temp_dir),
             )
-            self.assertEqual(deletable_paths_from_plan(plan), (old_dir,))
+            self.assertEqual(
+                tuple(canonicalize_path(path) for path in deletable_paths_from_plan(plan)),
+                (canonicalize_path(old_dir),),
+            )
 
             report = apply_cleanup_plan(plan)
 
