@@ -1,3 +1,5 @@
+"""Tests for: `vscode_recovery` -- missing extension recovery planning."""
+
 from __future__ import annotations
 
 import json
@@ -10,12 +12,18 @@ from vscode_recovery import plan_missing_extension_recovery
 
 
 class RecoveryPlannerTests(unittest.TestCase):
+    """Verify that recovery plans either alias to existing installs or schedule CLI installs."""
+
     def test_plans_alias_when_newer_install_already_exists(self) -> None:
+        """If a newer version of the requested extension is installed, an alias should be planned."""
+
         with tempfile.TemporaryDirectory() as temp_dir:
             home = Path(temp_dir)
             stable_root = home / ".vscode/extensions"
             insiders_root = home / ".vscode-insiders/extensions"
-            profile_dir = home / "Library/Application Support/Code/User/profiles/profile-a"
+            profile_dir = (
+                home / "Library/Application Support/Code/User/profiles/profile-a"
+            )
             stable_root.mkdir(parents=True)
             insiders_root.mkdir(parents=True)
             profile_dir.mkdir(parents=True)
@@ -48,16 +56,26 @@ class RecoveryPlannerTests(unittest.TestCase):
             self.assertEqual(len(plan.requests), 1)
             self.assertEqual(len(plan.install_tasks), 0)
             self.assertEqual(len(plan.alias_tasks), 1)
-            self.assertEqual(plan.alias_tasks[0].alias_path, stable_root / "foo.ext-1.0.0")
-            self.assertEqual(plan.alias_tasks[0].target_path, stable_root / "foo.ext-2.0.0")
+            self.assertEqual(
+                plan.alias_tasks[0].alias_path, stable_root / "foo.ext-1.0.0"
+            )
+            self.assertEqual(
+                plan.alias_tasks[0].target_path, stable_root / "foo.ext-2.0.0"
+            )
 
     def test_plans_install_when_missing_extension_is_not_installed(self) -> None:
+        """When no version of the extension is installed, a CLI install task should be scheduled."""
+        
         with tempfile.TemporaryDirectory() as temp_dir:
             home = Path(temp_dir)
             stable_root = home / ".vscode/extensions"
             insiders_root = home / ".vscode-insiders/extensions"
-            profile_dir = home / "Library/Application Support/Code/User/profiles/profile-a"
-            global_storage = home / "Library/Application Support/Code/User/globalStorage"
+            profile_dir = (
+                home / "Library/Application Support/Code/User/profiles/profile-a"
+            )
+            global_storage = (
+                home / "Library/Application Support/Code/User/globalStorage"
+            )
             stable_root.mkdir(parents=True)
             insiders_root.mkdir(parents=True)
             profile_dir.mkdir(parents=True)

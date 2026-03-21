@@ -1,3 +1,5 @@
+"""Tests for: `vscode_sync_apply` -- extension setup and removal."""
+
 from __future__ import annotations
 
 import json
@@ -12,12 +14,21 @@ from vscode_sync_apply import apply_extension_remove, apply_extension_setup
 
 
 class ApplyExtensionSetupTests(unittest.TestCase):
-    def test_migrates_unmanaged_real_dir_without_rewriting_profile_manifest(self) -> None:
+    """Verify extension symlink repair, migration, and manifest rebinding."""
+
+    def test_migrates_unmanaged_real_dir_without_rewriting_profile_manifest(
+        self,
+    ) -> None:
+        """An Insiders-only real directory should be moved to Stable and replaced with a symlink."""
+
         with tempfile.TemporaryDirectory() as temp_dir:
             home = Path(temp_dir)
             stable_root = home / ".vscode/extensions"
             insiders_root = home / ".vscode-insiders/extensions"
-            profile_dir = home / "Library/Application Support/Code - Insiders/User/profiles/profile-a"
+            profile_dir = (
+                home
+                / "Library/Application Support/Code - Insiders/User/profiles/profile-a"
+            )
             stable_root.mkdir(parents=True)
             insiders_root.mkdir(parents=True)
             profile_dir.mkdir(parents=True)
@@ -25,7 +36,9 @@ class ApplyExtensionSetupTests(unittest.TestCase):
             unmanaged_dir = insiders_root / "xaver.clang-format-1.9.0"
             unmanaged_dir.mkdir()
             (stable_root / "shared.ok-1.0.0").mkdir()
-            (insiders_root / "shared.ok-1.0.0").symlink_to(stable_root / "shared.ok-1.0.0")
+            (insiders_root / "shared.ok-1.0.0").symlink_to(
+                stable_root / "shared.ok-1.0.0"
+            )
 
             manifest_path = profile_dir / "extensions.json"
             manifest_path.write_text(
@@ -67,16 +80,23 @@ class ApplyExtensionSetupTests(unittest.TestCase):
             self.assertEqual(report.manifest_apply_report.removed_entries, 0)
 
     def test_removes_stale_symlink_but_preserves_profile_selection(self) -> None:
+        """A symlink whose Stable target was deleted should be removed without touching the manifest."""
+
         with tempfile.TemporaryDirectory() as temp_dir:
             home = Path(temp_dir)
             stable_root = home / ".vscode/extensions"
             insiders_root = home / ".vscode-insiders/extensions"
-            profile_dir = home / "Library/Application Support/Code - Insiders/User/profiles/profile-a"
+            profile_dir = (
+                home
+                / "Library/Application Support/Code - Insiders/User/profiles/profile-a"
+            )
             stable_root.mkdir(parents=True)
             insiders_root.mkdir(parents=True)
             profile_dir.mkdir(parents=True)
 
-            (insiders_root / "ghost.ext-1.0.0").symlink_to(stable_root / "ghost.ext-1.0.0")
+            (insiders_root / "ghost.ext-1.0.0").symlink_to(
+                stable_root / "ghost.ext-1.0.0"
+            )
             manifest_path = profile_dir / "extensions.json"
             manifest_path.write_text(
                 json.dumps(
@@ -108,11 +128,15 @@ class ApplyExtensionSetupTests(unittest.TestCase):
             self.assertEqual(payload[0]["relativeLocation"], "ghost.ext-1.0.0")
 
     def test_setup_updates_profile_manifest_to_current_installed_version(self) -> None:
+        """A Stable profile manifest should be rebound to the newest installed version."""
+
         with tempfile.TemporaryDirectory() as temp_dir:
             home = Path(temp_dir)
             stable_root = home / ".vscode/extensions"
             insiders_root = home / ".vscode-insiders/extensions"
-            profile_dir = home / "Library/Application Support/Code/User/profiles/profile-a"
+            profile_dir = (
+                home / "Library/Application Support/Code/User/profiles/profile-a"
+            )
             stable_root.mkdir(parents=True)
             insiders_root.mkdir(parents=True)
             profile_dir.mkdir(parents=True)
@@ -144,11 +168,17 @@ class ApplyExtensionSetupTests(unittest.TestCase):
             payload = json.loads(manifest_path.read_text(encoding="utf-8"))
             self.assertEqual(payload[0]["relativeLocation"], "foo.ext-2.0.0")
             self.assertEqual(payload[0]["version"], "2.0.0")
-            self.assertEqual(payload[0]["location"]["path"], str(stable_root / "foo.ext-2.0.0"))
+            self.assertEqual(
+                payload[0]["location"]["path"], str(stable_root / "foo.ext-2.0.0")
+            )
 
 
 class ApplyExtensionRemoveTests(unittest.TestCase):
+    """Verify that removal only targets symlinks, not real directories."""
+
     def test_remove_deletes_only_symlink_entries(self) -> None:
+        """Real Insiders directories must be skipped; only symlinks are removed."""
+
         with tempfile.TemporaryDirectory() as temp_dir:
             home = Path(temp_dir)
             stable_root = home / ".vscode/extensions"
@@ -170,6 +200,8 @@ class ApplyExtensionRemoveTests(unittest.TestCase):
             self.assertEqual(report.failed_paths, ())
 
     def test_remove_deletes_legacy_root_symlink(self) -> None:
+        """A symlink replacing the entire Insiders extensions directory should be removed."""
+        
         with tempfile.TemporaryDirectory() as temp_dir:
             home = Path(temp_dir)
             stable_root = home / ".vscode/extensions"

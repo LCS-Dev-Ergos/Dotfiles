@@ -1,3 +1,5 @@
+"""Tests for: `vscode_versions.compare_versions`."""
+
 from __future__ import annotations
 
 import unittest
@@ -8,6 +10,8 @@ from vscode_versions import compare_versions
 
 
 class CompareVersionsTests(unittest.TestCase):
+    """Verify shell-compatible version comparison semantics."""
+
     def test_numeric_tokens_are_compared_numerically(self) -> None:
         self.assertEqual(compare_versions("1.10.0", "1.2.0"), 1)
 
@@ -25,4 +29,3 @@ class CompareVersionsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

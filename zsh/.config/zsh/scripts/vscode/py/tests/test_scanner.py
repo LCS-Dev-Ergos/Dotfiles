@@ -1,3 +1,5 @@
+"""Tests for: `vscode_scanner` -- folder-name parsing and root scanning."""
+
 from __future__ import annotations
 
 import tempfile
@@ -11,6 +13,8 @@ from vscode_scanner import parse_extension_folder_name, scan_extension_root
 
 
 class ParseExtensionFolderNameTests(unittest.TestCase):
+    """Verify that versioned extension folder names are decomposed correctly."""
+
     def test_parses_versioned_extension_name(self) -> None:
         parsed = parse_extension_folder_name("github.copilot-chat-0.43.2026032001")
         self.assertEqual(parsed.extension_id, "github.copilot-chat")
@@ -25,6 +29,8 @@ class ParseExtensionFolderNameTests(unittest.TestCase):
 
 
 class ScanExtensionRootTests(unittest.TestCase):
+    """Verify that scanning detects real dirs, valid symlinks, and broken symlinks."""
+
     def test_scans_real_and_symlinked_entries(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             base = Path(temp_dir)
@@ -46,11 +52,14 @@ class ScanExtensionRootTests(unittest.TestCase):
 
             installs = scan_extension_root(root, edition=VscodeEdition.STABLE)
 
-            self.assertEqual([install.folder_name for install in installs], [
-                "ms-python.python-2026.5.0",
-                "ms-toolsai.jupyter-2026.4.0",
-                "redhat.java-1.54.2026032008-darwin-arm64",
-            ])
+            self.assertEqual(
+                [install.folder_name for install in installs],
+                [
+                    "ms-python.python-2026.5.0",
+                    "ms-toolsai.jupyter-2026.4.0",
+                    "redhat.java-1.54.2026032008-darwin-arm64",
+                ],
+            )
 
             self.assertFalse(installs[0].is_symlink)
             self.assertTrue(installs[1].is_symlink)

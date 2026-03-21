@@ -1,3 +1,5 @@
+"""Tests for: `vscode_planner` -- cleanup and symlink-drift planning."""
+
 from __future__ import annotations
 
 import json
@@ -13,7 +15,10 @@ from vscode_planner import plan_extension_cleanup, plan_insiders_symlink_state
 
 
 class CleanupPlannerTests(unittest.TestCase):
+    """Verify duplicate-cleanup planning with and without reference guards."""
+
     def test_default_reference_guard_protects_all_manifest_named_versions(self) -> None:
+        """When both old and new versions are referenced, neither should be quarantined."""
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / "extensions"
             root.mkdir()
@@ -36,8 +41,12 @@ class CleanupPlannerTests(unittest.TestCase):
                 config=VscodePathsConfig.from_home(temp_dir),
             )
 
-            self.assertEqual(plan.raw_reference_names, ("foo.ext-1.0.0", "foo.ext-2.0.0"))
-            self.assertEqual(plan.protected_reference_names, ("foo.ext-1.0.0", "foo.ext-2.0.0"))
+            self.assertEqual(
+                plan.raw_reference_names, ("foo.ext-1.0.0", "foo.ext-2.0.0")
+            )
+            self.assertEqual(
+                plan.protected_reference_names, ("foo.ext-1.0.0", "foo.ext-2.0.0")
+            )
             self.assertEqual(plan.stale_reference_names, ("foo.ext-1.0.0",))
             self.assertEqual(plan.planned_deletion_count, 0)
             self.assertEqual(plan.duplicate_group_count, 1)
@@ -49,7 +58,10 @@ class CleanupPlannerTests(unittest.TestCase):
             self.assertEqual(actions["foo.ext-1.0.0"], CleanupAction.SKIP_REFERENCED)
             self.assertEqual(actions["foo.ext-2.0.0"], CleanupAction.KEEP)
 
-    def test_prune_stale_references_allows_older_referenced_versions_to_be_deleted(self) -> None:
+    def test_prune_stale_references_allows_older_referenced_versions_to_be_deleted(
+        self,
+    ) -> None:
+        """With prune_stale_references, the older shadowed reference becomes deletable."""
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / "extensions"
             root.mkdir()
@@ -73,7 +85,9 @@ class CleanupPlannerTests(unittest.TestCase):
                 config=VscodePathsConfig.from_home(temp_dir),
             )
 
-            self.assertEqual(plan.raw_reference_names, ("foo.ext-1.0.0", "foo.ext-2.0.0"))
+            self.assertEqual(
+                plan.raw_reference_names, ("foo.ext-1.0.0", "foo.ext-2.0.0")
+            )
             self.assertEqual(plan.protected_reference_names, ("foo.ext-2.0.0",))
             self.assertEqual(plan.stale_reference_names, ("foo.ext-1.0.0",))
             self.assertEqual(plan.planned_deletion_count, 1)
@@ -86,7 +100,10 @@ class CleanupPlannerTests(unittest.TestCase):
             self.assertEqual(actions["foo.ext-1.0.0"], CleanupAction.DELETE)
             self.assertEqual(actions["foo.ext-2.0.0"], CleanupAction.KEEP)
 
-    def test_missing_referenced_version_is_marked_stale_when_newer_install_exists(self) -> None:
+    def test_missing_referenced_version_is_marked_stale_when_newer_install_exists(
+        self,
+    ) -> None:
+        """A reference to a non-existent folder is stale when a newer version is present."""
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / "extensions"
             root.mkdir()
@@ -108,6 +125,7 @@ class CleanupPlannerTests(unittest.TestCase):
             self.assertEqual(plan.stale_reference_names, ("foo.ext-1.0.0",))
 
     def test_oldest_strategy_deletes_only_one_unreferenced_version(self) -> None:
+        """OLDEST strategy targets the single oldest unreferenced install."""
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / "extensions"
             root.mkdir()
@@ -127,14 +145,21 @@ class CleanupPlannerTests(unittest.TestCase):
             )
 
             delete_decisions = [
-                decision for decision in plan.groups[0].decisions if decision.action == CleanupAction.DELETE
+                decision
+                for decision in plan.groups[0].decisions
+                if decision.action == CleanupAction.DELETE
             ]
             self.assertEqual(len(delete_decisions), 1)
             self.assertEqual(delete_decisions[0].folder_name, "foo.ext-1.0.0")
 
 
 class SymlinkPlannerTests(unittest.TestCase):
-    def test_detects_missing_broken_wrong_target_unmanaged_and_excluded_states(self) -> None:
+    """Verify detection of all symlink drift states between Stable and Insiders."""
+
+    def test_detects_missing_broken_wrong_target_unmanaged_and_excluded_states(
+        self,
+    ) -> None:
+        """Exercise every SymlinkAction variant in a single synthetic layout."""
         with tempfile.TemporaryDirectory() as temp_dir:
             base = Path(temp_dir)
             stable_root = base / "stable"
@@ -149,8 +174,12 @@ class SymlinkPlannerTests(unittest.TestCase):
             (stable_root / "shared.real-1.0.0").mkdir()
             (stable_root / "github.copilot-chat-0.43.2026032001").mkdir()
 
-            (insiders_root / "shared.ok-1.0.0").symlink_to(stable_root / "shared.ok-1.0.0")
-            (insiders_root / "shared.broken-1.0.0").symlink_to(stable_root / "shared.broken-missing")
+            (insiders_root / "shared.ok-1.0.0").symlink_to(
+                stable_root / "shared.ok-1.0.0"
+            )
+            (insiders_root / "shared.broken-1.0.0").symlink_to(
+                stable_root / "shared.broken-missing"
+            )
             wrong_target = base / "elsewhere"
             wrong_target.mkdir()
             (insiders_root / "shared.wrong-1.0.0").symlink_to(wrong_target)
@@ -158,7 +187,9 @@ class SymlinkPlannerTests(unittest.TestCase):
             (insiders_root / "github.copilot-chat-0.43.2026032001").symlink_to(
                 stable_root / "github.copilot-chat-0.43.2026032001"
             )
-            (insiders_root / "old.stale-0.9.0").symlink_to(stable_root / "old.stale-0.9.0")
+            (insiders_root / "old.stale-0.9.0").symlink_to(
+                stable_root / "old.stale-0.9.0"
+            )
 
             plan = plan_insiders_symlink_state(
                 stable_root,
@@ -183,13 +214,19 @@ class SymlinkPlannerTests(unittest.TestCase):
             self.assertEqual(actions["shared.ok-1.0.0"], {SymlinkAction.LINKED})
             self.assertEqual(actions["shared.missing-1.0.0"], {SymlinkAction.MISSING})
             self.assertEqual(actions["shared.broken-1.0.0"], {SymlinkAction.BROKEN})
-            self.assertEqual(actions["shared.wrong-1.0.0"], {SymlinkAction.WRONG_TARGET})
-            self.assertEqual(actions["shared.real-1.0.0"], {SymlinkAction.UNMANAGED_REAL_DIR})
+            self.assertEqual(
+                actions["shared.wrong-1.0.0"], {SymlinkAction.WRONG_TARGET}
+            )
+            self.assertEqual(
+                actions["shared.real-1.0.0"], {SymlinkAction.UNMANAGED_REAL_DIR}
+            )
             self.assertEqual(
                 actions["github.copilot-chat-0.43.2026032001"],
                 {SymlinkAction.EXCLUDED_BUT_SYMLINKED},
             )
-            self.assertEqual(actions["old.stale-0.9.0"], {SymlinkAction.STALE_MANAGED_SYMLINK})
+            self.assertEqual(
+                actions["old.stale-0.9.0"], {SymlinkAction.STALE_MANAGED_SYMLINK}
+            )
 
 
 if __name__ == "__main__":

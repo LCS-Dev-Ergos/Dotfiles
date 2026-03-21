@@ -1,3 +1,5 @@
+"""Tests for: `vscode_fs` -- canonicalize_path and is_within_directory."""
+
 from __future__ import annotations
 
 import tempfile
@@ -10,6 +12,8 @@ from vscode_fs import canonicalize_path, is_within_directory
 
 
 class CanonicalizePathTests(unittest.TestCase):
+    """Verify that path canonicalisation collapses redundant segments."""
+
     def test_canonicalize_collapses_parent_segments(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -18,6 +22,8 @@ class CanonicalizePathTests(unittest.TestCase):
 
 
 class IsWithinDirectoryTests(unittest.TestCase):
+    """Verify containment checks for nested and sibling paths."""
+
     def test_returns_true_for_nested_path(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -34,4 +40,3 @@ class IsWithinDirectoryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

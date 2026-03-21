@@ -1,3 +1,5 @@
+"""Tests for: `vscode_update` -- native excluded update isolation and full update workflow."""
+
 from __future__ import annotations
 
 import json
@@ -19,7 +21,13 @@ from vscode_update import (
 
 
 class NativeExcludedUpdateTests(unittest.TestCase):
-    def test_native_excluded_update_returns_current_when_no_newer_version_exists(self) -> None:
+    """Verify isolated update flow for extensions excluded from symlink sharing."""
+
+    def test_native_excluded_update_returns_current_when_no_newer_version_exists(
+        self,
+    ) -> None:
+        """If the staged update produces the same version, result should be 'current'."""
+
         with tempfile.TemporaryDirectory() as temp_dir:
             home = Path(temp_dir)
             insiders_root = home / ".vscode-insiders/extensions"
@@ -42,6 +50,8 @@ class NativeExcludedUpdateTests(unittest.TestCase):
             self.assertFalse((home / ".local/share/vscode-sync-backups").exists())
 
     def test_native_excluded_update_promotes_newer_version_into_real_root(self) -> None:
+        """A staged newer version should be promoted into the real Insiders root with a backup."""
+
         with tempfile.TemporaryDirectory() as temp_dir:
             home = Path(temp_dir)
             insiders_root = home / ".vscode-insiders/extensions"
@@ -49,7 +59,9 @@ class NativeExcludedUpdateTests(unittest.TestCase):
             old_dir = insiders_root / "anthropic.claude-code-1.0.0"
             old_dir.mkdir()
 
-            def fake_update(command: list[str], *, capture_output: bool = False) -> subprocess.CompletedProcess[object]:
+            def fake_update(
+                command: list[str], *, capture_output: bool = False
+            ) -> subprocess.CompletedProcess[object]:
                 self.assertTrue(capture_output)
                 temp_root = Path(command[2])
                 (temp_root / "anthropic.claude-code-1.1.0").mkdir()
@@ -72,7 +84,11 @@ class NativeExcludedUpdateTests(unittest.TestCase):
             )
             self.assertEqual(len(backup_paths), 1)
 
-    def test_native_excluded_update_keeps_real_root_untouched_on_failed_update(self) -> None:
+    def test_native_excluded_update_keeps_real_root_untouched_on_failed_update(
+        self,
+    ) -> None:
+        """A failed update command must leave the existing install and root intact."""
+
         with tempfile.TemporaryDirectory() as temp_dir:
             home = Path(temp_dir)
             insiders_root = home / ".vscode-insiders/extensions"
@@ -80,7 +96,9 @@ class NativeExcludedUpdateTests(unittest.TestCase):
             old_dir = insiders_root / "github.copilot-chat-0.40.0"
             old_dir.mkdir()
 
-            def fake_update(command: list[str], *, capture_output: bool = False) -> subprocess.CompletedProcess[object]:
+            def fake_update(
+                command: list[str], *, capture_output: bool = False
+            ) -> subprocess.CompletedProcess[object]:
                 self.assertTrue(capture_output)
                 temp_root = Path(command[2])
                 (temp_root / "github.copilot-chat-0.40.1").mkdir()
@@ -100,7 +118,11 @@ class NativeExcludedUpdateTests(unittest.TestCase):
 
 
 class ExtensionUpdateReportTests(unittest.TestCase):
+    """Verify update report parsing and full workflow classification."""
+
     def test_parse_shared_updated_extension_ids_deduplicates_cli_noise(self) -> None:
+        """Duplicate update lines in CLI output should yield unique extension IDs."""
+
         parsed = _parse_shared_updated_extension_ids(
             "\n".join(
                 [
@@ -115,6 +137,8 @@ class ExtensionUpdateReportTests(unittest.TestCase):
         self.assertEqual(parsed, ("foo.bar", "baz.qux"))
 
     def test_apply_extension_update_classifies_excluded_update_outcomes(self) -> None:
+        """Each native excluded extension should be classified as current, applied, or failed."""
+
         with tempfile.TemporaryDirectory() as temp_dir:
             home = Path(temp_dir)
             stable_root = home / ".vscode/extensions"
@@ -157,15 +181,20 @@ class ExtensionUpdateReportTests(unittest.TestCase):
                     "github.copilot-chat": "failed",
                 }[extension_id]
 
-            with patch("vscode_update.shutil.which", return_value="/usr/bin/true"), patch(
-                "vscode_update._run_cli_command",
-                return_value=subprocess.CompletedProcess(["code"], 0),
-            ), patch(
-                "vscode_update._update_native_excluded_extension",
-                side_effect=fake_native_result,
-            ), patch(
-                "vscode_update.apply_extension_setup",
-                return_value=setup_report,
+            with (
+                patch("vscode_update.shutil.which", return_value="/usr/bin/true"),
+                patch(
+                    "vscode_update._run_cli_command",
+                    return_value=subprocess.CompletedProcess(["code"], 0),
+                ),
+                patch(
+                    "vscode_update._update_native_excluded_extension",
+                    side_effect=fake_native_result,
+                ),
+                patch(
+                    "vscode_update.apply_extension_setup",
+                    return_value=setup_report,
+                ),
             ):
                 report = apply_extension_update(
                     plan,
@@ -177,11 +206,15 @@ class ExtensionUpdateReportTests(unittest.TestCase):
                 ("anthropic.claude-code", "github.copilot-chat"),
             )
             self.assertEqual(report.excluded_updates_applied, ())
-            self.assertEqual(report.excluded_updates_current, ("anthropic.claude-code",))
+            self.assertEqual(
+                report.excluded_updates_current, ("anthropic.claude-code",)
+            )
             self.assertEqual(report.excluded_updates_failed, ("github.copilot-chat",))
             self.assertEqual(report.shared_updated_extension_ids, ())
 
     def test_apply_extension_update_replans_cleanup_after_shared_update(self) -> None:
+        """Post-update cleanup must re-scan the root and quarantine old duplicates left by the update."""
+        
         with tempfile.TemporaryDirectory() as temp_dir:
             home = Path(temp_dir)
             stable_root = home / ".vscode/extensions"
@@ -262,12 +295,16 @@ class ExtensionUpdateReportTests(unittest.TestCase):
                     stderr="",
                 )
 
-            with patch("vscode_update.shutil.which", return_value="/usr/bin/true"), patch(
-                "vscode_update._run_cli_command",
-                side_effect=fake_shared_update,
-            ), patch(
-                "vscode_update.apply_extension_setup",
-                return_value=setup_report,
+            with (
+                patch("vscode_update.shutil.which", return_value="/usr/bin/true"),
+                patch(
+                    "vscode_update._run_cli_command",
+                    side_effect=fake_shared_update,
+                ),
+                patch(
+                    "vscode_update.apply_extension_setup",
+                    return_value=setup_report,
+                ),
             ):
                 report = apply_extension_update(
                     plan,

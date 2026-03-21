@@ -1,12 +1,22 @@
+"""Tests for: `vscode_sync_workflow` -- top-level status, setup, and remove."""
+
 import tempfile
 import unittest
 from pathlib import Path
 
-from vscode_sync_workflow import apply_sync_remove, apply_sync_setup, collect_sync_status
+from vscode_sync_workflow import (
+    apply_sync_remove,
+    apply_sync_setup,
+    collect_sync_status,
+)
 
 
 class SyncWorkflowTests(unittest.TestCase):
+    """Verify the full sync lifecycle for non-extension items (settings, keybindings, etc.)."""
+
     def test_collect_sync_status_reports_synced_items(self):
+        """All four managed items should be reported as SYNCED when symlinks are correct."""
+
         with tempfile.TemporaryDirectory() as temp_dir:
             home = Path(temp_dir)
             stable_user = home / "Library/Application Support/Code/User"
@@ -22,11 +32,15 @@ class SyncWorkflowTests(unittest.TestCase):
 
             (stable_user / "settings.json").write_text("{}", encoding="utf-8")
             (stable_user / "keybindings.json").write_text("[]", encoding="utf-8")
-            (stable_user / "snippets" / "python.json").write_text("{}", encoding="utf-8")
+            (stable_user / "snippets" / "python.json").write_text(
+                "{}", encoding="utf-8"
+            )
             (stable_user / "mcp.json").write_text("{}", encoding="utf-8")
 
             (insiders_user / "settings.json").symlink_to(stable_user / "settings.json")
-            (insiders_user / "keybindings.json").symlink_to(stable_user / "keybindings.json")
+            (insiders_user / "keybindings.json").symlink_to(
+                stable_user / "keybindings.json"
+            )
             (insiders_user / "snippets").symlink_to(stable_user / "snippets")
             (insiders_user / "mcp.json").symlink_to(stable_user / "mcp.json")
 
@@ -41,6 +55,8 @@ class SyncWorkflowTests(unittest.TestCase):
             self.assertTrue(all(item.status.value == "synced" for item in report.items))
 
     def test_apply_sync_setup_creates_item_symlinks(self):
+        """Setup should replace existing independent Insiders files with symlinks to Stable."""
+
         with tempfile.TemporaryDirectory() as temp_dir:
             home = Path(temp_dir)
             stable_user = home / "Library/Application Support/Code/User"
@@ -55,10 +71,14 @@ class SyncWorkflowTests(unittest.TestCase):
 
             (stable_user / "settings.json").write_text("{}", encoding="utf-8")
             (stable_user / "keybindings.json").write_text("[]", encoding="utf-8")
-            (stable_user / "snippets" / "python.json").write_text("{}", encoding="utf-8")
+            (stable_user / "snippets" / "python.json").write_text(
+                "{}", encoding="utf-8"
+            )
             (stable_user / "mcp.json").write_text("{}", encoding="utf-8")
 
-            (insiders_user / "settings.json").write_text('{"old":true}', encoding="utf-8")
+            (insiders_user / "settings.json").write_text(
+                '{"old":true}', encoding="utf-8"
+            )
 
             report = apply_sync_setup(stable_extensions, insiders_extensions, home=home)
 
@@ -74,6 +94,8 @@ class SyncWorkflowTests(unittest.TestCase):
             self.assertTrue((insiders_user / "mcp.json").is_symlink())
 
     def test_apply_sync_remove_restores_independent_copies(self):
+        """Remove should copy Stable source content back to Insiders, replacing symlinks."""
+        
         with tempfile.TemporaryDirectory() as temp_dir:
             home = Path(temp_dir)
             stable_user = home / "Library/Application Support/Code/User"
@@ -88,11 +110,15 @@ class SyncWorkflowTests(unittest.TestCase):
 
             (stable_user / "settings.json").write_text("{}", encoding="utf-8")
             (stable_user / "keybindings.json").write_text("[]", encoding="utf-8")
-            (stable_user / "snippets" / "python.json").write_text("{}", encoding="utf-8")
+            (stable_user / "snippets" / "python.json").write_text(
+                "{}", encoding="utf-8"
+            )
             (stable_user / "mcp.json").write_text("{}", encoding="utf-8")
 
             apply_sync_setup(stable_extensions, insiders_extensions, home=home)
-            report = apply_sync_remove(stable_extensions, insiders_extensions, home=home)
+            report = apply_sync_remove(
+                stable_extensions, insiders_extensions, home=home
+            )
 
             self.assertEqual(report.failed_count, 0)
             self.assertEqual(report.extension_report.removed_entry_symlink_count, 0)

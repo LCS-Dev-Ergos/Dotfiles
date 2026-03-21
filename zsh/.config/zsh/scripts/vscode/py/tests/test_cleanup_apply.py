@@ -1,3 +1,5 @@
+"""Tests for: `vscode_cleanup` -- quarantine-based duplicate cleanup."""
+
 from __future__ import annotations
 
 import json
@@ -8,14 +10,22 @@ from pathlib import Path
 
 from _support import MODULE_ROOT
 
-from vscode_cleanup import _cleanup_backup_roots, apply_cleanup_plan, deletable_paths_from_plan
+from vscode_cleanup import (
+    _cleanup_backup_roots,
+    apply_cleanup_plan,
+    deletable_paths_from_plan,
+)
 from vscode_config import VscodePathsConfig
 from vscode_models import CleanupStrategy
 from vscode_planner import plan_extension_cleanup
 
 
 class CleanupApplyTests(unittest.TestCase):
+    """Verify that cleanup quarantine moves only the planned paths and respects security."""
+
     def test_apply_cleanup_plan_deletes_only_planned_paths(self) -> None:
+        """The old duplicate should be quarantined; the newest version must stay."""
+
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / "extensions"
             root.mkdir()
@@ -46,6 +56,8 @@ class CleanupApplyTests(unittest.TestCase):
             self.assertEqual(report.failed_paths, ())
 
     def test_ignores_env_backup_root_outside_home(self) -> None:
+        """$VSCODE_SYNC_BACKUP_DIR outside HOME must be rejected for safety."""
+
         with tempfile.TemporaryDirectory() as temp_dir:
             home = Path(temp_dir) / "home"
             root = home / ".vscode/extensions"

@@ -1,3 +1,5 @@
+"""Tests for: `vscode_manifests` -- reference parsing and collection."""
+
 from __future__ import annotations
 
 import tempfile
@@ -17,14 +19,20 @@ FIXTURES_DIR = MODULE_ROOT / "tests/fixtures/manifests"
 
 
 def _fixture_text(name: str) -> str:
+    """Read a fixture JSON file from the test manifests directory."""
+
     return (FIXTURES_DIR / name).read_text(encoding="utf-8")
 
 
 class ParseManifestReferenceEntriesTests(unittest.TestCase):
+    """Verify extraction of folder names from both relativeLocation and location.path."""
+
     def test_extracts_relative_and_absolute_location_entries(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             manifest_path = Path(temp_dir) / "extensions.json"
-            manifest_path.write_text(_fixture_text("root_extensions.json"), encoding="utf-8")
+            manifest_path.write_text(
+                _fixture_text("root_extensions.json"), encoding="utf-8"
+            )
 
             entries = parse_manifest_reference_entries(manifest_path)
 
@@ -39,7 +47,11 @@ class ParseManifestReferenceEntriesTests(unittest.TestCase):
 
 
 class CollectReferenceNamesTests(unittest.TestCase):
+    """Verify that reference collection scopes correctly by edition."""
+
     def test_stable_scope_ignores_insiders_profiles(self) -> None:
+        """Root + Stable profile references should be returned; Insiders profiles must not."""
+
         with tempfile.TemporaryDirectory() as temp_dir:
             home = Path(temp_dir)
 
@@ -50,7 +62,9 @@ class CollectReferenceNamesTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            stable_profile_dir = home / "Library/Application Support/Code/User/profiles/profile-a"
+            stable_profile_dir = (
+                home / "Library/Application Support/Code/User/profiles/profile-a"
+            )
             stable_profile_dir.mkdir(parents=True)
             (stable_profile_dir / "extensions.json").write_text(
                 _fixture_text("stable_profile_extensions.json"),
@@ -58,7 +72,8 @@ class CollectReferenceNamesTests(unittest.TestCase):
             )
 
             insiders_profile_dir = (
-                home / "Library/Application Support/Code - Insiders/User/profiles/profile-b"
+                home
+                / "Library/Application Support/Code - Insiders/User/profiles/profile-b"
             )
             insiders_profile_dir.mkdir(parents=True)
             (insiders_profile_dir / "extensions.json").write_text(
@@ -80,6 +95,8 @@ class CollectReferenceNamesTests(unittest.TestCase):
             )
 
     def test_local_scope_only_reads_root_manifest(self) -> None:
+        """Unrecognised extension directories should fall back to root-only references."""
+
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / "custom/extensions"
             root.mkdir(parents=True)
@@ -88,7 +105,9 @@ class CollectReferenceNamesTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            entries = collect_reference_entries(root, config=VscodePathsConfig.from_home(temp_dir))
+            entries = collect_reference_entries(
+                root, config=VscodePathsConfig.from_home(temp_dir)
+            )
 
             self.assertTrue(all(entry.source_kind == "root" for entry in entries))
             self.assertEqual(len(entries), 3)
@@ -96,4 +115,3 @@ class CollectReferenceNamesTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
