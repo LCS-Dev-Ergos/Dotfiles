@@ -3,7 +3,7 @@
 Apply helpers for the non-destructive Stable-to-Insiders sync workflow.
 
 Author: XtremeXSPC
-Version:
+Version: 1.0.0
 """
 # ============================================================================ #
 
@@ -14,8 +14,17 @@ from pathlib import Path
 
 from vscode_config import DEFAULT_EXTENSION_EXCLUDE_PATTERNS, VscodePathsConfig
 from vscode_fs import canonicalize_path
-from vscode_models import ExtensionSetupReport, ManifestApplyReport, SymlinkAction
+from vscode_models import (
+    ExtensionRemoveReport,
+    ExtensionSetupReport,
+    SymlinkAction,
+)
 from vscode_planner import plan_insiders_symlink_state
+from vscode_profiles import (
+    apply_manifest_repair_plan_safely,
+    build_update_only_manifest_plan,
+    plan_manifest_repairs,
+)
 
 
 def _is_lexically_within_root(path: Path, root: Path) -> bool:
@@ -55,13 +64,7 @@ def apply_extension_setup(
     config: VscodePathsConfig | None = None,
     exclude_patterns: tuple[str, ...] | list[str] | None = None,
 ) -> ExtensionSetupReport:
-    """Apply symlink repair and managed directory migration.
-
-    Profile manifests are intentionally treated as read-only by the normal
-    setup workflow. VS Code and Settings Sync mutate them independently, so the
-    safe default is to leave them untouched until a dedicated compatibility
-    layer can satisfy their requested folder names.
-    """
+    """Apply symlink repair, managed directory migration, and update-only manifest rebinds."""
     resolved_config = config or VscodePathsConfig.from_home()
     stable_root = canonicalize_path(stable_dir)
     insiders_root = canonicalize_path(insiders_dir)
@@ -128,15 +131,77 @@ def apply_extension_setup(
             skipped_excluded_symlink_count += 1
             continue
 
+    manifest_plan = build_update_only_manifest_plan(
+        plan_manifest_repairs(
+            stable_root,
+            insiders_root,
+            config=resolved_config,
+            exclude_patterns=resolved_patterns,
+        )
+    )
+    manifest_apply_report = apply_manifest_repair_plan_safely(manifest_plan)
+
     return ExtensionSetupReport(
         linked_count=linked_count,
         relinked_count=relinked_count,
         migrated_count=migrated_count,
         removed_stale_symlink_count=removed_stale_symlink_count,
         skipped_excluded_symlink_count=skipped_excluded_symlink_count,
-        manifest_apply_report=ManifestApplyReport(
-            updated_entries=0,
-            removed_entries=0,
-            touched_manifests=(),
-        ),
+        manifest_apply_report=manifest_apply_report,
+    )
+
+
+def apply_extension_remove(
+    stable_dir: str | Path,
+    insiders_dir: str | Path,
+    *,
+    config: VscodePathsConfig | None = None,
+    exclude_patterns: tuple[str, ...] | list[str] | None = None,
+) -> ExtensionRemoveReport:
+    """Remove sync-managed extension symlinks from the Insiders root."""
+    del stable_dir, config, exclude_patterns
+
+    insiders_root = Path(insiders_dir).expanduser()
+    canonical_insiders_root = canonicalize_path(insiders_root)
+    failed_paths: list[Path] = []
+    removed_root_symlink_count = 0
+    removed_entry_symlink_count = 0
+    skipped_real_dir_count = 0
+
+    if insiders_root.is_symlink():
+        if _safe_remove_path(insiders_root, root=insiders_root.parent):
+            removed_root_symlink_count = 1
+        else:
+            failed_paths.append(insiders_root)
+        return ExtensionRemoveReport(
+            removed_root_symlink_count=removed_root_symlink_count,
+            removed_entry_symlink_count=removed_entry_symlink_count,
+            skipped_real_dir_count=skipped_real_dir_count,
+            failed_paths=tuple(failed_paths),
+        )
+
+    if not canonical_insiders_root.exists() or not canonical_insiders_root.is_dir():
+        return ExtensionRemoveReport(
+            removed_root_symlink_count=0,
+            removed_entry_symlink_count=0,
+            skipped_real_dir_count=0,
+            failed_paths=(),
+        )
+
+    for entry in sorted(canonical_insiders_root.iterdir(), key=lambda candidate: candidate.name):
+        if entry.is_symlink():
+            if _safe_remove_path(entry, root=canonical_insiders_root):
+                removed_entry_symlink_count += 1
+            else:
+                failed_paths.append(entry)
+            continue
+
+        if entry.is_dir():
+            skipped_real_dir_count += 1
+
+    return ExtensionRemoveReport(
+        removed_root_symlink_count=removed_root_symlink_count,
+        removed_entry_symlink_count=removed_entry_symlink_count,
+        skipped_real_dir_count=skipped_real_dir_count,
+        failed_paths=tuple(failed_paths),
     )

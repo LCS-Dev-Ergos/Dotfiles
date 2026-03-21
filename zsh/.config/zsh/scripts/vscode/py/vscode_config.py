@@ -3,7 +3,7 @@
 Configuration helpers for VS Code extension roots and profile discovery.
 
 Author: XtremeXSPC
-Version:
+Version: 1.0.0
 """
 # ============================================================================ #
 

@@ -13,7 +13,7 @@ from vscode_planner import plan_extension_cleanup, plan_insiders_symlink_state
 
 
 class CleanupPlannerTests(unittest.TestCase):
-    def test_newest_strategy_protects_all_referenced_versions(self) -> None:
+    def test_default_reference_guard_protects_all_manifest_named_versions(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / "extensions"
             root.mkdir()
@@ -38,7 +38,7 @@ class CleanupPlannerTests(unittest.TestCase):
 
             self.assertEqual(plan.raw_reference_names, ("foo.ext-1.0.0", "foo.ext-2.0.0"))
             self.assertEqual(plan.protected_reference_names, ("foo.ext-1.0.0", "foo.ext-2.0.0"))
-            self.assertEqual(plan.stale_reference_names, ())
+            self.assertEqual(plan.stale_reference_names, ("foo.ext-1.0.0",))
             self.assertEqual(plan.planned_deletion_count, 0)
             self.assertEqual(plan.duplicate_group_count, 1)
 
@@ -48,6 +48,64 @@ class CleanupPlannerTests(unittest.TestCase):
             }
             self.assertEqual(actions["foo.ext-1.0.0"], CleanupAction.SKIP_REFERENCED)
             self.assertEqual(actions["foo.ext-2.0.0"], CleanupAction.KEEP)
+
+    def test_prune_stale_references_allows_older_referenced_versions_to_be_deleted(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "extensions"
+            root.mkdir()
+            (root / "foo.ext-1.0.0").mkdir()
+            (root / "foo.ext-2.0.0").mkdir()
+            (root / "extensions.json").write_text(
+                json.dumps(
+                    [
+                        {"relativeLocation": "foo.ext-1.0.0"},
+                        {"relativeLocation": "foo.ext-2.0.0"},
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            plan = plan_extension_cleanup(
+                root,
+                strategy=CleanupStrategy.NEWEST,
+                respect_references=True,
+                prune_stale_references=True,
+                config=VscodePathsConfig.from_home(temp_dir),
+            )
+
+            self.assertEqual(plan.raw_reference_names, ("foo.ext-1.0.0", "foo.ext-2.0.0"))
+            self.assertEqual(plan.protected_reference_names, ("foo.ext-2.0.0",))
+            self.assertEqual(plan.stale_reference_names, ("foo.ext-1.0.0",))
+            self.assertEqual(plan.planned_deletion_count, 1)
+            self.assertEqual(plan.duplicate_group_count, 1)
+
+            actions = {
+                decision.folder_name: decision.action
+                for decision in plan.groups[0].decisions
+            }
+            self.assertEqual(actions["foo.ext-1.0.0"], CleanupAction.DELETE)
+            self.assertEqual(actions["foo.ext-2.0.0"], CleanupAction.KEEP)
+
+    def test_missing_referenced_version_is_marked_stale_when_newer_install_exists(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "extensions"
+            root.mkdir()
+            (root / "foo.ext-2.0.0").mkdir()
+            (root / "extensions.json").write_text(
+                json.dumps([{"relativeLocation": "foo.ext-1.0.0"}]),
+                encoding="utf-8",
+            )
+
+            plan = plan_extension_cleanup(
+                root,
+                strategy=CleanupStrategy.NEWEST,
+                respect_references=True,
+                prune_stale_references=True,
+                config=VscodePathsConfig.from_home(temp_dir),
+            )
+
+            self.assertEqual(plan.protected_reference_names, ())
+            self.assertEqual(plan.stale_reference_names, ("foo.ext-1.0.0",))
 
     def test_oldest_strategy_deletes_only_one_unreferenced_version(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

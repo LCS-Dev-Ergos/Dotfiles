@@ -3,12 +3,13 @@
 Planning helpers for cleanup and Stable-to-Insiders extension sync.
 
 Author: XtremeXSPC
-Version:
+Version: 1.0.0
 """
 # ============================================================================ #
 
 from __future__ import annotations
 
+from collections import defaultdict
 from fnmatch import fnmatchcase
 from pathlib import Path
 
@@ -36,20 +37,59 @@ def is_excluded_extension(folder_name: str, patterns: tuple[str, ...] | list[str
     return any(fnmatchcase(folder_name, pattern) for pattern in patterns)
 
 
+def is_excluded_extension_id(extension_id: str, patterns: tuple[str, ...] | list[str]) -> bool:
+    """Return True when a bare extension ID matches an exclusion pattern."""
+    normalized_id = extension_id.strip()
+    if not normalized_id:
+        return False
+
+    for pattern in patterns:
+        if fnmatchcase(normalized_id, pattern):
+            return True
+        if pattern.endswith("-*") and normalized_id == pattern[:-2]:
+            return True
+    return False
+
+
 def _build_effective_reference_names(
     installs: list[ExtensionInstall],
     raw_reference_names: list[str],
+    *,
+    prune_stale_references: bool,
 ) -> tuple[list[str], list[str]]:
     """Split raw manifest references into installed protected names and stale names."""
     installed_by_name = {install.folder_name: install for install in installs}
-    protected_names = sorted(
-        {
-            name
-            for name in raw_reference_names
+    installs_by_extension_id: dict[str, list[ExtensionInstall]] = defaultdict(list)
+    reference_names_by_extension_id: dict[str, set[str]] = defaultdict(set)
+
+    for install in installs:
+        installs_by_extension_id[install.extension_id].append(install)
+    for name in sorted(set(raw_reference_names)):
+        parsed_reference = parse_extension_folder_name(name)
+        reference_names_by_extension_id[parsed_reference.extension_id].add(name)
+
+    protected_names: set[str] = set()
+    stale_names: set[str] = set()
+
+    for extension_id, reference_names in reference_names_by_extension_id.items():
+        referenced_installs = [
+            installed_by_name[name]
+            for name in sorted(reference_names)
             if name in installed_by_name
-        }
-    )
-    return protected_names, []
+        ]
+        if referenced_installs:
+            preferred_install = _select_newest_install(referenced_installs)
+            stale_names.update(name for name in reference_names if name != preferred_install.folder_name)
+            if prune_stale_references:
+                protected_names.add(preferred_install.folder_name)
+            else:
+                protected_names.update(install.folder_name for install in referenced_installs)
+            continue
+
+        if extension_id in installs_by_extension_id:
+            stale_names.update(reference_names)
+
+    return sorted(protected_names), sorted(stale_names)
 
 
 def _select_newest_install(group: list[ExtensionInstall]) -> ExtensionInstall:
@@ -94,6 +134,7 @@ def plan_extension_cleanup(
     *,
     strategy: CleanupStrategy = CleanupStrategy.NEWEST,
     respect_references: bool = True,
+    prune_stale_references: bool = False,
     config: VscodePathsConfig | None = None,
 ) -> CleanupPlan:
     """Build a deterministic duplicate-cleanup plan for one extension root."""
@@ -114,6 +155,7 @@ def plan_extension_cleanup(
     protected_reference_names, stale_reference_names = _build_effective_reference_names(
         installs,
         raw_reference_names,
+        prune_stale_references=prune_stale_references,
     )
     protected_reference_set = set(protected_reference_names)
 
@@ -235,6 +277,7 @@ def plan_extension_cleanup(
         root=root,
         strategy=strategy,
         respect_references=respect_references,
+        prune_stale_references=prune_stale_references,
         raw_reference_names=tuple(sorted(set(raw_reference_names))),
         protected_reference_names=tuple(protected_reference_names),
         stale_reference_names=tuple(stale_reference_names),

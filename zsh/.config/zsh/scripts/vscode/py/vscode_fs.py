@@ -3,7 +3,7 @@
 Filesystem helpers for the VS Code sync Python backend.
 
 Author: XtremeXSPC
-Version:
+Version: 1.0.0
 """
 # ============================================================================ #
 

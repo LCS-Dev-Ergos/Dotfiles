@@ -3,7 +3,7 @@
 Cleanup application helpers for duplicate VS Code extension installs.
 
 Author: XtremeXSPC
-Version:
+Version: 1.0.0
 """
 # ============================================================================ #
 
@@ -16,6 +16,8 @@ from pathlib import Path
 
 from vscode_fs import canonicalize_path, is_within_directory
 from vscode_models import CleanupAction, CleanupApplyReport, CleanupPlan
+
+_MAX_QUARANTINE_SUFFIX_ATTEMPTS = 10000
 
 
 def deletable_paths_from_plan(plan: CleanupPlan) -> tuple[Path, ...]:
@@ -34,7 +36,9 @@ def _cleanup_backup_roots(root: Path) -> tuple[Path, ...]:
     env_root = os.environ.get("VSCODE_SYNC_BACKUP_DIR")
     candidates: list[Path] = []
     if env_root:
-        candidates.append(Path(env_root).expanduser())
+        env_candidate = canonicalize_path(Path(env_root).expanduser())
+        if is_within_directory(env_candidate, Path.home()):
+            candidates.append(env_candidate)
     candidates.append(Path.home() / ".local/share/vscode-sync-backups")
     candidates.append(root.parent / ".vscode-sync-backups")
     return tuple(candidates)
@@ -65,12 +69,12 @@ def _unique_quarantine_target(quarantine_root: Path, source_path: Path) -> Path:
     if not candidate.exists():
         return candidate
 
-    attempt = 1
-    while True:
+    for attempt in range(1, _MAX_QUARANTINE_SUFFIX_ATTEMPTS + 1):
         candidate = quarantine_root / f"{source_path.name}.{attempt}"
         if not candidate.exists():
             return candidate
-        attempt += 1
+
+    raise OSError("unable to allocate a unique quarantine target path")
 
 
 def apply_cleanup_plan(plan: CleanupPlan) -> CleanupApplyReport:

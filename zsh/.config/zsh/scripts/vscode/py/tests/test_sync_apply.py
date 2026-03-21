@@ -8,7 +8,7 @@ from pathlib import Path
 from _support import MODULE_ROOT
 
 from vscode_config import VscodePathsConfig
-from vscode_sync_apply import apply_extension_setup
+from vscode_sync_apply import apply_extension_remove, apply_extension_setup
 
 
 class ApplyExtensionSetupTests(unittest.TestCase):
@@ -107,7 +107,7 @@ class ApplyExtensionSetupTests(unittest.TestCase):
             payload = json.loads(manifest_path.read_text(encoding="utf-8"))
             self.assertEqual(payload[0]["relativeLocation"], "ghost.ext-1.0.0")
 
-    def test_setup_leaves_profile_manifest_unchanged_in_read_only_mode(self) -> None:
+    def test_setup_updates_profile_manifest_to_current_installed_version(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             home = Path(temp_dir)
             stable_root = home / ".vscode/extensions"
@@ -139,10 +139,53 @@ class ApplyExtensionSetupTests(unittest.TestCase):
                 config=VscodePathsConfig.from_home(home),
             )
 
-            self.assertEqual(report.manifest_apply_report.updated_entries, 0)
+            self.assertEqual(report.manifest_apply_report.updated_entries, 1)
             self.assertEqual(report.manifest_apply_report.removed_entries, 0)
             payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-            self.assertEqual(payload, original_payload)
+            self.assertEqual(payload[0]["relativeLocation"], "foo.ext-2.0.0")
+            self.assertEqual(payload[0]["version"], "2.0.0")
+            self.assertEqual(payload[0]["location"]["path"], str(stable_root / "foo.ext-2.0.0"))
+
+
+class ApplyExtensionRemoveTests(unittest.TestCase):
+    def test_remove_deletes_only_symlink_entries(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            home = Path(temp_dir)
+            stable_root = home / ".vscode/extensions"
+            insiders_root = home / ".vscode-insiders/extensions"
+            stable_root.mkdir(parents=True)
+            insiders_root.mkdir(parents=True)
+
+            (stable_root / "foo.ext-1.0.0").mkdir()
+            (insiders_root / "foo.ext-1.0.0").symlink_to(stable_root / "foo.ext-1.0.0")
+            (insiders_root / "native.ext-1.0.0").mkdir()
+
+            report = apply_extension_remove(stable_root, insiders_root)
+
+            self.assertEqual(report.removed_root_symlink_count, 0)
+            self.assertEqual(report.removed_entry_symlink_count, 1)
+            self.assertEqual(report.skipped_real_dir_count, 1)
+            self.assertFalse((insiders_root / "foo.ext-1.0.0").exists())
+            self.assertTrue((insiders_root / "native.ext-1.0.0").is_dir())
+            self.assertEqual(report.failed_paths, ())
+
+    def test_remove_deletes_legacy_root_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            home = Path(temp_dir)
+            stable_root = home / ".vscode/extensions"
+            stable_root.mkdir(parents=True)
+            (stable_root / "foo.ext-1.0.0").mkdir()
+
+            insiders_root = home / ".vscode-insiders/extensions"
+            insiders_root.parent.mkdir(parents=True)
+            insiders_root.symlink_to(stable_root)
+
+            report = apply_extension_remove(stable_root, insiders_root)
+
+            self.assertEqual(report.removed_root_symlink_count, 1)
+            self.assertEqual(report.removed_entry_symlink_count, 0)
+            self.assertFalse(insiders_root.exists())
+            self.assertEqual(report.failed_paths, ())
 
 
 if __name__ == "__main__":

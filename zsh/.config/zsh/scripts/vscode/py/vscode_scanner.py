@@ -3,7 +3,7 @@
 Filesystem scanners for VS Code extension install directories.
 
 Author: XtremeXSPC
-Version:
+Version: 1.0.0
 """
 # ============================================================================ #
 

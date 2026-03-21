@@ -3,7 +3,7 @@
 Shared data models used by the VS Code sync Python backend.
 
 Author: XtremeXSPC
-Version:
+Version: 1.0.0
 """
 # ============================================================================ #
 
@@ -56,6 +56,17 @@ class ManifestAction(StrEnum):
     KEEP = "keep"
     UPDATE = "update"
     REMOVE = "remove"
+
+
+class SyncItemStatus(StrEnum):
+    """Describe the current sync state for a non-extension VS Code item."""
+
+    SYNCED = "synced"
+    SYMLINK_BROKEN = "symlink_broken"
+    SYMLINK_WRONG = "symlink_wrong"
+    INDEPENDENT = "independent"
+    MISSING = "missing"
+    SOURCE_MISSING = "source_missing"
 
 
 @dataclass(frozen=True, slots=True)
@@ -182,6 +193,7 @@ class CleanupPlan:
     root: Path
     strategy: CleanupStrategy
     respect_references: bool
+    prune_stale_references: bool
     raw_reference_names: tuple[str, ...]
     protected_reference_names: tuple[str, ...]
     stale_reference_names: tuple[str, ...]
@@ -196,6 +208,7 @@ class CleanupPlan:
             "root": str(self.root),
             "strategy": self.strategy.value,
             "respect_references": self.respect_references,
+            "prune_stale_references": self.prune_stale_references,
             "raw_reference_names": list(self.raw_reference_names),
             "protected_reference_names": list(self.protected_reference_names),
             "stale_reference_names": list(self.stale_reference_names),
@@ -385,4 +398,130 @@ class ExtensionSetupReport:
             "removed_stale_symlink_count": self.removed_stale_symlink_count,
             "skipped_excluded_symlink_count": self.skipped_excluded_symlink_count,
             "manifest_apply_report": self.manifest_apply_report.to_dict(),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ExtensionRemoveReport:
+    """Summarize the result of removing sync-managed extension symlinks."""
+
+    removed_root_symlink_count: int
+    removed_entry_symlink_count: int
+    skipped_real_dir_count: int
+    failed_paths: tuple[Path, ...]
+
+    def to_dict(self) -> dict[str, object]:
+        """Serialize the extension removal report into a JSON-friendly mapping."""
+        return {
+            "removed_root_symlink_count": self.removed_root_symlink_count,
+            "removed_entry_symlink_count": self.removed_entry_symlink_count,
+            "skipped_real_dir_count": self.skipped_real_dir_count,
+            "failed_paths": [str(path) for path in self.failed_paths],
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class SyncItem:
+    """Describe one non-extension VS Code path managed by the sync workflow."""
+
+    label: str
+    source_path: Path
+    target_path: Path
+
+    def to_dict(self) -> dict[str, str]:
+        """Serialize the sync item into a JSON-friendly mapping."""
+        return {
+            "label": self.label,
+            "source_path": str(self.source_path),
+            "target_path": str(self.target_path),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class SyncItemDecision:
+    """Capture the observed state for one managed sync item."""
+
+    label: str
+    source_path: Path
+    target_path: Path
+    status: SyncItemStatus
+    reason: str
+    link_target: str | None = None
+    source_readable: bool = True
+
+    def to_dict(self) -> dict[str, str | bool | None]:
+        """Serialize the sync item decision into a JSON-friendly mapping."""
+        return {
+            "label": self.label,
+            "source_path": str(self.source_path),
+            "target_path": str(self.target_path),
+            "status": self.status.value,
+            "reason": self.reason,
+            "link_target": self.link_target,
+            "source_readable": self.source_readable,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class SyncStatusReport:
+    """Summarize top-level item state plus extension health."""
+
+    items: tuple[SyncItemDecision, ...]
+    symlink_plan: SymlinkPlan
+    manifest_plan: ManifestRepairPlan
+    issues: int
+    warnings: int
+
+    def to_dict(self) -> dict[str, object]:
+        """Serialize the sync status report into a JSON-friendly mapping."""
+        return {
+            "items": [item.to_dict() for item in self.items],
+            "symlink_plan": self.symlink_plan.to_dict(),
+            "manifest_plan": self.manifest_plan.to_dict(),
+            "issues": self.issues,
+            "warnings": self.warnings,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class SyncSetupReport:
+    """Summarize the result of applying the top-level setup workflow."""
+
+    item_reports: tuple[SyncItemDecision, ...]
+    synced_count: int
+    skipped_count: int
+    failed_count: int
+    extension_report: ExtensionSetupReport
+
+    def to_dict(self) -> dict[str, object]:
+        """Serialize the sync setup report into a JSON-friendly mapping."""
+        return {
+            "item_reports": [item.to_dict() for item in self.item_reports],
+            "synced_count": self.synced_count,
+            "skipped_count": self.skipped_count,
+            "failed_count": self.failed_count,
+            "extension_report": self.extension_report.to_dict(),
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class SyncRemoveReport:
+    """Summarize the result of applying the top-level remove workflow."""
+
+    item_reports: tuple[SyncItemDecision, ...]
+    restored_count: int
+    removed_broken_count: int
+    skipped_count: int
+    failed_count: int
+    extension_report: ExtensionRemoveReport
+
+    def to_dict(self) -> dict[str, object]:
+        """Serialize the sync remove report into a JSON-friendly mapping."""
+        return {
+            "item_reports": [item.to_dict() for item in self.item_reports],
+            "restored_count": self.restored_count,
+            "removed_broken_count": self.removed_broken_count,
+            "skipped_count": self.skipped_count,
+            "failed_count": self.failed_count,
+            "extension_report": self.extension_report.to_dict(),
         }

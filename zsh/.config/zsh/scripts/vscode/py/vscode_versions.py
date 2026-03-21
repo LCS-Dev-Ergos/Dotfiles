@@ -3,7 +3,7 @@
 Version comparison helpers for VS Code extension folders.
 
 Author: XtremeXSPC
-Version:
+Version: 1.0.0
 """
 # ============================================================================ #
 

@@ -3,7 +3,7 @@
 Manifest parsing helpers for VS Code extension and profile metadata.
 
 Author: XtremeXSPC
-Version:
+Version: 1.0.0
 """
 # ============================================================================ #
 
@@ -21,7 +21,7 @@ class ManifestParseError(RuntimeError):
     """Raised when an extensions manifest cannot be parsed as JSON."""
 
 
-def _extract_folder_name_from_location_path(location_path: str) -> str | None:
+def extract_folder_name_from_location_path(location_path: str) -> str | None:
     """Extract the extension folder name from an absolute manifest location path."""
     normalized_path = location_path.replace("\\", "/")
     marker = "/extensions/"
@@ -33,6 +33,9 @@ def _extract_folder_name_from_location_path(location_path: str) -> str | None:
         return None
 
     return trailing_path.split("/", 1)[0] or None
+
+
+_extract_folder_name_from_location_path = extract_folder_name_from_location_path
 
 
 def parse_manifest_reference_entries(
@@ -78,7 +81,7 @@ def parse_manifest_reference_entries(
         if not isinstance(location_path, str):
             continue
 
-        folder_name = _extract_folder_name_from_location_path(location_path)
+        folder_name = extract_folder_name_from_location_path(location_path)
         if folder_name:
             entries.append(
                 ReferenceEntry(

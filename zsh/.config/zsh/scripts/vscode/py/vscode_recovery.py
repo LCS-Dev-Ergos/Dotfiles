@@ -3,7 +3,7 @@
 Recovery helpers for reinstalling or aliasing missing manifest-requested extensions.
 
 Author: XtremeXSPC
-Version:
+Version: 1.0.0
 """
 # ============================================================================ #
 
@@ -17,7 +17,7 @@ from pathlib import Path
 from vscode_config import DEFAULT_EXTENSION_EXCLUDE_PATTERNS, VscodePathsConfig
 from vscode_fs import canonicalize_path
 from vscode_models import ExtensionInstall
-from vscode_planner import is_excluded_extension
+from vscode_planner import is_excluded_extension, is_excluded_extension_id
 from vscode_profiles import is_preserved_missing_profile_decision, plan_manifest_repairs
 from vscode_scanner import parse_extension_folder_name, scan_extension_root
 from vscode_sync_apply import apply_extension_setup
@@ -245,8 +245,8 @@ def _install_context(
     insiders_root: Path,
 ) -> tuple[str, Path]:
     """Choose the installer binary and target root for a recovery request."""
-    if is_excluded_extension(folder_name, exclude_patterns) or is_excluded_extension(
-        f"{extension_id}-candidate",
+    if is_excluded_extension(folder_name, exclude_patterns) or is_excluded_extension_id(
+        extension_id,
         exclude_patterns,
     ):
         return ("code-insiders", insiders_root)
@@ -296,15 +296,19 @@ def _build_alias_tasks(
     *,
     stable_root: Path,
     insiders_root: Path,
+    stable_installs: list[ExtensionInstall] | None = None,
+    insiders_installs: list[ExtensionInstall] | None = None,
 ) -> tuple[RecoveryAliasTask, ...]:
     """Build alias tasks for requests already satisfiable by existing installs."""
-    stable_installs = scan_extension_root(stable_root)
-    insiders_installs = scan_extension_root(insiders_root)
+    resolved_stable_installs = stable_installs or scan_extension_root(stable_root)
+    resolved_insiders_installs = insiders_installs or scan_extension_root(insiders_root)
 
     alias_tasks: dict[tuple[Path, Path], RecoveryAliasTask] = {}
     for request in requests:
         install_root = request.install_root
-        install_candidates = stable_installs if install_root == stable_root else insiders_installs
+        install_candidates = (
+            resolved_stable_installs if install_root == stable_root else resolved_insiders_installs
+        )
         target = _select_best_install(
             install_candidates,
             extension_id=request.extension_id,
@@ -452,6 +456,8 @@ def plan_missing_extension_recovery(
         tuple(sorted(requests, key=lambda request: (str(request.manifest_path), request.entry_index))),
         stable_root=stable_root,
         insiders_root=insiders_root,
+        stable_installs=stable_installs,
+        insiders_installs=insiders_installs,
     )
 
     return RecoveryPlan(

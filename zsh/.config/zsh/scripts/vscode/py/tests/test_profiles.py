@@ -16,7 +16,9 @@ from vscode_models import (
 )
 from vscode_profiles import (
     ProfileManifestSafetyError,
+    _write_manifest_payload_atomically,
     apply_manifest_repair_plan_safely,
+    build_update_only_manifest_plan,
     plan_manifest_repairs,
 )
 
@@ -155,6 +157,44 @@ class ManifestRepairPlanTests(unittest.TestCase):
             self.assertEqual(report.removed_entries, 1)
             self.assertEqual(json.loads(manifest_path.read_text(encoding="utf-8")), [])
 
+    def test_update_only_manifest_plan_skips_remove_actions(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            home = Path(temp_dir)
+            stable_root = home / ".vscode/extensions"
+            insiders_root = home / ".vscode-insiders/extensions"
+            stable_root.mkdir(parents=True)
+            insiders_root.mkdir(parents=True)
+
+            manifest_path = stable_root / "extensions.json"
+            manifest_path.write_text(
+                json.dumps(
+                    [
+                        {
+                            "identifier": {"id": "ghost.ext"},
+                            "version": "1.0.0",
+                            "relativeLocation": "ghost.ext-1.0.0",
+                            "location": {
+                                "$mid": 1,
+                                "path": str(stable_root / "ghost.ext-1.0.0"),
+                                "scheme": "file",
+                            },
+                        }
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            plan = plan_manifest_repairs(
+                stable_root,
+                insiders_root,
+                config=VscodePathsConfig.from_home(home),
+            )
+            filtered_plan = build_update_only_manifest_plan(plan)
+
+            self.assertEqual(filtered_plan.update_count, 0)
+            self.assertEqual(filtered_plan.remove_count, 0)
+            self.assertEqual(filtered_plan.decisions, ())
+
     def test_safe_apply_rolls_back_if_profile_selection_would_change(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             home = Path(temp_dir)
@@ -210,6 +250,19 @@ class ManifestRepairPlanTests(unittest.TestCase):
 
             restored_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
             self.assertEqual(restored_payload, original_payload)
+
+    def test_atomic_manifest_write_replaces_content_cleanly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manifest_path = Path(temp_dir) / "extensions.json"
+            manifest_path.write_text('[{"relativeLocation":"old.ext-1.0.0"}]\n', encoding="utf-8")
+
+            _write_manifest_payload_atomically(
+                manifest_path,
+                [{"relativeLocation": "new.ext-2.0.0"}],
+            )
+
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(payload, [{"relativeLocation": "new.ext-2.0.0"}])
 
 
 if __name__ == "__main__":

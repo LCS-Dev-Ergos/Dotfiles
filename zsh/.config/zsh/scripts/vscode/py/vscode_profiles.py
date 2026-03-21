@@ -3,21 +3,23 @@
 Manifest planning helpers for VS Code root and profile extension metadata.
 
 Author: XtremeXSPC
-Version:
+Version: 1.0.0
 """
 # ============================================================================ #
 
 from __future__ import annotations
 
 import json
+import os
 from collections import defaultdict
 from copy import deepcopy
 from pathlib import Path
+import tempfile
 
 from vscode_config import DEFAULT_EXTENSION_EXCLUDE_PATTERNS, VscodePathsConfig
 from vscode_fs import canonicalize_path
 from vscode_manifests import (
-    _extract_folder_name_from_location_path,
+    extract_folder_name_from_location_path,
     iter_manifest_paths_for_extensions_dir,
 )
 from vscode_models import (
@@ -28,7 +30,7 @@ from vscode_models import (
     ManifestRepairPlan,
     VscodeEdition,
 )
-from vscode_planner import is_excluded_extension
+from vscode_planner import is_excluded_extension, is_excluded_extension_id
 from vscode_scanner import parse_extension_folder_name, scan_extension_root
 from vscode_versions import compare_versions
 
@@ -123,7 +125,7 @@ def _extract_current_folder_name(item: dict) -> str | None:
     if not isinstance(location_path, str):
         return None
 
-    return _extract_folder_name_from_location_path(location_path)
+    return extract_folder_name_from_location_path(location_path)
 
 
 def _extract_extension_id(item: dict, current_folder_name: str | None) -> str | None:
@@ -148,7 +150,7 @@ def _excluded_for_entry(
     """Return ``True`` when a manifest entry should be treated as excluded."""
     if current_folder_name and is_excluded_extension(current_folder_name, exclude_patterns):
         return True
-    if extension_id and is_excluded_extension(f"{extension_id}-candidate", exclude_patterns):
+    if extension_id and is_excluded_extension_id(extension_id, exclude_patterns):
         return True
     return False
 
@@ -322,6 +324,26 @@ def is_preserved_missing_profile_decision(decision: ManifestRepairDecision) -> b
     )
 
 
+def build_update_only_manifest_plan(plan: ManifestRepairPlan) -> ManifestRepairPlan:
+    """Return a plan that applies only safe manifest updates and skips removals."""
+    filtered_decisions = tuple(
+        decision
+        for decision in plan.decisions
+        if decision.action != ManifestAction.REMOVE
+    )
+    update_count = sum(1 for decision in filtered_decisions if decision.action == ManifestAction.UPDATE)
+    keep_count = sum(1 for decision in filtered_decisions if decision.action == ManifestAction.KEEP)
+    return ManifestRepairPlan(
+        stable_dir=plan.stable_dir,
+        insiders_dir=plan.insiders_dir,
+        update_count=update_count,
+        remove_count=0,
+        keep_count=keep_count,
+        preserved_missing_profile_count=plan.preserved_missing_profile_count,
+        decisions=filtered_decisions,
+    )
+
+
 def apply_manifest_repair_plan(plan: ManifestRepairPlan) -> ManifestApplyReport:
     """Apply planned manifest repairs in place."""
     grouped: dict[Path, list[ManifestRepairDecision]] = defaultdict(list)
@@ -364,10 +386,7 @@ def apply_manifest_repair_plan(plan: ManifestRepairPlan) -> ManifestApplyReport:
 
             updated_payload.append(updated_item)
 
-        manifest_path.write_text(
-            json.dumps(updated_payload, indent=2) + "\n",
-            encoding="utf-8",
-        )
+        _write_manifest_payload_atomically(manifest_path, updated_payload)
         touched_manifests.append(manifest_path)
 
     return ManifestApplyReport(
@@ -385,13 +404,33 @@ def _snapshot_manifest_payloads(manifest_paths: set[Path]) -> dict[Path, list[di
     return snapshots
 
 
+def _write_manifest_payload_atomically(manifest_path: Path, payload: list[dict]) -> None:
+    """Write a manifest payload atomically via a temporary sibling file."""
+    serialized_payload = json.dumps(payload, indent=2) + "\n"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temp_name = tempfile.mkstemp(
+        prefix=f".{manifest_path.name}.",
+        suffix=".tmp",
+        dir=manifest_path.parent,
+        text=True,
+    )
+    temp_path = Path(temp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(serialized_payload)
+        os.replace(temp_path, manifest_path)
+    except Exception:
+        try:
+            temp_path.unlink()
+        except OSError:
+            pass
+        raise
+
+
 def _restore_manifest_payloads(snapshots: dict[Path, list[dict]]) -> None:
     """Restore manifest payloads from an in-memory snapshot."""
     for manifest_path, payload in snapshots.items():
-        manifest_path.write_text(
-            json.dumps(payload, indent=2) + "\n",
-            encoding="utf-8",
-        )
+        _write_manifest_payload_atomically(manifest_path, payload)
 
 
 def _profile_entry_signature(item: dict) -> dict:
