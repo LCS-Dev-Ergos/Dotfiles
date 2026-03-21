@@ -32,9 +32,9 @@ _vscode_python_backend_available() {
 }
 
 _vscode_python_backend_enabled() {
-  case "${VSCODE_SYNC_USE_PYTHON:-0}" in
-    1|true|TRUE|yes|YES|on|ON) return 0 ;;
-    *) return 1 ;;
+  case "${VSCODE_SYNC_USE_PYTHON:-auto}" in
+    0|false|FALSE|no|NO|off|OFF|legacy|LEGACY) return 1 ;;
+    *) return 0 ;;
   esac
 }
 

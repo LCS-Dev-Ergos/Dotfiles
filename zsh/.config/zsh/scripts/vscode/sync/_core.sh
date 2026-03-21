@@ -18,6 +18,7 @@
 
 _VSCODE_SYNC_BACKUP_DIR="${HOME}/.local/share/vscode-sync-backups"
 _VSCODE_SYNC_LOCK_DIR="${HOME}/.cache/vscode_sync.lock"
+_VSCODE_SYNC_PROFILE_SNAPSHOT_RETENTION=5
 
 # Platform-aware config: populated by _vscode_sync_init_config at source time.
 _VSCODE_SYNC_ITEMS=()
@@ -151,26 +152,28 @@ _vscode_sync_parse_item() {
 #   - Logs warnings for each running instance found.
 # -----------------------------------------------------------------------------
 _vscode_sync_check_vscode_running() {
-  local running=0
-  # macOS process patterns
+  local stable_running=0 insiders_running=0
+
   if pgrep -qf "/Visual Studio Code\.app/Contents/MacOS/" 2>/dev/null; then
-    _shared_log warn "VS Code Stable appears to be running."
-    running=1
+    stable_running=1
   fi
   if pgrep -qf "/Visual Studio Code - Insiders\.app/Contents/MacOS/" 2>/dev/null; then
-    _shared_log warn "VS Code Insiders appears to be running."
-    running=1
+    insiders_running=1
   fi
-  # Linux process patterns
-  if pgrep -qx "code" 2>/dev/null; then
-    _shared_log warn "VS Code Stable appears to be running."
-    running=1
+
+  if pgrep -qf '(^|[/[:space:]])code($|[[:space:]])' 2>/dev/null \
+    || pgrep -qx "code" 2>/dev/null; then
+    stable_running=1
   fi
-  if pgrep -qx "code-insiders" 2>/dev/null; then
-    _shared_log warn "VS Code Insiders appears to be running."
-    running=1
+  if pgrep -qf '(^|[/[:space:]])code-insiders($|[[:space:]])' 2>/dev/null \
+    || pgrep -qx "code-insiders" 2>/dev/null; then
+    insiders_running=1
   fi
-  return $running
+
+  (( stable_running )) && _shared_log warn "VS Code Stable appears to be running."
+  (( insiders_running )) && _shared_log warn "VS Code Insiders appears to be running."
+
+  (( stable_running == 0 && insiders_running == 0 ))
 }
 
 # -----------------------------------------------------------------------------
@@ -323,6 +326,57 @@ _vscode_sync_backup_item() {
 }
 
 # -----------------------------------------------------------------------------
+# _vscode_sync_prune_profile_state_snapshots
+# -----------------------------------------------------------------------------
+# Retains only the newest N profile-state snapshots in the shared backup root.
+# Snapshot names are timestamp-prefixed, so lexicographic ordering is stable.
+#
+# Returns:
+#   0 - Retention applied or nothing to prune.
+#   1 - Backup root is unsafe or unreadable.
+# -----------------------------------------------------------------------------
+_vscode_sync_prune_profile_state_snapshots() {
+  local keep_count="${_VSCODE_SYNC_PROFILE_SNAPSHOT_RETENTION:-5}"
+  [[ "$keep_count" == <-> ]] || keep_count=5
+  (( keep_count > 0 )) || keep_count=5
+
+  [[ -d "$_VSCODE_SYNC_BACKUP_DIR" ]] || return 0
+  if ! _vscode_sync_path_is_within_home "$_VSCODE_SYNC_BACKUP_DIR"; then
+    _shared_log error "Refusing to prune snapshots outside HOME: $_VSCODE_SYNC_BACKUP_DIR"
+    return 1
+  fi
+
+  local -a snapshot_dirs prune_dirs
+  snapshot_dirs=("${(@f)$(
+    find "$_VSCODE_SYNC_BACKUP_DIR" -mindepth 1 -maxdepth 1 -type d -name '*_profile-state' 2>/dev/null |
+      LC_ALL=C sort
+  )}")
+
+  (( ${#snapshot_dirs[@]} > keep_count )) || return 0
+  prune_dirs=("${snapshot_dirs[@]:0:${#snapshot_dirs[@]}-keep_count}")
+
+  local snapshot_path
+  for snapshot_path in "${prune_dirs[@]}"; do
+    [[ -n "$snapshot_path" ]] || continue
+    if ! _vscode_sync_path_is_within_home "$snapshot_path"; then
+      _shared_log warn "Skipping unsafe snapshot prune target: $snapshot_path"
+      continue
+    fi
+    if [[ "${snapshot_path:a:h}" != "${_VSCODE_SYNC_BACKUP_DIR:a}" ]]; then
+      _shared_log warn "Skipping non-direct snapshot entry: $snapshot_path"
+      continue
+    fi
+    rm -rf -- "$snapshot_path" 2>/dev/null || {
+      _shared_log warn "Failed to prune old profile snapshot: $snapshot_path"
+      continue
+    }
+    _shared_log info "Pruned old profile snapshot: $snapshot_path"
+  done
+
+  return 0
+}
+
+# -----------------------------------------------------------------------------
 # _vscode_sync_backup_profile_state
 # -----------------------------------------------------------------------------
 # Creates a profile-state snapshot before mutating operations.
@@ -435,6 +489,9 @@ _vscode_sync_backup_profile_state() {
 
   if (( copied > 0 )); then
     _shared_log ok "Profile state snapshot created: $snapshot_dir"
+    _vscode_sync_prune_profile_state_snapshots || {
+      _shared_log warn "Profile snapshot retention could not be fully applied."
+    }
   fi
   return 0
 }

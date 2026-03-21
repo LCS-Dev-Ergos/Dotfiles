@@ -18,6 +18,7 @@
 
 _vscode_sync_module_root="${${(%):-%N}:A:h}"
 _vscode_sync_common="${_vscode_sync_module_root}/_common.sh"
+_vscode_sync_cleaner="${_vscode_sync_module_root}/extension_cleaner.sh"
 _vscode_sync_core="${_vscode_sync_module_root}/sync/_core.sh"
 _vscode_sync_ext="${_vscode_sync_module_root}/sync/extensions.sh"
 _vscode_sync_cmd="${_vscode_sync_module_root}/sync/commands.sh"
@@ -30,7 +31,7 @@ else
   return 1 2>/dev/null || exit 1
 fi
 
-for _vscode_sync_part in "$_vscode_sync_core" "$_vscode_sync_ext" "$_vscode_sync_cmd"; do
+for _vscode_sync_part in "$_vscode_sync_cleaner" "$_vscode_sync_core" "$_vscode_sync_ext" "$_vscode_sync_cmd"; do
   if [[ -r "$_vscode_sync_part" ]]; then
     # shellcheck disable=SC1090
     source "$_vscode_sync_part"
@@ -45,6 +46,7 @@ _VSCODE_SYNC_MODULE_LOADED=1
 
 unset _vscode_sync_module_root
 unset _vscode_sync_common
+unset _vscode_sync_cleaner
 unset _vscode_sync_core
 unset _vscode_sync_ext
 unset _vscode_sync_cmd
