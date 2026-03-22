@@ -84,6 +84,33 @@ class CleanupApplyTests(unittest.TestCase):
 
             self.assertNotIn(Path("/tmp/outside-home"), backup_roots)
 
+    def test_apply_cleanup_plan_with_no_deletions_creates_no_quarantine_root(self) -> None:
+        """When nothing is selected for cleanup, the apply step must stay no-op."""
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir) / "extensions"
+            root.mkdir()
+            current_dir = root / "foo.ext-2.0.0"
+            current_dir.mkdir()
+            (root / "extensions.json").write_text(
+                json.dumps([{"relativeLocation": "foo.ext-2.0.0"}]),
+                encoding="utf-8",
+            )
+
+            plan = plan_extension_cleanup(
+                root,
+                strategy=CleanupStrategy.NEWEST,
+                respect_references=True,
+                config=VscodePathsConfig.from_home(temp_dir),
+            )
+            self.assertEqual(plan.planned_deletion_count, 0)
+
+            report = apply_cleanup_plan(plan)
+
+            self.assertEqual(report.quarantined_paths, ())
+            self.assertEqual(report.failed_paths, ())
+            self.assertEqual(report.quarantine_root, canonicalize_path(root))
+
 
 if __name__ == "__main__":
     unittest.main()
