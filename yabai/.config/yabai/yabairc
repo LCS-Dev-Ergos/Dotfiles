@@ -141,8 +141,16 @@ yabai -m rule --add label="VNC Viewer" \
 GIMP_APP="GIMP|GIMP-2\\..*|GNU Image Manipulation Program"
 yabai -m rule --add label="GIMP Popups" \
     app="^(${GIMP_APP})$" \
-    title="^(.*About.*|.*Export.*|.*Merge.*|.*Welcome.*|.*Quit.*|.*Save.* \
-             |.*Embedded.*|.*Working.*|.*Spaces?.*|.*Close.*)$" \
+    title="^(.*About.*|.*Change.*|.*Close.*|.*Create.*|.*Embedded.*|.*Export.*|.*Merge.* \
+             |.*Quit.*|.*Save.*|.*Spaces?.*|.*Welcome.*|.*Working.*)$" \
+    manage=off
+
+# Exclude Godot Editor transient/context dialogs (About / Welcome, etc.).
+GODOT_APP="Godot"
+yabai -m rule --add label="Godot Popups" \
+    app="^(${GODOT_APP})$" \
+    title="^(.*Create.*|.*Confirm.*|.*DEBUG.*|.*New.*|.*Node.*|.*Please.*|.*Preview.* \
+             .*Project.*|.*Quit.*|.*Save.*|.*Scene.*|.*Settings.*)$" \
     manage=off
 
 # Exclude Rancher Desktop/OrbStack preference windows from tiling.
