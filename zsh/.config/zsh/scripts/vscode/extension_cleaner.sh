@@ -123,6 +123,8 @@ _vscode_ext_clean_run_python() {
   fi
 
   local -a cmd=(
+    env
+    "VSCODE_SYNC_FORCE_COLOR=${VSCODE_SYNC_FORCE_COLOR:-1}"
     python3
     "${_VSCODE_MODULE_ROOT}/py/cli.py"
     clean

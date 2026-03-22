@@ -260,7 +260,7 @@ vscode_sync_check() {
   local check_output
   check_output="$(_vscode_sync_run_python_command sync-check 2>&1)"
   local check_status=$?
-  printf "%s\n" "$check_output"
+  printf "%s\n" "$check_output" | sed '/^ISSUES=/d;/^WARNINGS=/d'
 
   local issues warnings
   issues=$(printf "%s\n" "$check_output" | awk -F= '/^ISSUES=/{value=$2} END{print value+0}')
@@ -269,17 +269,19 @@ vscode_sync_check() {
   printf "\n"
   _shared_section "Environment"
   if _vscode_sync_check_vscode_running 2>/dev/null; then
-    _shared_log ok "No VS Code processes running."
+    printf "  %-24s %s\n" "VS Code processes" "${C_BOLD}${C_GREEN}not running${C_RESET}"
   else
     ((warnings++))
+    printf "  %-24s %s\n" "VS Code processes" "${C_BOLD}${C_YELLOW}running${C_RESET}"
   fi
 
   if [[ -d "$_VSCODE_SYNC_BACKUP_DIR" ]]; then
     local -a backup_dirs
     backup_dirs=("$_VSCODE_SYNC_BACKUP_DIR"/*(N/))
-    _shared_log info "${#backup_dirs[@]} backup(s) in $_VSCODE_SYNC_BACKUP_DIR"
+    printf "  %-24s %s\n" "Backups" "${#backup_dirs[@]} available"
+    printf "  %-24s %s\n" "Backup root" "$_VSCODE_SYNC_BACKUP_DIR"
   else
-    _shared_log info "No backups yet."
+    printf "  %-24s %s\n" "Backups" "0 available"
   fi
 
   printf "\n"

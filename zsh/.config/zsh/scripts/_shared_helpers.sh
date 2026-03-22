@@ -111,7 +111,7 @@ _shared_banner() {
   local title="$1"
   local subtitle="${2:-}"
   _shared_rule "="
-  printf "%s%s%s\n" "$C_BOLD" "$title" "$C_RESET"
+  printf "%s%s%s%s\n" "$C_BOLD" "$C_BLUE" "$title" "$C_RESET"
   [[ -n "$subtitle" ]] && printf "%s%s%s\n" "$C_CYAN" "$subtitle" "$C_RESET"
   _shared_rule "="
   printf "\n"
@@ -124,7 +124,7 @@ _shared_banner() {
 # -----------------------------------------------------------------------------
 _shared_section() {
   local title="$1"
-  printf "%s%s%s\n" "$C_BOLD" "$title" "$C_RESET"
+  printf "%s%s%s%s\n" "$C_BOLD" "$C_BLUE" "$title" "$C_RESET"
   _shared_rule "-"
 }
 

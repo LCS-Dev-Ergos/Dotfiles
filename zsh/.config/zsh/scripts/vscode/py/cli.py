@@ -35,6 +35,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import sys
 from pathlib import Path
 
 from vscode_cleanup import apply_cleanup_plan, deletable_paths_from_plan
@@ -67,6 +69,46 @@ from vscode_sync_workflow import (
     extension_health_counts,
 )
 from vscode_update import apply_extension_update, build_extension_update_plan
+
+
+_FORCE_COLOR_ENV = "VSCODE_SYNC_FORCE_COLOR"
+_ANSI_RESET = "\033[0m"
+_ANSI_BOLD = "\033[1m"
+_ANSI_RED = "\033[31m"
+_ANSI_GREEN = "\033[32m"
+_ANSI_YELLOW = "\033[33m"
+_ANSI_BLUE = "\033[34m"
+_ANSI_CYAN = "\033[36m"
+
+_STATUS_LABELS = {
+    "ok": "valid",
+    "valid": "valid",
+    "warn": "warning",
+    "warning": "warning",
+    "error": "error",
+    "info": "info",
+}
+
+_STATUS_STYLES = {
+    "valid": (_ANSI_BOLD, _ANSI_GREEN),
+    "warning": (_ANSI_BOLD, _ANSI_YELLOW),
+    "error": (_ANSI_BOLD, _ANSI_RED),
+    "info": (_ANSI_BOLD, _ANSI_CYAN),
+}
+
+_REASON_LABELS = {
+    "symlink_valid": "symlink valid",
+    "broken_symlink": "broken symlink",
+    "wrong_symlink": "wrong symlink target",
+    "wrong_target": "wrong symlink target",
+    "independent_path": "independent path",
+    "target_missing": "target missing",
+    "source_missing": "source missing",
+    "unmanaged_real_dir": "independent directory",
+    "excluded_but_symlinked": "excluded extension still linked",
+    "stale_managed_symlink": "stale managed symlink",
+    "linked": "symlink valid",
+}
 
 
 def _parse_edition(value: str) -> VscodeEdition:
@@ -418,28 +460,353 @@ def _emit_json(payload: object) -> int:
     return 0
 
 
+def _colors_enabled() -> bool:
+    """Return whether human-readable output should use ANSI styling."""
+
+    if os.environ.get("NO_COLOR"):
+        return False
+    force_value = os.environ.get(_FORCE_COLOR_ENV, "").strip().lower()
+    if force_value in {"1", "true", "yes", "on"}:
+        return True
+    return sys.stdout.isatty()
+
+
+def _style(text: object, *styles: str) -> str:
+    """Apply ANSI styles to text when color output is enabled."""
+
+    rendered = str(text)
+    if not styles or not _colors_enabled():
+        return rendered
+    return f"{''.join(styles)}{rendered}{_ANSI_RESET}"
+
+
+def _pretty_path(value: Path | str | None) -> str:
+    """Render a path-like value using ``~`` for the current HOME prefix."""
+
+    if value is None:
+        return "-"
+    text = str(value)
+    home = str(Path.home())
+    if text == home:
+        return "~"
+    if text.startswith(f"{home}/"):
+        return f"~{text[len(home):]}"
+    return text
+
+
+def _render_value(value: object) -> str:
+    """Render one human-readable metric value."""
+
+    if isinstance(value, Path):
+        return _pretty_path(value)
+    return str(value)
+
+
+def _render_status(status: str) -> str:
+    """Render a semantic status label with consistent casing and color."""
+
+    normalized = _STATUS_LABELS.get(status, status.replace("_", " ").lower())
+    return _style(normalized, *_STATUS_STYLES.get(normalized, ()))
+
+
+def _render_toggle(
+    enabled: bool,
+    *,
+    enabled_label: str = "enabled",
+    disabled_label: str = "disabled",
+    disabled_status: str = "warning",
+) -> str:
+    """Render one enabled/disabled-style value with semantic coloring."""
+
+    if enabled:
+        return _style(enabled_label, *_STATUS_STYLES["valid"])
+    return _style(disabled_label, *_STATUS_STYLES.get(disabled_status, ()))
+
+
+def _humanize_reason(reason: str) -> str:
+    """Convert internal reason tokens into cleaner human-readable text."""
+
+    token, sep, details = reason.partition(" (")
+    human = _REASON_LABELS.get(token, token.replace("_", " ").replace("-", " "))
+    if not sep:
+        return human
+    return f"{human} ({details}"
+
+
 def _print_section(title: str) -> None:
     """Print a consistently formatted section title."""
 
-    print(title)
+    print(_style(title, _ANSI_BOLD, _ANSI_BLUE))
 
 
-def _print_metric(label: str, value: object) -> None:
+def _print_subsection(title: str, *, indent: int = 2) -> None:
+    """Print a compact subsection heading inside a larger report."""
+
+    prefix = " " * indent
+    print(f"{prefix}{_style(f'{title}:', _ANSI_BOLD, _ANSI_CYAN)}")
+
+
+def _print_metric(label: str, value: object, *, indent: int = 2) -> None:
     """Print one aligned key/value metric."""
 
-    print(f"  {label:<24} {value}")
+    prefix = " " * indent
+    print(f"{prefix}{label:<24} {_render_value(value)}")
 
 
-def _print_list_item(value: object, *, prefix: str = "-") -> None:
+def _print_list_item(value: object, *, prefix: str = "-", indent: int = 4) -> None:
     """Print one indented list item."""
 
-    print(f"    {prefix} {value}")
+    print(f"{' ' * indent}{prefix} {_render_value(value)}")
 
 
-def _print_progress_item(value: object) -> None:
-    """Print one progress line and flush immediately for long-running steps."""
+def _print_notice(level: str, message: str, *, indent: int = 0) -> None:
+    """Print one styled informational line."""
 
-    print(f"  > {value}", flush=True)
+    level_styles = {
+        "info": (_ANSI_CYAN,),
+        "success": (_ANSI_GREEN,),
+        "warning": (_ANSI_YELLOW,),
+        "error": (_ANSI_RED,),
+    }
+    prefix = " " * indent
+    print(f"{prefix}{_style(message, *level_styles.get(level, ()))}")
+
+
+def _sync_item_status(item: object) -> str:
+    """Map one sync item decision to a human-facing status label."""
+
+    if item.status == SyncItemStatus.SYNCED:
+        return "valid"
+    if item.status == SyncItemStatus.SYMLINK_WRONG:
+        return "warning"
+    if item.status in {SyncItemStatus.SYMLINK_BROKEN, SyncItemStatus.SOURCE_MISSING}:
+        return "error"
+    return "info"
+
+
+def _sync_item_reason(item: object) -> str:
+    """Map one sync item decision to a concise human-facing reason."""
+
+    if item.status == SyncItemStatus.SYNCED:
+        return "symlink_valid"
+    if item.status == SyncItemStatus.SYMLINK_BROKEN:
+        return "target_missing"
+    if item.status == SyncItemStatus.SYMLINK_WRONG:
+        return "wrong_symlink"
+    if item.status == SyncItemStatus.INDEPENDENT:
+        return "independent_path"
+    if item.status == SyncItemStatus.MISSING:
+        return "target_missing"
+    return "source_missing"
+
+
+def _sync_item_details(item: object, *, include_source: bool = False) -> list[tuple[str, str]]:
+    """Return detail lines that help explain one sync item decision."""
+
+    details: list[tuple[str, str]] = []
+    if item.status == SyncItemStatus.SYNCED:
+        if include_source:
+            details.append(("source", _pretty_path(item.source_path)))
+    elif item.status == SyncItemStatus.SYMLINK_BROKEN:
+        details.append(("target", _pretty_path(item.target_path)))
+        if item.link_target:
+            details.append(("link target", _pretty_path(item.link_target)))
+    elif item.status == SyncItemStatus.SYMLINK_WRONG:
+        details.append(("current target", _pretty_path(item.link_target or "-")))
+        details.append(("expected target", _pretty_path(item.source_path)))
+    elif item.status == SyncItemStatus.INDEPENDENT:
+        if include_source:
+            details.append(("target", _pretty_path(item.target_path)))
+    elif item.status == SyncItemStatus.MISSING:
+        details.append(("target", _pretty_path(item.target_path)))
+    else:
+        details.append(("source", _pretty_path(item.source_path)))
+    return details
+
+
+def _print_sync_item_block(item: object, *, include_source: bool = False) -> None:
+    """Render one sync item as a compact subsection block."""
+
+    _print_subsection(item.label)
+    _print_metric("status", _render_status(_sync_item_status(item)), indent=4)
+    _print_metric("reason", _humanize_reason(_sync_item_reason(item)), indent=4)
+    for label, value in _sync_item_details(item, include_source=include_source):
+        _print_metric(label, value, indent=4)
+
+
+def _symlink_decisions_for(plan: object, action: SymlinkAction) -> list[object]:
+    """Return all symlink decisions matching the requested action."""
+
+    return [decision for decision in plan.decisions if decision.action == action]
+
+
+def _manifest_update_lines(plan: object) -> list[str]:
+    """Build human-readable lines for manifest update candidates."""
+
+    lines: list[str] = []
+    for decision in plan.decisions:
+        if decision.action != ManifestAction.UPDATE:
+            continue
+        lines.append(
+            f"{_pretty_path(decision.manifest_path)}: "
+            f"{decision.current_folder_name or '-'} -> {decision.desired_folder_name or '-'}"
+        )
+    return lines
+
+
+def _manifest_preserved_lines(plan: object) -> list[str]:
+    """Build human-readable lines for preserved unresolved profile entries."""
+
+    lines: list[str] = []
+    for decision in plan.decisions:
+        if not is_preserved_missing_profile_decision(decision):
+            continue
+        lines.append(
+            f"{_pretty_path(decision.manifest_path)}: "
+            f"{decision.current_folder_name or '-'}"
+        )
+    return lines
+
+
+def _print_extensions_overview(symlink_plan: object, manifest_plan: object) -> None:
+    """Render the shared extension health summary and any important details."""
+
+    _print_section("Extensions")
+    _print_metric("Linked", f"{symlink_plan.linked_count}/{symlink_plan.expected_link_count}")
+    _print_metric("Missing", symlink_plan.missing_count)
+    _print_metric("Broken", symlink_plan.broken_count)
+    _print_metric("Wrong target", symlink_plan.wrong_target_count)
+    _print_metric("Unmanaged", symlink_plan.unmanaged_count)
+    _print_metric("Stale", symlink_plan.stale_managed_count)
+    _print_metric("Excluded", symlink_plan.excluded_count)
+    if symlink_plan.excluded_symlinked_count:
+        _print_metric("Excluded linked", symlink_plan.excluded_symlinked_count)
+    if manifest_plan.update_count or manifest_plan.remove_count:
+        _print_metric("Manifest updates", manifest_plan.update_count)
+        _print_metric("Manifest removals", manifest_plan.remove_count)
+    if manifest_plan.preserved_missing_profile_count:
+        _print_metric("Preserved profile drift", manifest_plan.preserved_missing_profile_count)
+
+    detail_groups = (
+        ("Missing links", _symlink_decisions_for(symlink_plan, SymlinkAction.MISSING)),
+        ("Broken links", _symlink_decisions_for(symlink_plan, SymlinkAction.BROKEN)),
+        ("Wrong targets", _symlink_decisions_for(symlink_plan, SymlinkAction.WRONG_TARGET)),
+        (
+            "Unmanaged directories",
+            _symlink_decisions_for(symlink_plan, SymlinkAction.UNMANAGED_REAL_DIR),
+        ),
+        (
+            "Excluded links",
+            _symlink_decisions_for(symlink_plan, SymlinkAction.EXCLUDED_BUT_SYMLINKED),
+        ),
+        (
+            "Stale managed links",
+            _symlink_decisions_for(symlink_plan, SymlinkAction.STALE_MANAGED_SYMLINK),
+        ),
+    )
+
+    for title, decisions in detail_groups:
+        if not decisions:
+            continue
+        print()
+        _print_subsection(title)
+        for decision in decisions:
+            description = decision.folder_name
+            if decision.action == SymlinkAction.WRONG_TARGET and decision.target_path:
+                description = f"{decision.folder_name} -> {_pretty_path(decision.target_path)}"
+            _print_list_item(description, indent=4)
+
+    manifest_updates = _manifest_update_lines(manifest_plan)
+    if manifest_updates:
+        print()
+        _print_subsection("Manifest updates")
+        for line in manifest_updates:
+            _print_list_item(line, indent=4)
+
+    preserved_lines = _manifest_preserved_lines(manifest_plan)
+    if preserved_lines:
+        print()
+        _print_subsection("Preserved profile drift")
+        for line in preserved_lines:
+            _print_list_item(line, indent=4)
+
+
+def _build_update_progress_reporter(plan: object):
+    """Create a step-based progress reporter for the update workflow."""
+
+    total_steps = 2
+    if plan.cleanup_plan is not None:
+        total_steps += 1
+    if plan.native_excluded_extension_ids:
+        total_steps += 1
+
+    state = {
+        "index": 0,
+        "phase": None,
+    }
+
+    def _start_step(phase: str, label: str) -> None:
+        if state["phase"] == phase:
+            return
+        state["index"] += 1
+        state["phase"] = phase
+        marker = _style(f"[{state['index']}/{total_steps}]", _ANSI_BOLD, _ANSI_CYAN)
+        print(f"  {marker} {label}", flush=True)
+
+    def _detail(message: str, *, level: str = "info") -> None:
+        _print_notice(level, message, indent=6)
+        sys.stdout.flush()
+
+    def _report(message: str) -> None:
+        if message == "Updating shared Stable extensions.":
+            _start_step("shared", "Updating shared Stable extensions")
+            return
+        if message.startswith("Shared Stable update completed:"):
+            _detail(message.removesuffix(".").replace("Shared Stable ", "").capitalize())
+            return
+        if message == "Shared Stable root is already current.":
+            _detail("Shared root already current.")
+            return
+        if message == "Scanning the shared root for duplicate leftovers.":
+            _start_step("cleanup", "Cleaning duplicate leftovers")
+            return
+        if message.startswith("Quarantined "):
+            _detail(message.removesuffix("."))
+            return
+        if message == "No shared-root leftovers detected.":
+            _detail("No shared-root leftovers detected.")
+            return
+        if message.startswith("Cleanup could not quarantine "):
+            _detail(message.removesuffix("."), level="warning")
+            return
+        if message == "Checking Insiders-native excluded extensions.":
+            _start_step("excluded", "Checking Insiders-native excluded extensions")
+            return
+        if message.startswith("Checking excluded extension: "):
+            extension_id = message.removeprefix("Checking excluded extension: ").removesuffix(".")
+            _detail(f"Checking {extension_id}.")
+            return
+        if message.startswith("Updated excluded extension: "):
+            extension_id = message.removeprefix("Updated excluded extension: ").removesuffix(".")
+            _detail(f"Updated {extension_id}.", level="success")
+            return
+        if message.startswith("Excluded extension already current: "):
+            extension_id = message.removeprefix("Excluded extension already current: ").removesuffix(".")
+            _detail(f"{extension_id} is already current.")
+            return
+        if message.startswith("Excluded extension update failed: "):
+            extension_id = message.removeprefix("Excluded extension update failed: ").removesuffix(".")
+            _detail(f"Failed to update {extension_id}.", level="warning")
+            return
+        if message == "Reconciling Insiders links and manifest drift.":
+            _start_step("reconcile", "Reconciling links and manifests")
+            return
+        if message == "Update workflow completed.":
+            _detail("Workflow completed.", level="success")
+            return
+        _detail(message)
+
+    return _report
 
 
 def _run_scan(args: argparse.Namespace) -> int:
@@ -501,18 +868,24 @@ def _run_plan_cleanup(args: argparse.Namespace) -> int:
         return _emit_json(plan.to_dict())
 
     _print_section("Cleanup Plan")
-    _print_metric("Root", plan.root)
-    _print_metric("Strategy", plan.strategy.value)
-    _print_metric("Respect references", plan.respect_references)
-    _print_metric("Prune stale refs", plan.prune_stale_references)
-    _print_metric("Duplicate groups", plan.duplicate_group_count)
-    _print_metric("Planned quarantine", plan.planned_deletion_count)
-    _print_metric("Protected refs", len(plan.protected_reference_names))
-    _print_metric("Stale refs", len(plan.stale_reference_names))
+    _print_subsection("Overview")
+    _print_metric("Root", plan.root, indent=4)
+    _print_metric("Strategy", plan.strategy.value, indent=4)
+    _print_metric("Respect references", _render_toggle(plan.respect_references), indent=4)
+    _print_metric("Prune stale refs", _render_toggle(plan.prune_stale_references), indent=4)
+    _print_metric("Duplicate groups", plan.duplicate_group_count, indent=4)
+    _print_metric("Planned quarantine", plan.planned_deletion_count, indent=4)
+    _print_metric("Protected refs", len(plan.protected_reference_names), indent=4)
+    _print_metric("Stale refs", len(plan.stale_reference_names), indent=4)
     for group in plan.groups:
-        _print_section(f"  Group: {group.core_name}")
+        print()
+        _print_subsection(f"Group {group.core_name}")
         for decision in group.decisions:
-            print(f"    - {decision.folder_name:<52} {decision.action.value} ({decision.reason})")
+            _print_list_item(
+                f"{decision.folder_name:<52} {decision.action.value} "
+                f"({_humanize_reason(decision.reason)})",
+                indent=4,
+            )
     return 0
 
 
@@ -561,24 +934,29 @@ def _run_clean(args: argparse.Namespace) -> int:
             return _emit_json(plan.to_dict())
 
         _print_section("Cleanup Preview")
-        _print_metric("Root", plan.root)
-        _print_metric("Strategy", plan.strategy.value)
-        _print_metric("Mode", "dry-run")
+        _print_subsection("Overview")
+        _print_metric("Root", plan.root, indent=4)
+        _print_metric("Strategy", plan.strategy.value, indent=4)
+        _print_metric("Mode", _style("dry run", _ANSI_BOLD, _ANSI_CYAN), indent=4)
         if plan.respect_references:
-            _print_metric("Reference guard", "enabled")
-            _print_metric("Raw references", len(plan.raw_reference_names))
-            _print_metric("Protected refs", len(plan.protected_reference_names))
+            _print_metric("Reference guard", _render_toggle(True), indent=4)
+            _print_metric("Raw references", len(plan.raw_reference_names), indent=4)
+            _print_metric("Protected refs", len(plan.protected_reference_names), indent=4)
             if plan.stale_reference_names:
-                mode = "enabled" if plan.prune_stale_references else "disabled"
-                _print_metric("Stale ref pruning", mode)
-                _print_metric("Detected stale refs", len(plan.stale_reference_names))
+                mode = _render_toggle(plan.prune_stale_references)
+                _print_metric("Stale ref pruning", mode, indent=4)
+                _print_metric("Detected stale refs", len(plan.stale_reference_names), indent=4)
         else:
-            _print_metric("Reference guard", "disabled")
+            _print_metric("Reference guard", _render_toggle(False), indent=4)
 
-        _print_metric("Duplicate groups", plan.duplicate_group_count)
-        _print_metric("Planned quarantine", plan.planned_deletion_count)
-        for path in deletable_paths_from_plan(plan):
-            _print_list_item(path)
+        _print_metric("Duplicate groups", plan.duplicate_group_count, indent=4)
+        _print_metric("Planned quarantine", plan.planned_deletion_count, indent=4)
+        deletable_paths = deletable_paths_from_plan(plan)
+        if deletable_paths:
+            print()
+            _print_subsection("Quarantine candidates")
+            for path in deletable_paths:
+                _print_list_item(path, indent=4)
         return 0
 
     deletable_paths = deletable_paths_from_plan(plan)
@@ -608,9 +986,9 @@ def _run_clean(args: argparse.Namespace) -> int:
         _print_metric("Action", "quarantine selected folders")
         for path in deletable_paths:
             _print_list_item(path)
-        response = input("Proceed with quarantine move? [y/N] ").strip().lower()
+        response = input(f"{_style('Proceed with quarantine move? [y/N] ', _ANSI_YELLOW)}").strip().lower()
         if response not in {"y", "yes"}:
-            print("Aborted by user.")
+            _print_notice("warning", "Aborted by user.")
             return 0
 
     report = apply_cleanup_plan(plan)
@@ -623,13 +1001,20 @@ def _run_clean(args: argparse.Namespace) -> int:
         )
 
     _print_section("Cleanup Result")
-    _print_metric("Quarantined", len(report.quarantined_paths))
-    _print_metric("Quarantine root", report.quarantine_root)
-    _print_metric("Failed", len(report.failed_paths))
-    for path in report.quarantined_paths:
-        _print_list_item(f"quarantined {path}")
-    for path in report.failed_paths:
-        _print_list_item(f"failed {path}")
+    _print_subsection("Overview")
+    _print_metric("Quarantined", len(report.quarantined_paths), indent=4)
+    _print_metric("Quarantine root", report.quarantine_root, indent=4)
+    _print_metric("Failed", len(report.failed_paths), indent=4)
+    if report.quarantined_paths:
+        print()
+        _print_subsection("Quarantined folders")
+        for path in report.quarantined_paths:
+            _print_list_item(path, indent=4)
+    if report.failed_paths:
+        print()
+        _print_subsection("Failed folders")
+        for path in report.failed_paths:
+            _print_list_item(path, indent=4)
     return 0 if not report.failed_paths else 1
 
 
@@ -661,10 +1046,12 @@ def _run_plan_manifests(args: argparse.Namespace) -> int:
     if args.json_output:
         return _emit_json(plan.to_dict())
 
-    print(f"manifest_updates={plan.update_count}")
-    print(f"manifest_removals={plan.remove_count}")
-    print(f"manifest_keeps={plan.keep_count}")
-    print(f"manifest_preserved_missing_profiles={plan.preserved_missing_profile_count}")
+    _print_section("Manifest Plan")
+    _print_subsection("Overview")
+    _print_metric("Manifest updates", plan.update_count, indent=4)
+    _print_metric("Manifest removals", plan.remove_count, indent=4)
+    _print_metric("Manifest keeps", plan.keep_count, indent=4)
+    _print_metric("Preserved profile drift", plan.preserved_missing_profile_count, indent=4)
     for decision in plan.decisions:
         if decision.action == ManifestAction.KEEP and not is_preserved_missing_profile_decision(
             decision
@@ -673,9 +1060,10 @@ def _run_plan_manifests(args: argparse.Namespace) -> int:
         label = decision.action.value
         if is_preserved_missing_profile_decision(decision):
             label = "preserve"
-        print(
-            f"{label}\t{decision.manifest_path}\t"
-            f"{decision.current_folder_name or '-'} -> {decision.desired_folder_name or '-'}"
+        _print_list_item(
+            f"{label:<8} {_pretty_path(decision.manifest_path)} "
+            f"{decision.current_folder_name or '-'} -> {decision.desired_folder_name or '-'}",
+            indent=4,
         )
     return 0
 
@@ -693,18 +1081,23 @@ def _run_repair_manifests(args: argparse.Namespace) -> int:
     try:
         report = apply_manifest_repair_plan_safely(plan)
     except ProfileManifestSafetyError as exc:
-        print(f"Manifest repair aborted: {exc}")
+        _print_notice("error", f"Manifest repair aborted: {exc}")
         return 1
 
     if args.json_output:
         return _emit_json({"plan": plan.to_dict(), "apply_report": report.to_dict()})
 
-    print(f"Updated entries: {report.updated_entries}")
-    print(f"Removed entries: {report.removed_entries}")
-    print(f"Preserved unresolved profile entries: {plan.preserved_missing_profile_count}")
-    print(f"Touched manifests: {len(report.touched_manifests)}")
-    for path in report.touched_manifests:
-        print(f"  - {path}")
+    _print_section("Manifest Repair Result")
+    _print_subsection("Overview")
+    _print_metric("Updated entries", report.updated_entries, indent=4)
+    _print_metric("Removed entries", report.removed_entries, indent=4)
+    _print_metric("Preserved profile drift", plan.preserved_missing_profile_count, indent=4)
+    _print_metric("Touched manifests", len(report.touched_manifests), indent=4)
+    if report.touched_manifests:
+        print()
+        _print_subsection("Touched manifests")
+        for path in report.touched_manifests:
+            _print_list_item(path, indent=4)
     return 0
 
 
@@ -738,26 +1131,27 @@ def _run_setup_extensions(args: argparse.Namespace) -> int:
             exclude_patterns=exclude_patterns,
         )
     except ProfileManifestSafetyError as exc:
-        print(f"Setup aborted: {exc}")
+        _print_notice("error", f"Setup aborted: {exc}")
         return 1
     if args.json_output:
         return _emit_json(report.to_dict())
 
     _print_section("Setup Result")
-    _print_metric("Linked", report.linked_count)
-    _print_metric("Relinked", report.relinked_count)
-    _print_metric("Migrated unmanaged", report.migrated_count)
-    _print_metric("Removed stale", report.removed_stale_symlink_count)
-    _print_metric("Skipped excluded", report.skipped_excluded_symlink_count)
-    _print_metric("Manifest updates", report.manifest_apply_report.updated_entries)
-    _print_metric("Manifest removals", report.manifest_apply_report.removed_entries)
+    _print_subsection("Extensions")
+    _print_metric("Linked", report.linked_count, indent=4)
+    _print_metric("Relinked", report.relinked_count, indent=4)
+    _print_metric("Migrated unmanaged", report.migrated_count, indent=4)
+    _print_metric("Removed stale", report.removed_stale_symlink_count, indent=4)
+    _print_metric("Skipped excluded", report.skipped_excluded_symlink_count, indent=4)
+    _print_metric("Manifest updates", report.manifest_apply_report.updated_entries, indent=4)
+    _print_metric("Manifest removals", report.manifest_apply_report.removed_entries, indent=4)
     plan = plan_manifest_repairs(
         args.stable_dir,
         args.insiders_dir,
         config=config,
         exclude_patterns=exclude_patterns,
     )
-    _print_metric("Preserved profile drift", plan.preserved_missing_profile_count)
+    _print_metric("Preserved profile drift", plan.preserved_missing_profile_count, indent=4)
     return 0
 
 
@@ -774,12 +1168,17 @@ def _run_remove_extensions(args: argparse.Namespace) -> int:
     if args.json_output:
         return _emit_json(report.to_dict())
 
-    print(f"Removed legacy root symlinks: {report.removed_root_symlink_count}")
-    print(f"Removed entry symlinks: {report.removed_entry_symlink_count}")
-    print(f"Skipped real directories: {report.skipped_real_dir_count}")
-    print(f"Failed paths: {len(report.failed_paths)}")
-    for path in report.failed_paths:
-        print(f"  - failed\t{path}")
+    _print_section("Remove Result")
+    _print_subsection("Extensions")
+    _print_metric("Removed root symlink", report.removed_root_symlink_count, indent=4)
+    _print_metric("Removed entry symlinks", report.removed_entry_symlink_count, indent=4)
+    _print_metric("Skipped real directories", report.skipped_real_dir_count, indent=4)
+    _print_metric("Failed paths", len(report.failed_paths), indent=4)
+    if report.failed_paths:
+        print()
+        _print_subsection("Failed paths")
+        for path in report.failed_paths:
+            _print_list_item(path, indent=4)
     return 0 if not report.failed_paths else 1
 
 
@@ -795,40 +1194,7 @@ def _run_extension_status(args: argparse.Namespace) -> int:
             }
         )
 
-    _print_section("Extensions")
-    _print_metric("Linked", f"{symlink_plan.linked_count}/{symlink_plan.expected_link_count}")
-    _print_metric("Missing", symlink_plan.missing_count)
-    _print_metric("Broken", symlink_plan.broken_count)
-    _print_metric("Unmanaged", symlink_plan.unmanaged_count)
-    _print_metric("Stale", symlink_plan.stale_managed_count)
-    _print_metric("Excluded", symlink_plan.excluded_count)
-    if symlink_plan.excluded_symlinked_count:
-        _print_metric("Excluded symlinked", symlink_plan.excluded_symlinked_count)
-    if manifest_plan.update_count or manifest_plan.remove_count:
-        _print_metric(
-            "Manifest drift",
-            f"{manifest_plan.update_count} update candidate(s), {manifest_plan.remove_count} removal candidate(s)",
-        )
-    if manifest_plan.preserved_missing_profile_count:
-        _print_metric("Preserved profile drift", manifest_plan.preserved_missing_profile_count)
-
-    for decision in symlink_plan.decisions:
-        if decision.action == SymlinkAction.LINKED or decision.action == SymlinkAction.EXCLUDED:
-            continue
-        _print_list_item(f"{decision.folder_name} [{decision.action.value}] {decision.reason}")
-
-    for decision in manifest_plan.decisions:
-        if decision.action == ManifestAction.KEEP and not is_preserved_missing_profile_decision(
-            decision
-        ):
-            continue
-        label = decision.action.value
-        if is_preserved_missing_profile_decision(decision):
-            label = "preserve"
-        _print_list_item(
-            f"manifest {label}: {decision.manifest_path} "
-            f"{decision.current_folder_name or '-'} -> {decision.desired_folder_name or '-'}"
-        )
+    _print_extensions_overview(symlink_plan, manifest_plan)
     return 0
 
 
@@ -853,17 +1219,7 @@ def _run_extension_check(args: argparse.Namespace) -> int:
         print(f"WARNINGS={warnings}")
         return 0
 
-    _print_section("Extensions")
-    _print_metric("Linked", f"{symlink_plan.linked_count}/{symlink_plan.expected_link_count}")
-    _print_metric("Missing", symlink_plan.missing_count)
-    _print_metric("Broken", symlink_plan.broken_count)
-    _print_metric("Unmanaged", symlink_plan.unmanaged_count)
-    _print_metric("Stale", symlink_plan.stale_managed_count)
-    if manifest_plan.update_count or manifest_plan.remove_count:
-        _print_metric("Manifest updates", manifest_plan.update_count)
-        _print_metric("Manifest removals", manifest_plan.remove_count)
-    if manifest_plan.preserved_missing_profile_count:
-        _print_metric("Preserved profile drift", manifest_plan.preserved_missing_profile_count)
+    _print_extensions_overview(symlink_plan, manifest_plan)
     print(f"ISSUES={issues}")
     print(f"WARNINGS={warnings}")
     return 0 if issues == 0 else 1
@@ -884,43 +1240,13 @@ def _run_sync_status(args: argparse.Namespace) -> int:
         return _emit_json(report.to_dict())
 
     _print_section("Items")
-    for item in report.items:
-        if item.status == SyncItemStatus.SYNCED:
-            print(f"  [SYNCED]  {item.label:<12} {item.source_path}")
-        elif item.status == SyncItemStatus.SYMLINK_BROKEN:
-            print(f"  [BROKEN]  {item.label:<12} {item.link_target or '-'} (target missing)")
-        elif item.status == SyncItemStatus.SYMLINK_WRONG:
-            print(
-                f"  [WRONG]   {item.label:<12} {item.link_target or '-'} "
-                f"(expected: {item.source_path})"
-            )
-        elif item.status == SyncItemStatus.INDEPENDENT:
-            print(f"  [INDEP]   {item.label:<12} Independent file/directory")
-        elif item.status == SyncItemStatus.MISSING:
-            print(f"  [MISS]    {item.label:<12} Target does not exist")
-        else:
-            print(f"  [NO SRC]  {item.label:<12} Source not found: {item.source_path}")
+    for index, item in enumerate(report.items):
+        if index:
+            print()
+        _print_sync_item_block(item, include_source=True)
 
-    _print_section("Extensions")
-    _print_metric(
-        "Linked",
-        f"{report.symlink_plan.linked_count}/{report.symlink_plan.expected_link_count}",
-    )
-    _print_metric("Missing", report.symlink_plan.missing_count)
-    _print_metric("Broken", report.symlink_plan.broken_count)
-    _print_metric("Unmanaged", report.symlink_plan.unmanaged_count)
-    _print_metric("Stale", report.symlink_plan.stale_managed_count)
-    _print_metric("Excluded", report.symlink_plan.excluded_count)
-    if report.manifest_plan.update_count or report.manifest_plan.remove_count:
-        _print_metric(
-            "Manifest drift",
-            f"{report.manifest_plan.update_count} update candidate(s), {report.manifest_plan.remove_count} removal candidate(s)",
-        )
-    if report.manifest_plan.preserved_missing_profile_count:
-        _print_metric(
-            "Preserved profile drift",
-            report.manifest_plan.preserved_missing_profile_count,
-        )
+    print()
+    _print_extensions_overview(report.symlink_plan, report.manifest_plan)
     return 0
 
 
@@ -944,44 +1270,13 @@ def _run_sync_check(args: argparse.Namespace) -> int:
         return 0
 
     _print_section("Items")
-    for item in report.items:
-        print(f"  {item.label}")
-        if item.status == SyncItemStatus.SYNCED:
-            _print_metric("status", "ok")
-            _print_metric("reason", "symlink_valid")
-        elif item.status == SyncItemStatus.SYMLINK_BROKEN:
-            _print_metric("status", "error")
-            _print_metric("reason", f"broken_symlink ({item.target_path})")
-        elif item.status == SyncItemStatus.SYMLINK_WRONG:
-            _print_metric("status", "warn")
-            _print_metric("reason", f"wrong_symlink ({item.link_target or '-'})")
-        elif item.status == SyncItemStatus.INDEPENDENT:
-            _print_metric("status", "info")
-            _print_metric("reason", "independent_path")
-        elif item.status == SyncItemStatus.MISSING:
-            _print_metric("status", "info")
-            _print_metric("reason", "target_missing")
-        else:
-            _print_metric("status", "error")
-            _print_metric("reason", f"source_missing ({item.source_path})")
+    for index, item in enumerate(report.items):
+        if index:
+            print()
+        _print_sync_item_block(item)
 
-    _print_section("Extensions")
-    _print_metric(
-        "Linked",
-        f"{report.symlink_plan.linked_count}/{report.symlink_plan.expected_link_count}",
-    )
-    _print_metric("Missing", report.symlink_plan.missing_count)
-    _print_metric("Broken", report.symlink_plan.broken_count)
-    _print_metric("Unmanaged", report.symlink_plan.unmanaged_count)
-    _print_metric("Stale", report.symlink_plan.stale_managed_count)
-    if report.manifest_plan.update_count or report.manifest_plan.remove_count:
-        _print_metric("Manifest updates", report.manifest_plan.update_count)
-        _print_metric("Manifest removals", report.manifest_plan.remove_count)
-    if report.manifest_plan.preserved_missing_profile_count:
-        _print_metric(
-            "Preserved profile drift",
-            report.manifest_plan.preserved_missing_profile_count,
-        )
+    print()
+    _print_extensions_overview(report.symlink_plan, report.manifest_plan)
     _print_section("Health")
     _print_metric("Issues", report.issues)
     _print_metric("Warnings", report.warnings)
@@ -1002,27 +1297,32 @@ def _run_sync_setup(args: argparse.Namespace) -> int:
             exclude_patterns=exclude_patterns,
         )
     except ProfileManifestSafetyError as exc:
-        print(f"Setup aborted: {exc}")
+        _print_notice("error", f"Setup aborted: {exc}")
         return 1
     if args.json_output:
         return _emit_json(report.to_dict())
 
     _print_section("Setup Result")
-    _print_metric("Synced items", report.synced_count)
-    _print_metric("Skipped items", report.skipped_count)
-    _print_metric("Failed items", report.failed_count)
-    _print_metric("Linked", report.extension_report.linked_count)
-    _print_metric("Relinked", report.extension_report.relinked_count)
-    _print_metric("Migrated unmanaged", report.extension_report.migrated_count)
-    _print_metric("Removed stale", report.extension_report.removed_stale_symlink_count)
-    _print_metric("Skipped excluded", report.extension_report.skipped_excluded_symlink_count)
+    _print_subsection("Items")
+    _print_metric("Synced items", report.synced_count, indent=4)
+    _print_metric("Skipped items", report.skipped_count, indent=4)
+    _print_metric("Failed items", report.failed_count, indent=4)
+    print()
+    _print_subsection("Extensions")
+    _print_metric("Linked", report.extension_report.linked_count, indent=4)
+    _print_metric("Relinked", report.extension_report.relinked_count, indent=4)
+    _print_metric("Migrated unmanaged", report.extension_report.migrated_count, indent=4)
+    _print_metric("Removed stale", report.extension_report.removed_stale_symlink_count, indent=4)
+    _print_metric("Skipped excluded", report.extension_report.skipped_excluded_symlink_count, indent=4)
     _print_metric(
         "Manifest updates",
         report.extension_report.manifest_apply_report.updated_entries,
+        indent=4,
     )
     _print_metric(
         "Manifest removals",
         report.extension_report.manifest_apply_report.removed_entries,
+        indent=4,
     )
     return 0 if report.failed_count == 0 else 1
 
@@ -1041,14 +1341,17 @@ def _run_sync_remove(args: argparse.Namespace) -> int:
         return _emit_json(report.to_dict())
 
     _print_section("Remove Result")
-    _print_metric("Restored items", report.restored_count)
-    _print_metric("Removed broken", report.removed_broken_count)
-    _print_metric("Skipped items", report.skipped_count)
-    _print_metric("Failed items", report.failed_count)
-    _print_metric("Removed root symlink", report.extension_report.removed_root_symlink_count)
-    _print_metric("Removed entry symlinks", report.extension_report.removed_entry_symlink_count)
-    _print_metric("Skipped real dirs", report.extension_report.skipped_real_dir_count)
-    _print_metric("Failed paths", len(report.extension_report.failed_paths))
+    _print_subsection("Items")
+    _print_metric("Restored items", report.restored_count, indent=4)
+    _print_metric("Removed broken", report.removed_broken_count, indent=4)
+    _print_metric("Skipped items", report.skipped_count, indent=4)
+    _print_metric("Failed items", report.failed_count, indent=4)
+    print()
+    _print_subsection("Extensions")
+    _print_metric("Removed root symlink", report.extension_report.removed_root_symlink_count, indent=4)
+    _print_metric("Removed entry symlinks", report.extension_report.removed_entry_symlink_count, indent=4)
+    _print_metric("Skipped real dirs", report.extension_report.skipped_real_dir_count, indent=4)
+    _print_metric("Failed paths", len(report.extension_report.failed_paths), indent=4)
     return 0 if report.failed_count == 0 and not report.extension_report.failed_paths else 1
 
 
@@ -1069,37 +1372,38 @@ def _run_update_extensions(args: argparse.Namespace) -> int:
             return _emit_json(plan.to_dict())
 
         _print_section("Update Plan")
-        _print_metric("Shared root", plan.stable_dir)
+        _print_subsection("Shared")
+        _print_metric("Shared root", plan.stable_dir, indent=4)
+        _print_metric("Mode", "apply update + reconcile", indent=4)
+        print()
+        _print_subsection("Cleanup")
         if plan.skip_clean:
-            _print_metric("Cleanup", "disabled")
+            _print_metric("Cleanup", _render_toggle(False), indent=4)
         else:
             assert plan.cleanup_plan is not None
-            _print_metric("Cleanup", "enabled")
-            _print_metric("Duplicate groups", plan.cleanup_plan.duplicate_group_count)
-            _print_metric("Current quarantine plan", plan.cleanup_plan.planned_deletion_count)
+            _print_metric("Cleanup", _render_toggle(True), indent=4)
+            _print_metric("Duplicate groups", plan.cleanup_plan.duplicate_group_count, indent=4)
+            _print_metric("Current quarantine plan", plan.cleanup_plan.planned_deletion_count, indent=4)
             _print_metric(
                 "Manifest guard",
                 "strict" if not plan.cleanup_plan.prune_stale_references else "prune stale refs",
+                indent=4,
             )
-            _print_metric("Cleanup source", "live post-update rescan")
-        if plan.native_excluded_extension_ids:
-            _print_metric("Excluded native checks", len(plan.native_excluded_extension_ids))
-            for extension_id in plan.native_excluded_extension_ids:
-                _print_list_item(extension_id)
-        else:
-            _print_metric("Excluded native checks", 0)
-        _print_metric("Insiders root", plan.insiders_dir)
-        if plan.symlink_plan.missing_count:
-            _print_metric("Missing links", plan.symlink_plan.missing_count)
-        if plan.symlink_plan.unmanaged_count:
-            _print_metric("Unmanaged dirs", plan.symlink_plan.unmanaged_count)
-        if plan.manifest_plan.update_count or plan.manifest_plan.remove_count:
-            _print_metric(
-                "Manifest drift",
-                f"{plan.manifest_plan.update_count} update candidate(s), {plan.manifest_plan.remove_count} removal candidate(s)",
-            )
+            _print_metric("Cleanup source", "live post-update rescan", indent=4)
         print()
-        print("[OK] Dry run complete. No changes were made.")
+        _print_subsection("Excluded")
+        _print_metric("Native checks", len(plan.native_excluded_extension_ids), indent=4)
+        for extension_id in plan.native_excluded_extension_ids:
+            _print_list_item(extension_id, indent=4)
+        print()
+        _print_subsection("Reconcile")
+        _print_metric("Insiders root", plan.insiders_dir, indent=4)
+        _print_metric("Missing links", plan.symlink_plan.missing_count, indent=4)
+        _print_metric("Unmanaged dirs", plan.symlink_plan.unmanaged_count, indent=4)
+        _print_metric("Manifest updates", plan.manifest_plan.update_count, indent=4)
+        _print_metric("Manifest removals", plan.manifest_plan.remove_count, indent=4)
+        print()
+        _print_notice("success", "Preview complete. No changes were made.")
         return 0
 
     try:
@@ -1108,53 +1412,63 @@ def _run_update_extensions(args: argparse.Namespace) -> int:
             plan,
             config=config,
             exclude_patterns=exclude_patterns,
-            progress=_print_progress_item,
+            progress=_build_update_progress_reporter(plan),
         )
     except ProfileManifestSafetyError as exc:
-        print(f"Update aborted: {exc}")
+        _print_notice("error", f"Update aborted: {exc}")
         return 1
     if args.json_output:
         return _emit_json({"plan": plan.to_dict(), "report": report.to_dict()})
 
     _print_section("Update Result")
-    _print_metric("Shared update", "ok" if report.shared_update_succeeded else "failed")
-    _print_metric("Shared updated", len(report.shared_updated_extension_ids))
-    for extension_id in report.shared_updated_extension_ids:
-        _print_list_item(f"updated {extension_id}")
-    _print_metric("Cleanup quarantined", report.cleanup_quarantined_count)
-    _print_metric("Cleanup failures", report.cleanup_failed_count)
-    _print_metric("Excluded attempted", len(report.excluded_updates_attempted))
-    _print_metric("Excluded updated", len(report.excluded_updates_applied))
-    _print_metric("Excluded already current", len(report.excluded_updates_current))
-    for extension_id in report.excluded_updates_applied:
-        _print_list_item(f"updated {extension_id}")
-    for extension_id in report.excluded_updates_current:
-        _print_list_item(f"current {extension_id}")
-    if report.excluded_updates_failed:
-        _print_metric("Excluded failed", len(report.excluded_updates_failed))
-        for extension_id in report.excluded_updates_failed:
-            _print_list_item(f"failed {extension_id}")
-    else:
-        _print_metric("Excluded failed", 0)
-    _print_metric("Linked", report.setup_report.linked_count)
-    _print_metric("Relinked", report.setup_report.relinked_count)
-    _print_metric("Migrated unmanaged", report.setup_report.migrated_count)
-    _print_metric("Removed stale", report.setup_report.removed_stale_symlink_count)
-    _print_metric("Manifest updates", report.setup_report.manifest_apply_report.updated_entries)
-    _print_metric("Manifest removals", report.setup_report.manifest_apply_report.removed_entries)
+    _print_subsection("Shared")
     _print_metric(
-        "Final links",
-        f"{report.final_symlink_plan.linked_count}/{report.final_symlink_plan.expected_link_count}",
+        "Update status",
+        _render_status("valid" if report.shared_update_succeeded else "error"),
+        indent=4,
     )
-    _print_metric("Final missing", report.final_symlink_plan.missing_count)
-    _print_metric("Final broken", report.final_symlink_plan.broken_count)
-    _print_metric("Final unmanaged", report.final_symlink_plan.unmanaged_count)
-    _print_metric("Final stale", report.final_symlink_plan.stale_managed_count)
+    _print_metric("Updated", len(report.shared_updated_extension_ids), indent=4)
+    for extension_id in report.shared_updated_extension_ids:
+        _print_list_item(f"updated {extension_id}", indent=4)
+    print()
+    _print_subsection("Cleanup")
+    _print_metric("Quarantined", report.cleanup_quarantined_count, indent=4)
+    _print_metric("Failures", report.cleanup_failed_count, indent=4)
+    print()
+    _print_subsection("Excluded")
+    _print_metric("Attempted", len(report.excluded_updates_attempted), indent=4)
+    _print_metric("Updated", len(report.excluded_updates_applied), indent=4)
+    _print_metric("Already current", len(report.excluded_updates_current), indent=4)
+    _print_metric("Failed", len(report.excluded_updates_failed), indent=4)
+    for extension_id in report.excluded_updates_applied:
+        _print_list_item(f"updated {extension_id}", indent=4)
+    for extension_id in report.excluded_updates_current:
+        _print_list_item(f"current {extension_id}", indent=4)
+    for extension_id in report.excluded_updates_failed:
+        _print_list_item(f"failed {extension_id}", indent=4)
+    print()
+    _print_subsection("Reconcile")
+    _print_metric("Linked", report.setup_report.linked_count, indent=4)
+    _print_metric("Relinked", report.setup_report.relinked_count, indent=4)
+    _print_metric("Migrated unmanaged", report.setup_report.migrated_count, indent=4)
+    _print_metric("Removed stale", report.setup_report.removed_stale_symlink_count, indent=4)
+    _print_metric("Manifest updates", report.setup_report.manifest_apply_report.updated_entries, indent=4)
+    _print_metric("Manifest removals", report.setup_report.manifest_apply_report.removed_entries, indent=4)
+    print()
+    _print_subsection("Final state")
+    _print_metric(
+        "Links",
+        f"{report.final_symlink_plan.linked_count}/{report.final_symlink_plan.expected_link_count}",
+        indent=4,
+    )
+    _print_metric("Missing", report.final_symlink_plan.missing_count, indent=4)
+    _print_metric("Broken", report.final_symlink_plan.broken_count, indent=4)
+    _print_metric("Wrong target", report.final_symlink_plan.wrong_target_count, indent=4)
+    _print_metric("Unmanaged", report.final_symlink_plan.unmanaged_count, indent=4)
+    _print_metric("Stale", report.final_symlink_plan.stale_managed_count, indent=4)
     if report.final_manifest_plan.update_count or report.final_manifest_plan.remove_count:
-        _print_metric(
-            "Manifest drift",
-            f"{report.final_manifest_plan.update_count} update candidate(s), {report.final_manifest_plan.remove_count} removal candidate(s)",
-        )
+        _print_metric("Manifest updates", report.final_manifest_plan.update_count, indent=4)
+        _print_metric("Manifest removals", report.final_manifest_plan.remove_count, indent=4)
     return 0
 
 
@@ -1173,17 +1487,23 @@ def _run_recover_missing(args: argparse.Namespace) -> int:
         if args.json_output:
             return _emit_json(plan.to_dict())
 
-        print(f"Requests: {len(plan.requests)}")
-        print(f"Install tasks: {len(plan.install_tasks)}")
-        print(f"Alias tasks (available now): {len(plan.alias_tasks)}")
+        _print_section("Recovery Plan")
+        _print_subsection("Overview")
+        _print_metric("Requests", len(plan.requests), indent=4)
+        _print_metric("Install tasks", len(plan.install_tasks), indent=4)
+        _print_metric("Alias tasks", len(plan.alias_tasks), indent=4)
         for task in plan.install_tasks:
-            print(
-                f"  - install\t{task.installer}\t{task.install_root}\t"
-                f"{task.install_spec}\trequests={task.request_count}\t"
-                f"profile={task.profile_name or '-'}"
+            _print_list_item(
+                f"install {task.installer} {_pretty_path(task.install_root)} "
+                f"{task.install_spec} requests={task.request_count} "
+                f"profile={task.profile_name or '-'}",
+                indent=4,
             )
         for task in plan.alias_tasks:
-            print(f"  - alias\t{task.alias_path}\t->\t{task.target_path}")
+            _print_list_item(
+                f"alias {_pretty_path(task.alias_path)} -> {_pretty_path(task.target_path)}",
+                indent=4,
+            )
         return 0
 
     report = apply_missing_extension_recovery(
@@ -1199,14 +1519,20 @@ def _run_recover_missing(args: argparse.Namespace) -> int:
             }
         )
 
-    print(f"Attempted installs: {len(report.attempted_installs)}")
-    print(f"Successful installs: {len(report.successful_installs)}")
-    print(f"Failed installs: {len(report.failed_installs)}")
-    print(f"Created aliases: {len(report.created_aliases)}")
-    print(f"Failed aliases: {len(report.failed_aliases)}")
-    print(f"Setup linked: {report.setup_linked_count}")
-    print(f"Setup relinked: {report.setup_relinked_count}")
-    print(f"Setup migrated: {report.setup_migrated_count}")
+    _print_section("Recovery Result")
+    _print_subsection("Installs")
+    _print_metric("Attempted", len(report.attempted_installs), indent=4)
+    _print_metric("Successful", len(report.successful_installs), indent=4)
+    _print_metric("Failed", len(report.failed_installs), indent=4)
+    print()
+    _print_subsection("Aliases")
+    _print_metric("Created", len(report.created_aliases), indent=4)
+    _print_metric("Failed", len(report.failed_aliases), indent=4)
+    print()
+    _print_subsection("Setup")
+    _print_metric("Linked", report.setup_linked_count, indent=4)
+    _print_metric("Relinked", report.setup_relinked_count, indent=4)
+    _print_metric("Migrated", report.setup_migrated_count, indent=4)
     return 0 if not report.failed_installs and not report.failed_aliases else 1
 
 

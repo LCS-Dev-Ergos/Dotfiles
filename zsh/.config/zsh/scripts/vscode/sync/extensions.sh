@@ -29,7 +29,8 @@ _vscode_sync_extensions_require_python() {
 }
 
 _vscode_sync_extensions_run_python() {
-  python3 "${_VSCODE_MODULE_ROOT}/py/cli.py" "$@"
+  VSCODE_SYNC_FORCE_COLOR="${VSCODE_SYNC_FORCE_COLOR:-1}" \
+    python3 "${_VSCODE_MODULE_ROOT}/py/cli.py" "$@"
 }
 
 # -----------------------------------------------------------------------------
@@ -58,7 +59,9 @@ _vscode_sync_check_extensions() {
   )"
   check_status=$?
 
-  [[ -n "$check_output" ]] && printf "%s\n" "$check_output"
+  if [[ -n "$check_output" ]]; then
+    printf "%s\n" "$check_output" | sed '/^ISSUES=/d;/^WARNINGS=/d'
+  fi
 
   issues_value=$(printf "%s\n" "$check_output" | sed -n 's/^ISSUES=//p' | tail -n 1)
   warnings_value=$(printf "%s\n" "$check_output" | sed -n 's/^WARNINGS=//p' | tail -n 1)
