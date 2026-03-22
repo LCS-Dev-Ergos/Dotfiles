@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import _support  # noqa: F401
 from vscode_config import VscodePathsConfig
-from vscode_models import ExtensionSetupReport, ManifestApplyReport
+from vscode_models import CleanupApplyReport, ExtensionSetupReport, ManifestApplyReport
 from vscode_update import (
     _parse_shared_updated_extension_ids,
     _update_native_excluded_extension,
@@ -181,6 +181,7 @@ class ExtensionUpdateReportTests(unittest.TestCase):
                     "github.copilot-chat": "failed",
                 }[extension_id]
 
+            progress_messages: list[str] = []
             with (
                 patch("vscode_update.shutil.which", return_value="/usr/bin/true"),
                 patch(
@@ -199,6 +200,7 @@ class ExtensionUpdateReportTests(unittest.TestCase):
                 report = apply_extension_update(
                     plan,
                     config=VscodePathsConfig.from_home(home),
+                    progress=progress_messages.append,
                 )
 
             self.assertEqual(
@@ -209,6 +211,20 @@ class ExtensionUpdateReportTests(unittest.TestCase):
             self.assertEqual(report.excluded_updates_current, ("anthropic.claude-code",))
             self.assertEqual(report.excluded_updates_failed, ("github.copilot-chat",))
             self.assertEqual(report.shared_updated_extension_ids, ())
+            self.assertEqual(
+                progress_messages,
+                [
+                    "Updating shared Stable extensions.",
+                    "Shared Stable root is already current.",
+                    "Checking Insiders-native excluded extensions.",
+                    "Checking excluded extension: anthropic.claude-code.",
+                    "Excluded extension already current: anthropic.claude-code.",
+                    "Checking excluded extension: github.copilot-chat.",
+                    "Excluded extension update failed: github.copilot-chat.",
+                    "Reconciling Insiders links and manifest drift.",
+                    "Update workflow completed.",
+                ],
+            )
 
     def test_apply_extension_update_replans_cleanup_after_shared_update(self) -> None:
         """Post-update cleanup must re-scan the root and quarantine old duplicates left by the update."""
@@ -313,6 +329,72 @@ class ExtensionUpdateReportTests(unittest.TestCase):
             self.assertEqual(report.cleanup_quarantined_count, 1)
             self.assertFalse(old_dir.exists())
             self.assertTrue((stable_root / "foo.ext-2.0.0").is_dir())
+
+    def test_apply_extension_update_continues_when_cleanup_reports_failures(self) -> None:
+        """Cleanup failures should be reported but must not abort the final reconcile step."""
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            home = Path(temp_dir)
+            stable_root = home / ".vscode/extensions"
+            insiders_root = home / ".vscode-insiders/extensions"
+            stable_root.mkdir(parents=True)
+            insiders_root.mkdir(parents=True)
+
+            plan = build_extension_update_plan(
+                stable_root,
+                insiders_root,
+                skip_clean=False,
+                config=VscodePathsConfig.from_home(home),
+            )
+
+            setup_report = ExtensionSetupReport(
+                linked_count=1,
+                relinked_count=0,
+                migrated_count=0,
+                removed_stale_symlink_count=0,
+                skipped_excluded_symlink_count=0,
+                manifest_apply_report=ManifestApplyReport(
+                    updated_entries=0,
+                    removed_entries=0,
+                    touched_manifests=(),
+                ),
+            )
+
+            cleanup_report = CleanupApplyReport(
+                root=stable_root,
+                quarantine_root=home / ".local/share/vscode-sync-backups/quarantine",
+                quarantined_paths=(),
+                failed_paths=(stable_root / "foo.ext-1.0.0",),
+            )
+
+            progress_messages: list[str] = []
+            with (
+                patch("vscode_update.shutil.which", return_value="/usr/bin/true"),
+                patch(
+                    "vscode_update._run_cli_command",
+                    return_value=subprocess.CompletedProcess(["code"], 0),
+                ),
+                patch(
+                    "vscode_update.apply_cleanup_plan",
+                    return_value=cleanup_report,
+                ),
+                patch(
+                    "vscode_update.apply_extension_setup",
+                    return_value=setup_report,
+                ) as apply_setup_mock,
+            ):
+                report = apply_extension_update(
+                    plan,
+                    config=VscodePathsConfig.from_home(home),
+                    progress=progress_messages.append,
+                )
+
+            self.assertEqual(report.cleanup_failed_count, 1)
+            apply_setup_mock.assert_called_once()
+            self.assertIn(
+                "Cleanup could not quarantine 1 shared-root leftover(s); continuing with reconcile.",
+                progress_messages,
+            )
 
 
 if __name__ == "__main__":

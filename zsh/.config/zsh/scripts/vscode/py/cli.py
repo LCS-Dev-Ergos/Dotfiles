@@ -64,6 +64,7 @@ from vscode_sync_workflow import (
     apply_sync_remove,
     apply_sync_setup,
     collect_sync_status,
+    extension_health_counts,
 )
 from vscode_update import apply_extension_update, build_extension_update_plan
 
@@ -435,6 +436,12 @@ def _print_list_item(value: object, *, prefix: str = "-") -> None:
     print(f"    {prefix} {value}")
 
 
+def _print_progress_item(value: object) -> None:
+    """Print one progress line and flush immediately for long-running steps."""
+
+    print(f"  > {value}", flush=True)
+
+
 def _run_scan(args: argparse.Namespace) -> int:
     """Handle the `scan` subcommand."""
 
@@ -719,21 +726,6 @@ def _combined_extension_state(args: argparse.Namespace):
     return symlink_plan, manifest_plan
 
 
-def _extension_health_counts(symlink_plan, manifest_plan) -> tuple[int, int]:
-    """Return issue and warning counts for extension health checks."""
-
-    issues = symlink_plan.broken_count + manifest_plan.remove_count
-    warnings = (
-        symlink_plan.missing_count
-        + symlink_plan.wrong_target_count
-        + symlink_plan.unmanaged_count
-        + symlink_plan.excluded_symlinked_count
-        + symlink_plan.stale_managed_count
-        + manifest_plan.preserved_missing_profile_count
-    )
-    return issues, warnings
-
-
 def _run_setup_extensions(args: argparse.Namespace) -> int:
     """Handle the `setup-extensions` subcommand."""
 
@@ -844,7 +836,7 @@ def _run_extension_check(args: argparse.Namespace) -> int:
     """Handle the `extension-check` subcommand."""
 
     symlink_plan, manifest_plan = _combined_extension_state(args)
-    issues, warnings = _extension_health_counts(symlink_plan, manifest_plan)
+    issues, warnings = extension_health_counts(symlink_plan, manifest_plan)
 
     if args.json_output:
         return _emit_json(
@@ -1111,10 +1103,12 @@ def _run_update_extensions(args: argparse.Namespace) -> int:
         return 0
 
     try:
+        _print_section("Progress")
         report = apply_extension_update(
             plan,
             config=config,
             exclude_patterns=exclude_patterns,
+            progress=_print_progress_item,
         )
     except ProfileManifestSafetyError as exc:
         print(f"Update aborted: {exc}")

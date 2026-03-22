@@ -46,9 +46,6 @@ def extract_folder_name_from_location_path(location_path: str) -> str | None:
     return trailing_path.split("/", 1)[0] or None
 
 
-_extract_folder_name_from_location_path = extract_folder_name_from_location_path
-
-
 def parse_manifest_reference_entries(
     manifest_path: str | Path,
     *,

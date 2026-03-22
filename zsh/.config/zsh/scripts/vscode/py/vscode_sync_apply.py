@@ -19,8 +19,8 @@ function handles:
    to point at the correct folder names via the update-only (no-removal)
    repair pipeline.
 
-All mutations are guarded by lexical root checks to prevent path-traversal
-attacks on the managed extension directories.
+All mutations are guarded by canonical path-location checks to prevent
+path-traversal attacks on the managed extension directories.
 
 Author: XtremeXSPC
 Version: 1.0.0
@@ -33,7 +33,7 @@ import shutil
 from pathlib import Path
 
 from vscode_config import DEFAULT_EXTENSION_EXCLUDE_PATTERNS, VscodePathsConfig
-from vscode_fs import canonicalize_path
+from vscode_fs import canonicalize_path, is_path_location_within_directory
 from vscode_models import (
     ExtensionRemoveReport,
     ExtensionSetupReport,
@@ -47,18 +47,10 @@ from vscode_profiles import (
 )
 
 
-def _is_lexically_within_root(path: Path, root: Path) -> bool:
-    """Return `True` when `path` is lexically contained inside `root`."""
-
-    path = path.expanduser()
-    root = root.expanduser()
-    return path == root or root in path.parents
-
-
 def _safe_remove_path(path: Path, *, root: Path) -> bool:
     """Remove a path only when it stays inside the managed root."""
 
-    if not _is_lexically_within_root(path, root):
+    if not is_path_location_within_directory(path, root):
         return False
     if path.is_symlink() or path.exists():
         if path.is_dir() and not path.is_symlink():
@@ -71,7 +63,7 @@ def _safe_remove_path(path: Path, *, root: Path) -> bool:
 def _safe_create_symlink(*, link_path: Path, target_path: Path, root: Path) -> bool:
     """Create or replace a symlink only when the link lives inside the managed root."""
 
-    if not _is_lexically_within_root(link_path, root):
+    if not is_path_location_within_directory(link_path, root):
         return False
     link_path.parent.mkdir(parents=True, exist_ok=True)
     if link_path.is_symlink() or link_path.exists():
@@ -135,7 +127,7 @@ def apply_extension_setup(
 
         if decision.action == SymlinkAction.UNMANAGED_REAL_DIR:
             stable_target = expected_target
-            if not _is_lexically_within_root(stable_target, stable_root):
+            if not is_path_location_within_directory(stable_target, stable_root):
                 continue
 
             stable_target.parent.mkdir(parents=True, exist_ok=True)

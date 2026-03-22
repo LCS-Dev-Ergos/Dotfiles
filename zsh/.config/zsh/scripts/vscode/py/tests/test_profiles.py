@@ -210,6 +210,48 @@ class ManifestRepairPlanTests(unittest.TestCase):
             self.assertEqual(filtered_plan.remove_count, 0)
             self.assertEqual(filtered_plan.decisions, ())
 
+    def test_update_only_manifest_plan_recomputes_preserved_profile_count(self) -> None:
+        """The filtered update-only plan should not trust the source preserved-count metadata."""
+
+        plan = ManifestRepairPlan(
+            stable_dir=Path("/tmp/stable"),
+            insiders_dir=Path("/tmp/insiders"),
+            update_count=0,
+            remove_count=1,
+            keep_count=1,
+            preserved_missing_profile_count=99,
+            decisions=(
+                ManifestRepairDecision(
+                    manifest_path=Path("/tmp/profile/extensions.json"),
+                    entry_index=0,
+                    edition=VscodeEdition.STABLE,
+                    source_kind="profile",
+                    extension_id="foo.ext",
+                    current_folder_name="foo.ext-1.0.0",
+                    desired_folder_name="foo.ext-1.0.0",
+                    action=ManifestAction.KEEP,
+                    reason="unchanged",
+                ),
+                ManifestRepairDecision(
+                    manifest_path=Path("/tmp/stable/extensions.json"),
+                    entry_index=1,
+                    edition=VscodeEdition.STABLE,
+                    source_kind="root",
+                    extension_id="ghost.ext",
+                    current_folder_name="ghost.ext-1.0.0",
+                    desired_folder_name=None,
+                    action=ManifestAction.REMOVE,
+                    reason="missing_install",
+                ),
+            ),
+        )
+
+        filtered_plan = build_update_only_manifest_plan(plan)
+
+        self.assertEqual(filtered_plan.remove_count, 0)
+        self.assertEqual(filtered_plan.keep_count, 1)
+        self.assertEqual(filtered_plan.preserved_missing_profile_count, 0)
+
     def test_safe_apply_rolls_back_if_profile_selection_would_change(self) -> None:
         """Removing a profile entry must trigger a rollback via ProfileManifestSafetyError."""
 

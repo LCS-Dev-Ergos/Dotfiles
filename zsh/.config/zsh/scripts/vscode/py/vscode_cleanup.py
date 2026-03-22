@@ -24,6 +24,7 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
+from vscode_backups import prune_backup_directories
 from vscode_fs import canonicalize_path, is_within_directory
 from vscode_models import CleanupAction, CleanupApplyReport, CleanupPlan
 
@@ -56,8 +57,8 @@ def _cleanup_backup_roots(root: Path) -> tuple[Path, ...]:
     return tuple(candidates)
 
 
-def _cleanup_quarantine_root(root: Path) -> Path:
-    """Create and return a unique quarantine directory for a cleanup run."""
+def _cleanup_quarantine_root(root: Path) -> tuple[Path, Path]:
+    """Create and return a unique quarantine directory plus its backup root."""
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     suffix = f"{timestamp}_{os.getpid()}_extension-cleaner-quarantine"
@@ -71,7 +72,7 @@ def _cleanup_quarantine_root(root: Path) -> Path:
             quarantine_root.mkdir(parents=True, exist_ok=True)
         except OSError:
             continue
-        return quarantine_root
+        return quarantine_root, backup_root
 
     raise OSError("unable to create an extension cleanup quarantine directory")
 
@@ -95,12 +96,20 @@ def apply_cleanup_plan(plan: CleanupPlan) -> CleanupApplyReport:
     """Apply a cleanup plan by moving selected directories into quarantine."""
 
     root = canonicalize_path(plan.root)
-    quarantine_root = _cleanup_quarantine_root(root)
+    deletable_paths = deletable_paths_from_plan(plan)
+    if not deletable_paths:
+        return CleanupApplyReport(
+            root=root,
+            quarantine_root=root,
+            quarantined_paths=(),
+            failed_paths=(),
+        )
+    quarantine_root, backup_root = _cleanup_quarantine_root(root)
 
     quarantined_paths: list[Path] = []
     failed_paths: list[Path] = []
 
-    for path in deletable_paths_from_plan(plan):
+    for path in deletable_paths:
         if not is_within_directory(path, root):
             failed_paths.append(path)
             continue
@@ -118,6 +127,8 @@ def apply_cleanup_plan(plan: CleanupPlan) -> CleanupApplyReport:
             continue
 
         quarantined_paths.append(destination)
+
+    prune_backup_directories(backup_root)
 
     return CleanupApplyReport(
         root=root,

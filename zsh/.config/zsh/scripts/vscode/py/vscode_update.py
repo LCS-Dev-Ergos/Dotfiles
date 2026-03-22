@@ -32,7 +32,9 @@ import tempfile
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Callable
 
+from vscode_backups import default_backup_root, prune_backup_directories
 from vscode_cleanup import apply_cleanup_plan
 from vscode_config import DEFAULT_EXTENSION_EXCLUDE_PATTERNS, VscodePathsConfig
 from vscode_fs import canonicalize_path, is_within_directory
@@ -57,6 +59,7 @@ from vscode_versions import compare_versions
 _UPDATE_TIMEOUT_SECONDS = 300
 _MAX_BACKUP_SUFFIX_ATTEMPTS = 10000
 _UPDATED_EXTENSION_RE = re.compile(r"Extension '([^']+)' .* was successfully updated\.")
+ProgressReporter = Callable[[str], None]
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,6 +133,13 @@ def _run_cli_command(
         capture_output=capture_output,
         text=capture_output,
     )
+
+
+def _emit_progress(progress: ProgressReporter | None, message: str) -> None:
+    """Send a human-readable progress message to the optional reporter."""
+
+    if progress is not None:
+        progress(message)
 
 
 def _collect_native_excluded_extension_ids(
@@ -239,7 +249,7 @@ def _make_native_update_temp_root(home: Path) -> tempfile.TemporaryDirectory[str
 def _make_native_update_backup_root(home: Path, extension_id: str) -> Path:
     """Create a unique backup directory for one excluded-extension promotion."""
 
-    backup_parent = canonicalize_path(home / ".local/share/vscode-sync-backups")
+    backup_parent = default_backup_root(home)
     backup_parent.mkdir(parents=True, exist_ok=True)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -252,6 +262,7 @@ def _make_native_update_backup_root(home: Path, extension_id: str) -> Path:
         )
         try:
             candidate.mkdir(parents=True, exist_ok=False)
+            prune_backup_directories(backup_parent)
             return candidate
         except FileExistsError:
             continue
@@ -451,6 +462,7 @@ def apply_extension_update(
     *,
     config: VscodePathsConfig | None = None,
     exclude_patterns: tuple[str, ...] | list[str] | None = None,
+    progress: ProgressReporter | None = None,
 ) -> ExtensionUpdateReport:
     """Apply an extension update plan end to end."""
 
@@ -462,6 +474,7 @@ def apply_extension_update(
     if shutil.which("code-insiders") is None:
         raise FileNotFoundError("VS Code Insiders CLI not found: code-insiders")
 
+    _emit_progress(progress, "Updating shared Stable extensions.")
     shared_update_completed = _run_cli_command(
         [
             "code",
@@ -483,10 +496,18 @@ def apply_extension_update(
     shared_updated_extension_ids = _parse_shared_updated_extension_ids(
         shared_stdout + "\n" + shared_stderr
     )
+    if shared_updated_extension_ids:
+        _emit_progress(
+            progress,
+            f"Shared Stable update completed: {len(shared_updated_extension_ids)} extension(s) updated.",
+        )
+    else:
+        _emit_progress(progress, "Shared Stable root is already current.")
 
     cleanup_quarantined_count = 0
     cleanup_failed_count = 0
     if plan.cleanup_plan is not None:
+        _emit_progress(progress, "Scanning the shared root for duplicate leftovers.")
         cleanup_report = apply_cleanup_plan(
             _build_runtime_cleanup_plan(
                 plan.stable_dir,
@@ -495,15 +516,28 @@ def apply_extension_update(
         )
         cleanup_quarantined_count = len(cleanup_report.quarantined_paths)
         cleanup_failed_count = len(cleanup_report.failed_paths)
+        if cleanup_quarantined_count:
+            _emit_progress(
+                progress,
+                f"Quarantined {cleanup_quarantined_count} leftover extension version(s) from the shared root.",
+            )
+        else:
+            _emit_progress(progress, "No shared-root leftovers detected.")
         if cleanup_failed_count:
-            raise RuntimeError("Shared Stable duplicate cleanup failed.")
+            _emit_progress(
+                progress,
+                f"Cleanup could not quarantine {cleanup_failed_count} shared-root leftover(s); continuing with reconcile.",
+            )
 
     excluded_updates_attempted: list[str] = []
     excluded_updates_applied: list[str] = []
     excluded_updates_current: list[str] = []
     excluded_updates_failed: list[str] = []
+    if plan.native_excluded_extension_ids:
+        _emit_progress(progress, "Checking Insiders-native excluded extensions.")
     for extension_id in plan.native_excluded_extension_ids:
         excluded_updates_attempted.append(extension_id)
+        _emit_progress(progress, f"Checking excluded extension: {extension_id}.")
         result = _update_native_excluded_extension(
             extension_id,
             insiders_dir=plan.insiders_dir,
@@ -511,11 +545,15 @@ def apply_extension_update(
         )
         if result == "applied":
             excluded_updates_applied.append(extension_id)
+            _emit_progress(progress, f"Updated excluded extension: {extension_id}.")
         elif result == "current":
             excluded_updates_current.append(extension_id)
+            _emit_progress(progress, f"Excluded extension already current: {extension_id}.")
         else:
             excluded_updates_failed.append(extension_id)
+            _emit_progress(progress, f"Excluded extension update failed: {extension_id}.")
 
+    _emit_progress(progress, "Reconciling Insiders links and manifest drift.")
     setup_report = apply_extension_setup(
         plan.stable_dir,
         plan.insiders_dir,
@@ -533,6 +571,7 @@ def apply_extension_update(
         config=resolved_config,
         exclude_patterns=resolved_patterns,
     )
+    _emit_progress(progress, "Update workflow completed.")
 
     return ExtensionUpdateReport(
         shared_update_succeeded=shared_update_succeeded,

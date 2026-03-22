@@ -29,7 +29,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from vscode_config import DEFAULT_EXTENSION_EXCLUDE_PATTERNS, VscodePathsConfig
-from vscode_fs import canonicalize_path
+from vscode_fs import canonicalize_path, is_path_location_within_directory, is_within_directory
 from vscode_models import ExtensionInstall
 from vscode_planner import is_excluded_extension, is_excluded_extension_id
 from vscode_profiles import is_preserved_missing_profile_decision, plan_manifest_repairs
@@ -525,9 +525,9 @@ def plan_missing_extension_recovery(
 def _safe_replace_alias(alias_path: Path, target_path: Path, *, root: Path) -> bool:
     """Create or replace a compatibility alias inside a managed root."""
 
-    if alias_path != root and root not in alias_path.parents:
+    if not is_path_location_within_directory(alias_path, root):
         return False
-    if target_path != root and root not in target_path.parents:
+    if not is_within_directory(target_path, root):
         return False
 
     alias_path.parent.mkdir(parents=True, exist_ok=True)

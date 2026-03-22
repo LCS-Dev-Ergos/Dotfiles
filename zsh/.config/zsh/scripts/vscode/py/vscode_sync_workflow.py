@@ -31,8 +31,9 @@ import sys
 import time
 from pathlib import Path
 
+from vscode_backups import default_backup_root, prune_backup_directories
 from vscode_config import DEFAULT_EXTENSION_EXCLUDE_PATTERNS, VscodePathsConfig
-from vscode_fs import canonicalize_path, is_within_directory
+from vscode_fs import is_within_directory
 from vscode_models import (
     SyncItem,
     SyncItemDecision,
@@ -152,7 +153,7 @@ def evaluate_sync_item(item: SyncItem) -> SyncItemDecision:
     )
 
 
-def _extension_health_counts(symlink_plan, manifest_plan) -> tuple[int, int]:
+def extension_health_counts(symlink_plan, manifest_plan) -> tuple[int, int]:
     """Return issue and warning counts for extension health."""
 
     issues = symlink_plan.broken_count + manifest_plan.remove_count
@@ -211,7 +212,7 @@ def collect_sync_status(
         exclude_patterns=resolved_patterns,
     )
     item_issues, item_warnings = _item_health_counts(item_decisions)
-    ext_issues, ext_warnings = _extension_health_counts(symlink_plan, manifest_plan)
+    ext_issues, ext_warnings = extension_health_counts(symlink_plan, manifest_plan)
     return SyncStatusReport(
         items=item_decisions,
         symlink_plan=symlink_plan,
@@ -246,13 +247,14 @@ def _copy_path(source: Path, destination: Path) -> None:
 def _make_backup_root(home: Path) -> Path:
     """Create and return a dedicated backup directory for one apply run."""
 
-    backup_parent = canonicalize_path(home / ".local/share/vscode-sync-backups")
+    backup_parent = default_backup_root(home)
     backup_parent.mkdir(parents=True, exist_ok=True)
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     for attempt in range(20):
         candidate = backup_parent / f"{timestamp}_{os.getpid()}_{attempt}_sync-items"
         try:
             candidate.mkdir(mode=0o700)
+            prune_backup_directories(backup_parent)
             return candidate
         except FileExistsError:
             continue

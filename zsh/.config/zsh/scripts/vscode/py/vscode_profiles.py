@@ -385,13 +385,16 @@ def build_update_only_manifest_plan(plan: ManifestRepairPlan) -> ManifestRepairP
         1 for decision in filtered_decisions if decision.action == ManifestAction.UPDATE
     )
     keep_count = sum(1 for decision in filtered_decisions if decision.action == ManifestAction.KEEP)
+    preserved_missing_profile_count = sum(
+        1 for decision in filtered_decisions if is_preserved_missing_profile_decision(decision)
+    )
     return ManifestRepairPlan(
         stable_dir=plan.stable_dir,
         insiders_dir=plan.insiders_dir,
         update_count=update_count,
         remove_count=0,
         keep_count=keep_count,
-        preserved_missing_profile_count=plan.preserved_missing_profile_count,
+        preserved_missing_profile_count=preserved_missing_profile_count,
         decisions=filtered_decisions,
     )
 

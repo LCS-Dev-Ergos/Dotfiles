@@ -22,10 +22,27 @@ def canonicalize_path(path: str | Path) -> Path:
     return Path(path).expanduser().resolve(strict=False)
 
 
+def canonicalize_path_location(path: str | Path) -> Path:
+    """Return a canonical location path without resolving the final path component."""
+
+    candidate = Path(path).expanduser()
+    if candidate == candidate.parent:
+        return canonicalize_path(candidate)
+    return canonicalize_path(candidate.parent) / candidate.name
+
+
 def is_within_directory(path: str | Path, root: str | Path) -> bool:
     """Return `True` when `path` is equal to or contained within `root`."""
 
     canonical_path = canonicalize_path(path)
+    canonical_root = canonicalize_path(root)
+    return canonical_path == canonical_root or canonical_root in canonical_path.parents
+
+
+def is_path_location_within_directory(path: str | Path, root: str | Path) -> bool:
+    """Return `True` when the path location is equal to or contained within `root`."""
+
+    canonical_path = canonicalize_path_location(path)
     canonical_root = canonicalize_path(root)
     return canonical_path == canonical_root or canonical_root in canonical_path.parents
 

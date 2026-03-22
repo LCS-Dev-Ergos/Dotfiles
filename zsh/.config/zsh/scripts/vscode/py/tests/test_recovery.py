@@ -9,7 +9,7 @@ from pathlib import Path
 
 from vscode_config import VscodePathsConfig
 from vscode_fs import canonicalize_path
-from vscode_recovery import plan_missing_extension_recovery
+from vscode_recovery import _safe_replace_alias, plan_missing_extension_recovery
 
 
 class RecoveryPlannerTests(unittest.TestCase):
@@ -117,6 +117,42 @@ class RecoveryPlannerTests(unittest.TestCase):
             self.assertEqual(plan.install_tasks[0].installer, "code")
             self.assertEqual(plan.install_tasks[0].install_spec, "foo.ext@1.0.0")
             self.assertEqual(plan.install_tasks[0].profile_name, "LCS.Python")
+
+
+class RecoveryAliasSafetyTests(unittest.TestCase):
+    """Verify alias replacement keeps containment checks robust."""
+
+    def test_safe_replace_alias_rejects_parent_escape(self) -> None:
+        """Alias paths escaping the managed root via `..` must be rejected."""
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            home = Path(temp_dir)
+            managed_root = home / ".vscode/extensions"
+            managed_root.mkdir(parents=True)
+            target_path = managed_root / "foo.ext-2.0.0"
+            target_path.mkdir()
+
+            self.assertFalse(
+                _safe_replace_alias(
+                    managed_root / "../escape.ext-1.0.0",
+                    target_path,
+                    root=managed_root,
+                )
+            )
+
+    def test_safe_replace_alias_allows_alias_inside_root(self) -> None:
+        """An alias located inside the managed root should be created successfully."""
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            home = Path(temp_dir)
+            managed_root = home / ".vscode/extensions"
+            managed_root.mkdir(parents=True)
+            target_path = managed_root / "foo.ext-2.0.0"
+            target_path.mkdir()
+            alias_path = managed_root / "nested/../foo.ext-1.0.0"
+
+            self.assertTrue(_safe_replace_alias(alias_path, target_path, root=managed_root))
+            self.assertTrue((managed_root / "foo.ext-1.0.0").is_symlink())
 
 
 if __name__ == "__main__":

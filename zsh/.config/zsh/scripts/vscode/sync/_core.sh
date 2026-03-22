@@ -21,7 +21,6 @@ _VSCODE_SYNC_LOCK_DIR="${HOME}/.cache/vscode_sync.lock"
 _VSCODE_SYNC_PROFILE_SNAPSHOT_RETENTION=5
 
 # Platform-aware config: populated by _vscode_sync_init_config at source time.
-_VSCODE_SYNC_ITEMS=()
 _VSCODE_EXTENSIONS_SRC=""
 _VSCODE_EXTENSIONS_DST=""
 _VSCODE_EXTENSIONS_EXCLUDE=()
@@ -113,29 +112,6 @@ _vscode_sync_check_platform() {
 }
 
 # -----------------------------------------------------------------------------
-# _vscode_sync_parse_item
-# -----------------------------------------------------------------------------
-# Parses a pipe-delimited sync item into component variables.
-# Sets _label, _source, and _target variables in the caller's scope.
-#
-# Usage:
-#   _vscode_sync_parse_item <item>
-#
-# Arguments:
-#   item - Pipe-delimited string "label|source_path|target_path" (required).
-#
-# Side Effects:
-#   - Sets _label, _source, _target in calling scope.
-# -----------------------------------------------------------------------------
-_vscode_sync_parse_item() {
-  local item="$1"
-  _label="${item%%|*}"
-  local rest="${item#*|}"
-  _source="${rest%%|*}"
-  _target="${rest#*|}"
-}
-
-# -----------------------------------------------------------------------------
 # _vscode_sync_check_vscode_running
 # -----------------------------------------------------------------------------
 # Checks if VS Code Stable or Insiders processes are running.
@@ -177,35 +153,6 @@ _vscode_sync_check_vscode_running() {
 }
 
 # -----------------------------------------------------------------------------
-# _vscode_sync_ensure_parent_dir
-# -----------------------------------------------------------------------------
-# Creates parent directory for a target path if it does not exist.
-#
-# Usage:
-#   _vscode_sync_ensure_parent_dir <target_path>
-#
-# Arguments:
-#   target_path - File or directory path whose parent must exist (required).
-#
-# Returns:
-#   0 - Parent directory exists or was created.
-#   1 - Failed to create parent directory.
-# -----------------------------------------------------------------------------
-_vscode_sync_ensure_parent_dir() {
-  local target="$1"
-  local parent_dir
-  parent_dir="$(dirname "$target")"
-  if [[ ! -d "$parent_dir" ]]; then
-    _shared_log info "Creating directory: $parent_dir"
-    mkdir -p "$parent_dir" || {
-      _shared_log error "Failed to create directory: $parent_dir"
-      return 1
-    }
-  fi
-  return 0
-}
-
-# -----------------------------------------------------------------------------
 # _vscode_sync_path_is_within_home
 # -----------------------------------------------------------------------------
 # Validates that a path is anchored within HOME.
@@ -223,119 +170,16 @@ _vscode_sync_path_is_within_home() {
 }
 
 # -----------------------------------------------------------------------------
-# _vscode_sync_validate_extensions_paths
+# _vscode_sync_prune_backup_dirs
 # -----------------------------------------------------------------------------
-# Ensures extension source/target roots are inside HOME before mutating ops.
-# -----------------------------------------------------------------------------
-_vscode_sync_validate_extensions_paths() {
-  local src="$_VSCODE_EXTENSIONS_SRC"
-  local dst="$_VSCODE_EXTENSIONS_DST"
-
-  if ! _vscode_sync_path_is_within_home "$src"; then
-    _shared_log error "Extensions source path outside HOME: $src"
-    return 1
-  fi
-  if ! _vscode_sync_path_is_within_home "$dst"; then
-    _shared_log error "Extensions target path outside HOME: $dst"
-    return 1
-  fi
-  return 0
-}
-
-# -----------------------------------------------------------------------------
-# _vscode_sync_make_temp_dir
-# -----------------------------------------------------------------------------
-# Creates a temporary working directory for CLI user-data roots and transient
-# sync metadata. Falls back to ~/.cache/vscode-sync when mktemp is unavailable.
-# -----------------------------------------------------------------------------
-_vscode_sync_make_temp_dir() {
-  local temp_dir
-
-  if temp_dir=$(mktemp -d 2>/dev/null); then
-    printf "%s\n" "$temp_dir"
-    return 0
-  fi
-
-  local cache_root="${XDG_CACHE_HOME:-$HOME/.cache}/vscode-sync"
-  mkdir -p "$cache_root" 2>/dev/null || return 1
-
-  if temp_dir=$(mktemp -d "${cache_root}/run.XXXXXXXX" 2>/dev/null); then
-    printf "%s\n" "$temp_dir"
-    return 0
-  fi
-
-  local attempt=0
-  while (( attempt < 20 )); do
-    temp_dir="${cache_root}/run.$$.$EPOCHSECONDS.$RANDOM.$attempt"
-    if mkdir "$temp_dir" 2>/dev/null; then
-      printf "%s\n" "$temp_dir"
-      return 0
-    fi
-    ((attempt++))
-  done
-
-  return 1
-}
-
-# -----------------------------------------------------------------------------
-# _vscode_sync_backup_item
-# -----------------------------------------------------------------------------
-# Creates a timestamped backup of an existing target before replacement.
-#
-# Usage:
-#   _vscode_sync_backup_item <label> <target_path>
-#
-# Arguments:
-#   label       - Human-readable item name for backup naming (required).
-#   target_path - Path to file or directory to back up (required).
-#
-# Returns:
-#   0 - Backup created successfully.
-#   1 - Backup failed.
-# -----------------------------------------------------------------------------
-_vscode_sync_backup_item() {
-  local label="$1" target="$2"
-  local timestamp
-  timestamp="$(date +%Y%m%d_%H%M%S)_$$"
-  local backup_dir="${_VSCODE_SYNC_BACKUP_DIR}/${timestamp}"
-
-  mkdir -p "$backup_dir" || {
-    _shared_log error "Failed to create backup directory: $backup_dir"
-    return 1
-  }
-  chmod 700 "$backup_dir" 2>/dev/null
-
-  local safe_label
-  safe_label=$(printf "%s" "$label" | tr ' ' '_' | tr -cd '[:alnum:]_-')
-  local backup_path="${backup_dir}/${safe_label}"
-
-  if [[ -d "$target" ]]; then
-    cp -R "$target" "$backup_path" || {
-      _shared_log error "Failed to backup directory: $target"
-      return 1
-    }
-  elif [[ -f "$target" ]]; then
-    cp "$target" "$backup_path" || {
-      _shared_log error "Failed to backup file: $target"
-      return 1
-    }
-  fi
-
-  _shared_log ok "Backed up: $target -> $backup_path"
-  return 0
-}
-
-# -----------------------------------------------------------------------------
-# _vscode_sync_prune_profile_state_snapshots
-# -----------------------------------------------------------------------------
-# Retains only the newest N profile-state snapshots in the shared backup root.
-# Snapshot names are timestamp-prefixed, so lexicographic ordering is stable.
+# Retains only the newest N backup directories in the shared backup root.
+# Backup names are timestamp-prefixed, so lexicographic ordering is stable.
 #
 # Returns:
 #   0 - Retention applied or nothing to prune.
 #   1 - Backup root is unsafe or unreadable.
 # -----------------------------------------------------------------------------
-_vscode_sync_prune_profile_state_snapshots() {
+_vscode_sync_prune_backup_dirs() {
   local keep_count="${_VSCODE_SYNC_PROFILE_SNAPSHOT_RETENTION:-5}"
   [[ "$keep_count" == <-> ]] || keep_count=5
   (( keep_count > 0 )) || keep_count=5
@@ -346,31 +190,31 @@ _vscode_sync_prune_profile_state_snapshots() {
     return 1
   fi
 
-  local -a snapshot_dirs prune_dirs
-  snapshot_dirs=("${(@f)$(
-    find "$_VSCODE_SYNC_BACKUP_DIR" -mindepth 1 -maxdepth 1 -type d -name '*_profile-state' 2>/dev/null |
+  local -a backup_dirs prune_dirs
+  backup_dirs=("${(@f)$(
+    find "$_VSCODE_SYNC_BACKUP_DIR" -mindepth 1 -maxdepth 1 -type d 2>/dev/null |
       LC_ALL=C sort
   )}")
 
-  (( ${#snapshot_dirs[@]} > keep_count )) || return 0
-  prune_dirs=("${snapshot_dirs[@]:0:${#snapshot_dirs[@]}-keep_count}")
+  (( ${#backup_dirs[@]} > keep_count )) || return 0
+  prune_dirs=("${backup_dirs[@]:0:${#backup_dirs[@]}-keep_count}")
 
-  local snapshot_path
-  for snapshot_path in "${prune_dirs[@]}"; do
-    [[ -n "$snapshot_path" ]] || continue
-    if ! _vscode_sync_path_is_within_home "$snapshot_path"; then
-      _shared_log warn "Skipping unsafe snapshot prune target: $snapshot_path"
+  local backup_path
+  for backup_path in "${prune_dirs[@]}"; do
+    [[ -n "$backup_path" ]] || continue
+    if ! _vscode_sync_path_is_within_home "$backup_path"; then
+      _shared_log warn "Skipping unsafe backup prune target: $backup_path"
       continue
     fi
-    if [[ "${snapshot_path:a:h}" != "${_VSCODE_SYNC_BACKUP_DIR:a}" ]]; then
-      _shared_log warn "Skipping non-direct snapshot entry: $snapshot_path"
+    if [[ "${backup_path:a:h}" != "${_VSCODE_SYNC_BACKUP_DIR:a}" ]]; then
+      _shared_log warn "Skipping non-direct backup entry: $backup_path"
       continue
     fi
-    rm -rf -- "$snapshot_path" 2>/dev/null || {
-      _shared_log warn "Failed to prune old profile snapshot: $snapshot_path"
+    rm -rf -- "$backup_path" 2>/dev/null || {
+      _shared_log warn "Failed to prune old backup directory: $backup_path"
       continue
     }
-    _shared_log info "Pruned old profile snapshot: $snapshot_path"
+    _shared_log info "Pruned old backup directory: $backup_path"
   done
 
   return 0
@@ -489,50 +333,11 @@ _vscode_sync_backup_profile_state() {
 
   if (( copied > 0 )); then
     _shared_log ok "Profile state snapshot created: $snapshot_dir"
-    _vscode_sync_prune_profile_state_snapshots || {
-      _shared_log warn "Profile snapshot retention could not be fully applied."
+    _vscode_sync_prune_backup_dirs || {
+      _shared_log warn "Backup retention could not be fully applied."
     }
   fi
   return 0
-}
-
-# -----------------------------------------------------------------------------
-# _vscode_sync_item_status
-# -----------------------------------------------------------------------------
-# Determines the synchronization status of a single item.
-#
-# Usage:
-#   sync_state=$(_vscode_sync_item_status <source> <target>)
-#
-# Side Effects:
-#   - Outputs one of: synced, symlink_broken, symlink_wrong,
-#     independent, missing, source_missing.
-# -----------------------------------------------------------------------------
-_vscode_sync_item_status() {
-  local source="$1" target="$2"
-
-  if [[ ! -e "$source" && ! -L "$source" ]]; then
-    printf "source_missing"
-    return
-  fi
-
-  if [[ -L "$target" ]]; then
-    local link_dest
-    link_dest=$(readlink "$target" 2>/dev/null)
-    if [[ "$link_dest" == "$source" ]]; then
-      if [[ -e "$target" ]]; then
-        printf "synced"
-      else
-        printf "symlink_broken"
-      fi
-    else
-      printf "symlink_wrong"
-    fi
-  elif [[ -e "$target" ]]; then
-    printf "independent"
-  else
-    printf "missing"
-  fi
 }
 
 # ++++++++++++++++++++++ PLATFORM-AWARE CONFIG INIT ++++++++++++++++++++++++++ #
@@ -540,12 +345,12 @@ _vscode_sync_item_status() {
 # -----------------------------------------------------------------------------
 # _vscode_sync_init_config
 # -----------------------------------------------------------------------------
-# Initializes platform-aware configuration for sync items and extensions.
+# Initializes platform-aware configuration for VS Code user roots and extensions.
 # Called automatically at source time (end of this file).
 #
 # Sets:
-#   _VSCODE_SYNC_ITEMS         - "label|source|target" tuples for settings,
-#                                keybindings, snippets, mcp config.
+#   _VSCODE_USER_STABLE        - Stable user-data root.
+#   _VSCODE_USER_INSIDERS      - Insiders user-data root.
 #   _VSCODE_EXTENSIONS_SRC     - Canonical extensions directory (Stable).
 #   _VSCODE_EXTENSIONS_DST     - Insiders extensions directory.
 #   _VSCODE_EXTENSIONS_EXCLUDE - Glob patterns for excluded extensions.
@@ -571,13 +376,6 @@ _vscode_sync_init_config() {
   _VSCODE_USER_STABLE="$user_stable"
   _VSCODE_USER_INSIDERS="$user_insiders"
 
-  _VSCODE_SYNC_ITEMS=(
-    "Settings|${user_stable}/settings.json|${user_insiders}/settings.json"
-    "Keybindings|${user_stable}/keybindings.json|${user_insiders}/keybindings.json"
-    "Snippets|${user_stable}/snippets|${user_insiders}/snippets"
-    "MCP Config|${user_stable}/mcp.json|${user_insiders}/mcp.json"
-  )
-  # Extensions managed separately via per-extension symlinks (see below).
   _VSCODE_EXTENSIONS_SRC="${HOME}/.vscode/extensions"
   _VSCODE_EXTENSIONS_DST="${HOME}/.vscode-insiders/extensions"
   _VSCODE_EXTENSIONS_EXCLUDE=(
