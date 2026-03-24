@@ -19,8 +19,8 @@
 # License: MIT
 # ============================================================================ #
 
-# Idempotent guard: skip if already loaded.
-[[ -n "${_SHARED_HELPERS_LOADED:-}" ]] && return 0
+# Re-sourcing is intentionally allowed so real helper implementations can
+# replace stale lazy-loader stubs after a shell reload.
 
 # ++++++++++++++++++++++++++++++ COLOR HANDLING ++++++++++++++++++++++++++++++ #
 

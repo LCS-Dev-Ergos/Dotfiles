@@ -25,14 +25,14 @@ typeset -f _lazy_loader_core >/dev/null 2>&1 || return 0
   (( ${#scripts} )) || return 0
 
   # Generic scripts (auto-mapped by definition file).
-  _lazy_loader_core "scripts" 6 "auto" "${scripts[@]}"
+  _lazy_loader_core "scripts" 7 "auto" "${scripts[@]}"
 
   # VS Code sync commands live in modular subfiles; map their stubs to the
   # legacy wrapper so module bootstrap runs before command execution.
   local vscode_sync_wrapper="$scripts_dir/vscode_sync.sh"
   local vscode_sync_commands="$scripts_dir/vscode/sync/commands.sh"
   if [[ -r "$vscode_sync_wrapper" && -r "$vscode_sync_commands" ]]; then
-    _lazy_loader_core "vscode-sync" 1 "$vscode_sync_wrapper" "$vscode_sync_commands"
+    _lazy_loader_core "vscode-sync" 2 "$vscode_sync_wrapper" "$vscode_sync_commands"
   fi
 
   # VS Code extension-cleaner functions also live in a modular subfile; map
@@ -40,7 +40,7 @@ typeset -f _lazy_loader_core >/dev/null 2>&1 || return 0
   local vscode_cleaner_wrapper="$scripts_dir/vscode_extension_cleaner.sh"
   local vscode_cleaner_module="$scripts_dir/vscode/extension_cleaner.sh"
   if [[ -r "$vscode_cleaner_wrapper" && -r "$vscode_cleaner_module" ]]; then
-    _lazy_loader_core "vscode-ext-cleaner" 1 "$vscode_cleaner_wrapper" "$vscode_cleaner_module"
+    _lazy_loader_core "vscode-ext-cleaner" 2 "$vscode_cleaner_wrapper" "$vscode_cleaner_module"
   fi
 }
 

@@ -85,6 +85,7 @@ _lazy_loader_core() {
       for name in "${names[@]}"; do
         [[ -z "$name" ]] && continue
         [[ "$name" =~ ^[A-Za-z_][A-Za-z0-9_-]*$ ]] || continue
+        [[ "$name" == _* ]] && continue
         if [[ "$stub_target" == "auto" ]]; then
           seen[$name]="$file"
         else

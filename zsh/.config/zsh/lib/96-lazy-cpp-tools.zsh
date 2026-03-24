@@ -28,7 +28,7 @@ typeset -f _lazy_loader_core >/dev/null 2>&1 || return 0
   local mod_dir="${main_script:h}/modules"
   [[ -d "$mod_dir" ]] && scan_files+=("$mod_dir"/*.zsh(N))
 
-  _lazy_loader_core "cpp-tools" 6 "$main_script" "${scan_files[@]}"
+  _lazy_loader_core "cpp-tools" 7 "$main_script" "${scan_files[@]}"
 }
 
 # Last consumer of the core engine -- clean it up.
