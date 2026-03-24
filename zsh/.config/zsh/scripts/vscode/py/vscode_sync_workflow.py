@@ -35,6 +35,7 @@ from vscode_backups import default_backup_root, prune_backup_directories
 from vscode_config import DEFAULT_EXTENSION_EXCLUDE_PATTERNS, VscodePathsConfig
 from vscode_fs import is_within_directory
 from vscode_models import (
+    ManifestAction,
     SyncItem,
     SyncItemDecision,
     SyncItemStatus,
@@ -156,13 +157,20 @@ def evaluate_sync_item(item: SyncItem) -> SyncItemDecision:
 def extension_health_counts(symlink_plan, manifest_plan) -> tuple[int, int]:
     """Return issue and warning counts for extension health."""
 
-    issues = symlink_plan.broken_count + manifest_plan.remove_count
+    profile_remove_count = sum(
+        1
+        for decision in manifest_plan.decisions
+        if decision.action == ManifestAction.REMOVE and decision.source_kind == "profile"
+    )
+    non_profile_remove_count = manifest_plan.remove_count - profile_remove_count
+    issues = symlink_plan.broken_count + profile_remove_count
     warnings = (
         symlink_plan.missing_count
         + symlink_plan.wrong_target_count
         + symlink_plan.unmanaged_count
         + symlink_plan.excluded_symlinked_count
         + symlink_plan.stale_managed_count
+        + non_profile_remove_count
         + manifest_plan.preserved_missing_profile_count
     )
     return issues, warnings

@@ -14,7 +14,30 @@
 #  - vscode_update_extensions
 # ============================================================================ #
 
-[[ -n "${_VSCODE_SYNC_MODULE_LOADED:-}" ]] && return 0
+_vscode_sync_public_functions_loaded() {
+  local fn
+  local -a required_functions=(
+    vscode_sync_setup
+    vscode_sync_status
+    vscode_sync_check
+    vscode_sync_remove
+    vscode_sync_update
+    vscode_update_extensions
+  )
+
+  for fn in "${required_functions[@]}"; do
+    typeset -f "$fn" >/dev/null 2>&1 || return 1
+  done
+  return 0
+}
+
+if [[ -n "${_VSCODE_SYNC_MODULE_LOADED:-}" ]]; then
+  if _vscode_sync_public_functions_loaded; then
+    unfunction _vscode_sync_public_functions_loaded 2>/dev/null
+    return 0
+  fi
+  unset _VSCODE_SYNC_MODULE_LOADED
+fi
 
 _vscode_sync_module_root="${${(%):-%N}:A:h}"
 _vscode_sync_common="${_vscode_sync_module_root}/_common.sh"
@@ -43,6 +66,8 @@ done
 
 _vscode_sync_init_config
 _VSCODE_SYNC_MODULE_LOADED=1
+
+unfunction _vscode_sync_public_functions_loaded 2>/dev/null
 
 unset _vscode_sync_module_root
 unset _vscode_sync_common

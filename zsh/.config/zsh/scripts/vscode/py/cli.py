@@ -763,7 +763,7 @@ def _build_update_progress_reporter(plan: object):
             return
         if message.startswith("Shared extension updating: "):
             extension_id = message.removeprefix("Shared extension updating: ").removesuffix(".")
-            _detail(f"Updating {extension_id}.")
+            _detail(f"Updating {extension_id}")
             return
         if message.startswith("Shared extension updated: "):
             extension_id = message.removeprefix("Shared extension updated: ").removesuffix(".")

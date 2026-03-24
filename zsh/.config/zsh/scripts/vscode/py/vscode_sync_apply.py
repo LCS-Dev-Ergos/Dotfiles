@@ -42,7 +42,7 @@ from vscode_models import (
 from vscode_planner import plan_insiders_symlink_state
 from vscode_profiles import (
     apply_manifest_repair_plan_safely,
-    build_update_only_manifest_plan,
+    build_safe_sync_manifest_plan,
     plan_manifest_repairs,
 )
 
@@ -151,7 +151,7 @@ def apply_extension_setup(
             skipped_excluded_symlink_count += 1
             continue
 
-    manifest_plan = build_update_only_manifest_plan(
+    manifest_plan = build_safe_sync_manifest_plan(
         plan_manifest_repairs(
             stable_root,
             insiders_root,

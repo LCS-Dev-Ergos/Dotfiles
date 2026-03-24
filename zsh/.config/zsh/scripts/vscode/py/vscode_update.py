@@ -277,7 +277,7 @@ def _shared_update_line_reporter(progress: ProgressReporter | None) -> Callable[
                 if extension_id in announced_extension_ids:
                     continue
                 announced_extension_ids.add(extension_id)
-                _emit_progress(progress, f"Shared extension updating: {extension_id}.")
+                _emit_progress(progress, f"Shared extension updating: {extension_id}")
             return
 
         updated_match = _UPDATED_EXTENSION_RE.search(line)
@@ -288,7 +288,7 @@ def _shared_update_line_reporter(progress: ProgressReporter | None) -> Callable[
         if extension_id in announced_extension_ids:
             return
         announced_extension_ids.add(extension_id)
-        _emit_progress(progress, f"Shared extension updated: {extension_id}.")
+        _emit_progress(progress, f"Shared extension updated: {extension_id}")
 
     return _report
 

@@ -399,6 +399,40 @@ def build_update_only_manifest_plan(plan: ManifestRepairPlan) -> ManifestRepairP
     )
 
 
+def build_safe_sync_manifest_plan(plan: ManifestRepairPlan) -> ManifestRepairPlan:
+    """Return a plan that keeps updates plus safe root/local orphan removals.
+
+    Profile REMOVE decisions remain excluded so the sync workflow never changes
+    profile selection implicitly, while root/local orphan entries can be
+    cleaned up automatically.
+    """
+
+    filtered_decisions = tuple(
+        decision
+        for decision in plan.decisions
+        if decision.action != ManifestAction.REMOVE or decision.source_kind != "profile"
+    )
+    update_count = sum(
+        1 for decision in filtered_decisions if decision.action == ManifestAction.UPDATE
+    )
+    remove_count = sum(
+        1 for decision in filtered_decisions if decision.action == ManifestAction.REMOVE
+    )
+    keep_count = sum(1 for decision in filtered_decisions if decision.action == ManifestAction.KEEP)
+    preserved_missing_profile_count = sum(
+        1 for decision in filtered_decisions if is_preserved_missing_profile_decision(decision)
+    )
+    return ManifestRepairPlan(
+        stable_dir=plan.stable_dir,
+        insiders_dir=plan.insiders_dir,
+        update_count=update_count,
+        remove_count=remove_count,
+        keep_count=keep_count,
+        preserved_missing_profile_count=preserved_missing_profile_count,
+        decisions=filtered_decisions,
+    )
+
+
 def apply_manifest_repair_plan(plan: ManifestRepairPlan) -> ManifestApplyReport:
     """Apply planned manifest repairs in place."""
 
