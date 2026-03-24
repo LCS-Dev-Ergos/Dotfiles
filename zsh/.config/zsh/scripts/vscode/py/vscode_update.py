@@ -26,9 +26,11 @@ from __future__ import annotations
 
 import os
 import re
+import selectors
 import shutil
 import subprocess
 import tempfile
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -59,6 +61,7 @@ from vscode_versions import compare_versions
 _UPDATE_TIMEOUT_SECONDS = 300
 _MAX_BACKUP_SUFFIX_ATTEMPTS = 10000
 _UPDATED_EXTENSION_RE = re.compile(r"Extension '([^']+)' .* was successfully updated\.")
+_UPDATING_EXTENSIONS_RE = re.compile(r"^Updating extensions:\s*(.+?)\s*$")
 ProgressReporter = Callable[[str], None]
 
 
@@ -135,6 +138,77 @@ def _run_cli_command(
     )
 
 
+def _run_cli_command_streaming(
+    command: list[str],
+    *,
+    on_line: Callable[[str], None] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run a VS Code CLI command while streaming combined output line by line."""
+
+    collected_lines: list[str] = []
+    deadline = time.monotonic() + _UPDATE_TIMEOUT_SECONDS
+    process = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+
+    assert process.stdout is not None
+    selector = selectors.DefaultSelector()
+    selector.register(process.stdout, selectors.EVENT_READ)
+
+    try:
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                process.kill()
+                trailing_output, _ = process.communicate()
+                if trailing_output:
+                    collected_lines.append(trailing_output)
+                raise subprocess.TimeoutExpired(
+                    cmd=command,
+                    timeout=_UPDATE_TIMEOUT_SECONDS,
+                    output="".join(collected_lines),
+                )
+
+            events = selector.select(timeout=remaining)
+            if not events:
+                if process.poll() is not None:
+                    break
+                continue
+
+            for key, _ in events:
+                raw_line = key.fileobj.readline()
+                if raw_line == "":
+                    selector.unregister(key.fileobj)
+                    continue
+                collected_lines.append(raw_line)
+                if on_line is not None:
+                    clean_line = raw_line.rstrip()
+                    if clean_line:
+                        on_line(clean_line)
+
+            if process.poll() is not None and not selector.get_map():
+                break
+
+        trailing_output, _ = process.communicate()
+        if trailing_output:
+            collected_lines.append(trailing_output)
+    finally:
+        selector.close()
+        if process.stdout is not None:
+            process.stdout.close()
+
+    return subprocess.CompletedProcess(
+        args=command,
+        returncode=process.returncode or 0,
+        stdout="".join(collected_lines),
+        stderr="",
+    )
+
+
 def _emit_progress(progress: ProgressReporter | None, message: str) -> None:
     """Send a human-readable progress message to the optional reporter."""
 
@@ -179,6 +253,44 @@ def _parse_shared_updated_extension_ids(output: str) -> tuple[str, ...]:
         if (match := _UPDATED_EXTENSION_RE.search(line))
     ]
     return _ordered_unique(updated_ids)
+
+
+def _parse_extension_id_list(raw_value: str) -> tuple[str, ...]:
+    """Split a comma-separated CLI extension list into normalized IDs."""
+
+    return tuple(
+        extension_id.strip()
+        for extension_id in raw_value.split(",")
+        if extension_id.strip()
+    )
+
+
+def _shared_update_line_reporter(progress: ProgressReporter | None) -> Callable[[str], None]:
+    """Build a filtered line reporter for the shared Stable update phase."""
+
+    announced_extension_ids: set[str] = set()
+
+    def _report(line: str) -> None:
+        updating_match = _UPDATING_EXTENSIONS_RE.match(line)
+        if updating_match is not None:
+            for extension_id in _parse_extension_id_list(updating_match.group(1)):
+                if extension_id in announced_extension_ids:
+                    continue
+                announced_extension_ids.add(extension_id)
+                _emit_progress(progress, f"Shared extension updating: {extension_id}.")
+            return
+
+        updated_match = _UPDATED_EXTENSION_RE.search(line)
+        if updated_match is None:
+            return
+
+        extension_id = updated_match.group(1)
+        if extension_id in announced_extension_ids:
+            return
+        announced_extension_ids.add(extension_id)
+        _emit_progress(progress, f"Shared extension updated: {extension_id}.")
+
+    return _report
 
 
 def _list_native_excluded_installs(
@@ -475,14 +587,14 @@ def apply_extension_update(
         raise FileNotFoundError("VS Code Insiders CLI not found: code-insiders")
 
     _emit_progress(progress, "Updating shared Stable extensions.")
-    shared_update_completed = _run_cli_command(
+    shared_update_completed = _run_cli_command_streaming(
         [
             "code",
             "--extensions-dir",
             str(plan.stable_dir),
             "--update-extensions",
         ],
-        capture_output=True,
+        on_line=_shared_update_line_reporter(progress),
     )
     shared_update_succeeded = shared_update_completed.returncode == 0
     if not shared_update_succeeded:

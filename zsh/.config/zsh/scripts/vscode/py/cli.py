@@ -761,6 +761,14 @@ def _build_update_progress_reporter(plan: object):
         if message == "Updating shared Stable extensions.":
             _start_step("shared", "Updating shared Stable extensions")
             return
+        if message.startswith("Shared extension updating: "):
+            extension_id = message.removeprefix("Shared extension updating: ").removesuffix(".")
+            _detail(f"Updating {extension_id}.")
+            return
+        if message.startswith("Shared extension updated: "):
+            extension_id = message.removeprefix("Shared extension updated: ").removesuffix(".")
+            _detail(f"Updated {extension_id}.", level="success")
+            return
         if message.startswith("Shared Stable update completed:"):
             _detail(message.removesuffix(".").replace("Shared Stable ", "").capitalize())
             return
