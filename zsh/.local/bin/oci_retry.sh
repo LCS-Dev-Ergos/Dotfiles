@@ -18,6 +18,12 @@
 #
 # ============================================================================ #
 
+if [[ -z "${BASH_VERSION:-}" ]]; then
+    printf '%s\n' "This script requires bash. Execute it directly; do not run it with zsh or source it." >&2
+    # shellcheck disable=SC2317
+    return 1 2>/dev/null || exit 1
+fi
+
 set -euo pipefail
 IFS=$'\n\t'
 
@@ -265,11 +271,20 @@ capture_cmd_streams() {
     local captured_stderr=""
     local captured_rc=0
     local stderr_file=""
+    local tmp_dir=""
 
-    stderr_file=$(mktemp "${TMPDIR:-/tmp}/oci_retry.stderr.XXXXXX") || {
+    init_logging
+    tmp_dir=$(dirname -- "$LOG_FILE")
+
+    stderr_file=$(mktemp "${tmp_dir}/oci_retry.stderr.XXXXXX" 2>/dev/null || true)
+    if [[ -z "$stderr_file" ]]; then
+        stderr_file=$(mktemp "./oci_retry.stderr.XXXXXX" 2>/dev/null || true)
+    fi
+
+    if [[ -z "$stderr_file" ]]; then
         printf 'Unable to allocate temporary file for stderr capture.\n' >&2
         exit 1
-    }
+    fi
 
     set +e
     captured_stdout=$("$@" 2>"$stderr_file")
