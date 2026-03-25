@@ -1,0 +1,859 @@
+#!/usr/bin/env zsh
+# ============================================================================ #
+# Zsh configuration for remote servers and cloud environments.
+# Self-contained — no external lib/ modules required.
+# Uses Zinit for plugin management with graceful auto-install.
+#
+# Compatible with: Ubuntu, Debian, Fedora, Arch Linux, CentOS/RHEL.
+#
+# Layout:
+#   1.  Base options, colors, TERM
+#   2.  History
+#   3.  Zinit bootstrap & plugins
+#   4.  Vi mode & keybindings
+#   5.  Prompt  (starship -> powerlevel10k -> fallback)
+#   6.  FZF configuration
+#   7.  Modern CLI tools  (eza, bat, zoxide, atuin, direnv)
+#   8.  Environment variables
+#   9.  Aliases  (navigation, ls, cat, system, docker, network, git)
+#   10. Language managers  (pyenv, sdkman, rbenv — all lazy)
+#   11. PATH builder
+# ============================================================================ #
+
+# ============================ BASE CONFIGURATION ============================ #
+
+# Load zsh/datetime for $EPOCHSECONDS — avoids forking `date +%s`.
+zmodload -F zsh/datetime b:strftime p:EPOCHSECONDS 2>/dev/null
+
+# Protect against unset variable bleed between functions.
+setopt LOCAL_OPTIONS
+setopt LOCAL_TRAPS
+
+# Bootstrap .zprofile for non-login shells (VS Code remote, tmux, etc.).
+if [[ -z "$ZPROFILE_HAS_RUN" ]]; then
+    [[ -f "${ZDOTDIR:-$HOME}/.zprofile" ]] && source "${ZDOTDIR:-$HOME}/.zprofile"
+fi
+export ZPROFILE_HAS_RUN=true
+
+# Useful interactive options.
+setopt AUTO_CD              # Type a directory path to cd into it.
+setopt AUTO_PUSHD           # Push old dir onto stack on cd.
+setopt PUSHD_IGNORE_DUPS    # No duplicate dirs in the stack.
+setopt PUSHDMINUS           # Invert +/- for pushd/popd indexing.
+setopt CORRECT              # Suggest corrections for mistyped commands.
+setopt INTERACTIVE_COMMENTS # Allow # comments in interactive shells.
+setopt NO_FLOW_CONTROL      # Disable Ctrl-S/Ctrl-Q flow control.
+
+# Report background job completion immediately (not at next prompt).
+set -o notify
+
+# ------ ANSI color definitions ------ #
+if [[ -t 1 ]]; then
+    zmodload -i zsh/terminfo 2>/dev/null
+    if [[ -n "${terminfo[colors]-}" ]] && (( terminfo[colors] >= 8 )); then
+        C_RESET="\e[0m"
+        C_BOLD="\e[1m"
+        C_RED="\e[31m"
+        C_GREEN="\e[32m"
+        C_YELLOW="\e[33m"
+        C_BLUE="\e[34m"
+        C_CYAN="\e[36m"
+    fi
+fi
+
+# Keep terminal-provided TERM; fall back only when missing or dumb.
+case "${TERM:-}" in
+    "" | dumb) export TERM=xterm-256color ;;
+esac
+
+# Platform detection (Linux only for servers).
+PLATFORM="Linux"
+[[ -f /etc/arch-release ]] && ARCH_LINUX=true || ARCH_LINUX=false
+
+# CPU count — reused by language manager parallelism settings.
+typeset -gi _ZSH_NCPUS
+(( _ZSH_NCPUS = $(nproc 2>/dev/null || echo 4) ))
+
+autoload -Uz add-zsh-hook
+
+# ========================== HISTORY CONFIGURATION =========================== #
+
+HISTFILE="${ZDOTDIR:-$HOME}/.zsh_history"
+[[ -f "$HISTFILE" ]] && chmod 600 "$HISTFILE" 2>/dev/null
+HISTSIZE=20000
+SAVEHIST=50000
+
+setopt BANG_HIST              # Support !-style history expansion.
+setopt EXTENDED_HISTORY       # Record timestamp and duration per entry.
+setopt HIST_VERIFY            # Show expansion before executing.
+setopt HIST_EXPIRE_DUPS_FIRST # Remove oldest duplicate when history is full.
+setopt HIST_IGNORE_DUPS       # Skip consecutive identical entries.
+setopt HIST_IGNORE_SPACE      # Omit commands prefixed with a space.
+setopt INC_APPEND_HISTORY     # Write to history file immediately.
+setopt SHARE_HISTORY          # Share history across concurrent sessions.
+
+# ======================== ZINIT BOOTSTRAP & PLUGINS ========================= #
+
+# Feature flags — export these before sourcing to customise the plugin set.
+: "${ZSH_ENABLE_FZF_TAB:=1}"
+: "${ZSH_ENABLE_ZSH_COMPLETIONS:=1}"
+: "${ZSH_COMPINIT_CHECK_HOURS:=24}"
+
+typeset -g ZINIT_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/zinit/zinit.git"
+
+# Auto-install Zinit on first use (requires git and internet access).
+if [[ ! -f "$ZINIT_HOME/zinit.zsh" ]]; then
+    command mkdir -p "${ZINIT_HOME:h}" 2>/dev/null
+    if command -v git >/dev/null 2>&1; then
+        command git clone --depth=1 \
+            https://github.com/zdharma-continuum/zinit.git \
+            "$ZINIT_HOME" 2>/dev/null \
+            || print -u2 "Warning: failed to clone zinit into $ZINIT_HOME"
+    fi
+fi
+
+if [[ -f "$ZINIT_HOME/zinit.zsh" ]]; then
+    source "$ZINIT_HOME/zinit.zsh"
+
+    # Skip redundant disk checks after plugins have been installed at least once.
+    ZINIT[OPTIMIZE_OUT_DISK_ACCESSES]=1
+
+    # Use XDG cache for the completion dump.
+    export ZSH_COMPDUMP="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/.zcompdump-$HOST"
+
+    # -------------------------------------------------------------------------
+    # _srv_compinit — periodic compinit with 24-hour caching.
+    # Runs a full (re)build only when the dump is missing or stale.
+    # -------------------------------------------------------------------------
+    _srv_compinit() {
+        setopt noxtrace noverbose   # LOCAL_OPTIONS is already global; localoptions is redundant.
+
+        local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
+        local stamp="$cache_dir/compinit.last"
+        local now="${EPOCHSECONDS:-$(date +%s)}"
+        local last=0
+
+        [[ -f "$stamp" ]] && last="$(stat -c %Y "$stamp" 2>/dev/null || echo 0)"
+        [[ "$last" =~ ^[0-9]+$ ]] || last=0
+
+        command mkdir -p "$cache_dir" "${ZSH_COMPDUMP:h}" 2>/dev/null
+        autoload -Uz compinit
+
+        if [[ -f "$ZSH_COMPDUMP" ]] \
+            && (( (now - last) / 3600 < ${ZSH_COMPINIT_CHECK_HOURS:-24} )); then
+            compinit -C -d "$ZSH_COMPDUMP"
+        else
+            compinit -i -d "$ZSH_COMPDUMP"
+            : >| "$stamp" 2>/dev/null
+        fi
+    }
+
+    # Replay compdefs registered by turbo-loaded plugins.
+    _srv_replay_compdefs() {
+        typeset -f zicdreplay >/dev/null 2>&1 && zicdreplay -q
+    }
+
+    # Keybindings activated after history-substring-search is loaded.
+    _srv_bind_history_keys() {
+        bindkey '^[[A' history-substring-search-up
+        bindkey '^[[B' history-substring-search-down
+        [[ -n "${terminfo[kcuu1]-}" ]] \
+            && bindkey "${terminfo[kcuu1]}" history-substring-search-up
+        [[ -n "${terminfo[kcud1]-}" ]] \
+            && bindkey "${terminfo[kcud1]}" history-substring-search-down
+        bindkey -M vicmd 'k' history-substring-search-up
+        bindkey -M vicmd 'j' history-substring-search-down
+        HISTORY_SUBSTRING_SEARCH_ENSURE_UNIQUE=1
+        HISTORY_SUBSTRING_SEARCH_HIGHLIGHT_FOUND='bg=green,fg=black,bold'
+        HISTORY_SUBSTRING_SEARCH_HIGHLIGHT_NOT_FOUND='bg=red,fg=black,bold'
+        unfunction _srv_bind_history_keys 2>/dev/null
+    }
+
+    # ------ Synchronous (hot-path) snippets ------ #
+
+    # OMZ library essentials loaded synchronously.
+    zinit snippet OMZL::completion.zsh
+    zinit snippet OMZL::theme-and-appearance.zsh
+
+    # Core OMZ plugins — loaded immediately so aliases are available at startup.
+    zinit snippet OMZP::git/git.plugin.zsh
+    zinit snippet OMZP::sudo/sudo.plugin.zsh
+
+    # Convenience alias for the directory stack (already set globally above).
+    alias d='dirs -v | head -10'
+
+    # Extra completion definitions; blockf prevents direct fpath injection.
+    if [[ "${ZSH_ENABLE_ZSH_COMPLETIONS}" == "1" ]]; then
+        zinit ice lucid blockf atclone"zinit creinstall -q ." atpull"%atclone"
+        zinit light zsh-users/zsh-completions
+    fi
+
+    # Run compinit after all synchronous snippets so their completions register.
+    _srv_compinit
+    _srv_replay_compdefs
+
+    # fzf-tab: must be loaded after compinit and before auto-suggestions.
+    if [[ "${ZSH_ENABLE_FZF_TAB}" == "1" ]]; then
+        zinit ice lucid
+        zinit light Aloxaf/fzf-tab
+    fi
+
+    # Fish-like inline suggestions.
+    zinit ice lucid atload"_zsh_autosuggest_start 2>/dev/null || true"
+    zinit light zsh-users/zsh-autosuggestions
+
+    # History substring search (arrows + j/k in vicmd).
+    zinit ice lucid atload"_srv_bind_history_keys"
+    zinit light zsh-users/zsh-history-substring-search
+
+    # ------ Deferred (turbo) plugins ------ #
+
+    # "Did you mean..." for unknown commands (package-aware on Debian/Arch).
+    zinit ice wait"1" lucid
+    zinit snippet OMZP::command-not-found/command-not-found.plugin.zsh
+
+    # 256-color fix for older terminals and SSH sessions.
+    zinit ice wait"0" lucid
+    zinit light chrissicool/zsh-256color
+
+    # Syntax highlighting — must be last among interactive plugins.
+    zinit ice lucid atload"_srv_replay_compdefs"
+    zinit light zdharma-continuum/fast-syntax-highlighting
+
+    # Clean up internal helper functions that are no longer needed.
+    unfunction _srv_compinit _srv_replay_compdefs 2>/dev/null
+
+else
+    # ----- Bare compinit fallback (Zinit unavailable / offline server) ----- #
+    autoload -Uz compinit
+    ZSH_COMPDUMP="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/.zcompdump-$HOST"
+    command mkdir -p "${ZSH_COMPDUMP:h}" 2>/dev/null
+    compinit -i -d "$ZSH_COMPDUMP"
+fi
+
+# ================================= VI MODE ================================== #
+
+bindkey -v
+export KEYTIMEOUT=1   # 10ms delay between key sequences (faster Esc).
+
+# Restore common readline bindings in insert mode.
+bindkey '^A' beginning-of-line
+bindkey '^E' end-of-line
+bindkey '^K' kill-line
+bindkey '^U' backward-kill-line
+bindkey '^W' backward-kill-word
+bindkey '^H' backward-delete-char
+bindkey '^?' backward-delete-char
+bindkey '^R' history-incremental-search-backward
+
+# Cursor shape: steady block in normal mode, steady beam in insert mode.
+_srv_cursor_block() { print -n "\e[2 q" }
+_srv_cursor_beam()  { print -n "\e[6 q" }
+
+zle-keymap-select() {
+    case $KEYMAP in
+        vicmd)       _srv_cursor_block ;;
+        viins | main) _srv_cursor_beam  ;;
+    esac
+    zle reset-prompt
+}
+
+zle-line-init() {
+    zle -K viins
+    _srv_cursor_beam
+}
+
+zle -N zle-keymap-select
+zle -N zle-line-init
+
+# =========================== PROMPT CONFIGURATION =========================== #
+
+# Priority: starship -> powerlevel10k -> minimal fallback.
+
+if command -v starship >/dev/null 2>&1; then
+    export STARSHIP_CONFIG="${STARSHIP_CONFIG:-$HOME/.config/starship/starship.toml}"
+    eval "$(starship init zsh 2>/dev/null)" || true
+
+elif [[ -f "$HOME/.oh-my-zsh/custom/themes/powerlevel10k/powerlevel10k.zsh-theme" ]]; then
+    source "$HOME/.oh-my-zsh/custom/themes/powerlevel10k/powerlevel10k.zsh-theme"
+    [[ -f "$HOME/.p10k.zsh" ]] && source "$HOME/.p10k.zsh"
+
+elif [[ -f "/usr/share/zsh-theme-powerlevel10k/powerlevel10k.zsh-theme" ]]; then
+    source "/usr/share/zsh-theme-powerlevel10k/powerlevel10k.zsh-theme"
+    [[ -f "$HOME/.p10k.zsh" ]] && source "$HOME/.p10k.zsh"
+
+else
+    # Minimal but informative fallback: user@host:dir [exit-code] $.
+    PROMPT='%F{cyan}%n@%m%f:%F{blue}%~%f %(?.%F{green}.%F{red}[%?] )%f$ '
+fi
+
+# ============================ FZF CONFIGURATION ============================= #
+
+# Tokyo Night color scheme — set early so fzf-tab inherits it.
+_srv_fzf_set_theme() {
+    local opts="\
+ --color=bg+:#16161e,bg:#1a1b26,spinner:#2ac3de,hl:#7aa2f7\
+ --color=fg:#787c99,header:#7aa2f7,info:#e0af68,pointer:#2ac3de\
+ --color=marker:#2ac3de,fg+:#c0caf5,prompt:#e0af68,hl+:#7aa2f7"
+    export FZF_DEFAULT_OPTS="${FZF_DEFAULT_OPTS//${~opts}/}${opts}"
+}
+_srv_fzf_set_theme
+
+# Full fzf integration deferred to after the first prompt render.
+_srv_fzf_init() {
+    add-zsh-hook -d precmd _srv_fzf_init   # Run once, then remove self.
+
+    command -v fzf >/dev/null 2>&1 || return 0
+    eval "$(fzf --zsh 2>/dev/null)" || true
+
+    # Use fd for significantly faster file listing when available.
+    if command -v fd >/dev/null 2>&1; then
+        export FZF_DEFAULT_COMMAND="fd --hidden --strip-cwd-prefix --exclude .git"
+        export FZF_CTRL_T_COMMAND="$FZF_DEFAULT_COMMAND"
+        export FZF_ALT_C_COMMAND="fd --type=d --hidden --strip-cwd-prefix --exclude .git"
+
+        _fzf_compgen_path() { fd --hidden --exclude .git . "$1" }
+        _fzf_compgen_dir()  { fd --type=d --hidden --exclude .git . "$1" }
+    fi
+
+    # Rich previews with bat for files.
+    if command -v bat >/dev/null 2>&1; then
+        export FZF_CTRL_T_OPTS="--preview 'bat -n --color=always --line-range :500 {}'"
+    fi
+
+    # Tree preview for directories with eza.
+    if command -v eza >/dev/null 2>&1; then
+        export FZF_ALT_C_OPTS="--preview 'eza --tree --color=always {} | head -200'"
+    fi
+
+    # Context-aware completions for common commands.
+    _fzf_comprun() {
+        local cmd="$1"; shift
+        case "$cmd" in
+            cd)
+                if command -v eza >/dev/null 2>&1; then
+                    fzf --preview 'eza --tree --color=always {} | head -200' "$@"
+                else
+                    fzf --preview 'ls -la {}' "$@"
+                fi ;;
+            export | unset) fzf --preview 'echo {}' "$@" ;;
+            ssh)            fzf --preview 'dig {} 2>/dev/null || echo {}' "$@" ;;
+            *)
+                if command -v bat >/dev/null 2>&1; then
+                    fzf --preview "bat -n --color=always --line-range :500 {}" "$@"
+                else
+                    fzf --preview 'cat {}' "$@"
+                fi ;;
+        esac
+    }
+
+    unfunction _srv_fzf_init 2>/dev/null
+}
+add-zsh-hook precmd _srv_fzf_init
+
+# ============================= MODERN CLI TOOLS ============================= #
+
+# ------ bat (better cat) ------ #
+if command -v bat >/dev/null 2>&1; then
+    export BAT_THEME=tokyonight_night
+    alias cat='bat --style=plain --paging=never --color=auto'
+    alias batn='bat --style=numbers'
+    alias batf='bat --style=full'
+
+    # Colored man pages via bat.
+    export MANPAGER="sh -c 'col -bx | bat -l man -p'"
+    export MANROFFOPT="-c"
+
+    # h: colorized --help output (requires cmd-help-sublime-syntax; see bat docs).
+    # Defined as _srv_bat_help to avoid zsh's "defining function based on alias"
+    # error when 'h' is already an alias (e.g., OMZP::git or a previous reload).
+    _srv_bat_help() {
+        (( $# == 0 )) && { echo "Usage: h <command> [args]"; return 1 }
+        "$1" --help "${@:2}" 2>&1 \
+            | bat --language=help --style=plain --paging=never --color=always
+    }
+    alias h='_srv_bat_help'
+else
+    # Fallback: ANSI-colored man pages via LESS.
+    export LESS_TERMCAP_mb=$'\e[1;32m'
+    export LESS_TERMCAP_md=$'\e[1;34m'
+    export LESS_TERMCAP_me=$'\e[0m'
+    export LESS_TERMCAP_se=$'\e[0m'
+    export LESS_TERMCAP_so=$'\e[1;33m'
+    export LESS_TERMCAP_ue=$'\e[0m'
+    export LESS_TERMCAP_us=$'\e[1;4;35m'
+fi
+
+# ----- eza (better ls) ----- #
+if command -v eza >/dev/null 2>&1; then
+    alias ls='eza --color=auto --icons=auto'
+    alias l='eza -lh --icons=auto'
+    alias ll='eza -lha --icons=auto --sort=name --group-directories-first'
+    alias ld='eza -lhD --icons=auto'
+    alias lt='eza --icons=auto --tree'
+    alias lti='eza --icons=auto --tree --git-ignore'
+else
+    alias ls='ls --color=auto'
+    alias l='ls -lh'
+    alias ll='ls -lah'
+fi
+
+# ----- duf (better df) ----- #
+if command -v duf >/dev/null 2>&1; then
+    _df_wrapper() {
+        (( $# >= 1 )) && [[ -e "${@: -1}" ]] && duf "${@: -1}" || duf
+    }
+    alias df='_df_wrapper'
+fi
+
+# ----- zoxide (smart cd) ----- #
+_srv_zoxide_init() {
+    add-zsh-hook -d precmd _srv_zoxide_init
+    command -v zoxide >/dev/null 2>&1 || { unfunction _srv_zoxide_init 2>/dev/null; return 0 }
+    eval "$(zoxide init zsh 2>/dev/null)" || \
+        echo "${C_YELLOW}Warning: zoxide init failed.${C_RESET}"
+    unfunction _srv_zoxide_init 2>/dev/null
+}
+add-zsh-hook precmd _srv_zoxide_init
+
+# ----- atuin (shell history with sync) ----- #
+_srv_atuin_init() {
+    add-zsh-hook -d precmd _srv_atuin_init
+    command -v atuin >/dev/null 2>&1 || { unfunction _srv_atuin_init 2>/dev/null; return 0 }
+    eval "$(atuin init zsh 2>/dev/null)" || \
+        echo "${C_YELLOW}Warning: atuin init failed.${C_RESET}"
+    unfunction _srv_atuin_init 2>/dev/null
+}
+add-zsh-hook precmd _srv_atuin_init
+
+# ----- direnv (per-directory environment loading) ----- #
+_srv_direnv_init() {
+    add-zsh-hook -d precmd _srv_direnv_init
+    command -v direnv >/dev/null 2>&1 || { unfunction _srv_direnv_init 2>/dev/null; return 0 }
+    eval "$(direnv hook zsh 2>/dev/null)" || \
+        echo "${C_YELLOW}Warning: direnv init failed.${C_RESET}"
+    unfunction _srv_direnv_init 2>/dev/null
+}
+add-zsh-hook precmd _srv_direnv_init
+
+# ----- hlp: tldr first, man fallback ----- #
+hlp() {
+    (( $# == 0 )) && { echo "Usage: hlp <command>" >&2; return 1 }
+    local cmd="$1"; shift
+    command -v tldr >/dev/null 2>&1 && tldr "$cmd" "$@" 2>/dev/null && return 0
+    man "$cmd" "$@"
+}
+# When bat is not available, 'h' falls back to hlp (tldr/man).
+# When bat is available, 'alias h=_srv_bat_help' was already set above.
+command -v bat >/dev/null 2>&1 || alias h='hlp'
+
+# ========================== ENVIRONMENT VARIABLES =========================== #
+
+# Preferred editor: nvim → vim → vi.
+if   command -v nvim >/dev/null 2>&1; then export EDITOR="nvim"; export VISUAL="nvim"
+elif command -v vim  >/dev/null 2>&1; then export EDITOR="vim";  export VISUAL="vim"
+else                                       export EDITOR="vi";   export VISUAL="vi"
+fi
+
+# Pager.
+export PAGER="${PAGER:-less}"
+export LESS="-R --quit-if-one-screen"
+
+# Locale — safe default; override in .zprofile if the server uses a different one.
+export LANG="${LANG:-en_US.UTF-8}"
+export LC_ALL="${LC_ALL:-en_US.UTF-8}"
+
+# Python.
+export PYTHONDONTWRITEBYTECODE=1    # No .pyc file clutter.
+export PIP_REQUIRE_VIRTUALENV=true  # Prevent accidental system-wide pip installs.
+export PIPENV_VENV_IN_PROJECT=1     # Store .venv inside the project directory.
+export CRYPTOGRAPHY_OPENSSL_NO_LEGACY=1
+
+# Rust / Cargo.
+export CARGO_INCREMENTAL=1
+export CARGO_BUILD_JOBS="${_ZSH_NCPUS:-4}"
+
+# C/C++ — ccache when available.
+if command -v ccache >/dev/null 2>&1; then
+    export CCACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/ccache"
+    export CCACHE_COMPRESS=1
+    export CCACHE_COMPRESSLEVEL="${CCACHE_COMPRESSLEVEL:-5}"
+    export CCACHE_MAXSIZE="${CCACHE_MAXSIZE:-10G}"
+    export CMAKE_C_COMPILER_LAUNCHER="ccache"
+    export CMAKE_CXX_COMPILER_LAUNCHER="ccache"
+fi
+
+# CMake: emit compile_commands.json for clangd / LSP tooling.
+: "${CMAKE_EXPORT_COMPILE_COMMANDS:=1}"
+export CMAKE_EXPORT_COMPILE_COMMANDS
+
+# Go.
+if command -v go >/dev/null 2>&1; then
+    export GOPATH="${GOPATH:-$HOME/go}"
+    export GOCACHE="${GOCACHE:-$HOME/.cache/go-build}"
+    export GOMODCACHE="${GOMODCACHE:-$GOPATH/pkg/mod}"
+fi
+
+# Docker.
+export DOCKER_CLI_HINTS=false   # Suppress "Learn more" hints in the CLI.
+
+# ================================= ALIASES ================================== #
+
+# ----- Navigation ----- #
+alias ..='cd ..'
+alias ...='cd ../..'
+alias ....='cd ../../..'
+alias .....='cd ../../../..'
+
+# Safety defaults for destructive operations.
+alias rm='rm -i'
+alias cp='cp -i'
+alias mv='mv -i'
+
+# ----- System utilities (distro-aware) ----- #
+if command -v pacman >/dev/null 2>&1; then
+    # Arch Linux.
+    alias update='sudo pacman -Syu'
+    alias install='sudo pacman -S'
+    alias search='pacman -Ss'
+    alias remove='sudo pacman -R'
+    alias autoremove='sudo pacman -Rns $(pacman -Qtdq 2>/dev/null)'
+elif command -v apt >/dev/null 2>&1; then
+    # Debian / Ubuntu.
+    alias update='sudo apt update && sudo apt upgrade'
+    alias install='sudo apt install'
+    alias search='apt search'
+    alias remove='sudo apt remove'
+    alias autoremove='sudo apt autoremove'
+elif command -v dnf >/dev/null 2>&1; then
+    # Fedora / RHEL / CentOS.
+    alias update='sudo dnf upgrade'
+    alias install='sudo dnf install'
+    alias search='dnf search'
+    alias remove='sudo dnf remove'
+    alias autoremove='sudo dnf autoremove'
+fi
+
+# ----- Systemd service management ----- #
+alias services='systemctl list-units --type=service --state=running'
+alias sstart='sudo systemctl start'
+alias sstop='sudo systemctl stop'
+alias srestart='sudo systemctl restart'
+alias sstatus='systemctl status'
+alias senable='sudo systemctl enable --now'
+alias sdisable='sudo systemctl disable --now'
+alias slogs='journalctl -fu'   # Usage: slogs <unit>
+alias logs='journalctl -f'     # Follow the system journal.
+
+# ----- Network & SSH ----- #
+alias myip='curl -s ifconfig.me && echo'
+alias localip="hostname -I | awk '{print \$1}'"
+alias ports='ss -tuln'
+alias listening='ss -tlnp'
+alias openports='ss -tlnp | grep LISTEN'
+alias firewall='sudo ufw status verbose'
+# shellcheck disable=SC2142
+alias mounted='mount | column -t'
+
+# _srv_valid_port: returns 0 if arg is a valid TCP port number (1-65535).
+_srv_valid_port() {
+    [[ "$1" =~ ^[0-9]+$ ]] && (( $1 >= 1 && $1 <= 65535 ))
+}
+
+# Local port-forwarding: expose a remote port on localhost.
+# Usage: tunnel <local_port> <remote_host> <remote_port>
+tunnel() {
+    if (( $# != 3 )); then
+        echo "Usage: tunnel <local_port> <remote_host> <remote_port>" >&2; return 1
+    fi
+    if ! _srv_valid_port "$1" || ! _srv_valid_port "$3"; then
+        echo "tunnel: ports must be integers in the range 1-65535" >&2; return 1
+    fi
+    echo "Forwarding localhost:${1} → ${2}:${3}  (Ctrl-C to stop)"
+    ssh -N -L "${1}:localhost:${3}" -- "${2}"
+}
+
+# Reverse tunnel: expose a local port on the remote server.
+# Usage: rtunnel <remote_port> <remote_host> <local_port>
+rtunnel() {
+    if (( $# != 3 )); then
+        echo "Usage: rtunnel <remote_port> <remote_host> <local_port>" >&2; return 1
+    fi
+    if ! _srv_valid_port "$1" || ! _srv_valid_port "$3"; then
+        echo "rtunnel: ports must be integers in the range 1-65535" >&2; return 1
+    fi
+    echo "Exposing ${2}:${1} → localhost:${3}  (Ctrl-C to stop)"
+    ssh -N -R "${1}:localhost:${3}" -- "${2}"
+}
+
+# ----- Docker / Container ----- #
+alias dps='docker ps'
+alias dpsa='docker ps -a'
+alias dimages='docker images'
+alias dex='docker exec -it'
+alias dlogs='docker logs -f'
+alias dstop='docker stop'
+alias drm='docker rm'
+alias drmi='docker rmi'
+alias dprune='docker system prune -f'
+alias dnet='docker network ls'
+alias dvol='docker volume ls'
+
+# docker compose — prefer the modern plugin subcommand, fall back to standalone.
+if docker compose version >/dev/null 2>&1; then
+    alias dcp='docker compose'
+    alias dcup='docker compose up -d'
+    alias dcdown='docker compose down'
+    alias dclogs='docker compose logs -f'
+    alias dcps='docker compose ps'
+    alias dcrestart='docker compose restart'
+    alias dcexec='docker compose exec'
+elif command -v docker-compose >/dev/null 2>&1; then
+    alias dcp='docker-compose'
+    alias dcup='docker-compose up -d'
+    alias dcdown='docker-compose down'
+    alias dclogs='docker-compose logs -f'
+    alias dcps='docker-compose ps'
+    alias dcrestart='docker-compose restart'
+    alias dcexec='docker-compose exec'
+fi
+
+# ----- Git shortcuts ----- #
+alias gst='git status'
+alias gaa='git add .'
+alias gcm='git commit -m'
+alias gp='git push'
+alias gl='git log --oneline -10'
+alias gd='git diff'
+alias gb='git branch'
+alias gco='git checkout'
+alias gcb='git checkout -b'
+alias gpl='git pull'
+alias gf='git fetch'
+alias greset='git reset --hard HEAD'
+alias gclean='git clean -fd'
+alias gstash='git stash'
+alias gpop='git stash pop'
+
+# ----- Productivity ----- #
+alias c='clear'
+alias md='mkdir -p'
+alias size='du -sh'
+alias size-all='du -sh .[^.]* * 2>/dev/null'
+alias biggest='du -hs * 2>/dev/null | sort -hr | head -10'
+alias topdir='du -h --max-depth=1 | sort -hr'
+alias ping='ping -c 5'
+alias count='wc -l'
+alias path='echo $PATH | tr ":" "\n"'
+alias reload='source ~/.zshrc'
+alias edit="$EDITOR ~/.zshrc"
+
+# Quick jump to a file's parent directory using fzf.
+cdf() {
+    command -v fzf >/dev/null 2>&1 \
+        || { echo "${C_YELLOW}fzf is required for cdf${C_RESET}" >&2; return 1 }
+    local target
+    target=$(fzf --select-1 --exit-0) || return 1
+    cd -- "$(dirname -- "$target")"
+}
+
+# Robust archive extraction (fallback when OMZP::extract is unavailable).
+# The OMZ plugin — if loaded via Zinit — will shadow this with its own version.
+if ! typeset -f extract >/dev/null 2>&1; then
+    extract() {
+        (( $# == 0 )) && { echo "Usage: extract <file> [file2 ...]" >&2; return 1 }
+        local f
+        for f in "$@"; do
+            [[ -f "$f" ]] || { echo "extract: not a file: $f" >&2; continue }
+            case "${f:l}" in
+                *.tar.bz2)  tar xjf "$f"            ;;
+                *.tar.gz)   tar xzf "$f"             ;;
+                *.tar.xz)   tar xJf "$f"             ;;
+                *.tar.zst)  tar --zstd -xf "$f"      ;;
+                *.tar)      tar xf  "$f"             ;;
+                *.bz2)      bunzip2 "$f"             ;;
+                *.gz)       gunzip  "$f"             ;;
+                *.zip)      unzip   "$f"             ;;
+                *.7z)       7z x    "$f"             ;;
+                *.rar)      unrar x "$f"             ;;
+                *.xz)       unxz    "$f"             ;;
+                *.zst)      zstd -d "$f"             ;;
+                *)          echo "extract: unknown format: $f" >&2 ;;
+            esac
+        done
+    }
+    alias x='extract'
+fi
+
+# ============================ LANGUAGE MANAGERS ============================= #
+
+# ----- pyenv — lazy ----- #
+if [[ -d "$HOME/.pyenv" ]]; then
+    export PYENV_ROOT="$HOME/.pyenv"
+    [[ -d "$PYENV_ROOT/bin" ]] && export PATH="$PYENV_ROOT/bin:$PATH"
+
+    if command -v pyenv >/dev/null 2>&1; then
+        _srv_pyenv_init() {
+            [[ -n "${_SRV_PYENV_INIT:-}" ]] && return 0
+            _SRV_PYENV_INIT=1
+            eval "$(command pyenv init -)" 2>/dev/null \
+                || echo "${C_YELLOW}Warning: pyenv init failed.${C_RESET}"
+            eval "$(command pyenv virtualenv-init -)" 2>/dev/null || true
+        }
+
+        pyenv() {
+            unfunction pyenv 2>/dev/null
+            _srv_pyenv_init
+            pyenv "$@"
+        }
+    fi
+fi
+
+# ----- SDKMAN! (Java/JVM toolchain) — lazy ----- #
+if [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]]; then
+    export SDKMAN_DIR="$HOME/.sdkman"
+
+    # Expose JAVA_HOME immediately without paying the full sdkman init cost.
+    if [[ -z "${JAVA_HOME:-}" && -d "$SDKMAN_DIR/candidates/java/current" ]]; then
+        export JAVA_HOME="$SDKMAN_DIR/candidates/java/current"
+        export PATH="$JAVA_HOME/bin:$PATH"
+    fi
+
+    _srv_sdkman_init() {
+        [[ -n "${_SRV_SDKMAN_INIT:-}" ]] && return 0
+        _SRV_SDKMAN_INIT=1
+        source "$SDKMAN_DIR/bin/sdkman-init.sh"
+    }
+
+    sdk() {
+        unfunction sdk 2>/dev/null
+        _srv_sdkman_init
+        sdk "$@"
+    }
+fi
+
+# ----- rbenv (Ruby) — lazy ----- #
+if [[ -d "$HOME/.rbenv" ]]; then
+    export RBENV_ROOT="$HOME/.rbenv"
+    [[ -d "$RBENV_ROOT/bin" ]] && export PATH="$RBENV_ROOT/bin:$PATH"
+
+    if command -v rbenv >/dev/null 2>&1; then
+        _srv_rbenv_init() {
+            [[ -n "${_SRV_RBENV_INIT:-}" ]] && return 0
+            _SRV_RBENV_INIT=1
+            eval "$(command rbenv init - zsh)" 2>/dev/null \
+                || echo "${C_YELLOW}Warning: rbenv init failed.${C_RESET}"
+        }
+
+        rbenv() {
+            unfunction rbenv 2>/dev/null
+            _srv_rbenv_init
+            rbenv "$@"
+        }
+    fi
+fi
+
+# ----- Linuxbrew (optional; common on shared hosts without sudo) ----- #
+if [[ -x "/home/linuxbrew/.linuxbrew/bin/brew" ]]; then
+    export HOMEBREW_PREFIX="/home/linuxbrew/.linuxbrew"
+    export PATH="$HOMEBREW_PREFIX/bin:$HOMEBREW_PREFIX/sbin:$PATH"
+    export MANPATH="$HOMEBREW_PREFIX/share/man${MANPATH:+:$MANPATH}"
+fi
+
+# =============================== PATH BUILDER =============================== #
+#
+# Rebuilds PATH in a deterministic, priority-ordered sequence:
+#   1. Dynamic version-manager shims (highest priority).
+#   2. SDKMAN / static language bins.
+#   3. FNM current session.
+#   4. System directories.
+#   5. Linuxbrew.
+#   6. Language runtime bins (Cargo, Go, etc.).
+#   7. User-local bins.
+#   8. Any extra paths already in PATH (IDE injections, etc.) appended last.
+#
+# Non-existent directories are silently skipped.
+# Duplicates are removed via an associative-array seen-set.
+
+_srv_build_path() {
+    local original_path="$PATH"
+
+    local -a template=(
+        # Dynamic shims — must be first so version managers intercept commands.
+        "$HOME/.rbenv/shims"
+        "$HOME/.pyenv/shims"
+
+        # Version manager bins.
+        "${PYENV_ROOT:-$HOME/.pyenv}/bin"
+        "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/java/current/bin"
+        "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/maven/current/bin"
+        "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/gradle/current/bin"
+        "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/kotlin/current/bin"
+
+        # FNM current multishell session.
+        "${FNM_MULTISHELL_PATH:-}/bin"
+
+        # Standard system directories.
+        "/usr/local/bin"
+        "/usr/bin"
+        "/bin"
+        "/usr/local/sbin"
+        "/usr/sbin"
+        "/sbin"
+
+        # Linuxbrew.
+        "/home/linuxbrew/.linuxbrew/bin"
+        "/home/linuxbrew/.linuxbrew/sbin"
+
+        # Language runtimes.
+        "$HOME/.cargo/bin"
+        "$HOME/.ghcup/bin"
+        "$HOME/.cabal/bin"
+        "$HOME/.elan/bin"
+        "${GOPATH:-$HOME/go}/bin"
+        "$HOME/.rbenv/bin"
+
+        # Node (system npm global bin, fallback when fnm is not initialised).
+        "$HOME/.npm/bin"
+        "$HOME/.local/share/npm/bin"
+
+        # Conda / Miniforge condabin (lightweight; avoids full conda activate).
+        "/opt/miniconda3/condabin"
+        "$HOME/.miniforge3/condabin"
+
+        # User-local binaries.
+        "$HOME/.local/bin"
+        "$HOME/.lcs-bin"
+    )
+
+    local -a new_path=()
+    local -A seen
+
+    _add_to_path() {
+        local d="$1"
+        [[ -d "$d" && -z "${seen[$d]}" ]] || return
+        new_path+=("$d")
+        seen[$d]=1
+    }
+
+    # 1. Prioritised template paths.
+    local d
+    for d in "${template[@]}"; do _add_to_path "$d"; done
+
+    # 2. Preserve any paths already in PATH (e.g., injected by the SSH server,
+    #    IDE remote extensions, or container entrypoints) that are not yet seen.
+    local -a orig_path_array=("${(@s/:/)original_path}")
+    for d in "${orig_path_array[@]}"; do _add_to_path "$d"; done
+
+    unset -f _add_to_path
+
+    local IFS=':'
+    export PATH="${new_path[*]}"
+    typeset -gU PATH
+}
+
+_srv_build_path
+unset -f _srv_build_path
+
+# ============================================================================ #
+# End of script.
