@@ -246,9 +246,9 @@ bindkey '^H' backward-delete-char
 bindkey '^?' backward-delete-char
 bindkey '^R' history-incremental-search-backward
 
-# Cursor shape: steady block in normal mode, steady beam in insert mode.
-_srv_cursor_block() { print -n "\e[2 q" }
-_srv_cursor_beam()  { print -n "\e[6 q" }
+# Cursor shape: blinking block in normal mode, blinking beam in insert mode.
+_srv_cursor_block() { print -n "\e[1 q" }
+_srv_cursor_beam()  { print -n "\e[5 q" }
 
 zle-keymap-select() {
     case $KEYMAP in
