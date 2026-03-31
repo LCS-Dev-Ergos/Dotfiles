@@ -46,7 +46,7 @@ zsh_rebuild_path() {
   local cache_version="1"
   local cache_signature="${cache_version}|${original_path}|${PLATFORM}"
   cache_signature+="|${PYENV_ROOT}|${SDKMAN_DIR}|${FNM_MULTISHELL_PATH}"
-  cache_signature+="|${GEM_HOME}|${GOPATH}|${GOROOT}|${ANDROID_HOME}"
+  cache_signature+="|${GEM_HOME}|${GOPATH}|${ANDROID_HOME}"
 
   local cache_ok=false
   if [[ -r "$cache_file" && -O "$cache_file" && ! -L "$cache_file" ]]; then
@@ -125,7 +125,7 @@ zsh_rebuild_path() {
       "$HOME/.flutter/bin"
       "$HOME/.local/bin"
       "$HOME/.perl5/bin"
-      "$GOPATH/bin" "$GOROOT/bin"
+      "$GOPATH/bin"
       "$GEM_HOME/bin" "$ruby_user_bin"
       "$HOME/.miniforge3/condabin" "$HOME/.miniforge3/bin"
       "$ANDROID_HOME/platform-tools"
@@ -184,7 +184,7 @@ zsh_rebuild_path() {
       "$HOME/.local/bin"
       "$HOME/.npm/bin"
       "$HOME/.perl5/bin"
-      "$GOPATH/bin" "$GOROOT/bin"
+      "$GOPATH/bin"
       "/opt/miniconda3/condabin" "$HOME/.miniforge3/condabin" "$HOME/.miniforge3/bin"
       "$ANDROID_HOME/platform-tools"
       "$ANDROID_HOME/cmdline-tools/latest/bin"

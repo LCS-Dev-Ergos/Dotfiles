@@ -19,6 +19,7 @@
 #   - Scala Configuration.
 #   - Clang-Format.
 #   - OpenSSL.
+#   - Go Language.
 #   - Project Directories (LCS.Data, Blog).
 #   - Platform-specific exports.
 #
@@ -113,8 +114,13 @@ if [[ "$PLATFORM" == 'macOS' ]]; then
   export CPPFLAGS="-I/opt/homebrew/opt/llvm/include"
 
   # GO Language.
-  export GOROOT="/usr/local/go"
-  export GOPATH="$HOME/.go"
+  # Note: PATH is handled by 90-path.zsh via $GOPATH/bin.
+  if command -v go >/dev/null 2>&1; then
+    export GOPATH="$HOME/.go"
+    # Go: Module and build cache optimization.
+    export GOCACHE="$HOME/Library/Caches/go-build"
+    export GOMODCACHE="$GOPATH/pkg/mod"
+  fi
 
   # Android Home for Platform Tools.
   export ANDROID_HOME="$HOME/Library/Android/Sdk"
@@ -151,7 +157,7 @@ if [[ "$PLATFORM" == 'Linux' && "$ARCH_LINUX" == true ]]; then
   # GO Language.
   # Note: PATH is handled by 90-path.zsh via $GOPATH/bin.
   if command -v go >/dev/null 2>&1; then
-    export GOPATH="$HOME/go"
+    export GOPATH="$HOME/.go"
     # Go: Module and build cache optimization.
     export GOCACHE="$HOME/.cache/go-build"
     export GOMODCACHE="$GOPATH/pkg/mod"

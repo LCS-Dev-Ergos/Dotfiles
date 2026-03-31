@@ -72,3 +72,6 @@ fi
 
 # ----------------- Elan PATH ------------------ #
 export PATH="$HOME/.elan/bin:$PATH"
+
+# ------------------ Obsidian ------------------ #
+export PATH="$PATH:/Applications/Obsidian.app/Contents/MacOS"
