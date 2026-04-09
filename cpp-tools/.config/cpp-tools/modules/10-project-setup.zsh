@@ -154,6 +154,10 @@ _cp_setup_clangd_config() {
     if cmp -s "$clangd_dest" "$linux_profile" 2>/dev/null || cmp -s "$clangd_dest" "$macos_profile" 2>/dev/null; then
       rm -f -- "$clangd_dest"
       echo "Migrated legacy local clangd config to centralized symlink."
+    elif grep -Fq '# .clangd Configuration for "Competitive Programming"' "$clangd_dest" 2>/dev/null; then
+      local backup_path="${clangd_dest}.bak-centralized-$(date +%Y%m%d-%H%M%S)"
+      mv -- "$clangd_dest" "$backup_path"
+      echo "Backed up legacy local clangd config to $backup_path before centralizing it."
     else
       echo "${C_YELLOW}Warning: Local clangd config exists and was not replaced: $clangd_dest${C_RESET}"
       return 0

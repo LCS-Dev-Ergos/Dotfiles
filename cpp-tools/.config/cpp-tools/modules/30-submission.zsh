@@ -76,7 +76,7 @@ function cppsubmit() {
  * @file: ${target_name}_sub.cpp
  * @generated: $(date '+%Y-%m-%d %H:%M:%S')
  * @source: $solution_file
- * @author: Costantino Lombardi
+ * @author: C.L.
  *
  * @brief: ${problem_brief}
  */
@@ -499,15 +499,30 @@ function cppcheck() {
   # Check compiler and tools.
   echo -e "\n${C_BLUE}Development Tools:${C_RESET}"
 
-  if command -v g++ &> /dev/null; then
-    local gcc_version
-    gcc_version=$(g++ --version | head -n1)
-    echo -e "${C_GREEN}  ✓ Compiler: $gcc_version${C_RESET}"
+  local active_build_dir compiler_path compiler_version
+  active_build_dir=$(_cp_get_active_build_dir 2>/dev/null || true)
+  compiler_path=""
+  if [ -n "$active_build_dir" ] && [ -f "$active_build_dir/CMakeCache.txt" ]; then
+    compiler_path=$(grep -E '^CMAKE_CXX_COMPILER:(FILEPATH|PATH|STRING)=' "$active_build_dir/CMakeCache.txt" | head -n1 | cut -d'=' -f2-)
+  fi
+  if [ -z "$compiler_path" ]; then
+    compiler_path=$(command -v g++ 2>/dev/null || true)
+  fi
 
-    # Check C++ standard support.
-    if echo | g++ -std=c++23 -x c++ - -fsyntax-only &>/dev/null; then
+  if [ -n "$compiler_path" ] && [ -x "$compiler_path" ]; then
+    compiler_version=$($compiler_path --version | head -n1)
+    echo -e "${C_GREEN}  ✓ Compiler: $compiler_version${C_RESET}"
+    if [ -n "$active_build_dir" ]; then
+      echo -e "${C_GREEN}  ✓ Active build compiler source: $active_build_dir/CMakeCache.txt${C_RESET}"
+    else
+      echo -e "${C_YELLOW}  ⚠ No active build cache found; using compiler from PATH${C_RESET}"
+      warnings=$((warnings + 1))
+    fi
+
+    # Check C++ standard support with the same compiler configured for the active build.
+    if echo | "$compiler_path" -std=c++23 -x c++ - -fsyntax-only &>/dev/null; then
       echo -e "${C_GREEN}  ✓ C++23 support available${C_RESET}"
-    elif echo | g++ -std=c++20 -x c++ - -fsyntax-only &>/dev/null; then
+    elif echo | "$compiler_path" -std=c++20 -x c++ - -fsyntax-only &>/dev/null; then
       echo -e "${C_YELLOW}  ⚠ C++20 available (C++23 not supported)${C_RESET}"
       warnings=$((warnings + 1))
     else
@@ -515,7 +530,7 @@ function cppcheck() {
       all_good=false
     fi
   else
-    echo -e "${C_RED}  ✗ g++ compiler not found${C_RESET}"
+    echo -e "${C_RED}  ✗ Unable to resolve a usable C++ compiler${C_RESET}"
     all_good=false
   fi
 

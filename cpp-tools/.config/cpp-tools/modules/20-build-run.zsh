@@ -355,6 +355,11 @@ function cppjudge() {
   local failed=0
   local total=0
   local missing_expected=0
+  local judge_timeout="${CP_JUDGE_TIMEOUT:-5s}"
+
+  if ! _get_timeout_cmd >/dev/null 2>&1; then
+    return 1
+  fi
 
   for test_in in "${test_files[@]}"; do
     local test_case_base
@@ -367,12 +372,30 @@ function cppjudge() {
     echo -n "Testing $(basename "$test_in")... "
     echo ""
 
-    # Measure execution time.
+    # Measure execution time and enforce a timeout for sample judging.
     local start_time=$EPOCHREALTIME
-    "$exec_path" < "$test_in" > "$temp_out"
+    _run_with_timeout "$judge_timeout" "$exec_path" < "$test_in" > "$temp_out"
+    local run_status=$?
     local end_time=$EPOCHREALTIME
     local elapsed_ms
     printf -v elapsed_ms "%.0f" $(( (end_time - start_time) * 1000 ))
+
+    if [ $run_status -eq 124 ] || [ $run_status -eq 137 ]; then
+      echo "${C_BOLD}${C_RED}TIMEOUT${C_RESET} (${elapsed_ms}ms, limit ${judge_timeout})"
+      ((failed++))
+      rm -f -- "$temp_out"
+      continue
+    elif [ $run_status -ne 0 ]; then
+      echo "${C_BOLD}${C_RED}RUNTIME ERROR${C_RESET} (exit ${run_status}, ${elapsed_ms}ms)"
+      ((failed++))
+      if [ -s "$temp_out" ]; then
+        echo "${C_BOLD}${C_YELLOW}════──────────── PARTIAL OUTPUT ────────────════${C_RESET}"
+        cat "$temp_out"
+        echo "${C_BOLD}${C_YELLOW}════────────────────────────────────────────════${C_RESET}"
+      fi
+      rm -f -- "$temp_out"
+      continue
+    fi
 
     # Check if expected output file exists.
     if [ ! -f "$output_case" ]; then

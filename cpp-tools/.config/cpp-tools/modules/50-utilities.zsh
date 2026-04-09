@@ -199,7 +199,7 @@ function cppdiag() {
   # Helper function to print formatted headers.
   _print_header() {
     echo ""
-    echo "${C_BOLD}${C_BLUE}╔═══─────────── $1 ───────────═══╗${C_RESET}"
+    echo "${C_BOLD}${C_BLUE}════─────────── $1 ───────────════${C_RESET}"
   }
 
   echo "${C_BOLD}Running Competitive Programming Environment Diagnostics...${C_RESET}"
