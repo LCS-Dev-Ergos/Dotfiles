@@ -39,7 +39,7 @@ from typing import Callable
 from vscode_backups import default_backup_root, prune_backup_directories
 from vscode_cleanup import apply_cleanup_plan
 from vscode_config import DEFAULT_EXTENSION_EXCLUDE_PATTERNS, VscodePathsConfig
-from vscode_fs import canonicalize_path, is_within_directory
+from vscode_fs import canonicalize_path, canonicalize_path_location, is_path_location_within_directory
 from vscode_models import (
     CleanupPlan,
     ExtensionInstall,
@@ -221,12 +221,12 @@ def _collect_native_excluded_extension_ids(
     *,
     exclude_patterns: tuple[str, ...],
 ) -> tuple[str, ...]:
-    """Collect excluded extension IDs currently managed as real Insiders directories."""
+    """Collect excluded extension IDs present in the Insiders root."""
 
     extension_ids = {
         install.extension_id
         for install in scan_extension_root(insiders_dir)
-        if not install.is_symlink and is_excluded_extension(install.folder_name, exclude_patterns)
+        if is_excluded_extension(install.folder_name, exclude_patterns)
     }
     return tuple(sorted(extension_ids))
 
@@ -302,6 +302,20 @@ def _list_native_excluded_installs(
     installs = [
         install
         for install in scan_extension_root(insiders_dir, edition=VscodeEdition.INSIDERS)
+        if not install.is_symlink and install.extension_id == extension_id
+    ]
+    return tuple(installs)
+
+
+def _list_shared_excluded_installs(
+    stable_dir: Path,
+    extension_id: str,
+) -> tuple[ExtensionInstall, ...]:
+    """Return the Stable installs available to seed an excluded Insiders restore."""
+
+    installs = [
+        install
+        for install in scan_extension_root(stable_dir, edition=VscodeEdition.STABLE)
         if not install.is_symlink and install.extension_id == extension_id
     ]
     return tuple(installs)
@@ -412,11 +426,11 @@ def _promote_native_excluded_update(
     current_installs = _list_native_excluded_installs(insiders_dir, extension_id)
     paths_to_backup = [canonicalize_path(install.path) for install in current_installs]
 
-    target_path = canonicalize_path(insiders_dir / staged_install.folder_name)
-    if not is_within_directory(target_path, insiders_dir):
+    target_path = canonicalize_path_location(insiders_dir / staged_install.folder_name)
+    if not is_path_location_within_directory(target_path, insiders_dir):
         return False
 
-    conflict_path = canonicalize_path(target_path)
+    conflict_path = target_path
     if (
         conflict_path.exists() or conflict_path.is_symlink()
     ) and conflict_path not in paths_to_backup:
@@ -429,7 +443,7 @@ def _promote_native_excluded_update(
         # Move current installs out of the way first. This guarantees we can
         # atomically promote the staged directory into its final name.
         for source_path in paths_to_backup:
-            if not is_within_directory(source_path, insiders_dir):
+            if not is_path_location_within_directory(source_path, insiders_dir):
                 raise RuntimeError("refusing to back up a path outside the Insiders root")
             if not (source_path.exists() or source_path.is_symlink()):
                 continue
@@ -459,11 +473,18 @@ def _update_native_excluded_extension(
     *,
     insiders_dir: Path,
     home: Path,
+    stable_dir: Path | None = None,
 ) -> str:
-    """Run an isolated update-only flow for one Insiders-native excluded extension."""
+    """Run an isolated update flow for one excluded extension."""
 
     current_installs = _list_native_excluded_installs(insiders_dir, extension_id)
     current_install = _select_latest_install(current_installs)
+    seeded_from_shared = False
+    if current_install is None and stable_dir is not None:
+        current_install = _select_latest_install(
+            _list_shared_excluded_installs(stable_dir, extension_id)
+        )
+        seeded_from_shared = current_install is not None
     if current_install is None or not current_install.path.is_dir():
         return "failed"
 
@@ -494,7 +515,7 @@ def _update_native_excluded_extension(
             return "failed"
         if completed.returncode != 0:
             return "failed"
-        if not _is_newer_install(staged_install, current_install):
+        if not seeded_from_shared and not _is_newer_install(staged_install, current_install):
             return "current"
         if not _promote_native_excluded_update(
             extension_id,
@@ -654,6 +675,7 @@ def apply_extension_update(
             extension_id,
             insiders_dir=plan.insiders_dir,
             home=resolved_config.home,
+            stable_dir=plan.stable_dir,
         )
         if result == "applied":
             excluded_updates_applied.append(extension_id)

@@ -58,13 +58,23 @@ class ProfileManifestSafetyError(RuntimeError):
     """Raised when a manifest repair would change profile extension selection."""
 
 
-def _load_manifest_payload(manifest_path: Path) -> list[dict]:
-    """Load a manifest payload and keep only dictionary entries."""
+def _load_manifest_payload(manifest_path: Path) -> list[object]:
+    """Load a manifest payload while preserving the original list structure."""
 
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     if not isinstance(payload, list):
         return []
-    return [item for item in payload if isinstance(item, dict)]
+    return payload
+
+
+def _iter_manifest_dict_items(payload: list[object]) -> list[tuple[int, dict]]:
+    """Return the dictionary entries from a manifest payload with raw indexes."""
+
+    return [
+        (index, item)
+        for index, item in enumerate(payload)
+        if isinstance(item, dict)
+    ]
 
 
 def _manifest_context(
@@ -250,6 +260,21 @@ def _best_candidate_for_entry(
     return (None, None)
 
 
+def _updated_location_payload(location: dict[str, object], desired_path: Path) -> dict[str, object]:
+    """Return a manifest location object updated to the desired filesystem path."""
+
+    desired_value = str(canonicalize_path(desired_path))
+    updated_location = dict(location)
+    updated_location["path"] = desired_value
+    updated_location["scheme"] = "file"
+    updated_location.setdefault("$mid", 1)
+    if "fsPath" in updated_location:
+        updated_location["fsPath"] = desired_value
+    if "external" in updated_location:
+        updated_location["external"] = canonicalize_path(desired_path).as_uri()
+    return updated_location
+
+
 def plan_manifest_repairs(
     stable_dir: str | Path,
     insiders_dir: str | Path,
@@ -287,7 +312,7 @@ def plan_manifest_repairs(
             insiders_dir=insiders_root,
         )
 
-        for entry_index, item in enumerate(manifest_items):
+        for entry_index, item in _iter_manifest_dict_items(manifest_items):
             current_folder_name = _extract_current_folder_name(item)
             extension_id = _extract_extension_id(item, current_folder_name)
             desired_folder_name, _ = _best_candidate_for_entry(
@@ -374,31 +399,6 @@ def is_preserved_missing_profile_decision(decision: ManifestRepairDecision) -> b
         and decision.reason == PRESERVE_MISSING_PROFILE_SELECTION_REASON
     )
 
-
-def build_update_only_manifest_plan(plan: ManifestRepairPlan) -> ManifestRepairPlan:
-    """Return a plan that applies only safe manifest updates and skips removals."""
-
-    filtered_decisions = tuple(
-        decision for decision in plan.decisions if decision.action != ManifestAction.REMOVE
-    )
-    update_count = sum(
-        1 for decision in filtered_decisions if decision.action == ManifestAction.UPDATE
-    )
-    keep_count = sum(1 for decision in filtered_decisions if decision.action == ManifestAction.KEEP)
-    preserved_missing_profile_count = sum(
-        1 for decision in filtered_decisions if is_preserved_missing_profile_decision(decision)
-    )
-    return ManifestRepairPlan(
-        stable_dir=plan.stable_dir,
-        insiders_dir=plan.insiders_dir,
-        update_count=update_count,
-        remove_count=0,
-        keep_count=keep_count,
-        preserved_missing_profile_count=preserved_missing_profile_count,
-        decisions=filtered_decisions,
-    )
-
-
 def build_safe_sync_manifest_plan(plan: ManifestRepairPlan) -> ManifestRepairPlan:
     """Return a plan that keeps updates plus safe root/local orphan removals.
 
@@ -448,11 +448,15 @@ def apply_manifest_repair_plan(plan: ManifestRepairPlan) -> ManifestApplyReport:
     for manifest_path in sorted(grouped):
         payload = _load_manifest_payload(manifest_path)
         decisions_by_index = {decision.entry_index: decision for decision in grouped[manifest_path]}
-        updated_payload: list[dict] = []
+        updated_payload: list[object] = []
 
         for index, item in enumerate(payload):
             decision = decisions_by_index.get(index)
             if not decision:
+                updated_payload.append(item)
+                continue
+
+            if not isinstance(item, dict):
                 updated_payload.append(item)
                 continue
 
@@ -467,12 +471,12 @@ def apply_manifest_repair_plan(plan: ManifestRepairPlan) -> ManifestApplyReport:
                     if decision.edition == VscodeEdition.STABLE
                     else plan.insiders_dir
                 )
+                desired_path = canonicalize_path(current_root / decision.desired_folder_name)
                 updated_item["relativeLocation"] = decision.desired_folder_name
-                location = dict(updated_item.get("location") or {})
-                location["path"] = str(current_root / decision.desired_folder_name)
-                location["scheme"] = "file"
-                location.setdefault("$mid", 1)
-                updated_item["location"] = location
+                location = updated_item.get("location")
+                if not isinstance(location, dict):
+                    location = {}
+                updated_item["location"] = _updated_location_payload(location, desired_path)
                 parsed = parse_extension_folder_name(decision.desired_folder_name)
                 if parsed.version:
                     updated_item["version"] = parsed.version
@@ -490,16 +494,16 @@ def apply_manifest_repair_plan(plan: ManifestRepairPlan) -> ManifestApplyReport:
     )
 
 
-def _snapshot_manifest_payloads(manifest_paths: set[Path]) -> dict[Path, list[dict]]:
+def _snapshot_manifest_payloads(manifest_paths: set[Path]) -> dict[Path, list[object]]:
     """Snapshot manifest payloads so a later failure can be rolled back."""
 
-    snapshots: dict[Path, list[dict]] = {}
+    snapshots: dict[Path, list[object]] = {}
     for manifest_path in manifest_paths:
         snapshots[manifest_path] = deepcopy(_load_manifest_payload(manifest_path))
     return snapshots
 
 
-def _write_manifest_payload_atomically(manifest_path: Path, payload: list[dict]) -> None:
+def _write_manifest_payload_atomically(manifest_path: Path, payload: list[object]) -> None:
     """Write a manifest payload atomically via a temporary sibling file."""
 
     serialized_payload = json.dumps(payload, indent=2) + "\n"
@@ -523,7 +527,7 @@ def _write_manifest_payload_atomically(manifest_path: Path, payload: list[dict])
         raise
 
 
-def _restore_manifest_payloads(snapshots: dict[Path, list[dict]]) -> None:
+def _restore_manifest_payloads(snapshots: dict[Path, list[object]]) -> None:
     """Restore manifest payloads from an in-memory snapshot."""
 
     for manifest_path, payload in snapshots.items():
@@ -540,10 +544,13 @@ def _profile_entry_signature(item: dict) -> dict:
     }
 
 
-def _profile_manifest_signature(payload: list[dict]) -> list[dict]:
+def _profile_manifest_signature(payload: list[object]) -> list[object]:
     """Build a comparable signature for the user-visible profile selection state."""
 
-    return [_profile_entry_signature(item) for item in payload if isinstance(item, dict)]
+    return [
+        _profile_entry_signature(item) if isinstance(item, dict) else deepcopy(item)
+        for item in payload
+    ]
 
 
 def apply_manifest_repair_plan_safely(plan: ManifestRepairPlan) -> ManifestApplyReport:

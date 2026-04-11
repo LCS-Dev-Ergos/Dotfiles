@@ -116,6 +116,40 @@ class NativeExcludedUpdateTests(unittest.TestCase):
             self.assertFalse((insiders_root / "github.copilot-chat-0.40.1").exists())
             self.assertFalse((home / ".local/share/vscode-sync-backups").exists())
 
+    def test_native_excluded_update_bootstraps_from_shared_copy_when_insiders_is_linked(
+        self,
+    ) -> None:
+        """A symlinked excluded extension should be restored as a native Insiders copy."""
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            home = Path(temp_dir)
+            stable_root = home / ".vscode/extensions"
+            insiders_root = home / ".vscode-insiders/extensions"
+            stable_root.mkdir(parents=True)
+            insiders_root.mkdir(parents=True)
+
+            shared_dir = stable_root / "anthropic.claude-code-1.0.0"
+            shared_dir.mkdir()
+            (shared_dir / "marker.txt").write_text("seeded", encoding="utf-8")
+            (insiders_root / "anthropic.claude-code-1.0.0").symlink_to(shared_dir)
+
+            with patch(
+                "vscode_update._run_cli_command",
+                return_value=subprocess.CompletedProcess(["code-insiders"], 0),
+            ):
+                result = _update_native_excluded_extension(
+                    "anthropic.claude-code",
+                    insiders_dir=insiders_root,
+                    home=home,
+                    stable_dir=stable_root,
+                )
+
+            restored_dir = insiders_root / "anthropic.claude-code-1.0.0"
+            self.assertEqual(result, "applied")
+            self.assertTrue(restored_dir.is_dir())
+            self.assertFalse(restored_dir.is_symlink())
+            self.assertEqual((restored_dir / "marker.txt").read_text(encoding="utf-8"), "seeded")
+
 
 class ExtensionUpdateReportTests(unittest.TestCase):
     """Verify update report parsing and full workflow classification."""
@@ -161,6 +195,7 @@ class ExtensionUpdateReportTests(unittest.TestCase):
                 relinked_count=0,
                 migrated_count=0,
                 removed_stale_symlink_count=0,
+                restored_excluded_copy_count=0,
                 skipped_excluded_symlink_count=0,
                 manifest_apply_report=ManifestApplyReport(
                     updated_entries=0,
@@ -174,8 +209,9 @@ class ExtensionUpdateReportTests(unittest.TestCase):
                 *,
                 insiders_dir: Path,
                 home: Path,
+                stable_dir: Path | None = None,
             ) -> str:
-                del insiders_dir, home
+                del insiders_dir, home, stable_dir
                 return {
                     "anthropic.claude-code": "current",
                     "github.copilot-chat": "failed",
@@ -185,8 +221,8 @@ class ExtensionUpdateReportTests(unittest.TestCase):
             with (
                 patch("vscode_update.shutil.which", return_value="/usr/bin/true"),
                 patch(
-                    "vscode_update._run_cli_command",
-                    return_value=subprocess.CompletedProcess(["code"], 0),
+                    "vscode_update._run_cli_command_streaming",
+                    return_value=subprocess.CompletedProcess(["code"], 0, stdout="", stderr=""),
                 ),
                 patch(
                     "vscode_update._update_native_excluded_extension",
@@ -269,6 +305,7 @@ class ExtensionUpdateReportTests(unittest.TestCase):
                 relinked_count=0,
                 migrated_count=0,
                 removed_stale_symlink_count=0,
+                restored_excluded_copy_count=0,
                 skipped_excluded_symlink_count=0,
                 manifest_apply_report=ManifestApplyReport(
                     updated_entries=0,
@@ -280,9 +317,9 @@ class ExtensionUpdateReportTests(unittest.TestCase):
             def fake_shared_update(
                 command: list[str],
                 *,
-                capture_output: bool = False,
-            ) -> subprocess.CompletedProcess[object]:
-                self.assertTrue(capture_output)
+                on_line=None,
+            ) -> subprocess.CompletedProcess[str]:
+                del on_line
                 new_dir = stable_root / "foo.ext-2.0.0"
                 new_dir.mkdir()
                 (stable_root / "extensions.json").write_text(
@@ -312,7 +349,7 @@ class ExtensionUpdateReportTests(unittest.TestCase):
             with (
                 patch("vscode_update.shutil.which", return_value="/usr/bin/true"),
                 patch(
-                    "vscode_update._run_cli_command",
+                    "vscode_update._run_cli_command_streaming",
                     side_effect=fake_shared_update,
                 ),
                 patch(
@@ -352,6 +389,7 @@ class ExtensionUpdateReportTests(unittest.TestCase):
                 relinked_count=0,
                 migrated_count=0,
                 removed_stale_symlink_count=0,
+                restored_excluded_copy_count=0,
                 skipped_excluded_symlink_count=0,
                 manifest_apply_report=ManifestApplyReport(
                     updated_entries=0,
@@ -371,8 +409,8 @@ class ExtensionUpdateReportTests(unittest.TestCase):
             with (
                 patch("vscode_update.shutil.which", return_value="/usr/bin/true"),
                 patch(
-                    "vscode_update._run_cli_command",
-                    return_value=subprocess.CompletedProcess(["code"], 0),
+                    "vscode_update._run_cli_command_streaming",
+                    return_value=subprocess.CompletedProcess(["code"], 0, stdout="", stderr=""),
                 ),
                 patch(
                     "vscode_update.apply_cleanup_plan",

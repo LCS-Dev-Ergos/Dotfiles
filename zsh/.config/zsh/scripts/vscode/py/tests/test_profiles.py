@@ -18,7 +18,6 @@ from vscode_profiles import (
     ProfileManifestSafetyError,
     _write_manifest_payload_atomically,
     apply_manifest_repair_plan_safely,
-    build_update_only_manifest_plan,
     plan_manifest_repairs,
 )
 
@@ -31,11 +30,10 @@ class ManifestRepairPlanTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             home = Path(temp_dir).resolve(strict=False)
+            config = VscodePathsConfig.from_home(home)
             stable_root = home / ".vscode/extensions"
             insiders_root = home / ".vscode-insiders/extensions"
-            profile_dir = (
-                home / "Library/Application Support/Code - Insiders/User/profiles/profile-a"
-            )
+            profile_dir = config.insiders_profile_roots[0] / "profile-a"
             stable_root.mkdir(parents=True)
             insiders_root.mkdir(parents=True)
             profile_dir.mkdir(parents=True)
@@ -64,7 +62,7 @@ class ManifestRepairPlanTests(unittest.TestCase):
             plan = plan_manifest_repairs(
                 stable_root,
                 insiders_root,
-                config=VscodePathsConfig.from_home(home),
+                config=config,
             )
 
             self.assertEqual(plan.update_count, 1)
@@ -80,7 +78,7 @@ class ManifestRepairPlanTests(unittest.TestCase):
             self.assertEqual(payload[0]["version"], "2.0.0")
             self.assertEqual(
                 payload[0]["location"]["path"],
-                str(insiders_root / "foo.ext-2.0.0"),
+                str((stable_root / "foo.ext-2.0.0").resolve(strict=False)),
             )
 
     def test_preserves_missing_profile_entry_instead_of_removing_it(self) -> None:
@@ -88,9 +86,10 @@ class ManifestRepairPlanTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             home = Path(temp_dir).resolve(strict=False)
+            config = VscodePathsConfig.from_home(home)
             stable_root = home / ".vscode/extensions"
             insiders_root = home / ".vscode-insiders/extensions"
-            profile_dir = home / "Library/Application Support/Code/User/profiles/profile-a"
+            profile_dir = config.stable_profile_roots[0] / "profile-a"
             stable_root.mkdir(parents=True)
             insiders_root.mkdir(parents=True)
             profile_dir.mkdir(parents=True)
@@ -117,7 +116,7 @@ class ManifestRepairPlanTests(unittest.TestCase):
             plan = plan_manifest_repairs(
                 stable_root,
                 insiders_root,
-                config=VscodePathsConfig.from_home(home),
+                config=config,
             )
             self.assertEqual(plan.remove_count, 0)
             self.assertEqual(plan.preserved_missing_profile_count, 1)
@@ -170,96 +169,15 @@ class ManifestRepairPlanTests(unittest.TestCase):
             self.assertEqual(report.removed_entries, 1)
             self.assertEqual(json.loads(manifest_path.read_text(encoding="utf-8")), [])
 
-    def test_update_only_manifest_plan_skips_remove_actions(self) -> None:
-        """build_update_only_manifest_plan must strip REMOVE decisions."""
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            home = Path(temp_dir).resolve(strict=False)
-            stable_root = home / ".vscode/extensions"
-            insiders_root = home / ".vscode-insiders/extensions"
-            stable_root.mkdir(parents=True)
-            insiders_root.mkdir(parents=True)
-
-            manifest_path = stable_root / "extensions.json"
-            manifest_path.write_text(
-                json.dumps(
-                    [
-                        {
-                            "identifier": {"id": "ghost.ext"},
-                            "version": "1.0.0",
-                            "relativeLocation": "ghost.ext-1.0.0",
-                            "location": {
-                                "$mid": 1,
-                                "path": str(stable_root / "ghost.ext-1.0.0"),
-                                "scheme": "file",
-                            },
-                        }
-                    ]
-                ),
-                encoding="utf-8",
-            )
-
-            plan = plan_manifest_repairs(
-                stable_root,
-                insiders_root,
-                config=VscodePathsConfig.from_home(home),
-            )
-            filtered_plan = build_update_only_manifest_plan(plan)
-
-            self.assertEqual(filtered_plan.update_count, 0)
-            self.assertEqual(filtered_plan.remove_count, 0)
-            self.assertEqual(filtered_plan.decisions, ())
-
-    def test_update_only_manifest_plan_recomputes_preserved_profile_count(self) -> None:
-        """The filtered update-only plan should not trust the source preserved-count metadata."""
-
-        plan = ManifestRepairPlan(
-            stable_dir=Path("/tmp/stable"),
-            insiders_dir=Path("/tmp/insiders"),
-            update_count=0,
-            remove_count=1,
-            keep_count=1,
-            preserved_missing_profile_count=99,
-            decisions=(
-                ManifestRepairDecision(
-                    manifest_path=Path("/tmp/profile/extensions.json"),
-                    entry_index=0,
-                    edition=VscodeEdition.STABLE,
-                    source_kind="profile",
-                    extension_id="foo.ext",
-                    current_folder_name="foo.ext-1.0.0",
-                    desired_folder_name="foo.ext-1.0.0",
-                    action=ManifestAction.KEEP,
-                    reason="unchanged",
-                ),
-                ManifestRepairDecision(
-                    manifest_path=Path("/tmp/stable/extensions.json"),
-                    entry_index=1,
-                    edition=VscodeEdition.STABLE,
-                    source_kind="root",
-                    extension_id="ghost.ext",
-                    current_folder_name="ghost.ext-1.0.0",
-                    desired_folder_name=None,
-                    action=ManifestAction.REMOVE,
-                    reason="missing_install",
-                ),
-            ),
-        )
-
-        filtered_plan = build_update_only_manifest_plan(plan)
-
-        self.assertEqual(filtered_plan.remove_count, 0)
-        self.assertEqual(filtered_plan.keep_count, 1)
-        self.assertEqual(filtered_plan.preserved_missing_profile_count, 0)
-
     def test_safe_apply_rolls_back_if_profile_selection_would_change(self) -> None:
         """Removing a profile entry must trigger a rollback via ProfileManifestSafetyError."""
 
         with tempfile.TemporaryDirectory() as temp_dir:
             home = Path(temp_dir).resolve(strict=False)
+            config = VscodePathsConfig.from_home(home)
             stable_root = home / ".vscode/extensions"
             insiders_root = home / ".vscode-insiders/extensions"
-            profile_dir = home / "Library/Application Support/Code/User/profiles/profile-a"
+            profile_dir = config.stable_profile_roots[0] / "profile-a"
             stable_root.mkdir(parents=True)
             insiders_root.mkdir(parents=True)
             profile_dir.mkdir(parents=True)
@@ -324,6 +242,54 @@ class ManifestRepairPlanTests(unittest.TestCase):
 
             payload = json.loads(manifest_path.read_text(encoding="utf-8"))
             self.assertEqual(payload, [{"relativeLocation": "new.ext-2.0.0"}])
+
+    def test_safe_apply_preserves_non_dict_entries_and_updates_all_location_paths(self) -> None:
+        """Manifest repair should preserve non-dict items and keep rich location fields consistent."""
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            home = Path(temp_dir).resolve(strict=False)
+            config = VscodePathsConfig.from_home(home)
+            stable_root = home / ".vscode/extensions"
+            insiders_root = home / ".vscode-insiders/extensions"
+            profile_dir = config.stable_profile_roots[0] / "profile-a"
+            stable_root.mkdir(parents=True)
+            insiders_root.mkdir(parents=True)
+            profile_dir.mkdir(parents=True)
+
+            current_dir = stable_root / "foo.ext-2.0.0"
+            current_dir.mkdir()
+            manifest_path = profile_dir / "extensions.json"
+            manifest_path.write_text(
+                json.dumps(
+                    [
+                        "sentinel",
+                        {
+                            "identifier": {"id": "foo.ext"},
+                            "version": "1.0.0",
+                            "relativeLocation": "foo.ext-1.0.0",
+                            "location": {
+                                "$mid": 1,
+                                "path": str(stable_root / "foo.ext-1.0.0"),
+                                "fsPath": str(stable_root / "foo.ext-1.0.0"),
+                                "external": (stable_root / "foo.ext-1.0.0").as_uri(),
+                                "scheme": "file",
+                            },
+                        },
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            plan = plan_manifest_repairs(stable_root, insiders_root, config=config)
+            report = apply_manifest_repair_plan_safely(plan)
+
+            self.assertEqual(report.updated_entries, 1)
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(payload[0], "sentinel")
+            self.assertEqual(payload[1]["relativeLocation"], "foo.ext-2.0.0")
+            self.assertEqual(payload[1]["location"]["path"], str(current_dir))
+            self.assertEqual(payload[1]["location"]["fsPath"], str(current_dir))
+            self.assertEqual(payload[1]["location"]["external"], current_dir.as_uri())
 
 
 if __name__ == "__main__":

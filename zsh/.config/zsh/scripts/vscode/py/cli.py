@@ -61,7 +61,7 @@ from vscode_recovery import (
     plan_missing_extension_recovery,
 )
 from vscode_scanner import scan_extension_root
-from vscode_sync_apply import apply_extension_remove, apply_extension_setup
+from vscode_sync_apply import ExtensionMutationError, apply_extension_remove, apply_extension_setup
 from vscode_sync_workflow import (
     apply_sync_remove,
     apply_sync_setup,
@@ -273,7 +273,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     remove_parser = subparsers.add_parser(
         "remove-extensions",
-        help="Remove sync-managed Insiders extension symlinks.",
+        help="Restore independent Insiders extension installs from Stable when possible.",
     )
     remove_parser.add_argument("stable_dir", type=Path)
     remove_parser.add_argument("insiders_dir", type=Path)
@@ -1141,6 +1141,9 @@ def _run_setup_extensions(args: argparse.Namespace) -> int:
     except ProfileManifestSafetyError as exc:
         _print_notice("error", f"Setup aborted: {exc}")
         return 1
+    except ExtensionMutationError as exc:
+        _print_notice("error", f"Setup failed: {exc}")
+        return 1
     if args.json_output:
         return _emit_json(report.to_dict())
 
@@ -1150,6 +1153,7 @@ def _run_setup_extensions(args: argparse.Namespace) -> int:
     _print_metric("Relinked", report.relinked_count, indent=4)
     _print_metric("Migrated unmanaged", report.migrated_count, indent=4)
     _print_metric("Removed stale", report.removed_stale_symlink_count, indent=4)
+    _print_metric("Restored excluded", report.restored_excluded_copy_count, indent=4)
     _print_metric("Skipped excluded", report.skipped_excluded_symlink_count, indent=4)
     _print_metric("Manifest updates", report.manifest_apply_report.updated_entries, indent=4)
     _print_metric("Manifest removals", report.manifest_apply_report.removed_entries, indent=4)
@@ -1178,8 +1182,9 @@ def _run_remove_extensions(args: argparse.Namespace) -> int:
 
     _print_section("Remove Result")
     _print_subsection("Extensions")
-    _print_metric("Removed root symlink", report.removed_root_symlink_count, indent=4)
-    _print_metric("Removed entry symlinks", report.removed_entry_symlink_count, indent=4)
+    _print_metric("Restored root copies", report.restored_root_copy_count, indent=4)
+    _print_metric("Restored entry copies", report.restored_entry_copy_count, indent=4)
+    _print_metric("Removed broken symlinks", report.removed_broken_symlink_count, indent=4)
     _print_metric("Skipped real directories", report.skipped_real_dir_count, indent=4)
     _print_metric("Failed paths", len(report.failed_paths), indent=4)
     if report.failed_paths:
@@ -1307,6 +1312,9 @@ def _run_sync_setup(args: argparse.Namespace) -> int:
     except ProfileManifestSafetyError as exc:
         _print_notice("error", f"Setup aborted: {exc}")
         return 1
+    except ExtensionMutationError as exc:
+        _print_notice("error", f"Setup failed: {exc}")
+        return 1
     if args.json_output:
         return _emit_json(report.to_dict())
 
@@ -1321,6 +1329,7 @@ def _run_sync_setup(args: argparse.Namespace) -> int:
     _print_metric("Relinked", report.extension_report.relinked_count, indent=4)
     _print_metric("Migrated unmanaged", report.extension_report.migrated_count, indent=4)
     _print_metric("Removed stale", report.extension_report.removed_stale_symlink_count, indent=4)
+    _print_metric("Restored excluded", report.extension_report.restored_excluded_copy_count, indent=4)
     _print_metric("Skipped excluded", report.extension_report.skipped_excluded_symlink_count, indent=4)
     _print_metric(
         "Manifest updates",
@@ -1356,8 +1365,13 @@ def _run_sync_remove(args: argparse.Namespace) -> int:
     _print_metric("Failed items", report.failed_count, indent=4)
     print()
     _print_subsection("Extensions")
-    _print_metric("Removed root symlink", report.extension_report.removed_root_symlink_count, indent=4)
-    _print_metric("Removed entry symlinks", report.extension_report.removed_entry_symlink_count, indent=4)
+    _print_metric("Restored root copies", report.extension_report.restored_root_copy_count, indent=4)
+    _print_metric("Restored entry copies", report.extension_report.restored_entry_copy_count, indent=4)
+    _print_metric(
+        "Removed broken symlinks",
+        report.extension_report.removed_broken_symlink_count,
+        indent=4,
+    )
     _print_metric("Skipped real dirs", report.extension_report.skipped_real_dir_count, indent=4)
     _print_metric("Failed paths", len(report.extension_report.failed_paths), indent=4)
     return 0 if report.failed_count == 0 and not report.extension_report.failed_paths else 1
@@ -1425,6 +1439,9 @@ def _run_update_extensions(args: argparse.Namespace) -> int:
     except ProfileManifestSafetyError as exc:
         _print_notice("error", f"Update aborted: {exc}")
         return 1
+    except ExtensionMutationError as exc:
+        _print_notice("error", f"Update failed: {exc}")
+        return 1
     if args.json_output:
         return _emit_json({"plan": plan.to_dict(), "report": report.to_dict()})
 
@@ -1460,6 +1477,7 @@ def _run_update_extensions(args: argparse.Namespace) -> int:
     _print_metric("Relinked", report.setup_report.relinked_count, indent=4)
     _print_metric("Migrated unmanaged", report.setup_report.migrated_count, indent=4)
     _print_metric("Removed stale", report.setup_report.removed_stale_symlink_count, indent=4)
+    _print_metric("Restored excluded", report.setup_report.restored_excluded_copy_count, indent=4)
     _print_metric("Manifest updates", report.setup_report.manifest_apply_report.updated_entries, indent=4)
     _print_metric("Manifest removals", report.setup_report.manifest_apply_report.removed_entries, indent=4)
     print()

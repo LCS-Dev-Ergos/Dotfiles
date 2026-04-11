@@ -386,6 +386,7 @@ class ExtensionSetupReport:
     relinked_count: int
     migrated_count: int
     removed_stale_symlink_count: int
+    restored_excluded_copy_count: int
     skipped_excluded_symlink_count: int
     manifest_apply_report: ManifestApplyReport
 
@@ -396,6 +397,7 @@ class ExtensionSetupReport:
             "relinked_count": self.relinked_count,
             "migrated_count": self.migrated_count,
             "removed_stale_symlink_count": self.removed_stale_symlink_count,
+            "restored_excluded_copy_count": self.restored_excluded_copy_count,
             "skipped_excluded_symlink_count": self.skipped_excluded_symlink_count,
             "manifest_apply_report": self.manifest_apply_report.to_dict(),
         }
@@ -403,18 +405,20 @@ class ExtensionSetupReport:
 
 @dataclass(frozen=True, slots=True)
 class ExtensionRemoveReport:
-    """Summarize the result of removing sync-managed extension symlinks."""
+    """Summarize the result of restoring independent Insiders extension installs."""
 
-    removed_root_symlink_count: int
-    removed_entry_symlink_count: int
+    restored_root_copy_count: int
+    restored_entry_copy_count: int
+    removed_broken_symlink_count: int
     skipped_real_dir_count: int
     failed_paths: tuple[Path, ...]
 
     def to_dict(self) -> dict[str, object]:
         """Serialize the extension removal report into a JSON-friendly mapping."""
         return {
-            "removed_root_symlink_count": self.removed_root_symlink_count,
-            "removed_entry_symlink_count": self.removed_entry_symlink_count,
+            "restored_root_copy_count": self.restored_root_copy_count,
+            "restored_entry_copy_count": self.restored_entry_copy_count,
+            "removed_broken_symlink_count": self.removed_broken_symlink_count,
             "skipped_real_dir_count": self.skipped_real_dir_count,
             "failed_paths": [str(path) for path in self.failed_paths],
         }

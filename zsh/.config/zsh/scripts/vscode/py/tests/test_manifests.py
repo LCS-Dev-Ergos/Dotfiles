@@ -42,6 +42,28 @@ class ParseManifestReferenceEntriesTests(unittest.TestCase):
                 ],
             )
 
+    def test_deduplicates_matching_relative_and_absolute_locations(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manifest_path = Path(temp_dir) / "extensions.json"
+            manifest_path.write_text(
+                """
+                [
+                  {
+                    "relativeLocation": "foo.ext-1.0.0",
+                    "location": {
+                      "path": "/tmp/extensions/foo.ext-1.0.0",
+                      "scheme": "file"
+                    }
+                  }
+                ]
+                """.strip(),
+                encoding="utf-8",
+            )
+
+            entries = parse_manifest_reference_entries(manifest_path)
+
+            self.assertEqual([entry.folder_name for entry in entries], ["foo.ext-1.0.0"])
+
 
 class CollectReferenceNamesTests(unittest.TestCase):
     """Verify that reference collection scopes correctly by edition."""
@@ -51,6 +73,7 @@ class CollectReferenceNamesTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             home = Path(temp_dir)
+            config = VscodePathsConfig.from_home(home)
 
             stable_extensions_dir = home / ".vscode/extensions"
             stable_extensions_dir.mkdir(parents=True)
@@ -59,23 +82,20 @@ class CollectReferenceNamesTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            stable_profile_dir = home / "Library/Application Support/Code/User/profiles/profile-a"
+            stable_profile_dir = config.stable_profile_roots[0] / "profile-a"
             stable_profile_dir.mkdir(parents=True)
             (stable_profile_dir / "extensions.json").write_text(
                 _fixture_text("stable_profile_extensions.json"),
                 encoding="utf-8",
             )
 
-            insiders_profile_dir = (
-                home / "Library/Application Support/Code - Insiders/User/profiles/profile-b"
-            )
+            insiders_profile_dir = config.insiders_profile_roots[0] / "profile-b"
             insiders_profile_dir.mkdir(parents=True)
             (insiders_profile_dir / "extensions.json").write_text(
                 _fixture_text("insiders_profile_extensions.json"),
                 encoding="utf-8",
             )
 
-            config = VscodePathsConfig.from_home(home)
             names = collect_reference_names(stable_extensions_dir, config=config)
 
             self.assertEqual(

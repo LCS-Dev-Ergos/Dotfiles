@@ -70,28 +70,26 @@ def parse_manifest_reference_entries(
         if not isinstance(item, dict):
             continue
 
+        item_folder_names: list[str] = []
+        seen_folder_names: set[str] = set()
+
+        def _remember_folder_name(folder_name: str | None) -> None:
+            if not folder_name or folder_name in seen_folder_names:
+                return
+            seen_folder_names.add(folder_name)
+            item_folder_names.append(folder_name)
+
         relative_location = item.get("relativeLocation")
         if isinstance(relative_location, str):
             folder_name = relative_location.strip().strip("/")
-            if folder_name:
-                entries.append(
-                    ReferenceEntry(
-                        folder_name=folder_name,
-                        manifest_path=canonical_manifest_path,
-                        source_kind=source_kind,
-                    )
-                )
-
+            _remember_folder_name(folder_name)
         location = item.get("location")
-        if not isinstance(location, dict):
-            continue
+        if isinstance(location, dict):
+            location_path = location.get("path")
+            if isinstance(location_path, str):
+                _remember_folder_name(extract_folder_name_from_location_path(location_path))
 
-        location_path = location.get("path")
-        if not isinstance(location_path, str):
-            continue
-
-        folder_name = extract_folder_name_from_location_path(location_path)
-        if folder_name:
+        for folder_name in item_folder_names:
             entries.append(
                 ReferenceEntry(
                     folder_name=folder_name,

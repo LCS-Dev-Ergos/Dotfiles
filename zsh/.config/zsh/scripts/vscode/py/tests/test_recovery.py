@@ -20,9 +20,10 @@ class RecoveryPlannerTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             home = Path(temp_dir)
+            config = VscodePathsConfig.from_home(home)
             stable_root = home / ".vscode/extensions"
             insiders_root = home / ".vscode-insiders/extensions"
-            profile_dir = home / "Library/Application Support/Code/User/profiles/profile-a"
+            profile_dir = config.stable_profile_roots[0] / "profile-a"
             stable_root.mkdir(parents=True)
             insiders_root.mkdir(parents=True)
             profile_dir.mkdir(parents=True)
@@ -49,7 +50,7 @@ class RecoveryPlannerTests(unittest.TestCase):
             plan = plan_missing_extension_recovery(
                 stable_root,
                 insiders_root,
-                config=VscodePathsConfig.from_home(home),
+                config=config,
             )
 
             self.assertEqual(len(plan.requests), 1)
@@ -69,10 +70,11 @@ class RecoveryPlannerTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             home = Path(temp_dir)
+            config = VscodePathsConfig.from_home(home)
             stable_root = home / ".vscode/extensions"
             insiders_root = home / ".vscode-insiders/extensions"
-            profile_dir = home / "Library/Application Support/Code/User/profiles/profile-a"
-            global_storage = home / "Library/Application Support/Code/User/globalStorage"
+            profile_dir = config.stable_profile_roots[0] / "profile-a"
+            global_storage = config.stable_user_dir / "globalStorage"
             stable_root.mkdir(parents=True)
             insiders_root.mkdir(parents=True)
             profile_dir.mkdir(parents=True)
@@ -109,7 +111,7 @@ class RecoveryPlannerTests(unittest.TestCase):
             plan = plan_missing_extension_recovery(
                 stable_root,
                 insiders_root,
-                config=VscodePathsConfig.from_home(home),
+                config=config,
             )
 
             self.assertEqual(len(plan.requests), 1)

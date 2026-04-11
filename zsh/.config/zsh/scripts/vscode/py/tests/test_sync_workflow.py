@@ -3,7 +3,10 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
+from vscode_config import VscodePathsConfig
+from vscode_profiles import ProfileManifestSafetyError
 from vscode_sync_workflow import (
     apply_sync_remove,
     apply_sync_setup,
@@ -19,8 +22,9 @@ class SyncWorkflowTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             home = Path(temp_dir).resolve(strict=False)
-            stable_user = home / "Library/Application Support/Code/User"
-            insiders_user = home / "Library/Application Support/Code - Insiders/User"
+            config = VscodePathsConfig.from_home(home)
+            stable_user = config.stable_user_dir
+            insiders_user = config.insiders_user_dir
             stable_extensions = home / ".vscode/extensions"
             insiders_extensions = home / ".vscode-insiders/extensions"
 
@@ -55,8 +59,9 @@ class SyncWorkflowTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             home = Path(temp_dir).resolve(strict=False)
-            stable_user = home / "Library/Application Support/Code/User"
-            insiders_user = home / "Library/Application Support/Code - Insiders/User"
+            config = VscodePathsConfig.from_home(home)
+            stable_user = config.stable_user_dir
+            insiders_user = config.insiders_user_dir
             stable_extensions = home / ".vscode/extensions"
             insiders_extensions = home / ".vscode-insiders/extensions"
 
@@ -90,8 +95,9 @@ class SyncWorkflowTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             home = Path(temp_dir).resolve(strict=False)
-            stable_user = home / "Library/Application Support/Code/User"
-            insiders_user = home / "Library/Application Support/Code - Insiders/User"
+            config = VscodePathsConfig.from_home(home)
+            stable_user = config.stable_user_dir
+            insiders_user = config.insiders_user_dir
             stable_extensions = home / ".vscode/extensions"
             insiders_extensions = home / ".vscode-insiders/extensions"
 
@@ -109,7 +115,7 @@ class SyncWorkflowTests(unittest.TestCase):
             report = apply_sync_remove(stable_extensions, insiders_extensions, home=home)
 
             self.assertEqual(report.failed_count, 0)
-            self.assertEqual(report.extension_report.removed_entry_symlink_count, 0)
+            self.assertEqual(report.extension_report.restored_entry_copy_count, 0)
             self.assertFalse((insiders_user / "settings.json").is_symlink())
             self.assertEqual(
                 (insiders_user / "settings.json").read_text(encoding="utf-8"),
@@ -117,6 +123,42 @@ class SyncWorkflowTests(unittest.TestCase):
             )
             self.assertFalse((insiders_user / "snippets").is_symlink())
             self.assertTrue((insiders_user / "snippets" / "python.json").is_file())
+
+    def test_apply_sync_setup_rolls_back_items_when_extension_setup_aborts(self):
+        """Item rewires should be restored if the extension phase aborts afterward."""
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            home = Path(temp_dir).resolve(strict=False)
+            config = VscodePathsConfig.from_home(home)
+            stable_user = config.stable_user_dir
+            insiders_user = config.insiders_user_dir
+            stable_extensions = home / ".vscode/extensions"
+            insiders_extensions = home / ".vscode-insiders/extensions"
+
+            stable_user.mkdir(parents=True, exist_ok=True)
+            insiders_user.mkdir(parents=True, exist_ok=True)
+            stable_extensions.mkdir(parents=True)
+            insiders_extensions.mkdir(parents=True)
+
+            (stable_user / "settings.json").write_text('{"stable":true}', encoding="utf-8")
+            (stable_user / "keybindings.json").write_text("[]", encoding="utf-8")
+            (stable_user / "snippets").mkdir()
+            (stable_user / "snippets" / "python.json").write_text("{}", encoding="utf-8")
+            (stable_user / "mcp.json").write_text("{}", encoding="utf-8")
+            (insiders_user / "settings.json").write_text('{"independent":true}', encoding="utf-8")
+
+            with patch(
+                "vscode_sync_workflow.apply_extension_setup",
+                side_effect=ProfileManifestSafetyError("forced test failure"),
+            ):
+                with self.assertRaises(ProfileManifestSafetyError):
+                    apply_sync_setup(stable_extensions, insiders_extensions, home=home)
+
+            self.assertFalse((insiders_user / "settings.json").is_symlink())
+            self.assertEqual(
+                (insiders_user / "settings.json").read_text(encoding="utf-8"),
+                '{"independent":true}',
+            )
 
 
 if __name__ == "__main__":

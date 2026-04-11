@@ -27,9 +27,9 @@ from __future__ import annotations
 
 import os
 import shutil
-import sys
 import time
 from pathlib import Path
+from typing import Callable
 
 from vscode_backups import default_backup_root, prune_backup_directories
 from vscode_config import DEFAULT_EXTENSION_EXCLUDE_PATTERNS, VscodePathsConfig
@@ -58,19 +58,8 @@ SYNC_ITEM_SPECS = (
 def detect_user_dirs(home: str | Path | None = None) -> tuple[Path, Path]:
     """Return the active Stable and Insiders user directories for this HOME."""
 
-    home_path = Path(home or Path.home()).expanduser()
-    mac_stable = home_path / "Library/Application Support/Code/User"
-    mac_insiders = home_path / "Library/Application Support/Code - Insiders/User"
-    linux_stable = home_path / ".config/Code/User"
-    linux_insiders = home_path / ".config/Code - Insiders/User"
-
-    if mac_stable.exists() or mac_insiders.exists():
-        return mac_stable, mac_insiders
-    if linux_stable.exists() or linux_insiders.exists():
-        return linux_stable, linux_insiders
-    if sys.platform == "darwin":
-        return mac_stable, mac_insiders
-    return linux_stable, linux_insiders
+    config = VscodePathsConfig.from_home(home)
+    return config.stable_user_dir, config.insiders_user_dir
 
 
 def build_sync_items(home: str | Path | None = None) -> tuple[SyncItem, ...]:
@@ -279,6 +268,50 @@ def _backup_target_if_needed(target: Path, label: str, *, backup_root: Path) -> 
     _copy_path(target, backup_path)
 
 
+def _safe_label_for_backup(label: str) -> str:
+    """Return a filesystem-safe label fragment for backup and rollback paths."""
+
+    return "".join(char for char in label.replace(" ", "_") if char.isalnum() or char in "_-")
+
+
+def _rollback_stage_path(backup_root: Path, label: str) -> Path:
+    """Return the rollback staging path for one sync item."""
+
+    return backup_root / ".rollback" / _safe_label_for_backup(label)
+
+
+def _stage_item_target_for_rollback(
+    target: Path,
+    *,
+    label: str,
+    home: Path,
+    backup_root: Path,
+) -> Path | None:
+    """Move an existing sync-item target into rollback staging."""
+
+    if not is_within_directory(target, home):
+        raise ValueError(f"target outside HOME: {target}")
+    if not (target.exists() or target.is_symlink()):
+        return None
+
+    rollback_path = _rollback_stage_path(backup_root, label)
+    rollback_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(target), str(rollback_path))
+    return rollback_path
+
+
+def _restore_staged_item_target(target: Path, staged_path: Path, *, home: Path) -> None:
+    """Restore a previously staged sync-item target to its original location."""
+
+    if not is_within_directory(target, home):
+        raise ValueError(f"target outside HOME: {target}")
+    if target.exists() or target.is_symlink():
+        _safe_remove_existing(target, home=home)
+    if staged_path.exists() or staged_path.is_symlink():
+        staged_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(staged_path), str(target))
+
+
 def apply_sync_setup(
     stable_dir: str | Path,
     insiders_dir: str | Path,
@@ -295,6 +328,7 @@ def apply_sync_setup(
     synced_count = 0
     skipped_count = 0
     failed_count = 0
+    item_rollback_actions: list[Callable[[], None]] = []
 
     for item in build_sync_items(home_path):
         decision = evaluate_sync_item(item)
@@ -311,9 +345,31 @@ def apply_sync_setup(
             if not is_within_directory(item.target_path, home_path):
                 raise ValueError("target_path_outside_home")
             _backup_target_if_needed(item.target_path, item.label, backup_root=backup_root)
-            _safe_remove_existing(item.target_path, home=home_path)
+            rollback_stage = _stage_item_target_for_rollback(
+                item.target_path,
+                label=item.label,
+                home=home_path,
+                backup_root=backup_root,
+            )
             item.target_path.parent.mkdir(parents=True, exist_ok=True)
             item.target_path.symlink_to(item.source_path)
+            if rollback_stage is None:
+                item_rollback_actions.append(
+                    lambda target_path=item.target_path, home_path=home_path: _safe_remove_existing(
+                        target_path,
+                        home=home_path,
+                    )
+                )
+            else:
+                item_rollback_actions.append(
+                    lambda target_path=item.target_path,
+                    rollback_stage=rollback_stage,
+                    home_path=home_path: _restore_staged_item_target(
+                        target_path,
+                        rollback_stage,
+                        home=home_path,
+                    )
+                )
             item_reports.append(
                 SyncItemDecision(
                     label=item.label,
@@ -327,6 +383,17 @@ def apply_sync_setup(
             )
             synced_count += 1
         except (OSError, RuntimeError, ValueError):
+            rollback_stage = _rollback_stage_path(backup_root, item.label)
+            if rollback_stage.exists() or rollback_stage.is_symlink():
+                try:
+                    _restore_staged_item_target(item.target_path, rollback_stage, home=home_path)
+                except (OSError, RuntimeError, ValueError):
+                    pass
+            elif item.target_path.exists() or item.target_path.is_symlink():
+                try:
+                    _safe_remove_existing(item.target_path, home=home_path)
+                except (OSError, ValueError):
+                    pass
             item_reports.append(
                 SyncItemDecision(
                     label=item.label,
@@ -340,12 +407,27 @@ def apply_sync_setup(
             )
             failed_count += 1
 
-    extension_report = apply_extension_setup(
-        stable_dir,
-        insiders_dir,
-        config=config,
-        exclude_patterns=exclude_patterns,
-    )
+    try:
+        extension_report = apply_extension_setup(
+            stable_dir,
+            insiders_dir,
+            config=config,
+            exclude_patterns=exclude_patterns,
+        )
+    except Exception:
+        for rollback_action in reversed(item_rollback_actions):
+            try:
+                rollback_action()
+            except (OSError, RuntimeError, ValueError):
+                continue
+        raise
+    finally:
+        rollback_root = backup_root / ".rollback"
+        if rollback_root.exists() or rollback_root.is_symlink():
+            try:
+                _safe_remove_existing(rollback_root, home=backup_root)
+            except (OSError, ValueError):
+                pass
     return SyncSetupReport(
         item_reports=tuple(item_reports),
         synced_count=synced_count,
