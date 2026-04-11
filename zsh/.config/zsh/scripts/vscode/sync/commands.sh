@@ -88,7 +88,7 @@ vscode_sync_setup() {
   _vscode_sync_run_python_command sync-status || return 1
   printf "\n"
   _shared_log warn "Extension sync mirrors Stable installed extensions into Insiders (except exclusions)."
-  _shared_log info "Profile manifests use safe update-only rebinds for version/location drift."
+  _shared_log info "Profile manifests use safe reconcile repairs for version/location drift."
   _shared_log info "Manifest removals stay read-only, and manifest-named folders stay protected during cleanup."
   printf "\n"
 

@@ -31,13 +31,6 @@ _vscode_python_backend_available() {
   command -v python3 >/dev/null 2>&1 && [[ -r "${_VSCODE_MODULE_ROOT}/py/cli.py" ]]
 }
 
-_vscode_python_backend_enabled() {
-  case "${VSCODE_SYNC_USE_PYTHON:-auto}" in
-    0|false|FALSE|no|NO|off|OFF|legacy|LEGACY) return 1 ;;
-    *) return 0 ;;
-  esac
-}
-
 unset _vscode_module_common_path
 unset _vscode_module_dir
 unset _vscode_scripts_dir

@@ -17,10 +17,6 @@
 # ++++++++++++++++++++++++++ EXTENSION SYNC HELPERS ++++++++++++++++++++++++++ #
 
 _vscode_sync_extensions_require_python() {
-  if ! _vscode_python_backend_enabled; then
-    _shared_log error "Extensions: Python backend explicitly disabled, but the shell backend has been retired."
-    return 1
-  fi
   if ! _vscode_python_backend_available; then
     _shared_log error "Extensions: Python backend unavailable."
     return 1

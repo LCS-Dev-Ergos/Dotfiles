@@ -13,7 +13,7 @@
 #   source "${ZSH_CONFIG_DIR:-$HOME/.config/zsh}/scripts/_shared_helpers.sh"
 #
 # Guard:
-#   Idempotent -- re-sourcing is a no-op once loaded.
+#   Re-sourcing is supported so real implementations can replace lazy stubs.
 #
 # Author: XtremeXSPC
 # License: MIT
