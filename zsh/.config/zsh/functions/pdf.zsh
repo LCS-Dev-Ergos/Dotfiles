@@ -12,6 +12,7 @@
 #   - pdfrotate                  Rotate specific pages.
 #   - djvu_to_pdf                Convert DjVu to PDF.
 #   - copy_pdf_bookmarks         Copy bookmarks between PDFs.
+#   - remove_pdf_watermarks      Remove repeated watermark overlays via Python CLI.
 #   - remove_pdf_metadata        Remove PDF metadata.
 #   - remove_pdf_metadata_batch  Batch metadata removal.
 #   - remove_pdf_metadata_simple Simplified metadata removal.
@@ -20,7 +21,7 @@
 #   - qpdf      PDF manipulation (required for most functions).
 #   - exiftool  Metadata removal (recommended).
 #   - ddjvu     DjVu conversion (djvulibre package).
-#   - python3   Bookmark copying (with PyPDF2).
+#   - python3   Bookmark copying and watermark removal (with pypdf/PyPDF2).
 #
 # ============================================================================ #
 
@@ -475,6 +476,106 @@ function copy_pdf_bookmarks() {
         echo "${C_RED}Error: Failed to copy bookmarks. Please check the files and try again.${C_RESET}" >&2
         return 1
     fi
+}
+
+# -----------------------------------------------------------------------------
+# remove_pdf_watermarks
+# -----------------------------------------------------------------------------
+# Wrapper around the reusable Python watermark removal CLI.
+# Detects repeated watermark-like overlays without rasterizing pages and
+# forwards all arguments to remove_watermarks.py.
+#
+# Usage:
+#   remove_pdf_watermarks <input.pdf> [output.pdf] [options...]
+#
+# Common options:
+#   --dry-run              Analyze only; do not write output.
+#   --verbose              Show more candidate diagnostics.
+#   --match-text "TEXT"    Prefer overlays containing matching text.
+#   --report report.json   Write JSON report.
+#   --fallback-redact      Use white-fill fallback only if structural edit fails.
+#
+# Examples:
+#   remove_pdf_watermarks file.pdf
+#   remove_pdf_watermarks file.pdf --dry-run --verbose
+#   remove_pdf_watermarks file.pdf cleaned.pdf --match-text "Acquistato da"
+# -----------------------------------------------------------------------------
+function remove_pdf_watermarks() {
+    setopt localoptions pipefail no_aliases
+
+    # Check if Python 3 is installed.
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "${C_RED}Error: Python 3 is not installed.${C_RESET}" >&2
+        echo "Please install Python 3 first:" >&2
+        if [[ "$PLATFORM" == "macOS" ]]; then
+            echo "  brew install python3" >&2
+        elif [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" == true ]]; then
+            echo "  sudo pacman -S python" >&2
+        elif [[ "$PLATFORM" == "Linux" ]]; then
+            echo "  sudo apt install python3 (Debian/Ubuntu)" >&2
+            echo "  sudo dnf install python3 (Fedora)" >&2
+        fi
+        return 1
+    fi
+
+    # Check if remove_watermarks.py script exists in trusted paths only.
+    local script_path=""
+    local -a script_candidates=(
+        "${PDF_REMOVE_WATERMARKS_SCRIPT:-}"
+        "${HOME}/.config/zsh/scripts/python/remove_watermarks.py"
+        "${ZSH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zsh}/scripts/python/remove_watermarks.py"
+    )
+    local candidate
+    for candidate in "${script_candidates[@]}"; do
+        [[ -n "$candidate" && -f "$candidate" && -r "$candidate" ]] || continue
+        script_path="$candidate"
+        break
+    done
+
+    if [[ -z "$script_path" ]]; then
+        echo "${C_RED}Error: remove_watermarks.py script not found in trusted paths.${C_RESET}" >&2
+        echo "Checked:" >&2
+        echo "  1. \$PDF_REMOVE_WATERMARKS_SCRIPT (if set)" >&2
+        echo "  2. ${HOME}/.config/zsh/scripts/python/remove_watermarks.py" >&2
+        echo "  3. ${ZSH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zsh}/scripts/python/remove_watermarks.py" >&2
+        return 1
+    fi
+
+    # Show wrapper help if no arguments were provided.
+    if [[ $# -eq 0 ]]; then
+        echo "${C_YELLOW}Usage: remove_pdf_watermarks <input.pdf> [output.pdf] [options...]${C_RESET}" >&2
+        echo "Examples:" >&2
+        echo "  remove_pdf_watermarks file.pdf" >&2
+        echo "  remove_pdf_watermarks file.pdf --dry-run --verbose" >&2
+        echo "  remove_pdf_watermarks file.pdf cleaned.pdf --match-text \"Acquistato da\"" >&2
+        echo "" >&2
+        echo "Run 'remove_pdf_watermarks --help' for the full Python CLI help." >&2
+        return 1
+    fi
+
+    # The Python script can show --help without a PDF backend installed.
+    local help_mode=false
+    local arg
+    for arg in "$@"; do
+        if [[ "$arg" == "--help" || "$arg" == "-h" ]]; then
+            help_mode=true
+            break
+        fi
+    done
+
+    # Check if at least one supported PDF backend library is installed.
+    if [[ "$help_mode" == false ]]; then
+        if ! python3 -c 'import importlib.util, sys; sys.exit(0 if importlib.util.find_spec("pypdf") or importlib.util.find_spec("PyPDF2") else 1)' 2>/dev/null; then
+            echo "${C_RED}Error: Neither pypdf nor PyPDF2 is installed.${C_RESET}" >&2
+            echo "Please install a supported backend first:" >&2
+            echo "  python3 -m pip install pypdf" >&2
+            echo "  or: python3 -m pip install PyPDF2" >&2
+            return 1
+        fi
+    fi
+
+    echo "${C_CYAN}Launching PDF watermark remover...${C_RESET}"
+    python3 "$script_path" "$@"
 }
 
 # -----------------------------------------------------------------------------
