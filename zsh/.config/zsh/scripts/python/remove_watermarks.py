@@ -34,7 +34,9 @@ from typing import Any, Iterable, TypeAlias
 APP_NAME = "PDF Watermark Remover"
 APP_VERSION = "2.1.0"
 BOX_WIDTH = 78
-BOX_LABEL_WIDTH = 18
+BOX_LABEL_MIN_WIDTH = 12
+BOX_LABEL_MAX_WIDTH = 24
+BOX_VALUE_MIN_WIDTH = 18
 
 DESCRIPTION = (
     "Remove repeated watermark-like overlay content from PDFs by editing PDF "
@@ -146,20 +148,37 @@ def print_status(level: str, message: str, *, stream: Any | None = None) -> None
     print(f"{status_prefix(level)} {message}", file=output)
 
 
-def _wrap_box_value(label: str, value: str, width: int) -> list[str]:
-    """Wrap a label/value pair so it fits neatly inside an ASCII box."""
-    value = str(value)
-    value_width = max(8, width - 4 - BOX_LABEL_WIDTH - 1)
-    wrapped = textwrap.wrap(
-        value,
-        width=value_width,
+def _wrap_box_lines(text: str, width: int) -> list[str]:
+    """Wrap text for box rendering while preserving readable word boundaries."""
+    return textwrap.wrap(
+        str(text),
+        width=max(1, width),
         break_long_words=False,
         break_on_hyphens=False,
     ) or [""]
 
+
+def _compute_box_label_width(rows: list[tuple[str, str]], width: int) -> int:
+    """Choose a label-column width that fits current rows and box size."""
+    available = max(
+        BOX_LABEL_MIN_WIDTH,
+        width - 4 - BOX_VALUE_MIN_WIDTH - 1,
+    )
+    longest_label = max((len(label) for label, _ in rows), default=BOX_LABEL_MIN_WIDTH)
+    return max(
+        BOX_LABEL_MIN_WIDTH,
+        min(longest_label, BOX_LABEL_MAX_WIDTH, available),
+    )
+
+
+def _wrap_box_value(label: str, value: str, width: int, *, label_width: int) -> list[str]:
+    """Wrap a label/value pair so it fits neatly inside an ASCII box."""
+    value_width = max(BOX_VALUE_MIN_WIDTH, width - 4 - label_width - 1)
+    wrapped = _wrap_box_lines(str(value), value_width)
+
     lines: list[str] = []
     for index, chunk in enumerate(wrapped):
-        prefix = f"{label:<{BOX_LABEL_WIDTH}} " if index == 0 else f"{'':<{BOX_LABEL_WIDTH}} "
+        prefix = f"{label:<{label_width}} " if index == 0 else f"{'':<{label_width}} "
         lines.append(prefix + chunk)
     return lines
 
@@ -168,10 +187,14 @@ def render_box(title: str, rows: list[tuple[str, str]], *, width: int = BOX_WIDT
     """Render a simple ASCII box for terminal-friendly summaries."""
     inner_width = max(20, width - 4)
     border = "+" + "-" * (width - 2) + "+"
-    lines = [border, f"| {title[:inner_width]:<{inner_width}} |", border]
+    label_width = _compute_box_label_width(rows, width)
+    title_lines = _wrap_box_lines(title, inner_width)
+    lines = [border]
+    lines.extend(f"| {line:<{inner_width}} |" for line in title_lines)
+    lines.append(border)
 
     for label, value in rows:
-        wrapped_lines = _wrap_box_value(label, value, width)
+        wrapped_lines = _wrap_box_value(label, value, width, label_width=label_width)
         for line in wrapped_lines:
             lines.append(f"| {line[:inner_width]:<{inner_width}} |")
 
