@@ -51,10 +51,31 @@
 
 (package! tldr)
 
-;; Plugins for Hugo framework
+;; Hugo static site generation from Org
 (package! ox-hugo)
 
 ;; Gleam language support (tree-sitter mode)
+;; After install: M-x gleam-ts-install-grammar
 (package! gleam-ts-mode
   :recipe (:host github :repo "gleam-lang/gleam-mode"
            :branch "main" :files ("gleam-ts-*.el")))
+
+;; LSP + Consult/Vertico integration
+;; Provides: consult-lsp-symbols, consult-lsp-diagnostics, consult-lsp-file-symbols
+(package! consult-lsp)
+
+;; Haskell yasnippet templates
+(package! haskell-snippets)
+
+;; Rocq/Coq: company-coq adds IDE features (auto-complete, docs, prettified symbols)
+;; Doom's coq module may already include this; kept explicit for clarity
+(package! company-coq)
+
+;; Lean 4: modern interactive theorem prover
+;; Requires: elan + lean4 installed (https://leanprover.github.io/lean4/doc/setup.html)
+(package! lean4-mode
+  :recipe (:host github :repo "leanprover/lean4-mode"
+           :files ("*.el" "data")))
+
+;; Better on-save formatting (more robust than format-all for multi-language setups)
+(package! apheleia)
