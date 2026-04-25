@@ -361,14 +361,17 @@
 ;; ===================== ADDITIONAL USEFUL INTEGRATIONS ===================== ;;
 ;;
 ;; Company mode (auto-completion) - adjust delay for faster/slower completion
+(after! vertico
+  (setq vertico-resize nil))   ; skip resize computation on each keystroke
+
 (after! company
-  (setq company-idle-delay 0.2)           ; Show completions after 0.2s
-  (setq company-minimum-prefix-length 2)  ; Start completing after 2 characters
-  (setq company-show-quick-access t))     ; Show numbers for quick selection
+  (setq company-idle-delay 0.3
+        company-minimum-prefix-length 2
+        company-show-quick-access t))
 
 ;; LSP Mode - Language Server Protocol for IDE features
 (after! lsp-mode
-  (setq lsp-idle-delay 0.3
+  (setq lsp-idle-delay 0.5
         lsp-log-io nil
         lsp-headerline-breadcrumb-enable t
         lsp-lens-enable t
@@ -415,9 +418,11 @@
 
 ;; ======================= PERFORMANCE OPTIMIZATIONS ======================== ;;
 ;;
-(setq gc-cons-threshold (* 256 1024 1024)     ; 256 MB — LSP servers are chatty
-      read-process-output-max (* 4 1024 1024) ; 4 MB — match lsp chunked reads
-      bidi-display-reordering nil             ; faster rendering for LTR-only code
+;; gc-cons-threshold intentionally omitted: Doom's gcmh-mode manages GC timing
+;; automatically (pauses during input, triggers on idle). Hardcoding a value
+;; here overrides gcmh and causes the continuous GC overhead visible in profiling.
+(setq read-process-output-max (* 4 1024 1024)  ; 4 MB — match LSP chunked reads
+      bidi-display-reordering nil              ; faster rendering for LTR-only code
       bidi-inhibit-bpa t)
 
 ;; ============================= SPELL CHECKING ============================= ;;
