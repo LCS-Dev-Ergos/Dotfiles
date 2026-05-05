@@ -4,6 +4,10 @@ local settings = require("settings")
 
 local popup_width = 250
 
+local function shell_quote(value)
+  return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
+end
+
 local volume_percent = sbar.add("item", "widgets.volume1", {
   position = "right",
   icon = { drawing = false },
@@ -65,11 +69,16 @@ local volume_slider = sbar.add("slider", popup_width, {
     },
   },
   background = { color = colors.bg1, height = 2, y_offset = -20 },
-  click_script = 'osascript -e "set volume output volume $PERCENTAGE"'
+  click_script = [[
+    case "$PERCENTAGE" in
+      ''|*[!0-9.]* ) exit 0 ;;
+    esac
+    osascript -e "set volume output volume $PERCENTAGE"
+  ]]
 })
 
 volume_percent:subscribe("volume_change", function(env)
-  local volume = tonumber(env.INFO)
+  local volume = tonumber(env.INFO) or 0
   local icon = icons.volume._0
   if volume > 60 then
     icon = icons.volume._100
@@ -108,14 +117,22 @@ local function volume_toggle_details(env)
   local should_draw = volume_bracket:query().popup.drawing == "off"
   if should_draw then
     volume_bracket:set({ popup = { drawing = true } })
-    sbar.exec("SwitchAudioSource -t output -c", function(result)
-      current_audio_device = result:sub(1, -2)
-      sbar.exec("SwitchAudioSource -a -t output", function(available)
-        current = current_audio_device
-        local color = colors.grey
+    sbar.exec("command -v SwitchAudioSource >/dev/null 2>&1 && SwitchAudioSource -t output -c", function(result)
+      if not result or result == "" then
+        sbar.add("item", "volume.device.0", {
+          position = "popup." .. volume_bracket.name,
+          width = popup_width,
+          align = "center",
+          label = { string = "SwitchAudioSource unavailable", color = colors.red },
+        })
+        return
+      end
+      current_audio_device = result:gsub("[\r\n]+$", "")
+      sbar.exec("command -v SwitchAudioSource >/dev/null 2>&1 && SwitchAudioSource -a -t output", function(available)
+        local current = current_audio_device
         local counter = 0
 
-        for device in string.gmatch(available, '[^\r\n]+') do
+        for device in string.gmatch(available or "", '[^\r\n]+') do
           local color = colors.grey
           if current == device then
             color = colors.white
@@ -125,7 +142,12 @@ local function volume_toggle_details(env)
             width = popup_width,
             align = "center",
             label = { string = device, color = color },
-            click_script = 'SwitchAudioSource -s "' .. device .. '" && sketchybar --set /volume.device\\.*/ label.color=' .. colors.grey .. ' --set $NAME label.color=' .. colors.white
+            click_script = "command -v SwitchAudioSource >/dev/null 2>&1 && SwitchAudioSource -s "
+              .. shell_quote(device)
+              .. " && sketchybar --set /volume.device\\.*/ label.color="
+              .. colors.grey
+              .. " --set \"$NAME\" label.color="
+              .. colors.white
 
           })
           counter = counter + 1
@@ -138,7 +160,8 @@ local function volume_toggle_details(env)
 end
 
 local function volume_scroll(env)
-  local delta = env.SCROLL_DELTA
+  local delta = tonumber(env.SCROLL_DELTA)
+  if not delta then return end
   sbar.exec('osascript -e "set volume output volume (output volume of (get volume settings) + ' .. delta .. ')"')
 end
 
@@ -147,4 +170,3 @@ volume_icon:subscribe("mouse.scrolled", volume_scroll)
 volume_percent:subscribe("mouse.clicked", volume_toggle_details)
 volume_percent:subscribe("mouse.exited.global", volume_collapse_details)
 volume_percent:subscribe("mouse.scrolled", volume_scroll)
-

@@ -3,6 +3,15 @@ local icons = require("icons")
 local settings = require("settings")
 local app_icons = require("helpers.app_icons")
 
+local function shell_quote(value)
+  return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
+end
+
+local function valid_workspace(workspace)
+  workspace = tostring(workspace or "")
+  return workspace:match("^%d+$") and workspace or nil
+end
+
 -- Parse string into table (from FelixKratz)
 function parse_string_to_table(s)
   local result = {}
@@ -23,7 +32,12 @@ end
 
 -- Update icons for a specific workspace
 local function update_workspace_icons(workspace_name, space_item)
-  local cmd = string.format("aerospace list-windows --workspace %s --json", workspace_name)
+  workspace_name = valid_workspace(workspace_name)
+  if not workspace_name then return end
+
+  local cmd = "command -v aerospace >/dev/null 2>&1 && aerospace list-windows --workspace "
+    .. shell_quote(workspace_name)
+    .. " --json"
   
   sbar.exec(cmd, function(result)
     if type(result) ~= "table" then return end
@@ -54,9 +68,9 @@ local function update_workspace_icons(workspace_name, space_item)
 end
 
 -- Get only numeric workspaces (filter out config items)
-local file = io.popen("aerospace list-workspaces --all")
-local result = file:read("*a")
-file:close()
+local file = io.popen("command -v aerospace >/dev/null 2>&1 && aerospace list-workspaces --all")
+local result = file and file:read("*a") or ""
+if file then file:close() end
 local all_workspaces = parse_string_to_table(result)
 
 -- Filter only numeric workspaces
@@ -126,7 +140,7 @@ for i, workspace in ipairs(workspaces) do
 
   -- Mouse click to switch workspace
   space:subscribe("mouse.clicked", function()
-    sbar.exec("aerospace workspace " .. workspace)
+    sbar.exec("command -v aerospace >/dev/null 2>&1 && aerospace workspace " .. shell_quote(workspace))
   end)
   
   -- Update icons on hover (manual fallback)
@@ -176,7 +190,7 @@ for _, workspace in ipairs(workspaces) do
 end
 
 -- Try to highlight current workspace at startup
-sbar.exec("aerospace list-workspaces --focused", function(current_ws)
+sbar.exec("command -v aerospace >/dev/null 2>&1 && aerospace list-workspaces --focused", function(current_ws)
   if current_ws then
     local trimmed_ws = current_ws:gsub("%s+", "")
     if trimmed_ws:match("^%d+$") then
