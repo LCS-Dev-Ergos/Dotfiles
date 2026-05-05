@@ -2,9 +2,40 @@ local icons = require("icons")
 local colors = require("colors")
 local settings = require("settings")
 
--- Execute the event provider binary which provides the event "network_update"
--- for the network interface "en0", which is fired every 2.0 seconds.
-sbar.exec("killall network_load &>/dev/null; $CONFIG_DIR/helpers/event_providers/network_load/bin/network_load en0 network_update 2.0")
+local function shell_quote(value)
+  return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
+end
+
+local config_dir = os.getenv("CONFIG_DIR") or os.getenv("HOME") .. "/.config/sketchybar"
+local network_provider = config_dir .. "/helpers/event_providers/network_load/bin/network_load"
+
+local function resolve_network(callback)
+  sbar.exec([[
+    wifi_iface="$(networksetup -listallhardwareports 2>/dev/null | awk '
+      /^Hardware Port: Wi-Fi$/ { getline; if ($1 == "Device:") print $2; exit }
+    ')"
+    default_iface="$(route -n get default 2>/dev/null | awk '/interface:/{print $2; exit}')"
+    iface="${wifi_iface:-$default_iface}"
+    service="$(networksetup -listallhardwareports 2>/dev/null | awk -v iface="$iface" '
+      /^Hardware Port: / { service=substr($0, 16); next }
+      /^Device: / && $2 == iface { print service; exit }
+    ')"
+    printf '%s\n%s\n' "$iface" "$service"
+  ]], function(result)
+    result = result or ""
+    local iface, service = result:match("^([^\r\n]*)[\r\n]+([^\r\n]*)")
+    iface = (iface and iface ~= "") and iface or nil
+    service = (service and service ~= "") and service or nil
+    callback(iface, service)
+  end)
+end
+
+local function start_network_provider()
+  resolve_network(function(iface)
+    if not iface then return end
+    sbar.exec("pkill -TERM -f " .. shell_quote(network_provider .. " .* network_update") .. " >/dev/null 2>&1; " .. shell_quote(network_provider) .. " " .. shell_quote(iface) .. " network_update 2.0")
+  end)
+end
 
 local popup_width = 250
 
@@ -173,17 +204,37 @@ wifi_up:subscribe("network_update", function(env)
   })
 end)
 
-wifi:subscribe({"wifi_change", "system_woke"}, function(env)
-  sbar.exec("ipconfig getifaddr en0", function(ip)
-    local connected = not (ip == "")
-    wifi:set({
-      icon = {
-        string = connected and icons.wifi.connected or icons.wifi.disconnected,
-        color = connected and colors.white or colors.red,
-      },
-    })
+local function update_connection()
+  resolve_network(function(iface)
+    if not iface then
+      wifi:set({
+        icon = {
+          string = icons.wifi.disconnected,
+          color = colors.red,
+        },
+      })
+      return
+    end
+
+    sbar.exec("ipconfig getifaddr " .. shell_quote(iface), function(result)
+      local connected = result and result:gsub("%s+", "") ~= ""
+      wifi:set({
+        icon = {
+          string = connected and icons.wifi.connected or icons.wifi.disconnected,
+          color = connected and colors.white or colors.red,
+        },
+      })
+    end)
   end)
+end
+
+wifi:subscribe({"wifi_change", "system_woke"}, function(env)
+  start_network_provider()
+  update_connection()
 end)
+
+start_network_provider()
+update_connection()
 
 local function hide_details()
   wifi_bracket:set({ popup = { drawing = false } })
@@ -196,17 +247,32 @@ local function toggle_details()
     sbar.exec("networksetup -getcomputername", function(result)
       hostname:set({ label = result })
     end)
-    sbar.exec("ipconfig getifaddr en0", function(result)
-      ip:set({ label = result })
-    end)
-    sbar.exec("ipconfig getsummary en0 | awk -F ' SSID : '  '/ SSID : / {print $2}'", function(result)
-      ssid:set({ label = result })
-    end)
-    sbar.exec("networksetup -getinfo Wi-Fi | awk -F 'Subnet mask: ' '/^Subnet mask: / {print $2}'", function(result)
-      mask:set({ label = result })
-    end)
-    sbar.exec("networksetup -getinfo Wi-Fi | awk -F 'Router: ' '/^Router: / {print $2}'", function(result)
-      router:set({ label = result })
+    resolve_network(function(iface, service)
+      if not iface then
+        ssid:set({ label = "Unavailable" })
+        ip:set({ label = "Unavailable" })
+        mask:set({ label = "Unavailable" })
+        router:set({ label = "Unavailable" })
+        return
+      end
+
+      sbar.exec("ipconfig getifaddr " .. shell_quote(iface), function(result)
+        ip:set({ label = result ~= "" and result or "Unavailable" })
+      end)
+      sbar.exec("ipconfig getsummary " .. shell_quote(iface) .. " | awk -F ' SSID : '  '/ SSID : / {print $2}'", function(result)
+        ssid:set({ label = result ~= "" and result or "Unavailable" })
+      end)
+      if service then
+        sbar.exec("networksetup -getinfo " .. shell_quote(service) .. " | awk -F 'Subnet mask: ' '/^Subnet mask: / {print $2}'", function(result)
+          mask:set({ label = result ~= "" and result or "Unavailable" })
+        end)
+        sbar.exec("networksetup -getinfo " .. shell_quote(service) .. " | awk -F 'Router: ' '/^Router: / {print $2}'", function(result)
+          router:set({ label = result ~= "" and result or "Unavailable" })
+        end)
+      else
+        mask:set({ label = "Unavailable" })
+        router:set({ label = "Unavailable" })
+      end
     end)
   else
     hide_details()
@@ -220,7 +286,7 @@ wifi:subscribe("mouse.exited.global", hide_details)
 
 local function copy_label_to_clipboard(env)
   local label = sbar.query(env.NAME).label.value
-  sbar.exec("echo \"" .. label .. "\" | pbcopy")
+  sbar.exec("printf %s " .. shell_quote(label) .. " | pbcopy")
   sbar.set(env.NAME, { label = { string = icons.clipboard, align="center" } })
   sbar.delay(1, function()
     sbar.set(env.NAME, { label = { string = label, align = "right" } })

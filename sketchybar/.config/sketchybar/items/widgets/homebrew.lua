@@ -4,17 +4,29 @@ local settings = require("settings")
 
 --[[ Widget for managing Homebrew updates ]]
 
+local function find_brew_path()
+  for _, path in ipairs({"/opt/homebrew/bin/brew", "/usr/local/bin/brew"}) do
+    local file = io.open(path, "r")
+    if file then
+      file:close()
+      return path
+    end
+  end
+  return "/opt/homebrew/bin/brew"
+end
+
 -- Configuration
 local CONFIG = {
   check_interval = 60,
   update_interval = 900,
-  brew_path = "/opt/homebrew/bin/brew",
+  brew_path = find_brew_path(),
   terminal_app = "ghostty",
   timeout = 120,
-  debug = true,
+  debug = false,
   hover_effect = true,
   widget_name = "widgets.brew",
-  package_icon = icons.package or "[PKG]"
+  package_icon = icons.package or "[PKG]",
+  log_path = (os.getenv("TMPDIR") or "/tmp/"):gsub("/*$", "/") .. "sketchybar-brew-check-" .. (os.getenv("UID") or os.getenv("USER") or "user") .. ".log"
 }
 
 -- Color threshold definitions
@@ -35,28 +47,39 @@ local FEEDBACK_COLORS = {
 }
 
 -- Helper functions
+local config_dir = os.getenv("CONFIG_DIR") or os.getenv("HOME") .. "/.config/sketchybar"
+local brew_check_path = config_dir .. "/helpers/event_providers/brew_check/bin/brew_check"
+
+local function shell_quote(value)
+  return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
+end
 local function debug_log(message)
   if CONFIG.debug then print("[BREW] " .. message) end
+end
+local function debug_file_log(message)
+  if not CONFIG.debug then return end
+  local file = io.open(CONFIG.log_path, "a")
+  if not file then return end
+  file:write(message .. "\n")
+  file:close()
 end
 local function safe_exec(command)
   debug_log("Executing command: " .. command)
   sbar.exec(command)
 end
 local function start_event_provider()
-  -- Get the config directory by querying sketchybar
-  local config_dir = os.getenv("CONFIG_DIR") or os.getenv("HOME") .. "/.config/sketchybar"
-  local brew_check_path = config_dir .. "/helpers/event_providers/brew_check/bin/brew_check"
+  local verbose_arg = CONFIG.debug and " --verbose" or ""
 
-  local command = string.format(
-    "/bin/zsh -c 'source ~/.zshrc >/dev/null 2>&1; " ..
-    "pkill -f \"brew_check\" >/dev/null 2>&1; " ..
-    "\"%s\" brew_update %d %d \"%s\" >/tmp/brew_check.log 2>&1 &'",
-    brew_check_path,
+  local script = string.format(
+    "pkill -TERM -f %s >/dev/null 2>&1; %s brew_update %d %d%s >>%s 2>&1 &",
+    shell_quote(brew_check_path .. " brew_update"),
+    shell_quote(brew_check_path),
     CONFIG.check_interval,
     CONFIG.update_interval,
-    CONFIG.debug and "--verbose" or ""
+    verbose_arg,
+    shell_quote(CONFIG.log_path)
   )
-  safe_exec(command)
+  safe_exec("/bin/zsh -c " .. shell_quote(script))
 end
 local function get_color(count)
   count = tonumber(count) or 0
@@ -95,7 +118,7 @@ brew:subscribe("brew_update", function(env)
   local info = env.outdated_count
   if CONFIG.debug then
     print("DEBUG: brew_update received env.outdated_count:", info)
-    os.execute("echo 'Lua received: " .. tostring(info) .. "' >> /tmp/brew_check.log")
+    debug_file_log("Lua received: " .. tostring(info))
   end
   local count = tonumber(info) or 0
   local color = get_color(count)
@@ -124,9 +147,12 @@ brew:set({
     TERMINAL_APP="%s"
     PACKAGE_ICON="%s"
     BREW_PATH="%s"
-    CHECK_PROCESS_NAME="brew_check"
+    CHECK_PROCESS_PATTERN=%s
 
     # ----- Main Logic ----- #
+    if [ ! -x "$BREW_PATH" ]; then
+        exit 0
+    fi
 
     # 1. Instant and Safe Visual Feedback
     #    Set both icon and "loading" color to solve the problem
@@ -137,7 +163,7 @@ brew:set({
 
     if [ "$BUTTON" = "middle" ]; then
         # Middle click: Send refresh signal to background process.
-        pkill -USR1 -f "$CHECK_PROCESS_NAME"
+        pkill -USR1 -f "$CHECK_PROCESS_PATTERN"
         # After a brief moment, trigger an event to ensure UI restores.
         sleep 0.5
         sketchybar --trigger brew_update
@@ -173,11 +199,12 @@ brew:set({
 
       # 4. AFTER the terminal closes, send a signal to the C helper
       #    to force counter update.
-      pkill -USR1 -f "$CHECK_PROCESS_NAME"
+      pkill -USR1 -f "$CHECK_PROCESS_PATTERN"
 
     ) & # The final ampersand is crucial for UI responsiveness.
 
-  ]], CONFIG.widget_name, CONFIG.terminal_app, CONFIG.package_icon, CONFIG.brew_path)
+  ]], CONFIG.widget_name, CONFIG.terminal_app, CONFIG.package_icon, CONFIG.brew_path,
+      shell_quote(brew_check_path .. " brew_update"))
 })
 
 -- Hover effect and surrounding elements (unchanged)

@@ -1,3 +1,4 @@
+//===---------------------------------------------------------------------------===//
 /**
  * @file brew_check.c
  * @brief Homebrew package update checker and event provider for SketchyBar.
@@ -9,7 +10,7 @@
  * @author LCS.Dev
  * @date 2025-01-10
  */
-//===--------------------------------------------------------------------------===//
+ //===---------------------------------------------------------------------------===//
 
 #include <errno.h>
 #include <limits.h>
@@ -20,14 +21,14 @@
 #include "../sketchybar.h"
 #include "brew.h"
 
-//===------------------------------- Constants --------------------------------===//
+//===-------------------------------- CONSTANTS --------------------------------===//
 
 #define DEFAULT_UPDATE_INTERVAL 900
 #define DEFAULT_CHECK_INTERVAL 60
 #define MAX_EVENT_NAME_LENGTH 64
 #define MAX_MESSAGE_LENGTH 2048
 
-//===------------------------------ Global State ------------------------------===//
+//===------------------------------ GLOBAL STATE -------------------------------===//
 
 /** @brief Flag to gracefully terminate the daemon, set by a signal handler. Must be volatile
  * sig_atomic_t. */
@@ -36,15 +37,32 @@ static volatile sig_atomic_t g_terminate_flag = 0;
  */
 static volatile sig_atomic_t g_force_check_flag = 0;
 
-//===-------------------------- Forward Declarations --------------------------===//
+//===-------------------------- FORWARD DECLARATIONS ---------------------------===//
 
 static void handle_signal(int sig);
-static void check_and_notify(brew_t* brew, const char* event_name, bool force_update, bool verbose);
+static void check_and_notify(
+    brew_t* brew, const char* event_name, long update_interval_seconds, bool force_check,
+    bool verbose);
 static void show_usage(const char* program_name);
 static void log_message(bool verbose, const char* format, ...);
 
 /**
  * @brief Main entry point for the brew_check daemon.
+ *
+ * Parses command-line arguments, initializes the brew state, registers a
+ * SketchyBar custom event, and enters the main loop that periodically checks
+ * for outdated packages and triggers bar updates.
+ *
+ * @param argc Number of command-line arguments.
+ * @param argv Argument vector. Expected:
+ *             argv[1] = event_name,
+ *             argv[2] = check_interval_seconds,
+ *             argv[3] = update_interval_seconds (optional),
+ *             argv[4] = --verbose (optional).
+ * @return 0 on graceful termination, 1 on initialization or argument error.
+ *
+ * @note The daemon responds to SIGINT/SIGTERM for graceful shutdown and
+ *       SIGUSR1 to force an immediate check.
  */
 int main(int argc, char** argv) {
   // Argument Parsing.
@@ -111,9 +129,9 @@ int main(int argc, char** argv) {
   while (!g_terminate_flag) {
     if (g_force_check_flag) {
       g_force_check_flag = 0;
-      check_and_notify(&brew_state, event_name, true, verbose_mode);
+      check_and_notify(&brew_state, event_name, update_interval_secs, true, verbose_mode);
     } else {
-      check_and_notify(&brew_state, event_name, false, verbose_mode);
+      check_and_notify(&brew_state, event_name, update_interval_secs, false, verbose_mode);
     }
 
     // Sleep in chunks to remain responsive to signals.
@@ -132,23 +150,33 @@ int main(int argc, char** argv) {
   return 0;
 }
 
-//===------------------------ Function Implementations ------------------------===//
+//===------------------------ FUNCTION IMPLEMENTATIONS -------------------------===//
 
 /**
- * @brief Performs the brew check and sends a trigger to Sketchybar.
+ * @brief Performs the brew check and sends a trigger to SketchyBar.
  *
- * @param brew The brew state structure.
- * @param event_name The name of the custom event to trigger.
- * @param force_update If true, ignores the time interval and system load checks.
- * @param verbose If true, enables detailed logging for this operation.
+ * Evaluates whether a `brew update` is needed, fetches the list of outdated
+ * packages if appropriate, and emits a SketchyBar trigger event carrying the
+ * current state (outdated count, package list, last check timestamp, and error).
+ *
+ * @param brew                    Pointer to the brew state structure.
+ * @param event_name              The name of the custom event to trigger.
+ * @param update_interval_seconds Minimum seconds between `brew update` runs.
+ * @param force_check             If true, forces a refresh even if the update
+ *                                interval has not elapsed.
+ * @param verbose                 If true, emits detailed diagnostic logs.
  */
 static void check_and_notify(
-    brew_t* brew, const char* event_name, bool force_update, bool verbose) {
-  if (force_update || brew_needs_update(brew, DEFAULT_UPDATE_INTERVAL)) {
-    log_message(verbose, "Fetching outdated packages (forced: %s)...", force_update ? "yes" : "no");
+    brew_t* brew, const char* event_name, long update_interval_seconds, bool force_check,
+    bool verbose) {
+  bool run_update = brew_needs_update(brew, (int)update_interval_seconds);
+  if (force_check || run_update) {
+    log_message(
+        verbose, "Fetching outdated packages (forced: %s, update: %s)...",
+        force_check ? "yes" : "no", run_update ? "yes" : "no");
 
     // Capture the return value to satisfy the [[nodiscard]] attribute.
-    brew_error_t fetch_err = brew_fetch_outdated(brew);
+    brew_error_t fetch_err = brew_fetch_outdated(brew, run_update);
     if (fetch_err != BREW_SUCCESS) {
       log_message(verbose, "Fetch failed with error: %s", brew_error_string(fetch_err));
     } else {
@@ -171,7 +199,11 @@ static void check_and_notify(
 /**
  * @brief Signal handler for graceful shutdown and forced refresh.
  *
- * This function is async-signal-safe. It only sets atomic flags.
+ * Handles SIGINT/SIGTERM by setting the terminate flag (and killing any active
+ * brew child), and SIGUSR1 by setting the force-check flag. This function is
+ * async-signal-safe: it only manipulates volatile sig_atomic_t variables and
+ * calls brew_terminate_active_command().
+ *
  * @param sig The signal number received.
  */
 static void handle_signal(int sig) {
@@ -179,6 +211,7 @@ static void handle_signal(int sig) {
     case SIGINT:
     case SIGTERM:
       g_terminate_flag = 1;
+      brew_terminate_active_command();
       break;
     case SIGUSR1:
       g_force_check_flag = 1;
@@ -188,6 +221,7 @@ static void handle_signal(int sig) {
 
 /**
  * @brief Prints usage information to stderr.
+ *
  * @param program_name The name of the executable (argv[0]).
  */
 static void show_usage(const char* program_name) {
@@ -197,11 +231,16 @@ static void show_usage(const char* program_name) {
 }
 
 /**
- * @brief Logs a message to stderr if verbose mode is enabled.
+ * @brief Logs a timestamped diagnostic message to stderr.
+ *
+ * If verbose mode is enabled, prints a formatted message prefixed with the
+ * current local time. If verbose mode is disabled, the call is a no-op.
  *
  * @param verbose The flag indicating if logging is active.
- * @param format The format string for the message.
- * @param ... Variable arguments for the format string.
+ * @param format  The printf-style format string for the message.
+ * @param ...     Variable arguments for the format string.
+ *
+ * @note Uses localtime_r() for thread-safe timestamp generation.
  */
 static void log_message(bool verbose, const char* format, ...) {
   if (!verbose) return;
@@ -225,4 +264,4 @@ static void log_message(bool verbose, const char* format, ...) {
   fprintf(stderr, "\n");
 }
 
-//===--------------------------------------------------------------------------===//
+//===---------------------------------------------------------------------------===//

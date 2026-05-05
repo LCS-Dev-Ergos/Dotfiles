@@ -1,3 +1,32 @@
+//===---------------------------------------------------------------------------===//
+/**
+ * @file menus.c
+ * @brief macOS menu bar interaction utility for SketchyBar.
+ *
+ * This program provides command-line access to macOS application menus and
+ * system menu bar extras (status icons). It uses the Accessibility and Core
+ * Graphics APIs to enumerate menu items, perform clicks, and interact with
+ * the frontmost application.
+ *
+ * Key features:
+ *  - List menu items of the frontmost application
+ *  - Select menu items by numeric index
+ *  - Click system menu bar extras by alias (format: "app,name")
+ *  - Temporary menubar hiding for reliable extra menu interaction
+ *  - Accessibility permission validation
+ *
+ * Typical usage:
+ *  ./menus -l                  # List frontmost app menu items
+ *  ./menus -s 3                # Select menu item at index 3
+ *  ./menus -s "Control Center,WiFi"  # Click a menu bar extra
+ *
+ * @note Requires Accessibility permissions to be granted to the process.
+ *
+ * @author LCS.Dev
+ * @date 2025-01-10
+ */
+//===---------------------------------------------------------------------------===//
+
 #include <Carbon/Carbon.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -5,18 +34,24 @@
 #include <string.h>
 #include <unistd.h>
 
-// Constants
-#define MAX_BUFFER_SIZE          512
-#define MAX_NAME_BUFFER          256
+//===-------------------------------- CONSTANTS --------------------------------===//
+
+#define MAX_BUFFER_SIZE 512
+#define MAX_NAME_BUFFER 256
 
 static const int MENU_BAR_LAYER           = 0x19;
 static const int MAIN_DISPLAY             = 0;
 static const int CLICK_DELAY_MICROSECONDS = 150000; // 150ms
 
 /**
- * Initializes accessibility API access
+ * @brief Initializes Accessibility API access.
  *
- * @return true if initialization succeeds, false otherwise
+ * Prompts the user for Accessibility permissions if not already granted
+ * and verifies that the current process is trusted.
+ *
+ * @return true if the process has Accessibility privileges, false otherwise.
+ *
+ * @note On macOS, this may trigger a system permission dialog on first use.
  */
 [[nodiscard]] static bool ax_init() {
   const void* keys[]   = {kAXTrustedCheckOptionPrompt};
@@ -43,27 +78,35 @@ static const int CLICK_DELAY_MICROSECONDS = 150000; // 150ms
 }
 
 /**
- * Performs a click on a UI element
+ * @brief Performs a click on a UI element.
  *
- * @param element Element to click on
+ * First cancels any ongoing action on the element, waits briefly, then
+ * performs the press action.
+ *
+ * @param element The Accessibility UI element to click.
+ *
+ * @note The element is not validated beyond a NULL check; callers must ensure
+ *       it supports the kAXPressAction.
  */
 static void ax_perform_click(AXUIElementRef element) {
   if (!element)
     return;
 
-  // First cancel any ongoing action
+  // First cancel any ongoing action.
   AXUIElementPerformAction(element, kAXCancelAction);
   usleep(CLICK_DELAY_MICROSECONDS);
 
-  // Then perform the press action
+  // Then perform the press action.
   AXUIElementPerformAction(element, kAXPressAction);
 }
 
 /**
- * Gets the title of a UI element
+ * @brief Retrieves the title of a UI element.
  *
- * @param element Element to get the title from
- * @return The element's title, or NULL on error
+ * @param element The Accessibility UI element to query.
+ * @return A retained CFStringRef containing the title, or NULL on error.
+ *
+ * @note The caller is responsible for releasing the returned CFStringRef.
  */
 [[nodiscard]] static CFStringRef ax_get_title(AXUIElementRef element) {
   if (!element)
@@ -78,10 +121,16 @@ static void ax_perform_click(AXUIElementRef element) {
 }
 
 /**
- * Selects a menu option by ID
+ * @brief Selects a menu option by numeric index.
  *
- * @param app Application containing the menu
- * @param id ID of the option to select
+ * Retrieves the visible children of the application's menu bar and performs
+ * a click on the child at the specified index.
+ *
+ * @param app The Accessibility UI element representing the target application.
+ * @param id  The zero-based index of the menu item to select.
+ *
+ * @note Index 0 typically corresponds to the application name menu; indices
+ *       1+ correspond to standard menu items (File, Edit, etc.).
  */
 static void ax_select_menu_option(AXUIElementRef app, int id) {
   if (!app || id < 0)
@@ -108,9 +157,12 @@ static void ax_select_menu_option(AXUIElementRef app, int id) {
 }
 
 /**
- * Prints available menu options
+ * @brief Prints all available menu options for an application.
  *
- * @param app Application containing the menu
+ * Iterates over the visible children of the application's menu bar and prints
+ * each item's title to stdout, one per line. Skips the first item (app menu).
+ *
+ * @param app The Accessibility UI element representing the target application.
  */
 static void ax_print_menu_options(AXUIElementRef app) {
   if (!app)
@@ -134,7 +186,7 @@ static void ax_print_menu_options(AXUIElementRef app) {
         if (title) {
           CFIndex title_length = CFStringGetLength(title);
           if (title_length > 0) {
-            // Safe buffer allocation for the string
+            // Safe buffer allocation for the string.
             CFIndex buffer_size = CFStringGetMaximumSizeForEncoding(title_length, kCFStringEncodingUTF8) + 1;
             char*   buffer      = (char*)malloc(buffer_size);
 
@@ -155,10 +207,18 @@ static void ax_print_menu_options(AXUIElementRef app) {
 }
 
 /**
- * Gets an extra menu item (icons in the system menubar)
+ * @brief Locates a system menu bar extra (status icon) by alias.
  *
- * @param alias Application,window alias
- * @return The corresponding UI element, or NULL on error
+ * Scans the window list for menu bar layer windows matching the given alias
+ * (format: "owner,name"), then queries the application's extras menu bar to
+ * find the element whose horizontal position is within tolerance.
+ *
+ * @param alias The alias string in "owner,name" format (e.g., "Control Center,WiFi").
+ * @return A retained AXUIElementRef for the matching extra, or NULL on error.
+ *
+ * @note The caller is responsible for releasing the returned element.
+ * @warning This function uses private SkyLight/CoreGraphics APIs and may break
+ *          in future macOS releases.
  */
 [[nodiscard]] static AXUIElementRef ax_get_extra_menu_item(const char* alias) {
   if (!alias)
@@ -281,15 +341,21 @@ static void ax_print_menu_options(AXUIElementRef app) {
   return result;
 }
 
-// SkyLight function declarations
+// SkyLight function declarations.
 extern int  SLSMainConnectionID();
 extern void SLSSetMenuBarVisibilityOverrideOnDisplay(int cid, int did, bool enabled);
 extern void SLSSetMenuBarInsetAndAlpha(int cid, double u1, double u2, float alpha);
 
 /**
- * Selects an item from the extra menu
+ * @brief Clicks a system menu bar extra by alias.
  *
- * @param alias Application,window alias
+ * Temporarily hides the system menu bar to prevent occlusion, performs the
+ * click on the identified extra, then restores the menu bar visibility.
+ *
+ * @param alias The alias string in "owner,name" format.
+ *
+ * @note Uses private SkyLight APIs (SLSSetMenuBarVisibilityOverrideOnDisplay,
+ *       SLSSetMenuBarInsetAndAlpha) which are not guaranteed across macOS versions.
  */
 static void ax_select_menu_extra(const char* alias) {
   if (!alias)
@@ -303,30 +369,36 @@ static void ax_select_menu_extra(const char* alias) {
 
   int connection_id = SLSMainConnectionID();
 
-  // Temporarily hide the menubar
+  // Temporarily hide the menubar.
   SLSSetMenuBarInsetAndAlpha(connection_id, 0, 1, 0.0);
   SLSSetMenuBarVisibilityOverrideOnDisplay(connection_id, MAIN_DISPLAY, true);
   SLSSetMenuBarInsetAndAlpha(connection_id, 0, 1, 0.0);
 
-  // Perform the click on the element
+  // Perform the click on the element.
   ax_perform_click(item);
 
-  // Restore the menubar
+  // Restore the menubar.
   SLSSetMenuBarVisibilityOverrideOnDisplay(connection_id, MAIN_DISPLAY, false);
   SLSSetMenuBarInsetAndAlpha(connection_id, 0, 1, 1.0);
 
   CFRelease(item);
 }
 
-// Process Serial Number function declarations
+// Process Serial Number function declarations.
 extern void _SLPSGetFrontProcess(ProcessSerialNumber* psn);
 extern void SLSGetConnectionIDForPSN(int cid, ProcessSerialNumber* psn, int* cid_out);
 extern void SLSConnectionGetPID(int cid, pid_t* pid_out);
 
 /**
- * Gets the frontmost application
+ * @brief Retrieves the frontmost (active) application.
  *
- * @return The UI element of the frontmost application, or NULL on error
+ * Uses the Process Serial Number and private SkyLight APIs to resolve the
+ * frontmost application to a PID, then creates an Accessibility element.
+ *
+ * @return An AXUIElementRef for the frontmost application, or NULL on error.
+ *
+ * @note The caller is responsible for releasing the returned element.
+ * @warning Relies on private SkyLight APIs that may change in future macOS releases.
  */
 [[nodiscard]] static AXUIElementRef ax_get_front_app() {
   ProcessSerialNumber psn = {0};
@@ -348,7 +420,10 @@ extern void SLSConnectionGetPID(int cid, pid_t* pid_out);
 }
 
 /**
- * Shows program usage
+ * @brief Displays program usage information.
+ *
+ * @param program_name The name of the executable (argv[0]). If NULL, defaults
+ *                     to "menus".
  */
 static void show_usage(const char* program_name) {
   if (!program_name)
@@ -361,6 +436,18 @@ static void show_usage(const char* program_name) {
       "'app,name')\n");
 }
 
+/**
+ * @brief Main entry point for the menus utility.
+ *
+ * Parses command-line arguments and dispatches to the appropriate action:
+ * listing menu items, selecting by index, or clicking a menu bar extra by alias.
+ *
+ * @param argc Number of command-line arguments.
+ * @param argv Argument vector.
+ * @return 0 on success, 1 on error or invalid arguments.
+ *
+ * @note Accessibility permissions must be granted before any operation.
+ */
 int main(int argc, char** argv) {
   if (argc == 1) {
     show_usage(argv[0]);
@@ -383,7 +470,7 @@ int main(int argc, char** argv) {
   } else if (argc == 3 && strcmp(argv[1], "-s") == 0) {
     int id = 0;
     if (sscanf(argv[2], "%d", &id) == 1) {
-      // Select by numeric ID
+      // Select by numeric ID.
       AXUIElementRef app = ax_get_front_app();
       if (!app) {
         fprintf(stderr, "Unable to get frontmost application\n");
@@ -392,7 +479,7 @@ int main(int argc, char** argv) {
       ax_select_menu_option(app, id);
       CFRelease(app);
     } else {
-      // Select by alias
+      // Select by alias.
       ax_select_menu_extra(argv[2]);
     }
   } else {
@@ -402,3 +489,5 @@ int main(int argc, char** argv) {
 
   return 0;
 }
+
+//===---------------------------------------------------------------------------===//

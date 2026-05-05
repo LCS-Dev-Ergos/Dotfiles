@@ -5,6 +5,11 @@ local app_icons = require("helpers.app_icons")
 
 local spaces = {}
 
+local function valid_space_id(sid)
+  sid = tostring(sid or "")
+  return sid:match("^%d+$") and sid or nil
+end
+
 for i = 1, 10, 1 do
   local space = sbar.add("space", "space." .. i, {
     space = i,
@@ -80,23 +85,34 @@ for i = 1, 10, 1 do
   end)
 
   space:subscribe("mouse.clicked", function(env)
+    local sid = valid_space_id(env.SID)
+    if not sid then return end
+
     if env.BUTTON == "other" then
-      space_popup:set({ background = { image = "space." .. env.SID } })
+      space_popup:set({ background = { image = "space." .. sid } })
       space:set({ popup = { drawing = "toggle" } })
     else
       if env.BUTTON == "right" then
         -- Handle right click to destroy the space
-        sbar.exec("yabai -m space --destroy " .. env.SID)
+        sbar.exec("command -v yabai >/dev/null 2>&1 && yabai -m space --destroy " .. sid)
       else
         -- Handle left click to switch space
         -- Always switch to the space first, regardless of windows
         sbar.exec(string.format([[
-          yabai -m space --focus %s && 
-          WINDOW_ID=$(yabai -m query --spaces --space %s | jq '.windows[0]') && 
-          if [ "$WINDOW_ID" != "null" ] && [ -n "$WINDOW_ID" ]; then
-            yabai -m window --focus $WINDOW_ID
+          command -v yabai >/dev/null 2>&1 || exit 0
+          yabai -m space --focus %s || exit 0
+          if command -v jq >/dev/null 2>&1; then
+            WINDOW_ID=$(yabai -m query --spaces --space %s | jq -r '.windows[0] // empty')
+          else
+            WINDOW_ID=
           fi
-        ]], env.SID, env.SID))
+          case "$WINDOW_ID" in
+            ''|*[!0-9]* ) exit 0 ;;
+          esac
+          if [ -n "$WINDOW_ID" ]; then
+            yabai -m window --focus "$WINDOW_ID"
+          fi
+        ]], sid, sid))
       end
     end
   end)
@@ -134,6 +150,7 @@ local spaces_indicator = sbar.add("item", {
 })
 
 space_window_observer:subscribe("space_windows_change", function(env)
+  if not env.INFO or not env.INFO.apps then return end
   local icon_line = ""
   local no_app = true
   for app, count in pairs(env.INFO.apps) do
@@ -146,9 +163,12 @@ space_window_observer:subscribe("space_windows_change", function(env)
   if (no_app) then
     icon_line = " —"
   end
-  sbar.animate("tanh", 10, function()
-    spaces[env.INFO.space]:set({ label = icon_line })
-  end)
+  local space_index = tonumber(env.INFO.space)
+  if space_index and spaces[space_index] then
+    sbar.animate("tanh", 10, function()
+      spaces[space_index]:set({ label = icon_line })
+    end)
+  end
 end)
 
 spaces_indicator:subscribe("swap_menus_and_spaces", function(env)

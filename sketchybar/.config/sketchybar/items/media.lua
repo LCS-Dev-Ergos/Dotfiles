@@ -58,19 +58,19 @@ sbar.add("item", {
   position = "popup." .. media_cover.name,
   icon = { string = icons.media.back },
   label = { drawing = false },
-  click_script = "nowplaying-cli previous",
+  click_script = "command -v nowplaying-cli >/dev/null 2>&1 && nowplaying-cli previous",
 })
 sbar.add("item", {
   position = "popup." .. media_cover.name,
   icon = { string = icons.media.play_pause },
   label = { drawing = false },
-  click_script = "nowplaying-cli togglePlayPause",
+  click_script = "command -v nowplaying-cli >/dev/null 2>&1 && nowplaying-cli togglePlayPause",
 })
 sbar.add("item", {
   position = "popup." .. media_cover.name,
   icon = { string = icons.media.forward },
   label = { drawing = false },
-  click_script = "nowplaying-cli next",
+  click_script = "command -v nowplaying-cli >/dev/null 2>&1 && nowplaying-cli next",
 })
 
 local interrupt = 0
@@ -85,6 +85,7 @@ local function animate_detail(detail)
 end
 
 media_cover:subscribe("media_change", function(env)
+  if not env.INFO then return end
   if whitelist[env.INFO.app] then
     local drawing = (env.INFO.state == "playing")
     media_artist:set({ drawing = drawing, label = env.INFO.artist, })

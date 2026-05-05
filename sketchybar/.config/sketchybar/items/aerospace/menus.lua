@@ -69,7 +69,7 @@ space_menu_swap:subscribe("swap_menus_and_spaces", function(env)
     sbar.set("spaces_indicator", { drawing = true })
 
     -- Re-trigger highlight to reflect current state
-    sbar.exec("aerospace list-workspaces --focused", function(current_ws)
+    sbar.exec("command -v aerospace >/dev/null 2>&1 && aerospace list-workspaces --focused", function(current_ws)
       if current_ws then
         local trimmed_ws = current_ws:gsub("%s+", "")
         if trimmed_ws:match("^%d+$") then
