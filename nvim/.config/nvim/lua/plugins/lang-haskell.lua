@@ -18,8 +18,6 @@ return {
           },
         },
       })
-      -- Set default GHC.
-      vim.g.haskell_tools_ghc_version = "9.12.2"
     end,
   },
 

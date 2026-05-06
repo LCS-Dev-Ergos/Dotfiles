@@ -82,16 +82,4 @@ return {
     end,
   },
 
-  -- 5. FILETYPE ASSOCIATION: Associate .tpp files with cpp.
-  {
-    "nvim-treesitter/nvim-treesitter",
-    ft = { "c", "cpp" },
-    opts = function()
-      vim.filetype.add({
-        extension = {
-          tpp = "cpp",
-        },
-      })
-    end,
-  },
 }

@@ -19,13 +19,6 @@ require("lazy").setup({
 
         -- Custom configuration
         { import = "plugins" },
-
-        -- add edgy.nvim
-        {
-            "folke/edgy.nvim",
-            event = "VeryLazy",
-            opts = {},
-        },
     },
 
     defaults = {
