@@ -1,24 +1,5 @@
+-- Disabled: Snacks Picker (snacks.lua) covers the same use case.
+-- The <leader>fp keymap has been moved to snacks.lua.
 return {
-  {
-    "nvim-telescope/telescope.nvim",
-    opts = {
-      defaults = {
-        layout_strategy = "horizontal",
-        layout_config = { prompt_position = "top" },
-        sorting_strategy = "ascending",
-        winblend = 0,
-      },
-    },
-    -- Custom keymaps.
-    keys = {
-      -- Keymap to search in LazyVim configuration files.
-      {
-        "<leader>fp",
-        function()
-          require("telescope.builtin").find_files { cwd = require("lazy.core.config").options.root }
-        end,
-        desc = "Find Plugin File",
-      },
-    },
-  },
+  { "nvim-telescope/telescope.nvim", enabled = false },
 }

@@ -1,23 +1,23 @@
 -- File: lua/plugins/lang-markdown.lua
-
 return {
-  -- 1. MASON: Install linter and prettier for formatting.
+  -- 1. MASON: markdownlint for linting.
+  --    prettier is omitted — the formatting.prettier extra already installs it.
   {
     "mason-org/mason.nvim",
     ft = { "markdown" },
     opts = function(_, opts)
       opts.ensure_installed = opts.ensure_installed or {}
-      vim.list_extend(opts.ensure_installed, { "markdownlint", "prettier" })
+      vim.list_extend(opts.ensure_installed, { "markdownlint" })
     end,
   },
 
-  -- 2. NVIM-LINT: Configure markdownlint with toggle.
+  -- 2. NVIM-LINT: markdownlint is off by default; toggle with <leader>tl.
   {
     "mfussenegger/nvim-lint",
     ft = { "markdown" },
     opts = {
       linters_by_ft = {
-        markdown = {},  -- Start with no linters enabled for markdown.
+        markdown = {},
       },
     },
     keys = {
@@ -27,28 +27,24 @@ return {
           local lint = require("lint")
           local current = lint.linters_by_ft.markdown or {}
           local linter = "markdownlint"
-
           if #current == 0 then
-            -- Attiva il linting
             lint.linters_by_ft.markdown = { linter }
             lint.try_lint()
             vim.notify("Markdown linting enabled", vim.log.levels.INFO)
           else
-            -- Disattiva il linting
             lint.linters_by_ft.markdown = {}
-            local current_buf = vim.api.nvim_get_current_buf()
             local ns = lint.get_namespace(linter)
-            vim.diagnostic.reset(ns, current_buf)
+            vim.diagnostic.reset(ns, vim.api.nvim_get_current_buf())
             vim.notify("Markdown linting disabled", vim.log.levels.INFO)
           end
         end,
-        desc = " Toggle markdown linting",
+        desc = "Toggle markdown linting",
         ft = "markdown",
       },
     },
   },
 
-  -- 3. CONFORM.NVIM (Optional): Use prettier for markdown formatting.
+  -- 3. CONFORM.NVIM: prettier for formatting.
   {
     "stevearc/conform.nvim",
     ft = { "markdown" },
@@ -59,7 +55,7 @@ return {
     },
   },
 
-  -- 4. TREESITTER: Ensure markdown parsers are installed.
+  -- 4. TREESITTER: markdown parsers.
   {
     "nvim-treesitter/nvim-treesitter",
     ft = { "markdown" },
@@ -70,7 +66,7 @@ return {
     end,
   },
 
-  -- 5. MARKDOWN PREVIEW: Live preview in browser.
+  -- 5. MARKDOWN PREVIEW: live preview in browser.
   {
     "iamcco/markdown-preview.nvim",
     cmd = { "MarkdownPreviewToggle", "MarkdownPreview", "MarkdownPreviewStop" },
@@ -84,34 +80,13 @@ return {
     end,
   },
 
-  -- 6. WHICH-KEY: Show a label for the <leader>t group in the main menu.
+  -- 6. WHICH-KEY: register the <leader>t group label.
   {
     "folke/which-key.nvim",
     optional = true,
     opts = function(_, opts)
       opts.spec = opts.spec or {}
       table.insert(opts.spec, { "<leader>t", group = "󰦨 Toggle" })
-      table.insert(opts.spec, {
-        "<leader>tl",
-        desc = " Toggle markdown linting",
-        mode = { "n" },
-      })
-    end,
-  },
-
-  -- 7. SPELL CHECKING: Configure spell checking for markdown files.
-  {
-    "LazyVim/LazyVim",
-    ft = { "markdown" },
-    opts = function(_, opts)
-      -- Enable spell checking for markdown files
-      vim.api.nvim_create_autocmd("FileType", {
-        pattern = "markdown",
-        callback = function()
-          vim.opt_local.spell = true
-          vim.opt_local.spelllang = "it,en"
-        end,
-      })
     end,
   },
 }

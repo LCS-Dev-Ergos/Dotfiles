@@ -10,6 +10,7 @@ return {
 
     -- All other snacks you want to use.
     bigfile = { enabled = true },
+    bufdelete = { enabled = true },
     explorer = { enabled = true },
     indent = { enabled = true },
     input = { enabled = true },
@@ -19,6 +20,8 @@ return {
     scope = { enabled = true },
     scroll = { enabled = true },
     statuscolumn = { enabled = true },
+    lazygit = { enabled = true },
+    terminal = { enabled = true },
     words = { enabled = true },
     zen = { enabled = true },
   },
@@ -36,6 +39,14 @@ return {
     { "<leader>z", function() require("snacks").zen() end, desc = "Toggle Zen Mode" },
     { "<leader>bd", function() require("snacks").bufdelete() end, desc = "Delete Buffer" },
     { "<leader>gg", function() require("snacks").lazygit() end, desc = "Lazygit" },
+    { "<leader>T", function() require("snacks").terminal() end, desc = "Toggle Terminal" },
+    {
+      "<leader>fp",
+      function()
+        require("snacks").picker.files({ cwd = require("lazy.core.config").options.root })
+      end,
+      desc = "Find Plugin File",
+    },
   },
   -- The 'config' function is no longer needed here.
 }

@@ -6,7 +6,7 @@ return {
     ft = { "python" },
     opts = function(_, opts)
       opts.ensure_installed = opts.ensure_installed or {}
-      vim.list_extend(opts.ensure_installed, { "pyright", "ruff", "debugpy" })
+      vim.list_extend(opts.ensure_installed, { "basedpyright", "ruff", "debugpy" })
     end,
   },
 
@@ -27,7 +27,7 @@ return {
     ft = { "python" },
     opts = {
       servers = {
-        pyright = {},
+        basedpyright = {},
       },
     },
   },
