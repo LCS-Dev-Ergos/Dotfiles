@@ -164,6 +164,13 @@ yabai -m rule --add label="OrbStack Preferences" \
     title="^(General.*|System.*|Network.*|Storage.*|Machine.*|Docker.*|Kubernetes.*)$" \
     manage=off
 
+# Exclude a subset of Obsidian windows (titles: save, Save, Vault).
+yabai -m rule --add \
+    label="Obsidian" \
+    app="^Obsidian$" \
+    title="^(save|Save|Vault)$" \
+    manage=off
+
 # =========================== End Disabling Rules ============================ #
 
 # =============================== Other Stuff ================================ #
