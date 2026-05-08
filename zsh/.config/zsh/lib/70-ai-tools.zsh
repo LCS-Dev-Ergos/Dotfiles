@@ -246,4 +246,85 @@ else
 fi
 
 # ============================================================================ #
+# ++++++++++++++++++++++++++++++++ GEMINI CLI ++++++++++++++++++++++++++++++++ #
+# ============================================================================ #
+#
+# Loads GEMINI_API_KEY from 1Password lazily — only on the first invocation of
+# the gemini wrapper function in a shell session, then cached in the
+# environment so subsequent calls do not re-prompt the 1Password vault.
+#
+# Required by Gemini CLI v0.41+ when auth type is set to "gemini-api-key"
+# (configured in ~/.gemini/settings.json).
+#
+# One-time setup — create the item in 1Password:
+#   1. Open 1Password -> New Item -> API Credential
+#   2. Title: "Gemini API Key"  |  Vault: Personal
+#   3. Field "credential": paste the key from https://aistudio.google.com/apikey
+#
+# Or via CLI:
+#   op item create --category="API Credential" --title="Gemini API Key" \
+#     --vault=Personal --field label=credential,value=<your-key>
+#
+# ============================================================================ #
+
+# 1Password reference — adjust vault/item name if different.
+_GEMINI_OP_REF="op://Personal/Gemini API Key/credential"
+
+# -----------------------------------------------------------------------------
+# _load_gemini_api_key
+# -----------------------------------------------------------------------------
+# Reads GEMINI_API_KEY from 1Password via op CLI.
+# No-op if the key is already set in the environment, or if op is unavailable.
+# Returns 1 on failure (key missing, vault locked, op unauthenticated).
+# -----------------------------------------------------------------------------
+_load_gemini_api_key() {
+  [[ -n "${GEMINI_API_KEY:-}" ]] && return 0   # already cached for this session
+  command -v op &>/dev/null       || return 1   # op not installed
+
+  local key
+  key=$(op read "$_GEMINI_OP_REF" 2>/dev/null) || return 1
+  [[ -z "$key" ]]                 && return 1   # item not found or vault locked
+
+  export GEMINI_API_KEY="$key"
+}
+
+# -----------------------------------------------------------------------------
+# gemini (wrapper)
+# -----------------------------------------------------------------------------
+# Lazy-loads GEMINI_API_KEY on first invocation, then delegates to the real
+# gemini binary. The key stays in the environment for the rest of the session,
+# so 1Password is queried at most once per shell.
+# -----------------------------------------------------------------------------
+gemini() {
+  if [[ -z "${GEMINI_API_KEY:-}" ]]; then
+    if ! _load_gemini_api_key; then
+      print "${C_RED}gemini: could not load GEMINI_API_KEY from 1Password.${C_RESET}" >&2
+      print "${C_YELLOW}Make sure 1Password is unlocked and the item exists at: ${_GEMINI_OP_REF}${C_RESET}" >&2
+      return 1
+    fi
+  fi
+  command gemini "$@"
+}
+
+# -----------------------------------------------------------------------------
+# gemini-unlock
+# -----------------------------------------------------------------------------
+# Force-reloads GEMINI_API_KEY from 1Password, discarding any cached value.
+# Useful when the key was rotated, or when the vault was locked at first use.
+#
+# Usage:
+#   gemini-unlock
+# -----------------------------------------------------------------------------
+gemini-unlock() {
+  unset GEMINI_API_KEY
+  if _load_gemini_api_key; then
+    print "${C_GREEN}GEMINI_API_KEY loaded from 1Password.${C_RESET}"
+  else
+    print "${C_RED}Could not load GEMINI_API_KEY — is 1Password unlocked and the item set up?${C_RESET}" >&2
+    print "${C_YELLOW}Run: op item create --category=\"API Credential\" --title=\"Gemini API Key\" --vault=Personal --field label=credential,value=<key>${C_RESET}" >&2
+    return 1
+  fi
+}
+
+# ============================================================================ #
 # End of 70-ai-tools.zsh
