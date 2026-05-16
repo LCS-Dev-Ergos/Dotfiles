@@ -75,3 +75,9 @@ export PATH="$HOME/.elan/bin:$PATH"
 
 # ------------------ Obsidian ------------------ #
 export PATH="$PATH:/Applications/Obsidian.app/Contents/MacOS"
+
+# ------------- GNU Global (gtags) ------------- #
+# native-pygments: uses the built-in parser for C/C++/Java and Pygments as
+# fallback for everything else (Pascal, OCaml, Haskell, etc.).
+export GTAGSCONF="/opt/homebrew/share/gtags/gtags.conf"
+export GTAGSLABEL="native-pygments"

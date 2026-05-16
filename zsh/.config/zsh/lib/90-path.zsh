@@ -121,10 +121,12 @@ zsh_rebuild_path() {
 
       # ------ User and App-Specific Paths ------ #
       "$HOME/.ada/bin"
+      "$HOME/.alire/bin"
       "$HOME/.bun/bin"
       "$HOME/.flutter/bin"
       "$HOME/.local/bin"
       "$HOME/.perl5/bin"
+      "$HOME/.fpc-deluxe/fpc/bin/aarch64-darwin"
       "$GOPATH/bin"
       "$GEM_HOME/bin" "$ruby_user_bin"
       "$HOME/.miniforge3/condabin" "$HOME/.miniforge3/bin"
@@ -144,7 +146,7 @@ zsh_rebuild_path() {
       "/usr/local/mysql/bin"
       "/opt/homebrew/opt/ncurses/bin"
       "/Library/TeX/texbin"
-      "/usr/local/texlive/2025/bin/universal-darwin"
+      "/usr/local/texlive/2026/bin/universal-darwin"
     )
   elif [[ "$PLATFORM" == 'Linux' ]]; then
     path_template=(
@@ -202,14 +204,14 @@ zsh_rebuild_path() {
     )
   fi
 
-  # -------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
   # Path Reconstruction Logic
-  # -------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
   # 1. Start with an empty array.
   # 2. Use an associative array 'seen' for O(1) duplicate detection.
   # 3. Add paths from 'path_template' (priority list).
   # 4. Append any remaining paths from 'original_path' (dynamic additions).
-  # -------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
 
   local -a new_path_array=()
   local -A seen
