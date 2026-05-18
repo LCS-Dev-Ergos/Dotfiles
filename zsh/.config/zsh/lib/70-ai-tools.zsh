@@ -65,9 +65,15 @@ yt() {
     shift
   fi
 
+  # Validate URL is present after optional flag consumption.
+  if [[ -z "${1:-}" ]]; then
+    echo "${C_RED}Usage: yt [-t | --timestamps] <youtube-link>${C_RESET}" >&2
+    return 1
+  fi
+
   # Get the video link.
   local video_link="$1"
-  fabric -y "$video_link" $transcript_flag
+  fabric -y "$video_link" "$transcript_flag"
 }
 
 # -----------------------------------------------------------------------------
@@ -115,7 +121,8 @@ _fabric_lazy_init() {
     local pname="$1"
     shift
     local title="$1"
-    local date_stamp="$(date +'%Y-%m-%d')"
+    local date_stamp
+    date_stamp="$(date +'%Y-%m-%d')"
 
     if [[ -n "$title" ]]; then
       # Sanitize title (security: prevent path traversal).
@@ -196,53 +203,78 @@ fabric-list() {
 }
 
 # ============================================================================ #
-# +++++++++++++++++++++++++++++++++ OPENCODE +++++++++++++++++++++++++++++++++ #
+# ++++++++++++++++++++++++++++++++ GITHUB PAT ++++++++++++++++++++++++++++++++ #
 # ============================================================================ #
-
-# -----------------------------------------------------------------------------
-# OpenCode MCP Environment
-# -----------------------------------------------------------------------------
-# Load environment variables for OpenCode (API keys, model configs, etc.).
-# The .env file is sourced if it exists and is readable.
-# -----------------------------------------------------------------------------
-_zsh_source_opencode_env() {
-  if typeset -f _zsh_is_secure_file >/dev/null 2>&1; then
-    _zsh_is_secure_file "$HOME/.config/opencode/.env" && source "$HOME/.config/opencode/.env"
-  elif [[ -r "$HOME/.config/opencode/.env" && -O "$HOME/.config/opencode/.env" && ! -L "$HOME/.config/opencode/.env" ]]; then
-    source "$HOME/.config/opencode/.env"
-  fi
-  unfunction _zsh_source_opencode_env 2>/dev/null
-}
-
-# ============================================================================ #
-# ++++++++++++++++++++++++++++ CLAUDE MCP SERVERS ++++++++++++++++++++++++++++ #
-# ============================================================================ #
-
-# -----------------------------------------------------------------------------
-# Claude MCP Environment
-# -----------------------------------------------------------------------------
-# Load environment variables for Claude MCP servers (API keys, configs, etc.).
-# The .env file is sourced if it exists and is readable.
 #
-# MCP Servers configured:
-#   - Context7: Up-to-date code documentation for LLMs
-#   - Everything: Demo server for testing MCP protocol features
-# -----------------------------------------------------------------------------
-_zsh_source_claude_env() {
-  if typeset -f _zsh_is_secure_file >/dev/null 2>&1; then
-    _zsh_is_secure_file "$HOME/.claude/.env" && source "$HOME/.claude/.env"
-  elif [[ -r "$HOME/.claude/.env" && -O "$HOME/.claude/.env" && ! -L "$HOME/.claude/.env" ]]; then
-    source "$HOME/.claude/.env"
-  fi
-  unfunction _zsh_source_claude_env 2>/dev/null
+# Loads GITHUB_PAT from 1Password lazily — deferred to keep startup fast.
+# Required by Claude Code GitHub MCP and OpenCode GitHub MCP server
+# (configured as {env:GITHUB_PAT} in their respective configs).
+#
+# ============================================================================ #
+
+_GITHUB_PAT_OP_REF="op://Personal/GITHUB_PAT/credential"
+
+_load_github_pat() {
+  [[ -n "${GITHUB_PAT:-}" ]] && return 0
+  command -v op &>/dev/null || return 1
+
+  local key
+  key=$(op read "$_GITHUB_PAT_OP_REF" 2>/dev/null) || return 1
+  [[ -z "$key" ]] && return 1
+
+  export GITHUB_PAT="$key"
 }
 
+github-pat-unlock() {
+  unset -v GITHUB_PAT
+  if _load_github_pat; then
+    print "${C_GREEN}GITHUB_PAT loaded from 1Password.${C_RESET}"
+  else
+    print "${C_RED}Could not load GITHUB_PAT — is 1Password unlocked and the item set up?${C_RESET}" >&2
+    return 1
+  fi
+}
+
+# ============================================================================ #
+# +++++++++++++++++++++++++++++ CONTEXT7 API KEY +++++++++++++++++++++++++++++ #
+# ============================================================================ #
+#
+# Loads CONTEXT7_API_KEY from 1Password lazily — deferred to keep startup fast.
+# Required by Claude Code Context7 MCP and OpenCode Context7 MCP server
+# (configured as {env:CONTEXT7_API_KEY} in their respective configs).
+#
+# ============================================================================ #
+
+_CONTEXT7_OP_REF="op://Personal/CONTEXT7_API_KEY/credential"
+
+_load_context7_api_key() {
+  [[ -n "${CONTEXT7_API_KEY:-}" ]] && return 0
+  command -v op &>/dev/null || return 1
+
+  local key
+  key=$(op read "$_CONTEXT7_OP_REF" 2>/dev/null) || return 1
+  [[ -z "$key" ]] && return 1
+
+  export CONTEXT7_API_KEY="$key"
+}
+
+context7-unlock() {
+  unset CONTEXT7_API_KEY
+  if _load_context7_api_key; then
+    print "${C_GREEN}CONTEXT7_API_KEY loaded from 1Password.${C_RESET}"
+  else
+    print "${C_RED}Could not load CONTEXT7_API_KEY — is 1Password unlocked and the item set up?${C_RESET}" >&2
+    return 1
+  fi
+}
+
+# Deferred loading — runs before first prompt, available for claude/opencode.
 if typeset -f _zsh_defer >/dev/null 2>&1; then
-  _zsh_defer _zsh_source_opencode_env
-  _zsh_defer _zsh_source_claude_env
+  _zsh_defer _load_github_pat
+  _zsh_defer _load_context7_api_key
 else
-  _zsh_source_opencode_env
-  _zsh_source_claude_env
+  _load_github_pat
+  _load_context7_api_key
 fi
 
 # ============================================================================ #
@@ -298,7 +330,7 @@ _load_gemini_api_key() {
 gemini() {
   if [[ -z "${GEMINI_API_KEY:-}" ]]; then
     if ! _load_gemini_api_key; then
-      print "${C_RED}gemini: could not load GEMINI_API_KEY from 1Password.${C_RESET}" >&2
+      print "${C_RED}gemini: Could not load GEMINI_API_KEY from 1Password.${C_RESET}" >&2
       print "${C_YELLOW}Make sure 1Password is unlocked and the item exists at: ${_GEMINI_OP_REF}${C_RESET}" >&2
       return 1
     fi
@@ -322,6 +354,87 @@ gemini-unlock() {
   else
     print "${C_RED}Could not load GEMINI_API_KEY — is 1Password unlocked and the item set up?${C_RESET}" >&2
     print "${C_YELLOW}Run: op item create --category=\"API Credential\" --title=\"Gemini API Key\" --vault=Personal --field label=credential,value=<key>${C_RESET}" >&2
+    return 1
+  fi
+}
+
+# ============================================================================ #
+# +++++++++++++++++++++++++++++++ KILO GATEWAY +++++++++++++++++++++++++++++++ #
+# ============================================================================ #
+#
+# Loads KILO_API_KEY from 1Password lazily — only on the first invocation of
+# the opencode wrapper function in a shell session, then cached in the
+# environment so subsequent calls do not re-prompt the 1Password vault.
+#
+# Required by OpenCode's kilopass provider (configured in opencode.json as
+# {env:KILO_API_KEY}).
+#
+# One-time setup — create the item in 1Password:
+#   1. Open 1Password -> New Item -> API Credential
+#   2. Title: "Kilo API Key"  |  Vault: Personal
+#   3. Field "credential": paste the key from https://kilo.ai/settings/api-keys
+#
+# Or via CLI:
+#   op item create --category="API Credential" --title="Kilo API Key" \
+#     --vault=Personal --field label=credential,value=<your-key>
+#
+# ============================================================================ #
+
+# 1Password reference — adjust vault/item name if different.
+_KILO_OP_REF="op://Personal/Kilo API Key/credential"
+
+# -----------------------------------------------------------------------------
+# _load_kilo_api_key
+# -----------------------------------------------------------------------------
+# Reads KILO_API_KEY from 1Password via op CLI.
+# No-op if the key is already set in the environment, or if op is unavailable.
+# Returns 1 on failure (key missing, vault locked, op unauthenticated).
+# -----------------------------------------------------------------------------
+_load_kilo_api_key() {
+  [[ -n "${KILO_API_KEY:-}" ]] && return 0   # already cached for this session
+  command -v op &>/dev/null       || return 1   # op not installed
+
+  local key
+  key=$(op read "$_KILO_OP_REF" 2>/dev/null) || return 1
+  [[ -z "$key" ]]                 && return 1   # item not found or vault locked
+
+  export KILO_API_KEY="$key"
+}
+
+# -----------------------------------------------------------------------------
+# opencode (wrapper)
+# -----------------------------------------------------------------------------
+# Lazy-loads KILO_API_KEY on first invocation, then delegates to the real
+# opencode binary. The key stays in the environment for the rest of the
+# session, so 1Password is queried at most once per shell.
+# -----------------------------------------------------------------------------
+opencode() {
+  if [[ -z "${KILO_API_KEY:-}" ]]; then
+    if ! _load_kilo_api_key; then
+      print "${C_YELLOW}opencode: Could not load KILO_API_KEY from 1Password (kilopass provider may be unavailable).${C_RESET}" >&2
+    fi
+  fi
+  [[ -z "${GITHUB_PAT:-}" ]]       && _load_github_pat
+  [[ -z "${CONTEXT7_API_KEY:-}" ]] && _load_context7_api_key
+  command opencode "$@"
+}
+
+# -----------------------------------------------------------------------------
+# kilo-unlock
+# -----------------------------------------------------------------------------
+# Force-reloads KILO_API_KEY from 1Password, discarding any cached value.
+# Useful when the key was rotated, or when the vault was locked at first use.
+#
+# Usage:
+#   kilo-unlock
+# -----------------------------------------------------------------------------
+kilo-unlock() {
+  unset KILO_API_KEY
+  if _load_kilo_api_key; then
+    print "${C_GREEN}KILO_API_KEY loaded from 1Password.${C_RESET}"
+  else
+    print "${C_RED}Could not load KILO_API_KEY — is 1Password unlocked and the item set up?${C_RESET}" >&2
+    print "${C_YELLOW}Run: op item create --category=\"API Credential\" --title=\"Kilo API Key\" --vault=Personal --field label=credential,value=<key>${C_RESET}" >&2
     return 1
   fi
 }
