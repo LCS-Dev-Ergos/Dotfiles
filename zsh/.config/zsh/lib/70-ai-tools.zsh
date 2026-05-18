@@ -33,6 +33,9 @@
 # Configure Obsidian integration path (adjust to your Obsidian vault).
 export FABRIC_OUTPUT_DIR="$HOME/Documents/Obsidian-Vault/XSPC-Vault/Fabric"
 
+# Enable EXA Web Search in OpenCode.
+export OPENCODE_ENABLE_EXA="true"
+
 # Main Fabric alias (fabric-ai is the actual command).
 alias fabric="fabric-ai"
 
@@ -268,14 +271,7 @@ context7-unlock() {
   fi
 }
 
-# Deferred loading — runs before first prompt, available for claude/opencode.
-if typeset -f _zsh_defer >/dev/null 2>&1; then
-  _zsh_defer _load_github_pat
-  _zsh_defer _load_context7_api_key
-else
-  _load_github_pat
-  _load_context7_api_key
-fi
+# Keys are loaded on-demand inside the claude/opencode wrappers below.
 
 # ============================================================================ #
 # ++++++++++++++++++++++++++++++++ GEMINI CLI ++++++++++++++++++++++++++++++++ #
@@ -356,6 +352,18 @@ gemini-unlock() {
     print "${C_YELLOW}Run: op item create --category=\"API Credential\" --title=\"Gemini API Key\" --vault=Personal --field label=credential,value=<key>${C_RESET}" >&2
     return 1
   fi
+}
+
+# -----------------------------------------------------------------------------
+# claude (wrapper)
+# -----------------------------------------------------------------------------
+# Lazy-loads GITHUB_PAT and CONTEXT7_API_KEY on first invocation, then
+# delegates to the real claude binary. Keys stay cached for the session.
+# -----------------------------------------------------------------------------
+claude() {
+  [[ -z "${GITHUB_PAT:-}" ]]       && _load_github_pat
+  [[ -z "${CONTEXT7_API_KEY:-}" ]] && _load_context7_api_key
+  command claude "$@"
 }
 
 # ============================================================================ #
