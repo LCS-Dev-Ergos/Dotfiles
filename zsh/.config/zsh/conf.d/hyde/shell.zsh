@@ -178,19 +178,25 @@ fi
 # ++++++++++++++++++++++ 7. TERMINAL RENDERING HELPERS +++++++++++++++++++++++ #
 # ============================================================================ #
 
+# Detect terminal once at shell start; do_render() is called often (potentially
+# per-prompt), so the nested ps invocation gets cached here instead.
+typeset -g _HYDE_CURRENT_TERMINAL="${TERM_PROGRAM:-}"
+if [[ -z "$_HYDE_CURRENT_TERMINAL" ]]; then
+  _HYDE_CURRENT_TERMINAL="$(ps -o comm= -p "$(ps -o ppid= -p $$ 2>/dev/null)" 2>/dev/null)"
+fi
+
 # Check if terminal supports specific rendering.
 do_render() {
   local type="${1:-image}"
   local -a terminal_image_support=(kitty konsole ghostty WezTerm)
   local -a terminal_no_art=(vscode code codium)
-  local current_terminal="${TERM_PROGRAM:-$(ps -o comm= -p $(ps -o ppid= -p $$) 2>/dev/null)}"
 
   case "${type}" in
     image)
-      [[ " ${terminal_image_support[*]} " =~ " ${current_terminal} " ]]
+      [[ " ${terminal_image_support[*]} " =~ " ${_HYDE_CURRENT_TERMINAL} " ]]
       ;;
     art)
-      [[ ! " ${terminal_no_art[*]} " =~ " ${current_terminal} " ]]
+      [[ ! " ${terminal_no_art[*]} " =~ " ${_HYDE_CURRENT_TERMINAL} " ]]
       ;;
     *)
       return 1

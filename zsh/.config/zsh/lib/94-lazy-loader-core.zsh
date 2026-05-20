@@ -72,12 +72,17 @@ _lazy_loader_core() {
           print name
           next
         }
-        /^[[:space:]]*(function[[:space:]]+)?[A-Za-z_][A-Za-z0-9_-]*[[:space:]]*\(\)[[:space:]]*\{/ {
+        # Match either:
+        #   foo() { ... }
+        #   function foo() { ... }
+        #   function foo { ... }    (zsh-style, no parentheses)
+        /^[[:space:]]*(function[[:space:]]+)?[A-Za-z_][A-Za-z0-9_-]*[[:space:]]*\(\)[[:space:]]*\{/ ||
+        /^[[:space:]]*function[[:space:]]+[A-Za-z_][A-Za-z0-9_-]*[[:space:]]*\{/ {
           line=$0
           sub(/^[[:space:]]*/, "", line)
           if (line ~ /^function[[:space:]]+/) sub(/^function[[:space:]]+/, "", line)
           name=line
-          sub(/[[:space:]]*\(\).*/, "", name)
+          sub(/[[:space:]]*(\(\))?[[:space:]]*\{.*/, "", name)
           print name
         }
       ' "$file")}")
