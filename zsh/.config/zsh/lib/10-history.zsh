@@ -32,6 +32,7 @@ setopt BANG_HIST        # support !-style history expansion.
 setopt EXTENDED_HISTORY # record timestamp/duration.
 setopt HIST_VERIFY      # show before executing history expansions.
 setopt HIST_EXPIRE_DUPS_FIRST HIST_IGNORE_DUPS HIST_IGNORE_SPACE
+setopt HIST_NO_FUNCTIONS
 setopt INC_APPEND_HISTORY SHARE_HISTORY
 
 # Report background job status immediately.

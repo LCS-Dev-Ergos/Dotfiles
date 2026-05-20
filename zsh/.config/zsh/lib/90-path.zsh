@@ -134,7 +134,6 @@ zsh_rebuild_path() {
       "$ANDROID_HOME/cmdline-tools/latest/bin"
 
       # --------------- AI Tools ---------------- #
-      "$HOME/.antigravity/antigravity/bin"
       "$HOME/.lmstudio/bin"
       "$HOME/.opencode/bin"
 
@@ -147,6 +146,7 @@ zsh_rebuild_path() {
       "/opt/homebrew/opt/ncurses/bin"
       "/Library/TeX/texbin"
       "/usr/local/texlive/2026/bin/universal-darwin"
+      "/Applications/Obsidian.app/Contents/MacOS"
     )
   elif [[ "$PLATFORM" == 'Linux' ]]; then
     path_template=(
@@ -177,6 +177,7 @@ zsh_rebuild_path() {
       "$HOME/.ghcup/bin" "$HOME/.cabal/bin"
       "$HOME/.cargo/bin"
       "$HOME/.elan/bin"
+      "$HOME/.local/share/coursier/bin"
 
       # ------ User and App-Specific Paths ------ #
       "$GEM_HOME/bin" "$ruby_user_bin"
@@ -193,7 +194,6 @@ zsh_rebuild_path() {
       "$HOME/.local/share/JetBrains/Toolbox/scripts"
 
       # --------------- AI Tools ---------------- #
-      "$HOME/.antigravity/antigravity/bin"
       "$HOME/.lmstudio/bin"
       "$HOME/.opencode/bin"
 
