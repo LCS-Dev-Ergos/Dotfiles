@@ -455,14 +455,14 @@ function count() {
   # Initialize counters for different item types.
   local files=0 dirs=0 hidden=0 symlinks=0 total=0
 
-  # Retrieve file type information for all items.
-  # BSD find (macOS) doesn't support -printf, so we use a portable approach.
-  local -a found_items hidden_items
-  local item find_status hidden_find_status
+  # Stream find output via -print0 to avoid ARG_MAX limits on huge directories
+  # and to handle filenames with newlines/spaces safely. Capture stderr to a
+  # temp file so we can report permission errors instead of silently swallowing
+  # them. BSD find (macOS) has no -printf, so we test each entry's type in zsh.
+  local item err_file
+  err_file="$(command mktemp -t count-err.XXXXXX 2>/dev/null)" || err_file=""
 
-  found_items=( "${(@f)$(find "$canonical_path" -mindepth 1 -maxdepth "$max_depth" 2>/dev/null)}" )
-  find_status=$?
-  for item in "${found_items[@]}"; do
+  while IFS= read -r -d '' item; do
     if [[ -L "$item" ]]; then
       ((symlinks++))
     elif [[ -f "$item" ]]; then
@@ -470,16 +470,18 @@ function count() {
     elif [[ -d "$item" ]]; then
       ((dirs++))
     fi
-  done
+  done < <(find "$canonical_path" -mindepth 1 -maxdepth "$max_depth" -print0 ${err_file:+2>"$err_file"})
 
-  # Count hidden items (names starting with dot).
-  hidden_items=( "${(@f)$(find "$canonical_path" -mindepth 1 -maxdepth "$max_depth" -name '.*' 2>/dev/null)}" )
-  hidden_find_status=$?
-  hidden=${#hidden_items[@]}
+  while IFS= read -r -d '' item; do
+    ((hidden++))
+  done < <(find "$canonical_path" -mindepth 1 -maxdepth "$max_depth" -name '.*' -print0 2>/dev/null)
 
-  if (( find_status != 0 || hidden_find_status != 0 )); then
-    echo "${C_YELLOW}Warning: some entries could not be scanned due to permissions.${C_RESET}" >&2
+  if [[ -n "$err_file" && -s "$err_file" ]]; then
+    local err_lines
+    err_lines="$(command wc -l <"$err_file" 2>/dev/null | tr -d ' ')"
+    echo "${C_YELLOW}Warning: ${err_lines:-some} entries could not be scanned (permissions).${C_RESET}" >&2
   fi
+  [[ -n "$err_file" ]] && command rm -f -- "$err_file" 2>/dev/null
 
   # Calculate total.
   total=$((files + dirs + symlinks))

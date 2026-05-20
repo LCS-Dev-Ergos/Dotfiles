@@ -158,6 +158,15 @@ _fuzzy_search_cmd_history() {
   local selected
   setopt localoptions noglobsubst noposixbuiltins pipefail no_aliases noglob nobash_rematch 2>/dev/null
 
+  # ffch relies on fzf's shell-integration helpers (__fzf_defaults, __fzfcmd).
+  # If key-bindings.zsh wasn't sourced (outdated fzf, custom install, partial
+  # integration), those helpers are missing and the call below would fail with
+  # a cryptic "command not found".
+  if ! typeset -f __fzf_defaults >/dev/null 2>&1 || ! typeset -f __fzfcmd >/dev/null 2>&1; then
+    echo "${C_YELLOW}ffch: fzf shell integration not loaded. Source fzf's key-bindings.zsh.${C_RESET}" >&2
+    return 1
+  fi
+
   local fzf_query=""
   if [[ -n "$1" ]]; then
     fzf_query="--query=${(q)1}"

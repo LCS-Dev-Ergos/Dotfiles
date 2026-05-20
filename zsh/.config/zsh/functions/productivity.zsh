@@ -35,10 +35,26 @@ function note() {
   local notes_dir="${NOTES_DIR:-$HOME/.notes}"
   local notes_file="$notes_dir/notes_$(date +'%Y-%m').md"
 
-  # Create notes directory if it doesn't exist.
-  [[ ! -d "$notes_dir" ]] && mkdir -p "$notes_dir"
+  # Create notes directory if it doesn't exist (private: notes may contain
+  # sensitive information like tokens, credentials jotted down).
+  if [[ ! -d "$notes_dir" ]]; then
+    (umask 077 && command mkdir -p -- "$notes_dir") || {
+      echo "${C_RED}Error: Cannot create notes directory '$notes_dir'.${C_RESET}" >&2
+      return 1
+    }
+  fi
+  command chmod 700 "$notes_dir" 2>/dev/null || :
 
   local timestamp="$(date +'%Y-%m-%d %H:%M:%S')"
+
+  # Ensure file exists with restrictive perms before any append.
+  if [[ ! -f "$notes_file" ]]; then
+    (umask 077 && : >>"$notes_file") || {
+      echo "${C_RED}Error: Cannot create notes file '$notes_file'.${C_RESET}" >&2
+      return 1
+    }
+  fi
+  command chmod 600 "$notes_file" 2>/dev/null || :
 
   if [[ $# -eq 0 ]]; then
     # Interactive mode.
@@ -72,6 +88,13 @@ function bm() {
   local bookmarks_file="$HOME/.directory_bookmarks"
   local action="${1:-list}"
   local name="$2"
+
+  # Ensure bookmarks file is initialized with restrictive permissions.
+  # Bookmark names/paths can reveal sensitive directories (work, vpn, etc.).
+  if [[ ! -e "$bookmarks_file" ]]; then
+    (umask 077 && : >"$bookmarks_file") 2>/dev/null || :
+  fi
+  command chmod 600 "$bookmarks_file" 2>/dev/null || :
 
   case "$action" in
     add)
@@ -262,12 +285,12 @@ function cleanup() {
     done < <(find "$root" -mindepth 1 -maxdepth 1 -user "$USER" -mtime "+$min_age_days" -print0 2>/dev/null)
   done
 
-  # User cache roots: only top-level entries older than threshold.
+  # User cache roots: only top-level entries owned by user, older than threshold.
   for root in "${cache_roots[@]}"; do
     [[ -d "$root" ]] || continue
     while IFS= read -r -d '' item; do
       targets+=("$item")
-    done < <(find "$root" -mindepth 1 -maxdepth 1 -mtime "+$min_age_days" -print0 2>/dev/null)
+    done < <(find "$root" -mindepth 1 -maxdepth 1 -user "$USER" -mtime "+$min_age_days" -print0 2>/dev/null)
   done
 
   if (( ${#targets[@]} == 0 )); then
@@ -284,7 +307,15 @@ function cleanup() {
       echo "  Would remove: $item ($size)"
     done
   else
-    command rm -rf -- "${targets[@]}" 2>/dev/null
+    # Defense-in-depth: validate each target is a regular file, directory, or
+    # symlink before deletion. Skips device/socket/fifo and silently bypasses
+    # entries that vanished between enumeration and removal.
+    local item
+    for item in "${targets[@]}"; do
+      if [[ -f "$item" || -d "$item" || -L "$item" ]]; then
+        command rm -rf -- "$item" 2>/dev/null
+      fi
+    done
     echo "${C_GREEN}Cleanup completed!${C_RESET}"
   fi
 }

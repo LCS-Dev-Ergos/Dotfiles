@@ -99,9 +99,12 @@ function bak() {
 # Platform-aware (macOS uses -r, Linux uses -d).
 # -----------------------------------------------------------------------------
 function epoch() {
-  local ts=$(date +%s)
+  local ts=${EPOCHSECONDS:-$(date +%s)}
   echo "Unix timestamp: $ts"
-  if [[ "$PLATFORM" == 'macOS' ]]; then
+  # On macOS BSD date supports `-r EPOCH`. If the user has GNU coreutils
+  # prepended to PATH, `date` becomes GNU date which needs `-d @EPOCH` instead.
+  # Probe `-r` once and pick the right flavor.
+  if date -r "$ts" >/dev/null 2>&1; then
     echo "Human readable: $(date -r "$ts")"
   else
     echo "Human readable: $(date -d "@$ts")"
