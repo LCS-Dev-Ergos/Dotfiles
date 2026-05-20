@@ -146,10 +146,12 @@ else
       # Check modification time (macOS/Linux compatible).
       local cache_valid=false
       now="${EPOCHSECONDS:-$(date +%s)}"
-      if [[ "$PLATFORM" == 'macOS' ]]; then
-        cache_mtime="$(stat -f %m "$cache_file" 2>/dev/null || echo 0)"
+      if typeset -f _zsh_mtime >/dev/null 2>&1; then
+        cache_mtime="$(_zsh_mtime "$cache_file")"
+      elif [[ "$PLATFORM" == 'macOS' ]]; then
+        cache_mtime="$(command stat -f %m "$cache_file" 2>/dev/null)"
       else
-        cache_mtime="$(stat -c %Y "$cache_file" 2>/dev/null || echo 0)"
+        cache_mtime="$(command stat -c %Y "$cache_file" 2>/dev/null)"
       fi
       [[ "$cache_mtime" =~ ^[0-9]+$ ]] || cache_mtime=0
       # 604800 seconds = 7 days.

@@ -41,11 +41,32 @@ zsh_rebuild_path() {
   export PATH_BEFORE_BUILD="$PATH"
   local original_path="$PATH"
 
+  # Helper: strip any fnm_multishells/<pid>_<ts>/bin entries from a PATH-like
+  # string. FNM mints a fresh per-session symlink, so leaving those entries in
+  # the cache key (or in the cached value) would either invalidate the cache
+  # for every new shell, or pollute the new shell with the previous shell's
+  # stale FNM directory.
+  _path_strip_fnm() {
+    local input="$1"
+    local -a parts kept
+    local part
+    parts=("${(@s/:/)input}")
+    for part in "${parts[@]}"; do
+      [[ -z "$part" || "$part" == *fnm_multishells* ]] && continue
+      kept+=("$part")
+    done
+    print -r -- "${(j/:/)kept}"
+  }
+
+  # Use a stable, FNM-free view of the inherited PATH for the cache signature.
+  local stable_original_path
+  stable_original_path="$(_path_strip_fnm "$original_path")"
+
   local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
   local cache_file="$cache_dir/path.cache"
-  local cache_version="1"
-  local cache_signature="${cache_version}|${original_path}|${PLATFORM}"
-  cache_signature+="|${PYENV_ROOT}|${SDKMAN_DIR}|${FNM_MULTISHELL_PATH}"
+  local cache_version="2"
+  local cache_signature="${cache_version}|${stable_original_path}|${PLATFORM}"
+  cache_signature+="|${PYENV_ROOT}|${SDKMAN_DIR}"
   cache_signature+="|${GEM_HOME}|${GOPATH}|${ANDROID_HOME}"
 
   local cache_ok=false
@@ -61,8 +82,19 @@ zsh_rebuild_path() {
     } < "$cache_file"
 
     if [[ "$cached_signature" == "$cache_signature" && -n "$cached_path" ]]; then
-      export PATH="$cached_path"
+      # Defensive: drop any FNM entry that slipped into the cached blob, then
+      # prepend the current shell's FNM dir so node/npm/etc. resolve to the
+      # right multishell session.
+      local final_path="$cached_path"
+      case "$final_path" in
+        *fnm_multishells*) final_path="$(_path_strip_fnm "$final_path")" ;;
+      esac
+      if [[ -n "$FNM_MULTISHELL_PATH" && -d "$FNM_MULTISHELL_PATH/bin" ]]; then
+        final_path="$FNM_MULTISHELL_PATH/bin:$final_path"
+      fi
+      export PATH="$final_path"
       typeset -gU PATH fpath manpath
+      unset -f _path_strip_fnm
       return 0
     fi
   fi
@@ -260,10 +292,17 @@ zsh_rebuild_path() {
   typeset -gU PATH fpath manpath
 
   command mkdir -p "$cache_dir" 2>/dev/null
+  # Persist a FNM-free PATH so future shells with a different FNM_MULTISHELL_PATH
+  # can reuse this cache. The current shell's FNM dir was already added to the
+  # live $PATH above; on cache hit, the next shell re-prepends its own.
+  local cacheable_path
+  cacheable_path="$(_path_strip_fnm "$PATH")"
   {
     print -r -- "$cache_signature"
-    print -r -- "$PATH"
+    print -r -- "$cacheable_path"
   } >| "$cache_file" 2>/dev/null
+
+  unset -f _path_strip_fnm
 }
 
 # Run the PATH rebuilding function.

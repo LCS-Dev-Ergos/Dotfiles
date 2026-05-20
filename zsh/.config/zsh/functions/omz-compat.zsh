@@ -132,10 +132,32 @@ omz_urlencode() {
   zparseopts -D -E -a opts r m P
 
   local in_str="$*"
-  local str="$in_str"
   local spaces_as_plus=""
   [[ -z "${opts[(r)-P]}" ]] && spaces_as_plus=1
 
+  # Fast path: when -r and -m are NOT used, the desired safe set is exactly the
+  # RFC 3986 unreserved set, which is what jq's @uri and python3's
+  # urllib.parse.quote(s, safe="") produce. Delegating avoids the per-character
+  # zsh loop (O(n^2) due to string concatenation) for the common case used by
+  # cheat() and web_search().
+  if [[ -z "${opts[(r)-r]}" && -z "${opts[(r)-m]}" ]]; then
+    local encoded=""
+    if command -v jq >/dev/null 2>&1; then
+      encoded="$(printf '%s' "$in_str" | jq -sRr @uri 2>/dev/null)"
+    elif command -v python3 >/dev/null 2>&1; then
+      encoded="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.stdin.read(), safe=""), end="")' <<<"$in_str" 2>/dev/null)"
+    fi
+    if [[ -n "$encoded" ]]; then
+      # Match OMZ default: encode spaces as `+` unless -P was passed.
+      # NB: `%` is a glob qualifier marker in zsh patterns, hence the escape.
+      [[ -n "$spaces_as_plus" ]] && encoded="${encoded//\%20/+}"
+      print -r -- "$encoded"
+      return 0
+    fi
+    # If neither tool was available or both failed, fall through to slow path.
+  fi
+
+  local str="$in_str"
   local encoding="${langinfo[CODESET]:-UTF-8}"
   local -a safe_encodings
   safe_encodings=(UTF-8 utf8 US-ASCII)
@@ -146,8 +168,11 @@ omz_urlencode() {
     }
   fi
 
+  # LC_ALL=C ensures the per-byte hex conversion below treats input as raw
+  # bytes regardless of the calling shell's locale. `local` keeps it scoped to
+  # this function; no `export` is needed since subshell commands aren't
+  # involved on this code path.
   local i byte ord LC_ALL=C
-  export LC_ALL
   local reserved=';/?:@&=+$,'
   local mark='_.!~*''()-'
   local dont_escape='[A-Za-z0-9'
