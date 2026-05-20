@@ -525,6 +525,9 @@ kget() {
     return 1
   fi
 
+  local -a args=("$@")
+  local last="${args[-1]}"
+
   # Auto-add trailing slash for directory destinations.
   # Heuristic: if multiple files OR last arg has no extension, treat as directory.
   if (( $# > 1 )) && [[ "$last" != */ ]]; then

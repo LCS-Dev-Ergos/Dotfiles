@@ -130,8 +130,16 @@ _fabric_lazy_init() {
     if [[ -n "$title" ]]; then
       # Sanitize title (security: prevent path traversal).
       title="${title//[\/\\]/_}"
-      title="${title//../_}"
+      title="${title//\.\./_}"
       title="${title//[[:cntrl:]]/}"
+      title="${title## }"
+      title="${title%% }"
+
+      # Defense-in-depth: enforce a strict allowlist for the final title.
+      if [[ -z "$title" || ! "$title" =~ ^[A-Za-z0-9_.\ -]+$ ]]; then
+        echo "${C_RED}fabric: invalid title (allowed chars: A-Z a-z 0-9 _ . - space)${C_RESET}" >&2
+        return 1
+      fi
 
       local output_path="$FABRIC_OUTPUT_DIR/${date_stamp}-${title}.md"
 

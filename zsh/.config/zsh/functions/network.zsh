@@ -36,7 +36,7 @@ function weather() {
   local location_key="${location//[^A-Za-z0-9._-]/_}"
   local cache_file="$cache_dir/${location_key}.cache"
   local location_url="${location// /%20}"
-  local current_time=$(date +%s)
+  local current_time=${EPOCHSECONDS:-$(date +%s)}
   local cache_age=3600
 
   command mkdir -p -- "$cache_dir" 2>/dev/null || {
@@ -46,12 +46,15 @@ function weather() {
 
   if [[ -f "$cache_file" ]]; then
     local file_time
-    if [[ "$PLATFORM" == "macOS" ]]; then
-      file_time=$(stat -f %m "$cache_file" 2>/dev/null || echo 0)
+    if typeset -f _zsh_mtime >/dev/null 2>&1; then
+      file_time="$(_zsh_mtime "$cache_file")"
+    elif [[ "$PLATFORM" == "macOS" ]]; then
+      file_time=$(command stat -f %m "$cache_file" 2>/dev/null)
     else
-      file_time=$(stat -c %Y "$cache_file" 2>/dev/null || echo 0)
+      file_time=$(command stat -c %Y "$cache_file" 2>/dev/null)
     fi
-    if [[ $((current_time - file_time)) -lt $cache_age ]]; then
+    [[ "$file_time" =~ ^[0-9]+$ ]] || file_time=0
+    if (( current_time - file_time < cache_age )); then
       cat "$cache_file"
       return 0
     fi
@@ -63,7 +66,7 @@ function weather() {
     return 1
   }
 
-  if curl -s --fail --connect-timeout 5 "https://wttr.in/${location_url}?lang=it" >"$tmp_file"; then
+  if curl -fsS --max-time 15 --connect-timeout 5 "https://wttr.in/${location_url}?lang=it" >"$tmp_file"; then
     chmod 600 "$tmp_file" 2>/dev/null || :
     mv -f "$tmp_file" "$cache_file"
     cat "$cache_file"
@@ -74,7 +77,6 @@ function weather() {
       echo "${C_YELLOW}(Showing cached data)${C_RESET}"
       cat "$cache_file"
     else
-      rm -f "$cache_file"
       return 1
     fi
   fi
@@ -90,7 +92,12 @@ function weather() {
 # -----------------------------------------------------------------------------
 function myip() {
   echo "${C_CYAN}Fetching public IP info...${C_RESET}"
-  curl -s "https://ipinfo.io/json" |
+  local response
+  if ! response="$(curl -fsS --max-time 10 --connect-timeout 5 "https://ipinfo.io/json" 2>/dev/null)"; then
+    echo "${C_RED}Error: Unable to fetch public IP info.${C_RESET}" >&2
+    return 1
+  fi
+  print -r -- "$response" |
     grep -E '"ip"|"city"|"region"|"country"|"org"' |
     sed 's/^  //;s/[",]//g' |
     awk -F: -v color="${C_GREEN}" -v reset="${C_RESET}" '{printf "%s%s%s%s\n", $1 ":", color, $2, reset}'
@@ -129,27 +136,43 @@ function portscan() {
 
   echo "${C_CYAN}Scanning ports $start_port-$end_port on $host...${C_RESET}"
 
-  # Use nc (netcat) if available for faster scanning
+  # Detect netcat flavor. BSD nc (macOS default) supports `port1-port2` range
+  # syntax; nmap-ncat/openbsd-netcat on Linux generally do not. Probe the help
+  # output once to decide whether to scan in a single nc call or loop.
+  local nc_supports_range=0
   if command -v nc >/dev/null 2>&1; then
-    # -z: zero-I/O mode (scanning)
-    # -v: verbose (to see output)
-    # -w 1: timeout 1 second
-    nc -z -v -w 1 "$host" "$start_port"-"$end_port" 2>&1 | grep "succeeded" | sed "s/^/${C_GREEN}/;s/$/${C_RESET}/"
-  else
-    # Fallback to zsh TCP module.
-    if zmodload zsh/net/tcp 2>/dev/null; then
-      local port fd
-      for ((port = start_port; port <= end_port; port++)); do
-        if ztcp "$host" "$port" >/dev/null 2>&1; then
-          fd="$REPLY"
-          ztcp -c "$fd" >/dev/null 2>&1 || :
-          echo "${C_GREEN}Port $port: OPEN${C_RESET}"
-        fi
-      done
-    else
-      echo "${C_RED}Error: netcat not found and zsh/net/tcp module unavailable.${C_RESET}" >&2
-      return 1
+    if [[ "$PLATFORM" == "macOS" ]]; then
+      nc_supports_range=1
+    elif nc -h 2>&1 | grep -qE 'port\[s\]|port range'; then
+      nc_supports_range=1
     fi
+  fi
+
+  if (( nc_supports_range )); then
+    # -z: zero-I/O scan, -v: verbose, -w 1: 1s timeout.
+    nc -z -v -w 1 "$host" "$start_port"-"$end_port" 2>&1 |
+      grep "succeeded" |
+      sed "s/^/${C_GREEN}/;s/$/${C_RESET}/"
+  elif command -v nc >/dev/null 2>&1; then
+    # Linux nc fallback: iterate per port.
+    local port
+    for ((port = start_port; port <= end_port; port++)); do
+      if nc -z -w 1 "$host" "$port" 2>/dev/null; then
+        echo "${C_GREEN}Port $port: OPEN${C_RESET}"
+      fi
+    done
+  elif zmodload zsh/net/tcp 2>/dev/null; then
+    local port fd
+    for ((port = start_port; port <= end_port; port++)); do
+      if ztcp "$host" "$port" >/dev/null 2>&1; then
+        fd="$REPLY"
+        ztcp -c "$fd" >/dev/null 2>&1 || :
+        echo "${C_GREEN}Port $port: OPEN${C_RESET}"
+      fi
+    done
+  else
+    echo "${C_RED}Error: netcat not found and zsh/net/tcp module unavailable.${C_RESET}" >&2
+    return 1
   fi
 }
 
@@ -211,10 +234,27 @@ function serve() {
     fi
   fi
 
+  # Warn before exposing sensitive directories over HTTP.
+  case "$PWD" in
+    "$HOME"|"$HOME/.ssh"*|"$HOME/.gnupg"*|"$HOME/.aws"*|"$HOME/.config"*)
+      echo "${C_YELLOW}Warning: serving '$PWD' may expose sensitive files.${C_RESET}" >&2
+      echo -n "Continue? (y/N): "
+      local _confirm
+      read -r _confirm
+      [[ "$_confirm" =~ ^[Yy]$ ]] || { echo "${C_CYAN}Cancelled.${C_RESET}"; return 1; }
+      ;;
+  esac
+
   # Display server info.
   local url_msg
   if [[ "$public_mode" == true ]]; then
-    local ip=$(ipconfig getifaddr en0 2>/dev/null || hostname -I | awk '{print $1}' 2>/dev/null || echo "127.0.0.1")
+    local ip="127.0.0.1"
+    if [[ "$PLATFORM" == "macOS" ]]; then
+      ip="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo "127.0.0.1")"
+    elif [[ "$PLATFORM" == "Linux" ]]; then
+      ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+      [[ -z "$ip" ]] && ip="127.0.0.1"
+    fi
     url_msg="http://${ip}:${port} (Public)"
   else
     url_msg="http://localhost:${port} (Local only)"
@@ -265,9 +305,22 @@ function shorten() {
     url="https://$url"
   fi
 
+  # URL-encode using whichever tool is available.
+  local encoded_url
+  if command -v jq >/dev/null 2>&1; then
+    encoded_url="$(printf '%s' "$url" | jq -sRr @uri)"
+  elif command -v python3 >/dev/null 2>&1; then
+    encoded_url="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.stdin.read(), safe=""), end="")' <<<"$url")"
+  elif command -v perl >/dev/null 2>&1; then
+    encoded_url="$(printf '%s' "$url" | perl -MURI::Escape -ne 'chomp; print uri_escape($_)')"
+  else
+    echo "${C_RED}Error: shorten requires jq, python3, or perl for URL encoding.${C_RESET}" >&2
+    return 1
+  fi
+
   # Shorten the URL.
   local short_url
-  short_url=$(curl -s "https://is.gd/create.php?format=simple&url=$(printf '%s' "$url" | jq -sRr @uri)" 2>/dev/null)
+  short_url=$(curl -fsS --max-time 15 --connect-timeout 5 "https://is.gd/create.php?format=simple&url=${encoded_url}" 2>/dev/null)
 
   if [[ -n "$short_url" ]]; then
     echo "${C_GREEN}Short URL: $short_url${C_RESET}"
@@ -302,10 +355,24 @@ function cheat() {
   local query="$1"
   if typeset -f omz_urlencode >/dev/null 2>&1; then
     query="$(omz_urlencode "$query")"
+  elif command -v jq >/dev/null 2>&1; then
+    query="$(printf '%s' "$query" | jq -sRr @uri)"
+  elif command -v python3 >/dev/null 2>&1; then
+    query="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.stdin.read(), safe=""), end="")' <<<"$query")"
   else
-    query="${query// /+}"
+    # Last-resort manual encoding for the most common cheat.sh-breaking chars.
+    local _enc="" _i _c _o
+    for (( _i=1; _i <= ${#query}; _i++ )); do
+      _c="${query[$_i]}"
+      case "$_c" in
+        [A-Za-z0-9._~-]) _enc+="$_c" ;;
+        " ") _enc+="+" ;;
+        *) _o=$(( [##16] #_c )); _enc+="%${(l:2::0:)_o}" ;;
+      esac
+    done
+    query="$_enc"
   fi
-  curl -s "https://cheat.sh/${query}" | less -R
+  curl -fsS --max-time 15 --connect-timeout 5 "https://cheat.sh/${query}" | less -R
 }
 
 # -----------------------------------------------------------------------------
@@ -325,7 +392,7 @@ function qr() {
     echo "${C_YELLOW}Usage: qr <text>${C_RESET}" >&2
     return 1
   fi
-  curl -sF-="\<-" "https://qrenco.de" <<<"$1"
+  curl -fsSF-="\<-" --max-time 10 --connect-timeout 5 "https://qrenco.de" <<<"$1"
 }
 
 # ============================================================================ #

@@ -663,7 +663,6 @@ function remove_pdf_metadata() {
     # If no output file specified, overwrite the original.
     if [[ -z "$output_file" ]]; then
         overwrite_mode=true
-        output_file="${input_file}.tmp"
 
         echo -n "${C_YELLOW}No output file specified. Overwrite '$input_file'? (y/N): ${C_RESET}"
         read -r response
@@ -671,11 +670,23 @@ function remove_pdf_metadata() {
             echo "${C_CYAN}Operation cancelled.${C_RESET}"
             return 0
         fi
-    fi
 
-    # Ensure output file has .pdf extension.
-    if [[ ! "$output_file" =~ \.(pdf|PDF)$ ]]; then
-        output_file="${output_file}.pdf"
+        # Use mktemp in the same directory as the input so the final mv is atomic
+        # (mv across filesystems is non-atomic). qpdf refuses to overwrite an
+        # existing file, so we remove the placeholder created by mktemp while
+        # keeping the reserved unique name. Register a trap to clean up on
+        # interruption before the rename completes.
+        output_file="$(command mktemp "${input_file}.tmp.XXXXXX" 2>/dev/null)" || {
+            echo "${C_RED}Error: Unable to create temporary file.${C_RESET}" >&2
+            return 1
+        }
+        command rm -f -- "$output_file" 2>/dev/null
+        trap 'command rm -f -- "$output_file" 2>/dev/null' EXIT INT TERM HUP
+    else
+        # Ensure output file has .pdf extension when user supplied a name.
+        if [[ ! "$output_file" =~ \.(pdf|PDF)$ ]]; then
+            output_file="${output_file}.pdf"
+        fi
     fi
 
     # Check if output file already exists (and we're not in overwrite mode).
@@ -735,10 +746,15 @@ function remove_pdf_metadata() {
             fi
         fi
 
-        # If in overwrite mode, replace the original file.
+        # If in overwrite mode, atomically replace the original file.
         if [[ "$overwrite_mode" == true ]]; then
-            mv "$output_file" "$input_file"
+            if ! command mv -f -- "$output_file" "$input_file"; then
+                echo "${C_RED}Error: Failed to replace original file.${C_RESET}" >&2
+                trap - EXIT INT TERM HUP
+                return 1
+            fi
             output_file="$input_file"
+            trap - EXIT INT TERM HUP
         fi
 
         echo "${C_GREEN}✓ Successfully processed PDF${C_RESET}"
@@ -764,8 +780,9 @@ function remove_pdf_metadata() {
         fi
 
     else
-        # Clean up temporary file if it was created.
-        [[ "$overwrite_mode" == true && -f "$output_file" ]] && rm -f "$output_file"
+        # In overwrite mode, the EXIT trap will clean up the temp file on return.
+        # In explicit-output mode, leave the partial file alone — it's the path
+        # the user named.
 
         echo "${C_RED}Error: Failed to remove metadata.${C_RESET}" >&2
         echo
