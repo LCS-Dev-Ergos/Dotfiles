@@ -56,11 +56,9 @@ fi
 ZSH_AUTOSUGGEST_STRATEGY=(history completion)
 export ZSH_AUTOSUGGEST_STRATEGY
 
-# History configuration.
-HISTFILE="${HISTFILE:-$ZDOTDIR/.zsh_history}"
-HISTSIZE=10000
-SAVEHIST=10000
-export HISTFILE HISTSIZE SAVEHIST
+# History settings are owned by $ZDOTDIR/lib/10-history.zsh which is sourced
+# before this file in .zshrc. Setting HISTFILE/HISTSIZE/SAVEHIST here would
+# clobber the larger limits configured there.
 
 if [[ "${HYDE_ZSH_NO_PLUGINS}" != "1" ]]; then
   # Find Oh-My-Zsh installation.

@@ -13,34 +13,9 @@ export VISUAL="$EDITOR"
 export LANG="en_US.UTF-8"
 export LC_ALL="en_US.UTF-8"
 
-# History file.
-export HISTFILE=${ZDOTDIR:-$HOME}/.zsh_history
-
-# History size in memory.
-export HISTSIZE=20000
-
-# History size on disk.
-export SAVEHIST=50000
-
-# Do not save duplicate entries in history.
-setopt HIST_IGNORE_DUPS
-
-# Do not save commands starting with a space.
-setopt HIST_IGNORE_SPACE
-
-# Share history between all sessions.
-setopt SHARE_HISTORY
-
-# Append to history file instead of overwriting.
-setopt APPEND_HISTORY
-
-# Expire duplicate entries first when trimming history.
-setopt HIST_EXPIRE_DUPS_FIRST
-
-# Do not record function definitions in history.
-setopt HIST_NO_FUNCTIONS
-
-# Do not record history for certain commands.
+# History size, file location and setopt flags are owned by
+# $ZDOTDIR/lib/10-history.zsh (interactive shells only). This file keeps only
+# the small environment knob that is needed even for non-interactive ones.
 export HISTORY_IGNORE='ls:l:ll:bg:fg:history:clear:c'
 
 # Less pager options.
@@ -53,28 +28,15 @@ export XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
 export XDG_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"
 
 # ------------- Initial PATH Setup ------------- #
-# Adds standard user paths. Final PATH order handled by ".zshrc".
+# The full PATH layout (Maven, Coursier, Elan, Obsidian, language toolchains,
+# Homebrew, system tools, etc.) is the single source of truth in
+# $ZDOTDIR/lib/90-path.zsh. Only $HOME/.local/bin is prepended here so that
+# non-interactive login shells (cron, ssh-with-command) can still find user
+# binaries before the interactive config runs.
 export PATH="$HOME/.local/bin:$PATH"
-
-# ----------------- Maven PATH ----------------- #
-export PATH="$HOME/.sdkman/candidates/maven/current/bin:$PATH"
-
-# --------------- Coursier PATH ---------------- #
-# Add Coursier bin to PATH, handling platform-specific paths.
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    export PATH="$PATH:$HOME/Library/Application Support/Coursier/bin"
-elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    export PATH="$PATH:$HOME/.local/share/coursier/bin"
-fi
 
 # ----------------- Toolchains ----------------- #
 # OrbStack integration is deferred in .zshrc for faster startup.
-
-# ----------------- Elan PATH ------------------ #
-export PATH="$HOME/.elan/bin:$PATH"
-
-# ------------------ Obsidian ------------------ #
-export PATH="$PATH:/Applications/Obsidian.app/Contents/MacOS"
 
 # ------------- GNU Global (gtags) ------------- #
 # native-pygments: uses the built-in parser for C/C++/Java and Pygments as
