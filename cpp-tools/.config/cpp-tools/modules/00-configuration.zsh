@@ -219,7 +219,7 @@ _cp_get_active_build_dir() {
   local active_dir=""
 
   if [ -f "$active_file" ]; then
-    active_dir=$(head -n 1 "$active_file" | tr -d '\r')
+    active_dir=$(head -n 1 "$active_file" | tr -d ' \t\r')
     if [ -n "$active_dir" ] && [ -f "$active_dir/CMakeCache.txt" ]; then
       echo "$active_dir"
       return 0

@@ -347,7 +347,9 @@ function cppdiag() {
   # Test with GCC if available.
   if [ -n "$GXX_PATH" ]; then
     echo "${C_CYAN}Testing GCC features:${C_RESET}"
-    local test_file="/tmp/cp_gcc_test_$.cpp"
+    local test_file test_bin
+    test_file=$(mktemp "/tmp/cp_gcc_test_XXXXXX.cpp")
+    test_bin=$(mktemp "/tmp/cp_gcc_test_XXXXXX")
     cat > "$test_file" << 'EOF'
 #include <bits/stdc++.h>
 #include <ext/pb_ds/assoc_container.hpp>
@@ -356,11 +358,11 @@ using namespace __gnu_pbds;
 int main() { cout << "OK" << endl; return 0; }
 EOF
 
-    if $GXX_PATH -std=c++23 "$test_file" -o /tmp/cp_gcc_test_$ 2>/dev/null; then
+    if $GXX_PATH -std=c++23 "$test_file" -o "$test_bin" 2>/dev/null; then
       echo "  ${C_GREEN}bits/stdc++.h: Available${C_RESET}"
       echo "  ${C_GREEN}PBDS: Available${C_RESET}"
       echo "  ${C_GREEN}C++23: Supported${C_RESET}"
-      rm -f /tmp/cp_gcc_test_$
+      rm -f "$test_bin"
     else
       echo "  ${C_RED}Some GCC features may not be available. Check your installation.${C_RESET}"
     fi
@@ -373,7 +375,9 @@ EOF
     echo "${C_CYAN}Testing Clang features:${C_RESET}"
 
     # Test PCH.h compatibility.
-    local test_pch="/tmp/cp_clang_test_$.cpp"
+    local test_pch test_pch_bin
+    test_pch=$(mktemp "/tmp/cp_clang_test_XXXXXX.cpp")
+    test_pch_bin=$(mktemp "/tmp/cp_clang_test_XXXXXX")
     cat > "$test_pch" << 'EOF'
 #define USE_CLANG_SANITIZE
 #include "PCH.h"
@@ -383,10 +387,10 @@ EOF
 
     # Check if PCH.h exists in algorithms directory.
     if [ -f "algorithms/PCH.h" ]; then
-      if $CLANGXX_PATH -std=c++23 -I./algorithms "$test_pch" -o /tmp/cp_clang_test_$ 2>/dev/null; then
+      if $CLANGXX_PATH -std=c++23 -I./algorithms "$test_pch" -o "$test_pch_bin" 2>/dev/null; then
         echo "  ${C_GREEN}PCH.h: Compatible${C_RESET}"
         echo "  ${C_GREEN}C++23: Supported${C_RESET}"
-        rm -f /tmp/cp_clang_test_$
+        rm -f "$test_pch_bin"
       else
         echo "  ${C_YELLOW}PCH.h compilation failed (check algorithms/PCH.h)${C_RESET}"
       fi
@@ -395,22 +399,25 @@ EOF
     fi
 
     # Test sanitizer support.
-    printf "#include <iostream>\nint main(){return 0;}" > "$test_pch"
-    if $CLANGXX_PATH -fsanitize=address "$test_pch" -o /tmp/cp_clang_san_$ 2>/dev/null; then
+    local test_san san_bin
+    test_san=$(mktemp "/tmp/cp_clang_san_XXXXXX.cpp")
+    san_bin=$(mktemp "/tmp/cp_clang_san_XXXXXX")
+    printf "#include <iostream>\nint main(){return 0;}" > "$test_san"
+    if $CLANGXX_PATH -fsanitize=address "$test_san" -o "$san_bin" 2>/dev/null; then
       echo "  ${C_GREEN}AddressSanitizer: Available${C_RESET}"
-      rm -f /tmp/cp_clang_san_$
+      rm -f "$san_bin"
     else
       echo "  ${C_RED}AddressSanitizer: Not available${C_RESET}"
     fi
 
-    if $CLANGXX_PATH -fsanitize=undefined "$test_pch" -o /tmp/cp_clang_san_$ 2>/dev/null; then
+    if $CLANGXX_PATH -fsanitize=undefined "$test_san" -o "$san_bin" 2>/dev/null; then
       echo "  ${C_GREEN}UBSanitizer: Available${C_RESET}"
-      rm -f /tmp/cp_clang_san_$
+      rm -f "$san_bin"
     else
       echo "  ${C_RED}UBSanitizer: Not available${C_RESET}"
     fi
 
-    rm -f "$test_pch"
+    rm -f "$test_pch" "$test_san"
   fi
 
   echo ""

@@ -53,13 +53,14 @@ function cppbuild() {
 
   # Calculate total build time.
   local end_time=$EPOCHREALTIME
-  local elapsed_sec=$(( end_time - start_time ))
+  local elapsed_ms
+  elapsed_ms=$(awk "BEGIN {printf \"%.0f\", ($end_time - $start_time) * 1000}")
   local elapsed_str
 
-  if (( elapsed_sec < 1 )); then
-    printf -v elapsed_str "%.2fms" $(( elapsed_sec * 1000 ))
+  if (( elapsed_ms < 1000 )); then
+    printf -v elapsed_str "%.2fms" "$elapsed_ms"
   else
-    printf -v elapsed_str "%.2fs" $elapsed_sec
+    printf -v elapsed_str "%.2fs" $(( elapsed_ms / 1000 ))
   fi
 
   # Handle build failures with full error output.
@@ -251,7 +252,8 @@ function cppgo() {
     fi
 
     local end_time=$EPOCHREALTIME
-    local elapsed_sec=$(( end_time - start_time ))
+    local elapsed_ms
+    elapsed_ms=$(awk "BEGIN {printf \"%.0f\", ($end_time - $start_time) * 1000}")
 
     # Check if the program was terminated due to timeout.
     if [ $exit_code -eq 124 ]; then
@@ -261,10 +263,10 @@ function cppgo() {
     fi
 
     echo "${C_BLUE}════───────────── FINISHED ──────────────════${C_RESET}"
-    if (( elapsed_sec < 1 )); then
-      printf "${C_MAGENTA}Execution time: %.2fms${C_RESET}\n" $(( elapsed_sec * 1000 ))
+    if (( elapsed_ms < 1000 )); then
+      printf "${C_MAGENTA}Execution time: %.2fms${C_RESET}\n" "$elapsed_ms"
     else
-      printf "${C_MAGENTA}Execution time: %.2fs${C_RESET}\n" $elapsed_sec
+      printf "${C_MAGENTA}Execution time: %.2fs${C_RESET}\n" $(( elapsed_ms / 1000 ))
     fi
   else
     echo "${C_RED}Build failed!${C_RESET}" >&2
@@ -378,7 +380,7 @@ function cppjudge() {
     local run_status=$?
     local end_time=$EPOCHREALTIME
     local elapsed_ms
-    printf -v elapsed_ms "%.0f" $(( (end_time - start_time) * 1000 ))
+    elapsed_ms=$(awk "BEGIN {printf \"%.0f\", ($end_time - $start_time) * 1000}")
 
     if [ $run_status -eq 124 ] || [ $run_status -eq 137 ]; then
       echo "${C_BOLD}${C_RED}TIMEOUT${C_RESET} (${elapsed_ms}ms, limit ${judge_timeout})"
@@ -471,7 +473,7 @@ function cppstress() {
     printf "\rIteration %d/%d... " "$i" "$iterations"
 
     # Run with empty input and check for crashes.
-    if ! _run_with_timeout 2 "$exec_path" < /dev/null > /dev/null 2>&1; then
+    if ! _run_with_timeout 2s "$exec_path" < /dev/null > /dev/null 2>&1; then
       ((failed++))
       echo "${C_RED}Failed at iteration $i${C_RESET}"
     fi
