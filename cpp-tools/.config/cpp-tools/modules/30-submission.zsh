@@ -32,7 +32,7 @@ function cppsubmit() {
   fi
   local target_name=${1:-$(_get_default_target)}
   local problem_brief
-  local solution_file="${target_name}.cpp"
+  local solution_file
   local submission_dir="$SUBMISSIONS_DIR"
   local submission_file="$submission_dir/${target_name}_sub.cpp"
   local flattener_script="$SCRIPTS_DIR/flattener.py"
@@ -46,8 +46,9 @@ function cppsubmit() {
   fi
 
   # Check that the solution file exists.
-  if [ ! -f "$solution_file" ]; then
-    echo -e "${C_RED}Error: Solution file '$solution_file' not found${C_RESET}" >&2
+  solution_file=$(_resolve_target_source "$target_name")
+  if [ -z "$solution_file" ]; then
+    echo -e "${C_RED}Error: No source file found for target '$target_name' (.cpp/.cc/.cxx)${C_RESET}" >&2
     return 1
   fi
 
@@ -88,7 +89,7 @@ EOF
   echo -e "${C_BLUE}Running template flattener...${C_RESET}"
 
   # Set PYTHONPATH to include the scripts directory for module imports.
-  export PYTHONPATH="$SCRIPTS_DIR:$PYTHONPATH"
+  export PYTHONPATH="$SCRIPTS_DIR${PYTHONPATH:+:$PYTHONPATH}"
 
   local flattened_tmp
   flattened_tmp=$(mktemp "/tmp/${target_name}_flattened.XXXXXX") || {
@@ -320,12 +321,13 @@ function cpptestsubmit() {
     "$submission_file" -o "$test_binary" 2>"$compile_err_log"; then
 
     local end_time=$EPOCHREALTIME
-    local elapsed_sec=$(( end_time - start_time ))
+    local elapsed_ms
+    elapsed_ms=$(awk "BEGIN {printf \"%.0f\", ($end_time - $start_time) * 1000}")
 
-    if (( elapsed_sec < 1 )); then
-      printf "${C_GREEN}✓ Submission compiled successfully in %.2fms${C_RESET}\n" $(( elapsed_sec * 1000 ))
+    if (( elapsed_ms < 1000 )); then
+      printf "${C_GREEN}✓ Submission compiled successfully in %.2fms${C_RESET}\n" "$elapsed_ms"
     else
-      printf "${C_GREEN}✓ Submission compiled successfully in %.2fs${C_RESET}\n" $elapsed_sec
+      printf "${C_GREEN}✓ Submission compiled successfully in %.2fs${C_RESET}\n" $(( elapsed_ms / 1000 ))
     fi
 
     # Test execution with input.
@@ -376,8 +378,32 @@ function cpptestsubmit() {
 # -----------------------------------------------------------------------------
 function cppfull() {
   _check_initialized || return 1
-  local target_name=${1:-$(_get_default_target)}
-  local input_name=${2:-"${target_name}.in"}
+  local strict_mode=0
+  local target_name input_name
+
+  # Parse optional --strict flag.
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --strict)
+        strict_mode=1
+        shift
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        echo -e "${C_RED}Error: Unknown option '$1'.${C_RESET}" >&2
+        return 1
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
+
+  target_name=${1:-$(_get_default_target)}
+  input_name=${2:-"${target_name}.in"}
 
   echo -e "${C_BLUE}╔═══──────────────────────────────────────────═══╗${C_RESET}"
   echo -e "${C_BLUE}${C_BOLD} FULL WORKFLOW: $(printf "%-20s" "$target_name")${C_RESET}"
@@ -393,16 +419,30 @@ function cppfull() {
 
   # Step 2: Generate submission.
   echo -e "\n${C_CYAN}[2/3] Generating submission...${C_RESET}"
-  if ! cppsubmit "$target_name"; then
-    echo -e "${C_RED}✗ Submission generation failed${C_RESET}" >&2
-    return 1
+  if [ "$strict_mode" -eq 1 ]; then
+    if ! cppsubmit --strict "$target_name"; then
+      echo -e "${C_RED}✗ Submission generation failed${C_RESET}" >&2
+      return 1
+    fi
+  else
+    if ! cppsubmit "$target_name"; then
+      echo -e "${C_RED}✗ Submission generation failed${C_RESET}" >&2
+      return 1
+    fi
   fi
 
   # Step 3: Test submission.
   echo -e "\n${C_CYAN}[3/3] Testing submission...${C_RESET}"
-  if ! cpptestsubmit --no-generate "$target_name" "$input_name"; then
-    echo -e "${C_RED}✗ Submission test failed${C_RESET}" >&2
-    return 1
+  if [ "$strict_mode" -eq 1 ]; then
+    if ! cpptestsubmit --no-generate --strict "$target_name" "$input_name"; then
+      echo -e "${C_RED}✗ Submission test failed${C_RESET}" >&2
+      return 1
+    fi
+  else
+    if ! cpptestsubmit --no-generate "$target_name" "$input_name"; then
+      echo -e "${C_RED}✗ Submission test failed${C_RESET}" >&2
+      return 1
+    fi
   fi
 
   # Summary with file information.

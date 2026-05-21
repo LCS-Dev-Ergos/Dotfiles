@@ -448,17 +448,17 @@ function cppnew() {
 
   problem_brief=$(_problem_brief "$problem_name")
   escaped_file_name=${file_name//\\/\\\\}
-  escaped_file_name=${escaped_file_name//\//\\/}
+  escaped_file_name=${escaped_file_name//\//\\#}
   escaped_file_name=${escaped_file_name//&/\\&}
   escaped_problem_brief=${problem_brief//\\/\\\\}
-  escaped_problem_brief=${escaped_problem_brief//\//\\/}
+  escaped_problem_brief=${escaped_problem_brief//\//\\#}
   escaped_problem_brief=${escaped_problem_brief//&/\\&}
 
   echo "${C_CYAN}Creating '$file_name' from template '$template_type'...${C_RESET}"
   # Replace placeholders and create the file.
   sed \
-    -e "s/__FILE_NAME__/${escaped_file_name}/g" \
-    -e "s/__PROBLEM_BRIEF__/${escaped_problem_brief}/g" \
+    -e "s#__FILE_NAME__#${escaped_file_name}#g" \
+    -e "s#__PROBLEM_BRIEF__#${escaped_problem_brief}#g" \
     "$template_file" > "$file_name"
 
   # Ensure generated-data directories exist.
@@ -700,7 +700,7 @@ function cppbatch() {
     local letter
     letter="${letters[idx]}"
     problem_name="problem_${letter}"
-    if [ ! -f "${problem_name}.cpp" ]; then
+    if [ -z "$(_resolve_target_source "${problem_name}")" ]; then
       if CPPNEW_SKIP_CONFIG=1 cppnew "$problem_name" "$template"; then
         ((created_count++))
       fi
