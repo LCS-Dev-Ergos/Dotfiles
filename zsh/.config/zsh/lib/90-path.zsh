@@ -166,6 +166,7 @@ zsh_rebuild_path() {
       "$ANDROID_HOME/cmdline-tools/latest/bin"
 
       # --------------- AI Tools ---------------- #
+      "$HOME/.antigravity-ide/antigravity-ide/bin"
       "$HOME/.lmstudio/bin"
       "$HOME/.opencode/bin"
 
@@ -226,6 +227,7 @@ zsh_rebuild_path() {
       "$HOME/.local/share/JetBrains/Toolbox/scripts"
 
       # --------------- AI Tools ---------------- #
+      "$HOME/.antigravity-ide/antigravity-ide/bin"
       "$HOME/.lmstudio/bin"
       "$HOME/.opencode/bin"
 
