@@ -6,12 +6,12 @@
 # Includes flattener integration, compilation verification, and health checks.
 #
 # Functions:
-#   - cppsubmit                     Generate a submission file.
-#   - _verify_submission_compilation Validate submission compiles.
-#   - _offer_clipboard_copy          Offer clipboard copy prompt.
-#   - cpptestsubmit                  Compile and test submission file.
-#   - cppfull                        Run full workflow (dev/test/submission).
-#   - cppcheck                       Validate environment and templates.
+#   - cppsubmit                       Generate a submission file.
+#   - _verify_submission_compilation  Validate submission compiles.
+#   - _offer_clipboard_copy           Offer clipboard copy prompt.
+#   - cpptestsubmit                   Compile and test submission file.
+#   - cppfull                         Run full workflow (dev/test/submission).
+#   - cppcheck                        Validate environment and templates.
 #
 # ============================================================================ #
 

@@ -6,13 +6,13 @@
 # Includes cleaning, watching, statistics, archiving, and diagnostics.
 #
 # Functions:
-#   - cppclean     Remove build artifacts safely.
-#   - cppdeepclean Remove all generated files.
-#   - cppfocus     Pin the default target used by build/run commands.
-#   - cppwatch     Auto-build on file changes.
-#   - cppstats     Show problem timing statistics.
-#   - cpparchive   Create a contest archive.
-#   - cppdiag      Display environment diagnostics.
+#   - cppclean      Remove build artifacts safely.
+#   - cppdeepclean  Remove all generated files.
+#   - cppfocus      Pin the default target used by build/run commands.
+#   - cppwatch      Auto-build on file changes.
+#   - cppstats      Show problem timing statistics.
+#   - cpparchive    Create a contest archive.
+#   - cppdiag       Display environment diagnostics.
 #
 # ============================================================================ #
 
