@@ -334,7 +334,7 @@ function cpptestsubmit() {
     # Test execution with input.
     if [ -f "$input_path" ]; then
       echo -e "${C_BLUE}Testing with input from $input_path:${C_RESET}"
-      echo -e "${C_CYAN}╔═══──────────────────────────────────────────═══╗${C_RESET}"
+      echo -e "${C_CYAN}════──────────────────────────────────────────════${C_RESET}"
 
       # Run with timeout and capture output.
       local run_output
@@ -342,7 +342,7 @@ function cpptestsubmit() {
       local exit_code=$?
       echo "$run_output" | head -n 50
 
-      echo -e "${C_CYAN}╚═══──────────────────────────────────────────═══╝${C_RESET}"
+      echo -e "${C_CYAN}════──────────────────────────────────────────════${C_RESET}"
 
       if [ "$exit_code" -eq 124 ]; then
         echo -e "${C_YELLOW}⚠ Execution timeout (2s limit exceeded)${C_RESET}"
@@ -470,7 +470,7 @@ function cppfull() {
 # -----------------------------------------------------------------------------
 function cppcheck() {
   echo -e "${C_CYAN}${C_BOLD}Checking template system health...${C_RESET}"
-  echo -e "${C_CYAN}╔═══──────────────────────────────────────────═══╗${C_RESET}"
+  echo -e "${C_CYAN}════────────────────────────────────────────────────────════${C_RESET}"
 
   local all_good=true
   local warnings=0
@@ -585,7 +585,7 @@ function cppcheck() {
   fi
 
   # Summary.
-  echo -e "\n${C_CYAN}╚═══──────────────────────────────────────────═══╝${C_RESET}"
+  echo -e "\n${C_CYAN}════────────────────────────────────────────────────────════${C_RESET}"
   if $all_good; then
     if [ $warnings -eq 0 ]; then
       echo -e "${C_GREEN}${C_BOLD}✓ All systems fully operational${C_RESET}"
