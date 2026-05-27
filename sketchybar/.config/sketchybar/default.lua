@@ -13,7 +13,6 @@ sbar.default({
     color = colors.white,
     padding_left = settings.paddings,
     padding_right = settings.paddings,
-    background = { image = { corner_radius = 9 } },
   },
   label = {
     font = {
@@ -30,11 +29,6 @@ sbar.default({
     corner_radius = 9,
     border_width = 2,
     border_color = colors.bg2,
-    image = {
-      corner_radius = 9,
-      border_color = colors.grey,
-      border_width = 1
-    }
   },
   popup = {
     background = {
@@ -44,7 +38,7 @@ sbar.default({
       color = colors.popup.bg,
       shadow = { drawing = true },
     },
-    blur_radius = 50,
+    blur_radius = 15,
   },
   padding_left = 5,
   padding_right = 5,

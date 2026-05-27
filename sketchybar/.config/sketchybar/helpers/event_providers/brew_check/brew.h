@@ -525,7 +525,7 @@ static inline void brew_cleanup(brew_t* brew) {
           child_done = true;
           break;
         }
-        usleep(100000);
+        nanosleep(&(struct timespec){.tv_sec = 0, .tv_nsec = 100000000}, NULL);
       }
       if (!child_done) {
         kill(-pid, SIGKILL);
@@ -539,7 +539,7 @@ static inline void brew_cleanup(brew_t* brew) {
       return BREW_ERROR_COMMAND_EXECUTION;
     }
 
-    usleep(100000);
+    nanosleep(&(struct timespec){.tv_sec = 0, .tv_nsec = 100000000}, NULL);
   }
 
   g_brew_child_pid = 0;

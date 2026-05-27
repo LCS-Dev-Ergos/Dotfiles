@@ -27,6 +27,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "../sketchybar.h"
 #include "cpu.h"
@@ -120,8 +121,10 @@ int main(int argc, char** argv) {
       update_freq = 1.0;
     }
 
-    unsigned long sleep_time = (unsigned long)(update_freq * 1000000);
-    usleep(sleep_time);
+    struct timespec req;
+    req.tv_sec  = (time_t)update_freq;
+    req.tv_nsec = (long)((update_freq - req.tv_sec) * 1e9);
+    nanosleep(&req, NULL);
   }
 
   // Never reached, but the compiler may warn without return.
