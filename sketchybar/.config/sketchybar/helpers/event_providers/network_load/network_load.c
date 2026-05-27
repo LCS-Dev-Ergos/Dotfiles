@@ -28,6 +28,7 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "../sketchybar.h"
@@ -130,7 +131,7 @@ int main(int argc, char** argv) {
     update_freq = 1.0;
   }
 
-  unsigned long sleep_microseconds = (unsigned long)(update_freq * 1000000);
+
 
   // Main loop.
   for (;;) {
@@ -152,7 +153,10 @@ int main(int argc, char** argv) {
     sketchybar(trigger_message);
 
     // Wait for the next update.
-    usleep(sleep_microseconds);
+    struct timespec req;
+    req.tv_sec  = (time_t)update_freq;
+    req.tv_nsec = (long)((update_freq - req.tv_sec) * 1e9);
+    nanosleep(&req, NULL);
   }
 
   // Never reached.

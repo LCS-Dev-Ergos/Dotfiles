@@ -33,6 +33,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
 
 //===-------------------------------- CONSTANTS --------------------------------===//
 
@@ -94,7 +95,11 @@ static void ax_perform_click(AXUIElementRef element) {
 
   // First cancel any ongoing action.
   AXUIElementPerformAction(element, kAXCancelAction);
-  usleep(CLICK_DELAY_MICROSECONDS);
+  struct timespec ts = {
+    .tv_sec = CLICK_DELAY_MICROSECONDS / 1000000,
+    .tv_nsec = (CLICK_DELAY_MICROSECONDS % 1000000) * 1000
+  };
+  nanosleep(&ts, NULL);
 
   // Then perform the press action.
   AXUIElementPerformAction(element, kAXPressAction);

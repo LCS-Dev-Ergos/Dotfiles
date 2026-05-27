@@ -75,8 +75,8 @@ int main(int argc, char** argv) {
   strncpy(event_name, argv[1], sizeof(event_name) - 1);
 
   // Parse check interval with proper error handling.
-  errno                     = 0;
-  char* endptr              = NULL;
+  errno        = 0;
+  char* endptr = NULL;
   long  check_interval_secs = strtol(argv[2], &endptr, 10);
   if (errno != 0 || endptr == argv[2] || *endptr != '\0' || check_interval_secs <= 0
       || check_interval_secs > INT_MAX) {
@@ -86,8 +86,8 @@ int main(int argc, char** argv) {
   // Parse update interval with proper error handling.
   long update_interval_secs = DEFAULT_UPDATE_INTERVAL;
   if (argc > 3) {
-    errno                = 0;
-    endptr               = NULL;
+    errno  = 0;
+    endptr = NULL;
     update_interval_secs = strtol(argv[3], &endptr, 10);
     if (errno != 0 || endptr == argv[3] || *endptr != '\0' || update_interval_secs <= 0
         || update_interval_secs > INT_MAX) {
@@ -140,7 +140,7 @@ int main(int argc, char** argv) {
         (check_interval_secs <= LONG_MAX / 2) ? check_interval_secs * 2 : LONG_MAX;
     for (long i = 0; i < sleep_iterations; ++i) {
       if (g_terminate_flag || g_force_check_flag) break;
-      usleep(500000);  // Sleep for 0.5 seconds
+      nanosleep(&(struct timespec){.tv_sec = 0, .tv_nsec = 500000000}, NULL);  // Sleep for 0.5 seconds
     }
   }
 

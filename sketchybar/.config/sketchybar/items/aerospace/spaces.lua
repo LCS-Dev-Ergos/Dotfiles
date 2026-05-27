@@ -229,10 +229,10 @@ spaces_indicator:subscribe("mouse.entered", function()
         color = colors.grey,
         border_color = colors.bg1,
       },
-      icon = { color = colors.bg1 },
-      label = { width = "dynamic" }
+      icon = { color = colors.bg1 }
     })
   end)
+  spaces_indicator:set({ label = { width = "dynamic" } })
 end)
 
 spaces_indicator:subscribe("mouse.exited", function()
@@ -242,10 +242,10 @@ spaces_indicator:subscribe("mouse.exited", function()
         color = colors.transparent,
         border_color = colors.transparent,
       },
-      icon = { color = colors.grey },
-      label = { width = 0 }
+      icon = { color = colors.grey }
     })
   end)
+  spaces_indicator:set({ label = { width = 0 } })
 end)
 
 spaces_indicator:subscribe("mouse.clicked", function()

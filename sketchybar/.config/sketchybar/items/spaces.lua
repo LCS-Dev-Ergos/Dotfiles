@@ -66,7 +66,9 @@ for i = 1, 10, 1 do
       drawing = true,
       image = {
         corner_radius = 9,
-        scale = 0.2
+        scale = 0.2,
+        border_color = colors.grey,
+        border_width = 1,
       }
     }
   })
@@ -182,26 +184,26 @@ spaces_indicator:subscribe("mouse.entered", function(env)
   sbar.animate("tanh", 30, function()
     spaces_indicator:set({
       background = {
-        color = { alpha = 1.0 },
-        border_color = { alpha = 1.0 },
+        color = colors.grey,
+        border_color = colors.bg1,
       },
-      icon = { color = colors.bg1 },
-      label = { width = "dynamic" }
+      icon = { color = colors.bg1 }
     })
   end)
+  spaces_indicator:set({ label = { width = "dynamic" } })
 end)
 
 spaces_indicator:subscribe("mouse.exited", function(env)
   sbar.animate("tanh", 30, function()
     spaces_indicator:set({
       background = {
-        color = { alpha = 0.0 },
-        border_color = { alpha = 0.0 },
+        color = colors.with_alpha(colors.grey, 0.0),
+        border_color = colors.with_alpha(colors.bg1, 0.0),
       },
-      icon = { color = colors.grey },
-      label = { width = 0, }
+      icon = { color = colors.grey }
     })
   end)
+  spaces_indicator:set({ label = { width = 0 } })
 end)
 
 spaces_indicator:subscribe("mouse.clicked", function(env)
