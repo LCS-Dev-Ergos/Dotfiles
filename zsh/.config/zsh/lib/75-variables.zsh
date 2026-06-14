@@ -25,6 +25,9 @@
 #
 # ============================================================================ #
 
+# ------------- Homebrew ------------- #
+export HOMEBREW_REQUIRE_TAP_TRUST="1"
+
 # Precompute shared volume path before use in later sections.
 if [[ "$PLATFORM" == 'macOS' ]]; then
   export LCS_Data="/Volumes/LCS.Data"
