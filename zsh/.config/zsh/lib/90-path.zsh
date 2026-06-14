@@ -169,6 +169,7 @@ zsh_rebuild_path() {
       "$HOME/.antigravity-ide/antigravity-ide/bin"
       "$HOME/.lmstudio/bin"
       "$HOME/.opencode/bin"
+      "$HOME/.kimi-code/bin"
 
       # -------------- Other Paths -------------- #
       "$HOME/.config/emacs/bin"
@@ -230,6 +231,7 @@ zsh_rebuild_path() {
       "$HOME/.antigravity-ide/antigravity-ide/bin"
       "$HOME/.lmstudio/bin"
       "$HOME/.opencode/bin"
+      "$HOME/.kimi-code/bin"
 
       # -------------- Other Paths -------------- #
       "$HOME/.config/emacs/bin"
