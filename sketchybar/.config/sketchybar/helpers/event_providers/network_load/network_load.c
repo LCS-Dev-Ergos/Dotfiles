@@ -60,8 +60,7 @@ static void show_usage(const char* program_name) {
  *       It does not perform any cleanup; the OS reclaims resources on exit.
  */
 static void signal_handler(int signum) {
-  fprintf(stderr, "Received signal %d, exiting...\n", signum);
-  exit(signum);
+  _exit(128 + signum);
 }
 
 /**

@@ -17,8 +17,8 @@ end
 
 -- Configuration
 local CONFIG = {
-  check_interval = 60,
-  update_interval = 900,
+  check_interval = 300,
+  update_interval = 3600,
   brew_path = find_brew_path(),
   terminal_app = "ghostty",
   timeout = 120,
