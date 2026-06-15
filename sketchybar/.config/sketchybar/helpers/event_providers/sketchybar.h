@@ -127,7 +127,9 @@ static mach_port_t g_mach_port = 0;
  * @brief Sends an out-of-line Mach message to the specified port.
  *
  * Constructs a complex Mach message containing the provided string as an
- * out-of-line descriptor and transmits it with no timeout.
+ * out-of-line descriptor and transmits it with a short timeout. Periodic
+ * telemetry events are intentionally dropped if SketchyBar is not draining its
+ * port, which avoids helper backpressure during lock, sleep, and wake.
  *
  * @param port    Destination Mach port (must be a valid send right).
  * @param message Null-terminated string to transmit.
@@ -158,10 +160,10 @@ static mach_port_t g_mach_port = 0;
   msg.descriptor.type       = MACH_MSG_OOL_DESCRIPTOR;
 
   kern_return_t err = mach_msg(
-      &msg.header, MACH_SEND_MSG, sizeof(struct mach_message), 0, MACH_PORT_NULL,
-      MACH_MSG_TIMEOUT_NONE, MACH_PORT_NULL);
+      &msg.header, MACH_SEND_MSG | MACH_SEND_TIMEOUT, sizeof(struct mach_message), 0,
+      MACH_PORT_NULL, 100, MACH_PORT_NULL);
 
-  return err == KERN_SUCCESS;
+  return err == KERN_SUCCESS || err == MACH_SEND_TIMED_OUT;
 }
 
 /**

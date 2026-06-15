@@ -25,6 +25,7 @@
 
 #define DEFAULT_UPDATE_INTERVAL 900
 #define DEFAULT_CHECK_INTERVAL 60
+#define WAKE_GRACE_SECONDS 20
 #define MAX_EVENT_NAME_LENGTH 64
 #define MAX_MESSAGE_LENGTH 2048
 
@@ -135,12 +136,25 @@ int main(int argc, char** argv) {
     }
 
     // Sleep in chunks to remain responsive to signals.
+    time_t sleep_started_at = time(NULL);
+
     // Check for overflow before multiplication.
     long sleep_iterations =
         (check_interval_secs <= LONG_MAX / 2) ? check_interval_secs * 2 : LONG_MAX;
     for (long i = 0; i < sleep_iterations; ++i) {
       if (g_terminate_flag || g_force_check_flag) break;
       nanosleep(&(struct timespec){.tv_sec = 0, .tv_nsec = 500000000}, NULL);  // Sleep for 0.5 seconds
+    }
+
+    time_t sleep_ended_at = time(NULL);
+    if (!g_terminate_flag && !g_force_check_flag && sleep_started_at != (time_t)-1
+        && sleep_ended_at != (time_t)-1
+        && sleep_ended_at - sleep_started_at > check_interval_secs + WAKE_GRACE_SECONDS) {
+      log_message(verbose_mode, "Long sleep detected; deferring Homebrew check after wake.");
+      for (int i = 0; i < WAKE_GRACE_SECONDS * 2; ++i) {
+        if (g_terminate_flag || g_force_check_flag) break;
+        nanosleep(&(struct timespec){.tv_sec = 0, .tv_nsec = 500000000}, NULL);
+      }
     }
   }
 
