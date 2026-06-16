@@ -29,8 +29,9 @@ local remaining_time = sbar.add("item", {
   },
 })
 
+local battery_update_generation = 0
 
-battery:subscribe({"routine", "power_source_change", "system_woke"}, function()
+local function update_battery()
   sbar.exec("pmset -g batt", function(batt_info)
     local icon = "!"
     local label = "?"
@@ -74,6 +75,18 @@ battery:subscribe({"routine", "power_source_change", "system_woke"}, function()
       },
       label = { string = lead .. label },
     })
+  end)
+end
+
+battery:subscribe({"routine", "power_source_change"}, update_battery)
+
+battery:subscribe("system_woke", function()
+  battery_update_generation = battery_update_generation + 1
+  local generation = battery_update_generation
+
+  sbar.delay(2, function()
+    if generation ~= battery_update_generation then return end
+    update_battery()
   end)
 end)
 

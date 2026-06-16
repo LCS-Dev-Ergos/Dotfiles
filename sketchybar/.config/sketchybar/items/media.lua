@@ -4,6 +4,7 @@ local colors = require("colors")
 local whitelist = { ["TIDAL"] = true,
                     ["Spotify"] = true,
                     ["Music"] = true };
+local last_media_key = nil
 
 local media_cover = sbar.add("item", {
   position = "right",
@@ -88,6 +89,15 @@ end
 media_cover:subscribe("media_change", function(env)
   if not env.INFO then return end
   if whitelist[env.INFO.app] then
+    local media_key = table.concat({
+      env.INFO.app or "",
+      env.INFO.state or "",
+      env.INFO.artist or "",
+      env.INFO.title or "",
+    }, "\31")
+    if media_key == last_media_key then return end
+    last_media_key = media_key
+
     local drawing = (env.INFO.state == "playing")
     media_artist:set({ drawing = drawing, label = env.INFO.artist, })
     media_title:set({ drawing = drawing, label = env.INFO.title, })
