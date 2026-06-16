@@ -8,15 +8,22 @@ end
 
 local config_dir = os.getenv("CONFIG_DIR") or os.getenv("HOME") .. "/.config/sketchybar"
 local network_provider = config_dir .. "/helpers/event_providers/network_load/bin/network_load"
+local network_state = {
+  iface = nil,
+  service = nil,
+  provider_iface = nil,
+  refresh_generation = 0,
+}
 
 local function resolve_network(callback)
   sbar.exec([[
-    wifi_iface="$(networksetup -listallhardwareports 2>/dev/null | awk '
+    hardware_ports="$(networksetup -listallhardwareports 2>/dev/null)"
+    wifi_iface="$(printf '%s\n' "$hardware_ports" | awk '
       /^Hardware Port: Wi-Fi$/ { getline; if ($1 == "Device:") print $2; exit }
     ')"
     default_iface="$(route -n get default 2>/dev/null | awk '/interface:/{print $2; exit}')"
     iface="${wifi_iface:-$default_iface}"
-    service="$(networksetup -listallhardwareports 2>/dev/null | awk -v iface="$iface" '
+    service="$(printf '%s\n' "$hardware_ports" | awk -v iface="$iface" '
       /^Hardware Port: / { service=substr($0, 16); next }
       /^Device: / && $2 == iface { print service; exit }
     ')"
@@ -30,11 +37,28 @@ local function resolve_network(callback)
   end)
 end
 
-local function start_network_provider()
-  resolve_network(function(iface)
-    if not iface then return end
-    sbar.exec("pkill -TERM -f " .. shell_quote(network_provider .. " .* network_update") .. " >/dev/null 2>&1; " .. shell_quote(network_provider) .. " " .. shell_quote(iface) .. " network_update 2.0")
-  end)
+local function start_network_provider(iface)
+  if not iface then return end
+
+  local script
+  if network_state.provider_iface == iface then
+    script = string.format(
+      "if ! pgrep -f %s >/dev/null 2>&1; then %s %s network_update 2.0 >/dev/null 2>&1 & fi",
+      shell_quote(network_provider .. " " .. iface .. " network_update"),
+      shell_quote(network_provider),
+      shell_quote(iface)
+    )
+  else
+    network_state.provider_iface = iface
+    script = string.format(
+      "pkill -TERM -f %s >/dev/null 2>&1; %s %s network_update 2.0 >/dev/null 2>&1 &",
+      shell_quote(network_provider .. " .* network_update"),
+      shell_quote(network_provider),
+      shell_quote(iface)
+    )
+  end
+
+  sbar.exec("/bin/zsh -c " .. shell_quote(script))
 end
 
 local popup_width = 250
@@ -204,37 +228,52 @@ wifi_up:subscribe("network_update", function(env)
   })
 end)
 
-local function update_connection()
-  resolve_network(function(iface)
-    if not iface then
-      wifi:set({
-        icon = {
-          string = icons.wifi.disconnected,
-          color = colors.red,
-        },
-      })
-      return
-    end
+local function update_connection(iface)
+  if not iface then
+    wifi:set({
+      icon = {
+        string = icons.wifi.disconnected,
+        color = colors.red,
+      },
+    })
+    return
+  end
 
-    sbar.exec("ipconfig getifaddr " .. shell_quote(iface), function(result)
-      local connected = result and result:gsub("%s+", "") ~= ""
-      wifi:set({
-        icon = {
-          string = connected and icons.wifi.connected or icons.wifi.disconnected,
-          color = connected and colors.white or colors.red,
-        },
-      })
-    end)
+  sbar.exec("ipconfig getifaddr " .. shell_quote(iface), function(result)
+    local connected = result and result:gsub("%s+", "") ~= ""
+    wifi:set({
+      icon = {
+        string = connected and icons.wifi.connected or icons.wifi.disconnected,
+        color = connected and colors.white or colors.red,
+      },
+    })
   end)
 end
 
-wifi:subscribe({"wifi_change", "system_woke"}, function(env)
-  start_network_provider()
-  update_connection()
+local function refresh_network()
+  resolve_network(function(iface, service)
+    network_state.iface = iface
+    network_state.service = service
+    start_network_provider(iface)
+    update_connection(iface)
+  end)
+end
+
+local function schedule_network_refresh()
+  network_state.refresh_generation = network_state.refresh_generation + 1
+  local generation = network_state.refresh_generation
+
+  sbar.delay(2, function()
+    if generation ~= network_state.refresh_generation then return end
+    refresh_network()
+  end)
+end
+
+wifi:subscribe({"wifi_change", "system_woke"}, function()
+  schedule_network_refresh()
 end)
 
-start_network_provider()
-update_connection()
+refresh_network()
 
 local function hide_details()
   wifi_bracket:set({ popup = { drawing = false } })
@@ -247,7 +286,8 @@ local function toggle_details()
     sbar.exec("networksetup -getcomputername", function(result)
       hostname:set({ label = result })
     end)
-    resolve_network(function(iface, service)
+
+    local function update_details(iface, service)
       if not iface then
         ssid:set({ label = "Unavailable" })
         ip:set({ label = "Unavailable" })
@@ -263,17 +303,28 @@ local function toggle_details()
         ssid:set({ label = result ~= "" and result or "Unavailable" })
       end)
       if service then
-        sbar.exec("networksetup -getinfo " .. shell_quote(service) .. " | awk -F 'Subnet mask: ' '/^Subnet mask: / {print $2}'", function(result)
-          mask:set({ label = result ~= "" and result or "Unavailable" })
-        end)
-        sbar.exec("networksetup -getinfo " .. shell_quote(service) .. " | awk -F 'Router: ' '/^Router: / {print $2}'", function(result)
-          router:set({ label = result ~= "" and result or "Unavailable" })
+        sbar.exec("networksetup -getinfo " .. shell_quote(service), function(result)
+          result = result or ""
+          local subnet = result:match("Subnet mask:%s*([^\r\n]+)") or ""
+          local gateway = result:match("Router:%s*([^\r\n]+)") or ""
+          mask:set({ label = subnet ~= "" and subnet or "Unavailable" })
+          router:set({ label = gateway ~= "" and gateway or "Unavailable" })
         end)
       else
         mask:set({ label = "Unavailable" })
         router:set({ label = "Unavailable" })
       end
-    end)
+    end
+
+    if network_state.iface then
+      update_details(network_state.iface, network_state.service)
+    else
+      resolve_network(function(iface, service)
+        network_state.iface = iface
+        network_state.service = service
+        update_details(iface, service)
+      end)
+    end
   else
     hide_details()
   end

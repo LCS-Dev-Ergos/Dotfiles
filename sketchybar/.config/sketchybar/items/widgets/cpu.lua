@@ -9,9 +9,18 @@ end
 local config_dir = os.getenv("CONFIG_DIR") or os.getenv("HOME") .. "/.config/sketchybar"
 local cpu_provider = config_dir .. "/helpers/event_providers/cpu_load/bin/cpu_load"
 
+local function start_cpu_provider()
+  local script = string.format(
+    "pkill -TERM -f %s >/dev/null 2>&1; %s cpu_update 2.0 >/dev/null 2>&1 &",
+    shell_quote(cpu_provider .. " cpu_update"),
+    shell_quote(cpu_provider)
+  )
+  sbar.exec("/bin/zsh -c " .. shell_quote(script))
+end
+
 -- Execute the event provider binary which provides the event "cpu_update" for
 -- the cpu load data, which is fired every 2.0 seconds.
-sbar.exec("pkill -TERM -f " .. shell_quote(cpu_provider .. " cpu_update") .. " >/dev/null 2>&1; " .. shell_quote(cpu_provider) .. " cpu_update 2.0")
+start_cpu_provider()
 
 local cpu = sbar.add("graph", "widgets.cpu" , 42, {
   position = "right",
