@@ -26,24 +26,34 @@
 function cppsubmit() {
   _check_initialized || return 1
   local strict_mode=0
-  if [ "${1:-}" = "--strict" ]; then
-    strict_mode=1
-    shift
+  while (( $# )); do
+    case "$1" in
+      --strict)
+        strict_mode=1
+        shift
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        _cp_error "Unknown option: $1"
+        return 64
+        ;;
+      *) break ;;
+    esac
+  done
+  if (( $# > 1 )); then
+    _cp_error "Usage: cppsubmit [--strict] [target]"
+    return 64
   fi
-  local target_name=${1:-$(_get_default_target)}
+  local target_name
+  target_name=$(_normalize_target_name "${1:-$(_get_default_target)}")
   local problem_brief
   local solution_file
   local submission_dir="$SUBMISSIONS_DIR"
   local submission_file="$submission_dir/${target_name}_sub.cpp"
   local flattener_script="$SCRIPTS_DIR/flattener.py"
-
-  # Validate that we are in a valid workspace.
-  if [[ ! "$PWD" == "$CP_WORKSPACE_ROOT"* ]]; then
-    echo -e "${C_RED}Error: Not in a valid CP workspace directory${C_RESET}" >&2
-    echo -e "${C_YELLOW}Current directory: $PWD${C_RESET}" >&2
-    echo -e "${C_YELLOW}Expected workspace: $CP_WORKSPACE_ROOT${C_RESET}" >&2
-    return 1
-  fi
 
   # Check that the solution file exists.
   solution_file=$(_resolve_target_source "$target_name")
@@ -52,26 +62,29 @@ function cppsubmit() {
     return 1
   fi
 
-  # Check if the new flattener system is available.
+  # Submission generation requires the configured flattener.
   if [ ! -f "$flattener_script" ]; then
-    echo -e "${C_YELLOW}Warning: New flattener not found at '$flattener_script'${C_RESET}"
+    _cp_error "Flattener not found at '$flattener_script'."
     return 1
   fi
 
   problem_brief=$(_problem_brief "$target_name")
 
   # Create submissions directory if needed.
-  mkdir -p "$submission_dir"
+  mkdir -p "$submission_dir" || {
+    _cp_error "Unable to create the submissions directory."
+    return 1
+  }
 
   echo -e "${C_CYAN}Generating submission for '${C_BOLD}$target_name${C_RESET}${C_CYAN}' using modular template system...${C_RESET}"
 
   # Generate submission header with metadata.
   local header_file
-  header_file=$(mktemp "/tmp/${target_name}_header.XXXXXX") || {
+  header_file=$(mktemp "${TMPDIR:-/tmp}/cp_sub_header.XXXXXX") || {
     echo -e "${C_RED}Error: Unable to create temporary header file${C_RESET}" >&2
     return 1
   }
-  cat > "$header_file" << EOF
+  if ! cat > "$header_file" << EOF
 //===----------------------------------------------------------------------===//
 /**
  * @file: ${target_name}_sub.cpp
@@ -85,30 +98,50 @@ function cppsubmit() {
 /* Included library and Compiler Optimizations */
 
 EOF
+  then
+    rm -f -- "$header_file"
+    _cp_error "Unable to render the submission header."
+    return 1
+  fi
 
   # Run the Python flattener with proper path context.
   echo -e "${C_BLUE}Running template flattener...${C_RESET}"
 
-  # Set PYTHONPATH to include the scripts directory for module imports.
-  export PYTHONPATH="$SCRIPTS_DIR${PYTHONPATH:+:$PYTHONPATH}"
-
   local flattened_tmp
-  flattened_tmp=$(mktemp "/tmp/${target_name}_flattened.XXXXXX") || {
+  flattened_tmp=$(mktemp "${TMPDIR:-/tmp}/cp_sub_flattened.XXXXXX") || {
     echo -e "${C_RED}Error: Unable to create temporary flattened file${C_RESET}" >&2
     rm -f -- "$header_file"
     return 1
   }
 
   local flattener_err
-  flattener_err=$(mktemp "/tmp/flattener_error.XXXXXX") || {
+  flattener_err=$(mktemp "${TMPDIR:-/tmp}/cp_sub_flattener_error.XXXXXX") || {
     echo -e "${C_RED}Error: Unable to create temporary error log${C_RESET}" >&2
     rm -f -- "$header_file" "$flattened_tmp"
     return 1
   }
 
-  if python3 "$flattener_script" "$solution_file" > "$flattened_tmp" 2>"$flattener_err"; then
-    # Combine header with flattened content.
-    cat "$header_file" "$flattened_tmp" > "$submission_file"
+  # Scope PYTHONPATH to this invocation only; exporting it would permanently
+  # mutate the interactive shell and grow on every cppsubmit call.
+  if PYTHONPATH="$SCRIPTS_DIR${PYTHONPATH:+:$PYTHONPATH}" \
+    python3 "$flattener_script" "$solution_file" > "$flattened_tmp" 2>"$flattener_err"; then
+    # Assemble beside the destination and replace it atomically. A failed
+    # render must never truncate a previously verified submission.
+    local submission_tmp
+    submission_tmp=$(mktemp \
+      "$submission_dir/.${target_name}_sub.cpp.XXXXXX") || {
+      rm -f -- "$flattened_tmp" "$header_file" "$flattener_err"
+      _cp_error "Unable to create the temporary submission file."
+      return 1
+    }
+    if ! cat "$header_file" "$flattened_tmp" > "$submission_tmp" ||
+      ! mv -- "$submission_tmp" "$submission_file"
+    then
+      rm -f -- "$submission_tmp" "$flattened_tmp" \
+        "$header_file" "$flattener_err"
+      _cp_error "Unable to assemble the generated submission."
+      return 1
+    fi
     rm -f -- "$flattened_tmp" "$header_file" "$flattener_err"
 
     # Calculate and display statistics.
@@ -116,11 +149,14 @@ EOF
     file_size=$(wc -c < "$submission_file")
     local line_count
     line_count=$(wc -l < "$submission_file")
+    # Note: grep -c prints the count even when it is 0 (exiting 1), so a
+    # '|| echo 0' fallback would produce "0\n0". Default only when empty.
     local template_lines
-    template_lines=$(grep -c "^//" "$submission_file" 2>/dev/null || echo 0)
+    template_lines=$(grep -c "^//" "$submission_file" 2>/dev/null)
+    template_lines=${template_lines:-0}
     local code_lines=$((line_count - template_lines))
 
-    echo -e "${C_GREEN}✓ Submission generated successfully${C_RESET}"
+    _cp_success "✓ Submission generated successfully"
     printf "${C_YELLOW}  %-6s %s${C_RESET}\n" "File:" "${C_BOLD}$submission_file${C_RESET}"
     printf "${C_YELLOW}  %-6s %s${C_RESET}\n" "Size:" "$(numfmt --to=iec-i --suffix=B "$file_size" 2>/dev/null || echo "$file_size bytes")"
     printf "${C_YELLOW}  %-6s %s${C_RESET}\n" "Lines:" "$line_count total ($code_lines code, $template_lines comments)"
@@ -138,7 +174,7 @@ EOF
 
     return 0
   else
-    echo -e "${C_RED}Error: Flattener failed to process the file${C_RESET}" >&2
+    _cp_error "Error: Flattener failed to process the file"
     if [ -f "$flattener_err" ]; then
       echo -e "${C_RED}Error details:${C_RESET}"
       cat "$flattener_err" >&2
@@ -160,9 +196,9 @@ function _verify_submission_compilation() {
   local submission_file="$1"
   local strict_mode="${2:-0}"
 
-  # Find available g++ compiler.
+  # Find available g++ compiler (validated, newest first).
   local gxx_compiler
-  gxx_compiler=$(command -v g++-15 || command -v g++-14 || command -v g++-13 || command -v g++)
+  gxx_compiler=$(_cp_find_gxx)
 
   if [ -z "$gxx_compiler" ]; then
     echo "${C_YELLOW}Warning: No g++ compiler found for verification${C_RESET}" >&2
@@ -257,13 +293,24 @@ function cpptestsubmit() {
         shift
         break
         ;;
+      -*)
+        _cp_error "Unknown option: $1"
+        return 64
+        ;;
       *)
         break
         ;;
     esac
   done
 
-  local target_name=${1:-$(_get_default_target)}
+  if (( $# > 2 )); then
+    _cp_error \
+      "Usage: cpptestsubmit [--no-generate] [--strict] [target] [input]"
+    return 64
+  fi
+
+  local target_name
+  target_name=$(_normalize_target_name "${1:-$(_get_default_target)}")
 
   # Generate submission first unless already generated by caller.
   if [ "$generate_submission" -eq 1 ]; then
@@ -290,11 +337,14 @@ function cpptestsubmit() {
   echo -e "${C_CYAN}Testing submission file...${C_RESET}"
 
   # Ensure bin directory exists.
-  mkdir -p "$(dirname "$test_binary")"
+  mkdir -p "$(dirname "$test_binary")" || {
+    _cp_error "Unable to create the submission test directory."
+    return 1
+  }
 
-  # Find available g++ compiler.
+  # Find available g++ compiler (validated, newest first).
   local gxx_compiler
-  gxx_compiler=$(command -v g++-15 || command -v g++-14 || command -v g++-13 || command -v g++)
+  gxx_compiler=$(_cp_find_gxx)
 
   if [ -z "$gxx_compiler" ]; then
     echo "${C_RED}Error: No g++ compiler found${C_RESET}" >&2
@@ -306,7 +356,7 @@ function cpptestsubmit() {
   local start_time=$EPOCHREALTIME
 
   local compile_err_log
-  compile_err_log=$(mktemp "/tmp/cp_compile_error.XXXXXX") || {
+  compile_err_log=$(mktemp "${TMPDIR:-/tmp}/cp_compile_error.XXXXXX") || {
     echo "${C_RED}Error: Unable to create temporary log file${C_RESET}" >&2
     return 1
   }
@@ -322,19 +372,17 @@ function cpptestsubmit() {
     "$submission_file" -o "$test_binary" 2>"$compile_err_log"; then
 
     local end_time=$EPOCHREALTIME
-    local elapsed_ms
-    elapsed_ms=$(awk "BEGIN {printf \"%.0f\", ($end_time - $start_time) * 1000}")
+    local elapsed_str
+    _cp_elapsed_ms "$start_time" "$end_time"
+    _cp_format_ms "$REPLY"; elapsed_str=$REPLY
 
-    if (( elapsed_ms < 1000 )); then
-      printf "${C_GREEN}✓ Submission compiled successfully in %.2fms${C_RESET}\n" "$elapsed_ms"
-    else
-      printf "${C_GREEN}✓ Submission compiled successfully in %.2fs${C_RESET}\n" $(( elapsed_ms / 1000 ))
-    fi
+    printf "${C_GREEN}✓ Submission compiled successfully in %s${C_RESET}\n" "$elapsed_str"
 
-    # Test execution with input.
+    # Test execution with input and propagate runtime failures to callers.
+    local execution_status=0
     if [ -f "$input_path" ]; then
       echo -e "${C_BLUE}Testing with input from $input_path:${C_RESET}"
-      echo -e "${C_CYAN}════──────────────────────────────────────────════${C_RESET}"
+      _cp_rule "" cyan
 
       # Run with timeout and capture output.
       local run_output
@@ -342,12 +390,14 @@ function cpptestsubmit() {
       local exit_code=$?
       echo "$run_output" | head -n 50
 
-      echo -e "${C_CYAN}════──────────────────────────────────────────════${C_RESET}"
+      _cp_rule "" cyan
 
       if [ "$exit_code" -eq 124 ]; then
         echo -e "${C_YELLOW}⚠ Execution timeout (2s limit exceeded)${C_RESET}"
+        execution_status=1
       elif [ "$exit_code" -ne 0 ]; then
         echo -e "${C_RED}⚠ Program exited with code $exit_code${C_RESET}"
+        execution_status=1
       else
         echo -e "${C_GREEN}✓ Execution completed successfully${C_RESET}"
       fi
@@ -355,6 +405,11 @@ function cpptestsubmit() {
       echo -e "${C_YELLOW}No input file found at '$input_path'${C_RESET}"
       echo -e "${C_YELLOW}Running without input (5s timeout)...${C_RESET}"
       _run_with_timeout 5s "$test_binary"
+      local exit_code=$?
+      if [ "$exit_code" -ne 0 ]; then
+        _cp_error "Submission execution failed with status $exit_code."
+        execution_status=1
+      fi
     fi
 
     # Cleanup binary.
@@ -367,6 +422,7 @@ function cpptestsubmit() {
     return 1
   fi
   rm -f -- "$compile_err_log"
+  return "$execution_status"
 }
 
 # -----------------------------------------------------------------------------
@@ -375,7 +431,7 @@ function cpptestsubmit() {
 # Run development test, generate submission, and test submission.
 #
 # Usage:
-#   cppfull [target] [input]
+#   cppfull [--strict] [target] [input]
 # -----------------------------------------------------------------------------
 function cppfull() {
   _check_initialized || return 1
@@ -395,7 +451,7 @@ function cppfull() {
         ;;
       -*)
         echo -e "${C_RED}Error: Unknown option '$1'.${C_RESET}" >&2
-        return 1
+        return 64
         ;;
       *)
         break
@@ -403,12 +459,15 @@ function cppfull() {
     esac
   done
 
-  target_name=${1:-$(_get_default_target)}
+  if (( $# > 2 )); then
+    _cp_error "Usage: cppfull [--strict] [target] [input]"
+    return 64
+  fi
+
+  target_name=$(_normalize_target_name "${1:-$(_get_default_target)}")
   input_name=${2:-"${target_name}.in"}
 
-  echo -e "${C_BLUE}╔═══──────────────────────────────────────────═══╗${C_RESET}"
-  echo -e "${C_BLUE}${C_BOLD} FULL WORKFLOW: $(printf "%-20s" "$target_name")${C_RESET}"
-  echo -e "${C_BLUE}╚═══──────────────────────────────────────────═══╝${C_RESET}"
+  _cp_rule "FULL WORKFLOW: ${target_name}"
 
   # Step 1: Development version test.
   echo -e "\n${C_CYAN}[1/3] Testing development version...${C_RESET}"
@@ -452,9 +511,7 @@ function cppfull() {
   file_size=$(wc -c < "$submission_file" 2>/dev/null || echo "0")
 
   echo ""
-  echo -e "${C_GREEN}${C_BOLD}╔═══──────────────────────────────────────────═══╗${C_RESET}"
-  echo -e "${C_GREEN}${C_BOLD}  ✓ Full workflow completed successfully${C_RESET}"
-  echo -e "${C_GREEN}${C_BOLD}╚═══──────────────────────────────────────────═══╝${C_RESET}"
+  _cp_rule "✓ WORKFLOW COMPLETE" green
   echo -e "${C_YELLOW}📁 Submission: $submission_file${C_RESET}"
   echo -e "${C_YELLOW}📊 Size: $(numfmt --to=iec-i --suffix=B "$file_size" 2>/dev/null || echo "$file_size bytes")${C_RESET}"
   echo -e "${C_YELLOW}📋 Ready for contest submission${C_RESET}"
@@ -469,8 +526,11 @@ function cppfull() {
 # Check template system, compilers, and workspace configuration health.
 # -----------------------------------------------------------------------------
 function cppcheck() {
-  echo -e "${C_CYAN}${C_BOLD}Checking template system health...${C_RESET}"
-  echo -e "${C_CYAN}════────────────────────────────────────────────────────════${C_RESET}"
+  if (( $# )); then
+    _cp_error "Usage: cppcheck"
+    return 64
+  fi
+  _cp_rule "TEMPLATE SYSTEM HEALTH" cyan
 
   local all_good=true
   local warnings=0
@@ -494,7 +554,7 @@ function cppcheck() {
   # Check template system components.
   echo -e "\n${C_BLUE}Template System Components:${C_RESET}"
 
-  # Check for new modular system.
+  # Check the required flattener pipeline.
   if [ -f "$SCRIPTS_DIR/flattener.py" ]; then
     echo -e "${C_GREEN}  ✓ Flattener script found${C_RESET}"
     if python3 -c "import sys; sys.exit(0)" 2>/dev/null; then
@@ -504,14 +564,14 @@ function cppcheck() {
       all_good=false
     fi
   else
-    echo -e "${C_YELLOW}  ⚠ Flattener script not found (using legacy system)${C_RESET}"
-    warnings=$((warnings + 1))
+    echo -e "${C_RED}  ✗ Flattener script not found${C_RESET}"
+    all_good=false
   fi
 
   # Check templates directory.
   if [ -d "$TEMPLATES_DIR" ]; then
-    local template_count
-    template_count=$(find "$TEMPLATES_DIR" -maxdepth 1 -name "*.hpp" 2>/dev/null | wc -l)
+    local -a template_files=("$TEMPLATES_DIR"/*.hpp(N))
+    local template_count=${#template_files[@]}
     echo -e "${C_GREEN}  ✓ Templates directory: $template_count files${C_RESET}"
   else
     echo -e "${C_YELLOW}  ⚠ Templates directory not found (optional)${C_RESET}"
@@ -520,20 +580,11 @@ function cppcheck() {
 
   # Check modules directory.
   if [ -d "$MODULES_DIR" ]; then
-    local module_count
-    module_count=$(find "$MODULES_DIR" -maxdepth 1 -name "*.hpp" 2>/dev/null | wc -l)
+    local -a module_files=("$MODULES_DIR"/*.hpp(N))
+    local module_count=${#module_files[@]}
     echo -e "${C_GREEN}  ✓ Modules directory: $module_count files${C_RESET}"
   else
     echo -e "${C_YELLOW}  ⚠ Modules directory not found (optional)${C_RESET}"
-    warnings=$((warnings + 1))
-  fi
-
-  # Check legacy system fallback.
-  local legacy_build="$SCRIPTS_DIR/build_template.sh"
-  if [ -f "$legacy_build" ]; then
-    echo -e "${C_GREEN}  ✓ Legacy build script available (fallback)${C_RESET}"
-  else
-    echo -e "${C_YELLOW}  ⚠ Legacy build script not found${C_RESET}"
     warnings=$((warnings + 1))
   fi
 
@@ -551,7 +602,7 @@ function cppcheck() {
   fi
 
   if [ -n "$compiler_path" ] && [ -x "$compiler_path" ]; then
-    compiler_version=$($compiler_path --version | head -n1)
+    compiler_version=$("$compiler_path" --version 2>/dev/null | head -n1)
     echo -e "${C_GREEN}  ✓ Compiler: $compiler_version${C_RESET}"
     if [ -n "$active_build_dir" ]; then
       echo -e "${C_GREEN}  ✓ Active build compiler source: $active_build_dir/CMakeCache.txt${C_RESET}"
@@ -585,7 +636,8 @@ function cppcheck() {
   fi
 
   # Summary.
-  echo -e "\n${C_CYAN}════────────────────────────────────────────────────────════${C_RESET}"
+  echo ""
+  _cp_rule "" cyan
   if $all_good; then
     if [ $warnings -eq 0 ]; then
       echo -e "${C_GREEN}${C_BOLD}✓ All systems fully operational${C_RESET}"

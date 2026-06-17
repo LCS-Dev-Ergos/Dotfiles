@@ -26,32 +26,39 @@ zmodload zsh/datetime 2>/dev/null || true
 # ------------------------------ CONFIGURATION ------------------------------- #
 
 # Define the allowed workspace root directories for competitive programming.
-if [[ "$OSTYPE" == "darwin"* ]]; then
-  # macOS path.
-  CP_WORKSPACE_ROOT="/Volumes/LCS.Data/CP-Problems"
-elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-  # Linux path.
-  CP_WORKSPACE_ROOT="/LCS.Data/CP-Problems"
-else
-  # Fallback - user must set this.
-  CP_WORKSPACE_ROOT="${CP_WORKSPACE_ROOT:-$HOME/CP-Problems}"
+# A pre-set CP_WORKSPACE_ROOT in the environment always wins (relocation,
+# testing); otherwise fall back to the per-OS default.
+if [ -z "${CP_WORKSPACE_ROOT:-}" ]; then
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS path.
+    CP_WORKSPACE_ROOT="/Volumes/LCS.Data/CP-Problems"
+  elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    # Linux path.
+    CP_WORKSPACE_ROOT="/LCS.Data/CP-Problems"
+  else
+    # Fallback - user must set this.
+    CP_WORKSPACE_ROOT="$HOME/CP-Problems"
+  fi
 fi
 
 # Path to global directory containing reusable headers like debug.h.
 # The script will create a symlink to this file in new projects.
-if [[ "$OSTYPE" == "darwin"* ]]; then
-  # Default path for macOS.
-  CP_ALGORITHMS_DIR="/Volumes/LCS.Data/CP-Problems/CodeForces/Algorithms"
-elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-  # Default path for Linux.
-  CP_ALGORITHMS_DIR="/LCS.Data/CP-Problems/CodeForces/Algorithms"
-  # Alternative path if the primary one doesn't exist.
-  if [ ! -d "$CP_ALGORITHMS_DIR" ]; then
-    CP_ALGORITHMS_DIR="/home/$(whoami)/LCS.Data/CP-Problems/CodeForces/Algorithms"
+# As above, a pre-set CP_ALGORITHMS_DIR takes precedence.
+if [ -z "${CP_ALGORITHMS_DIR:-}" ]; then
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    # Default path for macOS.
+    CP_ALGORITHMS_DIR="/Volumes/LCS.Data/CP-Problems/CodeForces/Algorithms"
+  elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    # Default path for Linux.
+    CP_ALGORITHMS_DIR="/LCS.Data/CP-Problems/CodeForces/Algorithms"
+    # Alternative path if the primary one doesn't exist.
+    if [ ! -d "$CP_ALGORITHMS_DIR" ]; then
+      CP_ALGORITHMS_DIR="/home/$(whoami)/LCS.Data/CP-Problems/CodeForces/Algorithms"
+    fi
+  else
+    # Fallback for other platforms.
+    CP_ALGORITHMS_DIR="$HOME/CP/Algorithms"
   fi
-else
-  # Fallback for other platforms.
-  CP_ALGORITHMS_DIR="${CP_ALGORITHMS_DIR:-$HOME/CP/Algorithms}"
 fi
 
 # Derived paths for the modular template system.
@@ -62,27 +69,6 @@ SUBMISSIONS_DIR="submissions"
 
 # Path to Perfetto UI directory for trace analysis.
 # PERFETTO_UI_DIR="$HOME/Dev/Tools/perfetto"
-
-# Check if terminal supports colors.
-if [[ -t 1 ]] && command -v tput >/dev/null 2>&1 && [[ $(tput colors 2>/dev/null) -ge 8 ]]; then
-  C_RESET=$'\e[0m'
-  C_BOLD=$'\e[1m'
-  C_RED=$'\e[31m'
-  C_GREEN=$'\e[32m'
-  C_YELLOW=$'\e[33m'
-  C_BLUE=$'\e[34m'
-  C_MAGENTA=$'\e[35m'
-  C_CYAN=$'\e[36m'
-else
-  C_RESET=""
-  C_BOLD=""
-  C_RED=""
-  C_GREEN=""
-  C_YELLOW=""
-  C_BLUE=""
-  C_MAGENTA=""
-  C_CYAN=""
-fi
 
 # Detect the script directory for reliable access to templates.
 # This works for both bash and zsh when the script is sourced.
@@ -119,10 +105,11 @@ _get_default_target() {
   fi
 
   # Find the most recently modified .cpp, .cc, or .cxx file using Zsh glob qualifiers.
+  # (N): null glob — empty result instead of a NOMATCH error when no file exists
   # (.): regular files
   # om: order by modification time (newest first)
   # [1]: take the first one
-  local -a files=( *.(cpp|cc|cxx)(.om[1]) )
+  local -a files=( *.(cpp|cc|cxx)(N.om[1]) )
 
   if (( ${#files} )); then
     # Remove extension
@@ -205,7 +192,7 @@ _cp_profile_build_dir() {
 # -----------------------------------------------------------------------------
 _cp_set_active_build_dir() {
   local build_dir="$1"
-  mkdir -p .statistics
+  mkdir -p .statistics || return 1
   printf '%s\n' "$build_dir" > .statistics/active_build_dir
 }
 
@@ -220,6 +207,11 @@ _cp_get_active_build_dir() {
 
   if [ -f "$active_file" ]; then
     active_dir=$(head -n 1 "$active_file" | tr -d ' \t\r')
+    # Only trust project-relative paths without parent traversal; the file is
+    # metadata, not an instruction to build (or clean) arbitrary locations.
+    case "$active_dir" in
+      /*|*..*) active_dir="" ;;
+    esac
     if [ -n "$active_dir" ] && [ -f "$active_dir/CMakeCache.txt" ]; then
       echo "$active_dir"
       return 0
@@ -251,6 +243,8 @@ _cp_get_active_build_dir() {
 # Verify the project was initialized and at least one configured build exists.
 # -----------------------------------------------------------------------------
 _check_initialized() {
+  _check_workspace || return 1
+
   if [ ! -f "CMakeLists.txt" ]; then
     echo "${C_RED}Error: Project is not initialized. Please run 'cppinit' first.${C_RESET}" >&2
     return 1
@@ -406,6 +400,59 @@ _format_duration() {
   else
     printf "%ds" $secs
   fi
+}
+
+# -----------------------------------------------------------------------------
+# _cp_elapsed_ms
+# -----------------------------------------------------------------------------
+# Set REPLY to the elapsed milliseconds (float) between two EPOCHREALTIME
+# stamps, using native zsh float arithmetic (no awk fork).
+#
+# Usage:
+#   _cp_elapsed_ms <start> <end>; elapsed_ms=$REPLY
+# -----------------------------------------------------------------------------
+_cp_elapsed_ms() {
+  # unset first: a plain (( REPLY = ... )) would give REPLY the float
+  # attribute, breaking later string assignments like '12.34ms' via printf -v.
+  unset REPLY
+  printf -v REPLY '%.3f' $(( ($2 - $1) * 1000.0 ))
+}
+
+# -----------------------------------------------------------------------------
+# _cp_format_ms
+# -----------------------------------------------------------------------------
+# Set REPLY to a human-readable duration string for a millisecond value.
+#
+# Usage:
+#   _cp_format_ms <milliseconds>; elapsed_str=$REPLY
+# -----------------------------------------------------------------------------
+_cp_format_ms() {
+  local ms="$1"
+  unset REPLY
+  if (( ms < 1000 )); then
+    printf -v REPLY '%.2fms' "$ms"
+  else
+    printf -v REPLY '%.2fs' $(( ms / 1000.0 ))
+  fi
+}
+
+# -----------------------------------------------------------------------------
+# _cp_find_gxx
+# -----------------------------------------------------------------------------
+# Locate a working g++ binary, newest version first. Candidates are validated
+# by actually running '--version', which filters out broken launcher shims
+# (e.g. ccache stubs pointing at uninstalled compiler versions).
+# -----------------------------------------------------------------------------
+_cp_find_gxx() {
+  local cand cand_path
+  for cand in g++-16 g++-15 g++-14 g++-13 g++; do
+    cand_path=$(command -v "$cand" 2>/dev/null) || continue
+    if "$cand_path" --version >/dev/null 2>&1; then
+      echo "$cand_path"
+      return 0
+    fi
+  done
+  return 1
 }
 
 # -----------------------------------------------------------------------------

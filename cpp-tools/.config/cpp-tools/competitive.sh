@@ -3,12 +3,10 @@
 # ============================================================================ #
 # ------- Enhanced CMake & Shell Utilities for Competitive Programming ------- #
 #
-# A collection of shell functions to streamline the C++ competitive programming
-# workflow. It uses a CMake-based build system designed to be fast, robust,
-# and IDE-friendly, especially on macOS.
+# Zsh functions for a fast, robust, and IDE-friendly CMake workflow.
 #
 # Key features:
-# - Forces Homebrew GCC for full C++20 support, <bits/stdc++.h>, and PBDS.
+# - Supports isolated GCC and Clang build profiles.
 # - Integrates seamlessly with clangd via `compile_commands.json`.
 # - Automatically detects and builds all problems in a contest directory.
 # - Provides a suite of `cpp*` commands for a fast and intuitive workflow.
@@ -38,15 +36,31 @@ if [[ "${CP_TOOLS_KEEP_COMPILER_LAUNCHERS:-0}" != "1" ]]; then
   unset CMAKE_CXX_COMPILER_LAUNCHER
 fi
 
-# Source all module files.
-source "$SCRIPT_DIR/modules/00-configuration.zsh"
-source "$SCRIPT_DIR/modules/10-project-setup.zsh"
-source "$SCRIPT_DIR/modules/20-build-run.zsh"
-source "$SCRIPT_DIR/modules/30-submission.zsh"
-source "$SCRIPT_DIR/modules/40-compiler.zsh"
-source "$SCRIPT_DIR/modules/50-utilities.zsh"
-source "$SCRIPT_DIR/modules/60-aliases.zsh"
-source "$SCRIPT_DIR/modules/70-help.zsh"
+# Source all modules in dependency order and stop on the first failure.
+typeset _cp_module
+for _cp_module in \
+  00-configuration.zsh \
+  05-ui.zsh \
+  10-project-setup.zsh \
+  20-build-run.zsh \
+  30-submission.zsh \
+  40-compiler.zsh \
+  50-utilities.zsh \
+  60-aliases.zsh \
+  70-help.zsh
+do
+  if [[ ! -r "$SCRIPT_DIR/modules/$_cp_module" ]]; then
+    print -u2 -r -- "cpp-tools: missing module: $_cp_module"
+    unset _cp_module
+    return 1 2>/dev/null || exit 1
+  fi
+  if ! source "$SCRIPT_DIR/modules/$_cp_module"; then
+    print -u2 -r -- "cpp-tools: failed to load module: $_cp_module"
+    unset _cp_module
+    return 1 2>/dev/null || exit 1
+  fi
+done
+unset _cp_module
 
 # ============================================================================ #
 # End of competitive.sh
