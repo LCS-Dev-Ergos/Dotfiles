@@ -22,6 +22,11 @@
 # Falls back to absolute target when relative computation is not available.
 # -----------------------------------------------------------------------------
 _cp_link_relative_or_absolute() {
+  if [ "$#" -ne 2 ] || [ -z "$1" ] || [ -z "$2" ]; then
+    _cp_error "Internal error: invalid symlink request."
+    return 64
+  fi
+
   local target="$1"
   local link_path="$2"
   local link_target="$target"
@@ -44,7 +49,7 @@ PY
     fi
   fi
 
-  ln -s "$link_target" "$link_path"
+  ln -s -- "$link_target" "$link_path"
 }
 
 # -----------------------------------------------------------------------------
@@ -72,7 +77,12 @@ _cp_setup_vscode_configs() {
 
   # Fresh workspace: link the whole .vscode directory for full parity.
   if [ ! -e "$vscode_dest_dir" ] && [ ! -L "$vscode_dest_dir" ]; then
-    _cp_link_relative_or_absolute "$master_vscode_dir" "$vscode_dest_dir"
+    if ! _cp_link_relative_or_absolute \
+        "$master_vscode_dir" "$vscode_dest_dir"
+    then
+      _cp_error "Unable to create the VS Code configuration symlink."
+      return 1
+    fi
     echo "Created centralized VS Code directory symlink: $vscode_dest_dir -> $master_vscode_dir"
     return 0
   fi
@@ -107,7 +117,10 @@ _cp_setup_vscode_configs() {
       continue
     fi
 
-    _cp_link_relative_or_absolute "$central_entry" "$dest_entry"
+    if ! _cp_link_relative_or_absolute "$central_entry" "$dest_entry"; then
+      _cp_error "Unable to create the VS Code symlink '$dest_entry'."
+      return 1
+    fi
     echo "Created VS Code config symlink: $dest_entry -> $central_entry"
   done
 }
@@ -147,16 +160,28 @@ _cp_setup_clangd_config() {
   fi
 
   local clangd_dest=".ide-configs/clangd"
+
+  # Already linked to the selected profile: nothing to do, stay quiet
+  # (cppinit and cppconf both call this; only report actual changes).
+  if [ -L "$clangd_dest" ] && [ "${clangd_dest:A}" = "${selected_profile:A}" ]; then
+    return 0
+  fi
   local linux_profile="$CP_ALGORITHMS_DIR/clangd/clangd.linux"
   local macos_profile="$CP_ALGORITHMS_DIR/clangd/clangd.macos"
 
   if [ -e "$clangd_dest" ] && [ ! -L "$clangd_dest" ]; then
     if cmp -s "$clangd_dest" "$linux_profile" 2>/dev/null || cmp -s "$clangd_dest" "$macos_profile" 2>/dev/null; then
-      rm -f -- "$clangd_dest"
+      rm -f -- "$clangd_dest" || {
+        _cp_error "Unable to remove the legacy clangd configuration."
+        return 1
+      }
       echo "Migrated legacy local clangd config to centralized symlink."
     elif grep -Fq '# .clangd Configuration for "Competitive Programming"' "$clangd_dest" 2>/dev/null; then
       local backup_path="${clangd_dest}.bak-centralized-$(date +%Y%m%d-%H%M%S)"
-      mv -- "$clangd_dest" "$backup_path"
+      mv -- "$clangd_dest" "$backup_path" || {
+        _cp_error "Unable to back up the legacy clangd configuration."
+        return 1
+      }
       echo "Backed up legacy local clangd config to $backup_path before centralizing it."
     else
       echo "${C_YELLOW}Warning: Local clangd config exists and was not replaced: $clangd_dest${C_RESET}"
@@ -165,10 +190,16 @@ _cp_setup_clangd_config() {
   fi
 
   if [ -L "$clangd_dest" ]; then
-    rm -f -- "$clangd_dest"
+    rm -f -- "$clangd_dest" || {
+      _cp_error "Unable to replace the existing clangd symlink."
+      return 1
+    }
   fi
 
-  _cp_link_relative_or_absolute "$selected_profile" "$clangd_dest"
+  if ! _cp_link_relative_or_absolute "$selected_profile" "$clangd_dest"; then
+    _cp_error "Unable to configure the centralized clangd profile."
+    return 1
+  fi
   echo "Configured .clangd profile from centralized source: $selected_profile"
 }
 
@@ -186,6 +217,9 @@ _cp_problem_template_file() {
   fi
 
   case "$template_type" in
+    "base")
+      echo "$templates_dir/base.cpp"
+      ;;
     "pbds")
       echo "$templates_dir/pbds.cpp"
       ;;
@@ -195,9 +229,7 @@ _cp_problem_template_file() {
     "advanced")
       echo "$templates_dir/advanced.cpp"
       ;;
-    *)
-      echo "$templates_dir/base.cpp"
-      ;;
+    *) return 2 ;;
   esac
 }
 
@@ -214,7 +246,7 @@ function cppinit() {
     return 1
   fi
 
-  echo "${C_CYAN}Initializing Competitive Programming environment...${C_RESET}"
+  _cp_info "Initializing Competitive Programming environment..."
 
   # Centralized setup requires a valid Algorithms root.
   if [ -z "$CP_ALGORITHMS_DIR" ] || [ ! -d "$CP_ALGORITHMS_DIR" ]; then
@@ -223,8 +255,10 @@ function cppinit() {
   fi
 
   # Create .statistics and .ide-configs directories if they don't exist.
-  mkdir -p .ide-configs
-  mkdir -p .statistics
+  mkdir -p .ide-configs .statistics || {
+    _cp_error "Unable to create the project metadata directories."
+    return 1
+  }
 
   # Create .contest_metadata in .statistics directory if it doesn't exist (for tracking).
   if [ ! -f ".statistics/contest_metadata" ]; then
@@ -306,23 +340,34 @@ EOF
   fi
 
   # Create symlink to .ide-configs/clangd for IDE compatibility.
-  if [ ! -L ".clangd" ]; then
-    ln -sf .ide-configs/clangd .clangd
+  # Never overwrite a pre-existing regular file (a user's custom config).
+  if [ ! -e ".clangd" ] && [ ! -L ".clangd" ]; then
+    ln -s -- .ide-configs/clangd .clangd || {
+      _cp_error "Unable to create the .clangd compatibility symlink."
+      return 1
+    }
     echo "Created .clangd symlink for IDE compatibility"
+  elif [ ! -L ".clangd" ]; then
+    echo "${C_YELLOW}Warning: '.clangd' exists as a regular file; leaving it untouched.${C_RESET}"
   fi
 
   # Create directories if they don't exist.
-  mkdir -p algorithms
-  mkdir -p input_cases
-  mkdir -p output_cases
-  mkdir -p expected_output
-  mkdir -p submissions
+  mkdir -p algorithms input_cases output_cases expected_output \
+    submissions || {
+    _cp_error "Unable to create the project data directories."
+    return 1
+  }
 
   # Link to the global debug.h if configured and not already linked.
   local master_debug_header="$CP_ALGORITHMS_DIR/libs/debug.h"
   if [ ! -e "algorithms/debug.h" ]; then
     if [ -n "$CP_ALGORITHMS_DIR" ] && [ -f "$master_debug_header" ]; then
-      _cp_link_relative_or_absolute "$master_debug_header" "algorithms/debug.h"
+      if ! _cp_link_relative_or_absolute \
+          "$master_debug_header" "algorithms/debug.h"
+      then
+        _cp_error "Unable to link the shared debug header."
+        return 1
+      fi
       echo "Created symlink to global debug.h."
     else
       touch "algorithms/debug.h"
@@ -334,7 +379,12 @@ EOF
   local master_templates_dir="$CP_ALGORITHMS_DIR/templates"
   if [ ! -e "algorithms/templates" ]; then
     if [ -n "$CP_ALGORITHMS_DIR" ] && [ -d "$master_templates_dir" ]; then
-      _cp_link_relative_or_absolute "$master_templates_dir" "algorithms/templates"
+      if ! _cp_link_relative_or_absolute \
+          "$master_templates_dir" "algorithms/templates"
+      then
+        _cp_error "Unable to link the shared templates directory."
+        return 1
+      fi
       echo "Created symlink to global templates directory."
     else
       mkdir -p "algorithms/templates"
@@ -346,7 +396,12 @@ EOF
   local master_modules_dir="$CP_ALGORITHMS_DIR/modules"
   if [ ! -e "algorithms/modules" ]; then
     if [ -n "$CP_ALGORITHMS_DIR" ] && [ -d "$master_modules_dir" ]; then
-      _cp_link_relative_or_absolute "$master_modules_dir" "algorithms/modules"
+      if ! _cp_link_relative_or_absolute \
+          "$master_modules_dir" "algorithms/modules"
+      then
+        _cp_error "Unable to link the shared modules directory."
+        return 1
+      fi
       echo "Created symlink to global modules directory."
     else
       mkdir -p "algorithms/modules"
@@ -358,7 +413,12 @@ EOF
   local master_cmake_dir="$CP_ALGORITHMS_DIR/cmake"
   if [ ! -e "algorithms/cmake" ]; then
     if [ -n "$CP_ALGORITHMS_DIR" ] && [ -d "$master_cmake_dir" ]; then
-      _cp_link_relative_or_absolute "$master_cmake_dir" "algorithms/cmake"
+      if ! _cp_link_relative_or_absolute \
+          "$master_cmake_dir" "algorithms/cmake"
+      then
+        _cp_error "Unable to link the shared CMake directory."
+        return 1
+      fi
       echo "Created symlink to global CMake helper modules."
     else
       mkdir -p "algorithms/cmake"
@@ -372,7 +432,12 @@ EOF
 
   if [ ! -e "algorithms/PCH.h" ]; then
     if [ -n "$CP_ALGORITHMS_DIR" ] && [ -f "$master_pch_header" ]; then
-      _cp_link_relative_or_absolute "$master_pch_header" "algorithms/PCH.h"
+      if ! _cp_link_relative_or_absolute \
+          "$master_pch_header" "algorithms/PCH.h"
+      then
+        _cp_error "Unable to link the shared PCH header."
+        return 1
+      fi
       echo "Created symlink to global PCH.h (for Clang builds)."
     else
       echo "${C_YELLOW}Warning: PCH.h not found. Clang builds may not work properly.${C_RESET}"
@@ -381,7 +446,12 @@ EOF
 
   if [ ! -e "algorithms/PCH_Wrapper.h" ]; then
     if [ -n "$CP_ALGORITHMS_DIR" ] && [ -f "$master_pch_wrapper" ]; then
-      _cp_link_relative_or_absolute "$master_pch_wrapper" "algorithms/PCH_Wrapper.h"
+      if ! _cp_link_relative_or_absolute \
+          "$master_pch_wrapper" "algorithms/PCH_Wrapper.h"
+      then
+        _cp_error "Unable to link the shared PCH wrapper."
+        return 1
+      fi
       echo "Created symlink to global PCH_Wrapper.h."
     else
       echo "${C_YELLOW}Warning: PCH_Wrapper.h not found. Some builds may not work properly.${C_RESET}"
@@ -389,7 +459,7 @@ EOF
   fi
 
   # Set up VS Code configuration links from centralized shared files.
-  _cp_setup_vscode_configs
+  _cp_setup_vscode_configs || return 1
 
   # Create a basic configuration. This will create the build directory.
   if ! cppconf; then
@@ -398,7 +468,7 @@ EOF
     return 1
   fi
 
-  echo "${C_BOLD}${C_GREEN}Project initialized successfully!${C_RESET}"
+  _cp_success "Project initialized successfully!"
   echo "Run '${C_CYAN}cppnew <problem_name>${C_RESET}' to create your first solution file."
 }
 
@@ -408,27 +478,69 @@ EOF
 # Create a new problem source file from a template and re-run CMake.
 #
 # Usage:
-#   cppnew [problem_name] [template]
+#   cppnew [--no-config] [problem_name] [template]
 # -----------------------------------------------------------------------------
 function cppnew() {
+  _check_workspace || return 1
+
   # Ensure the project is initialized before creating a new file.
   if [ ! -f "CMakeLists.txt" ]; then
     echo "${C_RED}Project not initialized. Run 'cppinit' before creating a new problem.${C_RESET}" >&2
     return 1
   fi
 
-  local problem_name=${1:-"main"}
-  local template_type=${2:-"base"}
+  local problem_name=""
+  local template_type=""
+  local skip_config=0
+  local arg
+
+  for arg in "$@"; do
+    case "$arg" in
+      --no-config)
+        skip_config=1
+        ;;
+      -*)
+        _cp_error "Unknown option: $arg"
+        return 64
+        ;;
+      *)
+        if [ -z "$problem_name" ]; then
+          problem_name="$arg"
+        elif [ -z "$template_type" ]; then
+          template_type="$arg"
+        else
+          _cp_error \
+            "Usage: cppnew [--no-config] [problem_name] [template]"
+          return 64
+        fi
+        ;;
+    esac
+  done
+
+  if [ "${CPPNEW_SKIP_CONFIG:-0}" = "1" ]; then
+    skip_config=1
+  fi
+
+  problem_name=$(_normalize_target_name "${problem_name:-main}")
+
+  # No template argument: offer an interactive chooser when Gum is available;
+  # otherwise keep the historical silent default of "base".
+  if [ -z "$template_type" ]; then
+    if _cp_gum_interactive; then
+      template_type=$(_cp_choose "Select template for '${problem_name}':" base default pbds advanced) || {
+        echo "Template selection cancelled."
+        return 1
+      }
+    else
+      template_type="base"
+    fi
+  fi
+
   local file_name="${problem_name}.cpp"
   local template_file
   local problem_brief
   local escaped_file_name
   local escaped_problem_brief
-  local skip_config=0
-
-  if [ "${3:-}" = "--no-config" ] || [ "${CPPNEW_SKIP_CONFIG:-0}" = "1" ]; then
-    skip_config=1
-  fi
 
   if [ -f "${problem_name}.cpp" ] || [ -f "${problem_name}.cc" ] || [ -f "${problem_name}.cxx" ]; then
     echo "${C_RED}Error: File for problem '$problem_name' already exists.${C_RESET}" >&2
@@ -437,7 +549,8 @@ function cppnew() {
 
   # Resolve centralized template path based on requested type.
   template_file="$(_cp_problem_template_file "$template_type")" || {
-    echo "${C_RED}Error: Centralized template directory not found at '$CP_ALGORITHMS_DIR/templates/cpp'.${C_RESET}" >&2
+    _cp_error "Unknown or unavailable template '$template_type'."
+    _cp_info "Available templates: base, default, pbds, advanced."
     return 1
   }
 
@@ -446,32 +559,78 @@ function cppnew() {
     return 1
   fi
 
+  # Escape characters special to the sed replacement string: backslash, the
+  # '#' delimiter used below, and '&' (whole-match reference).
   problem_brief=$(_problem_brief "$problem_name")
   escaped_file_name=${file_name//\\/\\\\}
-  escaped_file_name=${escaped_file_name//\//\\#}
+  escaped_file_name=${escaped_file_name//\#/\\#}
   escaped_file_name=${escaped_file_name//&/\\&}
   escaped_problem_brief=${problem_brief//\\/\\\\}
-  escaped_problem_brief=${escaped_problem_brief//\//\\#}
+  escaped_problem_brief=${escaped_problem_brief//\#/\\#}
   escaped_problem_brief=${escaped_problem_brief//&/\\&}
 
-  echo "${C_CYAN}Creating '$file_name' from template '$template_type'...${C_RESET}"
-  # Replace placeholders and create the file.
-  sed \
-    -e "s#__FILE_NAME__#${escaped_file_name}#g" \
-    -e "s#__PROBLEM_BRIEF__#${escaped_problem_brief}#g" \
-    "$template_file" > "$file_name"
+  _cp_info "Creating '$file_name' from template '$template_type'..."
+
+  # Render atomically so a sed or disk failure cannot leave a partial source.
+  local source_tmp
+  source_tmp=$(mktemp ".${file_name}.XXXXXX") || {
+    _cp_error "Unable to create a temporary source file."
+    return 1
+  }
+  if ! sed \
+      -e "s#__FILE_NAME__#${escaped_file_name}#g" \
+      -e "s#__PROBLEM_BRIEF__#${escaped_problem_brief}#g" \
+      "$template_file" > "$source_tmp"
+  then
+    rm -f -- "$source_tmp"
+    _cp_error "Unable to render template '$template_type'."
+    return 1
+  fi
+  mv -- "$source_tmp" "$file_name" || {
+    rm -f -- "$source_tmp"
+    _cp_error "Unable to install '$file_name'."
+    return 1
+  }
 
   # Ensure generated-data directories exist.
-  mkdir -p input_cases output_cases .statistics
+  mkdir -p input_cases output_cases .statistics || {
+    rm -f -- "$file_name"
+    _cp_error "Unable to create the generated-data directories."
+    return 1
+  }
 
   # Create corresponding empty input/output files.
-  touch "input_cases/${problem_name}.in"
-  touch "output_cases/${problem_name}.exp"
+  local input_file="input_cases/${problem_name}.in"
+  local output_file="output_cases/${problem_name}.exp"
+  local -i input_existed=0 output_existed=0
+  [[ -e "$input_file" ]] && input_existed=1
+  [[ -e "$output_file" ]] && output_existed=1
+
+  touch "$input_file" || {
+    rm -f -- "$file_name"
+    _cp_error "Unable to create the problem input file."
+    return 1
+  }
+  touch "$output_file" || {
+    rm -f -- "$file_name"
+    (( input_existed )) || rm -f -- "$input_file"
+    _cp_error "Unable to create the problem output file."
+    return 1
+  }
   echo "Created empty input file: input_cases/${problem_name}.in"
   echo "Created empty output file: output_cases/${problem_name}.exp"
 
   # Track problem creation time with human-readable format.
-  echo "${problem_name}:START:$(date +%s):$(date '+%Y-%m-%d %H:%M:%S')" >> .statistics/problem_times
+  if ! echo \
+      "${problem_name}:START:$(date +%s):$(date '+%Y-%m-%d %H:%M:%S')" \
+      >> .statistics/problem_times
+  then
+    rm -f -- "$file_name"
+    (( input_existed )) || rm -f -- "$input_file"
+    (( output_existed )) || rm -f -- "$output_file"
+    _cp_error "Unable to update the problem statistics."
+    return 1
+  fi
 
   if [ "$skip_config" -eq 1 ]; then
     echo "New problem '$problem_name' created. Skipping CMake configuration (batch mode)."
@@ -492,6 +651,7 @@ function cppnew() {
 # -----------------------------------------------------------------------------
 function cppdelete() {
   setopt localoptions typesetsilent
+  _check_workspace || return 1
 
   local auto_confirm=0
   local skip_config=0
@@ -616,12 +776,8 @@ function cppdelete() {
   fi
 
   if [ "$auto_confirm" -eq 0 ]; then
-    local response
     echo ""
-    printf "${C_YELLOW}Are you sure you want to delete these files? (y/N): ${C_RESET}"
-    read -r response || response=""
-
-    if [[ ! "$response" =~ ^[Yy]$ ]]; then
+    if ! _cp_confirm "Are you sure you want to delete these files?" no; then
       echo "Deletion cancelled."
       return 0
     fi
@@ -630,31 +786,44 @@ function cppdelete() {
   local deleted_count=0
   for file in "${files_to_delete[@]}"; do
     if [ -e "$file" ]; then
-      rm -f -- "$file"
+      if ! rm -f -- "$file"; then
+        _cp_error "Unable to delete '$file'."
+        return 1
+      fi
       echo "${C_GREEN}Deleted: $file${C_RESET}"
       ((deleted_count++))
     fi
   done
 
   if [ -f ".statistics/problem_times" ] && (( ${#valid_problems} > 0 )); then
-    local stats_tmp=".statistics/problem_times.tmp.$$"
-    : > "$stats_tmp"
+    local stats_tmp
+    stats_tmp=$(mktemp ".statistics/problem_times.XXXXXX") || {
+      echo "${C_RED}Error: Unable to create temporary statistics file.${C_RESET}" >&2
+      return 1
+    }
 
-    local line keep p
-    while IFS= read -r line; do
-      keep=1
-      for p in "${valid_problems[@]}"; do
-        if [[ "$line" == "${p}:"* ]]; then
-          keep=0
-          break
-        fi
-      done
-      if [ "$keep" -eq 1 ]; then
-        echo "$line" >> "$stats_tmp"
-      fi
-    done < ".statistics/problem_times"
+    # Drop all lines belonging to the deleted problems in a single pass.
+    # Escape ERE metacharacters in problem names before building the pattern.
+    local p escaped
+    local -a escaped_problems=()
+    for p in "${valid_problems[@]}"; do
+      escaped=$(printf '%s' "$p" | sed 's/[.[\*^$()+?{|]/\\&/g')
+      escaped_problems+=("$escaped")
+    done
+    local pattern="^(${(j:|:)escaped_problems}):"
+    grep -vE -- "$pattern" ".statistics/problem_times" > "$stats_tmp"
+    local grep_status=$?
+    if (( grep_status > 1 )); then
+      rm -f -- "$stats_tmp"
+      _cp_error "Unable to update problem timing metadata."
+      return 1
+    fi
 
-    mv "$stats_tmp" ".statistics/problem_times"
+    mv "$stats_tmp" ".statistics/problem_times" || {
+      rm -f -- "$stats_tmp"
+      _cp_error "Unable to replace problem timing metadata."
+      return 1
+    }
   fi
 
   echo ""
@@ -677,9 +846,16 @@ function cppdelete() {
 function cppbatch() {
   setopt localoptions typesetsilent
 
+  if (( $# > 2 )); then
+    _cp_error "Usage: cppbatch [count] [template]"
+    return 64
+  fi
+  _check_workspace || return 1
+
   local count=${1:-5}
   local template=${2:-"base"}
   local created_count=0
+  local failed_count=0
   local -a letters=(A B C D E F G H I J K L M N O P Q R S T U V W X Y Z)
 
   if [[ ! "$count" =~ '^[0-9]+$' ]] || [ "$count" -le 0 ]; then
@@ -703,6 +879,8 @@ function cppbatch() {
     if [ -z "$(_resolve_target_source "${problem_name}")" ]; then
       if CPPNEW_SKIP_CONFIG=1 cppnew "$problem_name" "$template"; then
         ((created_count++))
+      else
+        ((failed_count++))
       fi
     else
       echo "${C_YELLOW}Skipping $problem_name - already exists${C_RESET}"
@@ -711,12 +889,16 @@ function cppbatch() {
 
   if [ "$created_count" -gt 0 ]; then
     echo "Re-running CMake configuration once for $created_count new problem(s)..."
-    cppconf
+    cppconf || return 1
   else
     echo "No new problems were created. Skipping CMake reconfiguration."
   fi
 
-  echo "${C_GREEN}Batch creation complete!${C_RESET}"
+  if (( failed_count )); then
+    _cp_error "$failed_count problem(s) could not be created."
+    return 1
+  fi
+  _cp_success "Batch creation complete!"
 }
 
 # -----------------------------------------------------------------------------
@@ -874,6 +1056,14 @@ _cppconf_rebuild_reason_for_stale_cmake_system_toolchain() {
 }
 
 function cppconf() {
+  _check_workspace || return 1
+
+  if ! command -v cmake >/dev/null 2>&1; then
+    echo "${C_RED}Error: 'cmake' is not installed or not in PATH.${C_RESET}" >&2
+    echo "${C_YELLOW}Install it first (macOS: brew install cmake, Debian/Ubuntu: apt install cmake).${C_RESET}" >&2
+    return 1
+  fi
+
   local build_type="Debug"
   local compiler_choice="auto"
   local timing_mode="OFF"
@@ -1004,12 +1194,21 @@ function cppconf() {
   build_dir=$(_cp_profile_build_dir "$compiler_key" "$build_type_key")
 
   # Keep clangd profile aligned with current host OS also during plain cppconf.
-  mkdir -p .ide-configs
+  mkdir -p .ide-configs || {
+    _cp_error "Unable to create the IDE configuration directory."
+    return 1
+  }
   if ! _cp_setup_clangd_config; then
     echo "${C_RED}Error: Failed to configure centralized clangd profile.${C_RESET}" >&2
     return 1
   fi
-  ln -sf .ide-configs/clangd .clangd
+  # Refresh the symlink, but never overwrite a user's regular .clangd file.
+  if [ -L ".clangd" ] || [ ! -e ".clangd" ]; then
+    ln -sfn -- .ide-configs/clangd .clangd || {
+      _cp_error "Unable to refresh the .clangd compatibility symlink."
+      return 1
+    }
+  fi
 
   local rebuild_reason
   rebuild_reason=$(_cppconf_rebuild_reason_for_toolchain "$build_dir" "$toolchain_file") || true
@@ -1018,7 +1217,14 @@ function cppconf() {
   fi
   if [ -n "$rebuild_reason" ]; then
     echo "${C_YELLOW}Detected stale cache in '${build_dir}' (${rebuild_reason}). Recreating this profile directory...${C_RESET}"
-    rm -rf -- "$build_dir"
+    if [[ "$build_dir" != build/* ]] || [[ "$build_dir" == *".."* ]]; then
+      _cp_error "Refusing to remove an unsafe build path: '$build_dir'."
+      return 1
+    fi
+    rm -rf -- "$build_dir" || {
+      _cp_error "Unable to remove the stale build directory."
+      return 1
+    }
   fi
 
   local -a cmake_toolchain_arg=("-DCMAKE_TOOLCHAIN_FILE=${toolchain_file}")
@@ -1046,29 +1252,68 @@ function cppconf() {
     cmake_flags+=("-DCP_ENABLE_LTO=ON")
   fi
 
-  echo "${C_BLUE}╔═══───────────────────────────────────────────────────────────────────────────═══╗${C_RESET}"
-  echo "  ${C_BLUE}Configuring project:${C_RESET}"
-  echo "    ${C_CYAN}Build Type:${C_RESET} ${C_YELLOW}${build_type}${C_RESET}"
-  echo "    ${C_CYAN}Compiler:${C_RESET} ${C_YELLOW}${toolchain_name}${C_RESET}"
-  echo "    ${C_CYAN}Build Dir:${C_RESET} ${C_YELLOW}${build_dir}${C_RESET}"
-  echo "    ${C_CYAN}Timing Report:${C_RESET} ${C_YELLOW}${timing_mode}${C_RESET}"
-  echo "    ${C_CYAN}PCH Support:${C_RESET} ${C_YELLOW}${pch_mode}${C_RESET}"
+  _cp_box_top "PROJECT CONFIGURATION"
+  _cp_kv "Build Type:" "$build_type"
+  _cp_kv "Compiler:" "$toolchain_name"
+  _cp_kv "Build Dir:" "$build_dir"
+  _cp_kv "Timing Report:" "$timing_mode"
+  _cp_kv "PCH Support:" "$pch_mode"
   if [[ "${cmake_flags[*]}" == *"CP_ENABLE_LTO=ON"* ]]; then
-    echo "    ${C_CYAN}LTO:${C_RESET} ${C_YELLOW}Enabled${C_RESET}"
+    _cp_kv "LTO:" "Enabled"
   fi
   if [ "$force_pch_rebuild" = "ON" ]; then
-    echo "    ${C_CYAN}PCH Rebuild:${C_RESET} ${C_YELLOW}Forced${C_RESET}"
+    _cp_kv "PCH Rebuild:" "Forced"
   fi
-  echo "${C_BLUE}╚═══───────────────────────────────────────────────────────────────────────────═══╝${C_RESET}"
+  _cp_box_bottom
 
-  mkdir -p -- "${build_dir:h}"
+  mkdir -p -- "${build_dir:h}" || {
+    _cp_error "Unable to create the build profile directory."
+    return 1
+  }
 
-  if cmake -S . -B "$build_dir" \
-    -DCMAKE_BUILD_TYPE="${build_type}" \
-    "${cmake_toolchain_arg[@]}" \
-    -DCMAKE_CXX_FLAGS="-std=c++23" \
-    "${cmake_flags[@]}"; then
-    echo "${C_GREEN}CMake configuration successful.${C_RESET}"
+  # Configure the project. With gum active, a spinner is shown; the detailed
+  # setup summary produced by the CMake bootstrap is re-rendered after
+  # success, and the full cmake output is replayed on failure. Without gum
+  # the cmake output streams as before.
+  local conf_status=0
+  if _cp_ui_gum_for_fd 2; then
+    local conf_output
+    conf_output=$(_cp_spin "Configuring CMake (${build_type}, ${compiler_key})..." \
+      cmake -S . -B "$build_dir" \
+      -DCMAKE_BUILD_TYPE="${build_type}" \
+      "${cmake_toolchain_arg[@]}" \
+      -DCMAKE_CXX_FLAGS="-std=c++23" \
+      "${cmake_flags[@]}")
+    conf_status=$?
+    if [ $conf_status -eq 0 ]; then
+      # Extract the body of the bootstrap's setup-summary block (lines
+      # between the SETUP SUMMARY banner and its closing edge) and re-render
+      # it inside the project's rule style, preserving embedded colors.
+      local conf_summary
+      conf_summary=$(printf '%s\n' "$conf_output" \
+        | awk '/SETUP SUMMARY/{f=1; next} f && /╚═══|════$/{exit} f' \
+        | sed -e 's/^-- //' -e 's/^│ //' -e 's/^│$//' -e 's/^/  /')
+      if [ -n "$conf_summary" ]; then
+        _cp_rule "SETUP SUMMARY" cyan
+        printf '%s\n' "$conf_summary"
+        _cp_rule "" cyan
+      fi
+    else
+      _cp_rule "CMAKE OUTPUT" red
+      echo "$conf_output"
+      _cp_rule "" red
+    fi
+  else
+    cmake -S . -B "$build_dir" \
+      -DCMAKE_BUILD_TYPE="${build_type}" \
+      "${cmake_toolchain_arg[@]}" \
+      -DCMAKE_CXX_FLAGS="-std=c++23" \
+      "${cmake_flags[@]}"
+    conf_status=$?
+  fi
+
+  if [ $conf_status -eq 0 ]; then
+    _cp_success "CMake configuration successful."
 
     if [ "$force_pch_rebuild" = "ON" ]; then
       echo "${C_CYAN}Cleaning PCH cache...${C_RESET}"
@@ -1081,11 +1326,20 @@ function cppconf() {
 
     cmake --build "$build_dir" --target symlink_clangd 2>/dev/null || true
 
-    mkdir -p .statistics
-    echo "$build_type:$compiler_key:${pch_mode}:$build_dir" > .statistics/last_config
-    _cp_set_active_build_dir "$build_dir"
+    mkdir -p .statistics || {
+      _cp_error "Unable to create the build metadata directory."
+      return 1
+    }
+    if ! printf '%s\n' \
+        "$build_type:$compiler_key:${pch_mode}:$build_dir" \
+        > .statistics/last_config ||
+      ! _cp_set_active_build_dir "$build_dir"
+    then
+      _cp_error "Unable to persist the active build profile."
+      return 1
+    fi
   else
-    echo "${C_RED}CMake configuration failed!${C_RESET}" >&2
+    _cp_error "CMake configuration failed!"
     return 1
   fi
 }
@@ -1099,10 +1353,10 @@ function cppconf() {
 #   cppcontest <ContestDirectoryName>
 # -----------------------------------------------------------------------------
 function cppcontest() {
-  if [ -z "$1" ]; then
+  if [[ $# != 1 || -z "$1" ]]; then
     echo "${C_RED}Usage: cppcontest <ContestDirectoryName>${C_RESET}" >&2
     echo "Example: cppcontest Codeforces/Round_1037_Div_3" >&2
-    return 1
+    return 64
   fi
 
   # Ensure we're in the workspace before creating a contest.
@@ -1112,22 +1366,53 @@ function cppcontest() {
   fi
 
   local contest_dir="$1"
+  case "$contest_dir" in
+    /*|..|../*|*/..|*/../*)
+      _cp_error "Contest directory must stay below the workspace root."
+      return 64
+      ;;
+  esac
+
+  # Resolve the nearest existing ancestor before mkdir. This rejects paths
+  # that would escape through a symlink already present in the workspace.
+  local ancestor="$contest_dir"
+  while [[ ! -e "$ancestor" && "$ancestor" != . ]]; do
+    ancestor="${ancestor:h}"
+  done
+  [[ -e "$ancestor" ]] || ancestor="."
+
+  local resolved_ancestor resolved_workspace
+  if command -v realpath >/dev/null 2>&1; then
+    resolved_ancestor=$(realpath "$ancestor") || return 1
+    resolved_workspace=$(realpath "$CP_WORKSPACE_ROOT") || return 1
+  else
+    resolved_ancestor=$(cd "$ancestor" 2>/dev/null && pwd -P) || return 1
+    resolved_workspace=$(cd "$CP_WORKSPACE_ROOT" 2>/dev/null && pwd -P) ||
+      return 1
+  fi
+  case "${resolved_ancestor}/" in
+    "${resolved_workspace}/"*) ;;
+    *)
+      _cp_error "Contest directory resolves outside the workspace root."
+      return 1
+      ;;
+  esac
 
   # Create the directory if it doesn't exist.
   if [ ! -d "$contest_dir" ]; then
     echo "${C_CYAN}Creating new contest directory: '$contest_dir'${C_RESET}"
-    mkdir -p "$contest_dir"
+    mkdir -p "$contest_dir" || return 1
   fi
 
-  cd "$contest_dir" || return
+  cd "$contest_dir" || return 1
 
   # Initialize the project here if it's not already set up.
   if [ ! -f "CMakeLists.txt" ]; then
     echo "Initializing new CMake project in '${C_BOLD}$(pwd)${C_RESET}'..."
-    cppinit
+    cppinit || return 1
   else
     echo "Project already initialized. Verifying configuration..."
-    cppinit # Run to ensure all components are present.
+    cppinit || return 1
   fi
 
   echo "${C_GREEN}Ready to work in ${C_BOLD}$(pwd)${C_RESET}. Use '${C_CYAN}cppnew <problem_name>${C_RESET}' to start."

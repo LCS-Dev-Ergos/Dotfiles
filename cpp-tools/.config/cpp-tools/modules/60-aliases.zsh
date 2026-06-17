@@ -81,5 +81,9 @@ for letter in {A..H}; do
   done
 done
 
+# These loops run at source time in the user's shell; do not leak the
+# iteration variables into the interactive namespace.
+unset letter num
+
 # ============================================================================ #
 # End of 60-aliases.zsh

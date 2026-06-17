@@ -20,21 +20,50 @@
 # cppclean
 # -----------------------------------------------------------------------------
 # Remove build artifacts safely from the project.
+#
+# Usage:
+#   cppclean [--yes|-y]
 # -----------------------------------------------------------------------------
 function cppclean() {
+  local assume_yes=0
+  case "$#:${1:-}" in
+    0:) ;;
+    1:-y|1:--yes) assume_yes=1 ;;
+    *)
+      _cp_error "Usage: cppclean [-y|--yes]"
+      return 64
+      ;;
+  esac
+
   _check_workspace || return 1
   if [ ! -f "CMakeLists.txt" ]; then
     echo "${C_RED}Error: No CMakeLists.txt found in $(pwd). Aborting clean to avoid accidental deletion.${C_RESET}" >&2
     return 1
   fi
-  echo "${C_CYAN}Cleaning project...${C_RESET}"
-  rm -rf -- build bin lib
-  rm -f -- .statistics/active_build_dir
+
+  if [ "$assume_yes" -eq 0 ]; then
+    if ! _cp_confirm \
+      "Remove build artifacts in $(basename "$(pwd)")?" yes
+    then
+      echo "Clean cancelled."
+      return 0
+    fi
+  fi
+
+  _cp_info "Cleaning project..."
+  if ! rm -rf -- build bin lib; then
+    _cp_error "Unable to remove one or more build directories."
+    return 1
+  fi
+  if ! rm -f -- .statistics/active_build_dir; then
+    _cp_error "Unable to remove the active build metadata."
+    return 1
+  fi
   # Also remove the symlink if it exists in the root.
   if [ -L "compile_commands.json" ]; then
-    rm -- "compile_commands.json"
+    rm -- "compile_commands.json" || return 1
   fi
-  echo "Project cleaned."
+  _cp_success "Project cleaned."
 }
 
 # -----------------------------------------------------------------------------
@@ -48,16 +77,20 @@ function cppdeepclean() {
     echo "${C_RED}Error: No CMakeLists.txt found in $(pwd). Aborting deep clean to avoid accidental deletion.${C_RESET}" >&2
     return 1
   fi
-  echo "${C_YELLOW}This will remove all generated files except source code and test cases.${C_RESET}"
-  echo -n "Are you sure? (y/N): "
-  read -r response
-  if [[ "$response" =~ ^[Yy]$ ]]; then
-    cppclean
-    rm -f -- CMakeLists.txt gcc-toolchain.cmake clang-toolchain.cmake .clangd
-    rm -f -- .statistics/contest_metadata .statistics/problem_times .statistics/last_config .statistics/active_build_dir
-    rm -f -- .contest_metadata .problem_times
-    rm -rf -- .cache
-    echo "${C_GREEN}Deep clean complete.${C_RESET}"
+  _cp_warn "This will remove all generated files except source code and test cases."
+  if _cp_confirm "Are you sure?" no; then
+    cppclean --yes || return 1
+    if ! rm -f -- \
+        CMakeLists.txt gcc-toolchain.cmake clang-toolchain.cmake .clangd \
+        .statistics/contest_metadata .statistics/problem_times \
+        .statistics/last_config .statistics/active_build_dir \
+        .contest_metadata .problem_times ||
+      ! rm -rf -- .cache
+    then
+      _cp_error "Unable to remove one or more generated project files."
+      return 1
+    fi
+    _cp_success "Deep clean complete."
   else
     echo "Deep clean cancelled."
   fi
@@ -114,14 +147,13 @@ function cppfocus() {
 # -----------------------------------------------------------------------------
 function cppwatch() {
   _check_initialized || return 1
-  local target_name=${1:-$(_get_default_target)}
+  local target_name
+  target_name=$(_normalize_target_name "${1:-$(_get_default_target)}")
   local source_file
 
   # Find the actual source file extension.
-  if [ -f "${target_name}.cpp" ]; then source_file="${target_name}.cpp";
-  elif [ -f "${target_name}.cc" ]; then source_file="${target_name}.cc";
-  elif [ -f "${target_name}.cxx" ]; then source_file="${target_name}.cxx";
-  else
+  source_file=$(_resolve_target_source "$target_name")
+  if [ -z "$source_file" ]; then
     echo "${C_RED}Error: Source file for target '$target_name' not found.${C_RESET}" >&2
     return 1
   fi
@@ -131,11 +163,14 @@ function cppwatch() {
     return 1
   fi
 
-  echo "${C_CYAN}Watching '$source_file' to rebuild target '$target_name'. Press Ctrl+C to stop.${C_RESET}"
-  # Initial build.
+  _cp_info "Watching '$source_file' to rebuild target '$target_name'. Press Ctrl+C to stop."
+  # Initial build (cppbuild shows a spinner per iteration when gum is active).
   cppbuild "$target_name"
 
-  fswatch -o "$source_file" | while read -r; do cppbuild "$target_name"; done
+  fswatch -o "$source_file" | while read -r; do
+    _cp_info "Change detected in '$source_file'. Rebuilding..."
+    cppbuild "$target_name"
+  done
 }
 
 # -----------------------------------------------------------------------------
@@ -149,20 +184,24 @@ function cppstats() {
     return 0
   fi
 
-  echo "${C_BOLD}${C_BLUE}╔═══─────────── PROBLEM STATISTICS ───────────═══╗${C_RESET}"
-  echo ""
-
-  local current_time
+  local current_time problem action timestamp elapsed
+  local -a rows=()
   current_time=$(date +%s)
+
   while IFS=: read -r problem action timestamp _; do
     if [ "$action" = "START" ] && [[ "$timestamp" == <-> ]]; then
-      local elapsed=$((current_time - timestamp))
-      echo "${C_CYAN}$problem${C_RESET}: Started $(_format_duration $elapsed) ago"
+      elapsed=$((current_time - timestamp))
+      rows+=("$problem"$'\t'"$(_format_duration $elapsed) ago")
     fi
   done < .statistics/problem_times
 
-  echo ""
-  echo "${C_BOLD}${C_BLUE}╚═══──────────────────────────────────────────═══╝${C_RESET}"
+  if (( ${#rows[@]} == 0 )); then
+    _cp_warn "No active problem timing entries were found."
+    return 0
+  fi
+
+  _cp_heading "Problem statistics" "${#rows[@]} active problem(s)"
+  _cp_ui_table $'Problem\tElapsed' "${rows[@]}"
 }
 
 # -----------------------------------------------------------------------------
@@ -171,23 +210,44 @@ function cppstats() {
 # Archive the current contest directory with exclusions.
 # -----------------------------------------------------------------------------
 function cpparchive() {
+  if (( $# )); then
+    _cp_error "Usage: cpparchive"
+    return 64
+  fi
+  _check_workspace || return 1
+  if [[ ! -f CMakeLists.txt ]]; then
+    _cp_error "CMakeLists.txt not found; refusing to archive this directory."
+    return 1
+  fi
+
   local contest_name
   contest_name=$(basename "$(pwd)")
   local archive_name
   archive_name="${contest_name}_$(date +%Y%m%d_%H%M%S).tar.gz"
 
-  echo "${C_CYAN}Archiving contest to '$archive_name'...${C_RESET}"
+  if ! _cp_confirm \
+    "Archive contest '$contest_name' to '../$archive_name'?" yes
+  then
+    echo "Archive cancelled."
+    return 0
+  fi
+
+  _cp_info "Archiving contest to '$archive_name'..."
 
   # Create archive excluding build artifacts.
-  tar -czf "../$archive_name" \
-    --exclude="build" \
-    --exclude="bin" \
-    --exclude="lib" \
-    --exclude="*.dSYM" \
-    --exclude=".git" \
-    .
+  if ! tar -czf "../$archive_name" \
+      --exclude="build" \
+      --exclude="bin" \
+      --exclude="lib" \
+      --exclude="*.dSYM" \
+      --exclude=".git" \
+      .
+  then
+    _cp_error "Failed to create '../$archive_name'."
+    return 1
+  fi
 
-  echo "${C_GREEN}Contest archived to '../$archive_name'${C_RESET}"
+  _cp_success "Contest archived to '../$archive_name'"
 }
 
 # -----------------------------------------------------------------------------
@@ -196,15 +256,14 @@ function cpparchive() {
 # Display detailed diagnostics for tools, workspace, and compilers.
 # -----------------------------------------------------------------------------
 function cppdiag() {
-  # Helper function to print formatted headers.
-  _print_header() {
-    echo ""
-    echo "${C_BOLD}${C_BLUE}════─────────── $1 ───────────════${C_RESET}"
-  }
-
+  if (( $# )); then
+    _cp_error "Usage: cppdiag"
+    return 64
+  fi
   echo "${C_BOLD}Running Competitive Programming Environment Diagnostics...${C_RESET}"
 
-  _print_header "SYSTEM & SHELL"
+  echo ""
+  _cp_header "SYSTEM & SHELL"
   # Display OS and shell information.
   uname -a
   echo "Shell: $SHELL"
@@ -212,28 +271,30 @@ function cppdiag() {
   [ -n "$ZSH_VERSION" ] && echo "Zsh Version: $ZSH_VERSION"
   echo "Script Directory: $SCRIPT_DIR"
 
-  _print_header "WORKSPACE CONFIGURATION"
+  echo ""
+  _cp_header "WORKSPACE CONFIGURATION"
   echo "CP Workspace Root: ${C_CYAN}$CP_WORKSPACE_ROOT${C_RESET}"
   echo "Algorithms Directory: ${C_CYAN}$CP_ALGORITHMS_DIR${C_RESET}"
 
   # Check if we're in the workspace.
-  local current_dir
-  current_dir="$(pwd)"
-  if [[ "$current_dir" == "$CP_WORKSPACE_ROOT"* ]]; then
+  if _check_workspace >/dev/null 2>&1; then
     echo "Current Location: ${C_GREEN}Inside workspace${C_RESET}"
   else
     echo "Current Location: ${C_YELLOW}Outside workspace${C_RESET}"
   fi
 
-  _print_header "CORE TOOLS"
+  echo ""
+  _cp_header "CORE TOOLS"
 
-  # Check for g++
+  # Check for g++ (validated, newest first).
   local GXX_PATH
-  GXX_PATH=$(command -v g++-15 || command -v g++-14 || command -v g++-13 || command -v g++)
+  GXX_PATH=$(_cp_find_gxx)
   if [ -n "$GXX_PATH" ]; then
+    local gxx_version
+    gxx_version=$("$GXX_PATH" --version 2>/dev/null | head -n 1)
     echo "${C_GREEN}g++:${C_RESET}"
     echo "   ${C_CYAN}Path:${C_RESET} $GXX_PATH"
-    echo "   ${C_CYAN}Version:${C_RESET} $($GXX_PATH --version | head -n 1)"
+    echo "   ${C_CYAN}Version:${C_RESET} $gxx_version"
   else
     echo "${C_RED}g++: Not found!${C_RESET}"
   fi
@@ -242,12 +303,14 @@ function cppdiag() {
   local CLANGXX_PATH
   CLANGXX_PATH=$(command -v clang++)
   if [ -n "$CLANGXX_PATH" ]; then
+    local clangxx_version
+    clangxx_version=$("$CLANGXX_PATH" --version 2>/dev/null | head -n 1)
     echo "${C_GREEN}clang++:${C_RESET}"
     echo "   ${C_CYAN}Path:${C_RESET} $CLANGXX_PATH"
-    echo "   ${C_CYAN}Version:${C_RESET} $($CLANGXX_PATH --version | head -n 1)"
+    echo "   ${C_CYAN}Version:${C_RESET} $clangxx_version"
 
     # Check if it's Apple Clang or LLVM Clang.
-    if $CLANGXX_PATH --version | grep -q "Apple"; then
+    if "$CLANGXX_PATH" --version | grep -q "Apple"; then
       echo "   ${C_CYAN}Type:${C_RESET} Apple Clang (Xcode)"
     else
       echo "   ${C_CYAN}Type:${C_RESET} LLVM Clang"
@@ -262,7 +325,7 @@ function cppdiag() {
   if [ -n "$CMAKE_PATH" ]; then
     echo "${C_GREEN}cmake:${C_RESET}"
     echo "   ${C_CYAN}Path:${C_RESET} $CMAKE_PATH"
-    echo "   ${C_CYAN}Version:${C_RESET} $($CMAKE_PATH --version | head -n 1)"
+    echo "   ${C_CYAN}Version:${C_RESET} $("$CMAKE_PATH" --version | head -n 1)"
   else
     echo "${C_RED}cmake: Not found!${C_RESET}"
   fi
@@ -273,7 +336,7 @@ function cppdiag() {
   if [ -n "$CLANGD_PATH" ]; then
     echo "${C_GREEN}clangd:${C_RESET}"
     echo "   ${C_CYAN}Path:${C_RESET} $CLANGD_PATH"
-    echo "   ${C_CYAN}Version:${C_RESET} $($CLANGD_PATH --version | head -n 1)"
+    echo "   ${C_CYAN}Version:${C_RESET} $("$CLANGD_PATH" --version | head -n 1)"
   else
     echo "${C_RED}clangd: Not found!${C_RESET}"
   fi
@@ -298,7 +361,8 @@ function cppdiag() {
     echo "${C_RED}timeout/gtimeout: Not found (required). Install coreutils.${C_RESET}"
   fi
 
-  _print_header "PROJECT CONFIGURATION (in $(pwd))"
+  echo ""
+  _cp_header "PROJECT CONFIGURATION (in $(pwd))"
   if [ -f "CMakeLists.txt" ]; then
     echo "${C_GREEN}Found CMakeLists.txt${C_RESET}"
 
@@ -335,21 +399,30 @@ function cppdiag() {
 
     # Count problems.
     local cpp_count
-    cpp_count=$(find . -maxdepth 1 -name "*.cpp" -type f 2>/dev/null | wc -l)
+    local -a cpp_files=(./*.cpp(N.))
+    cpp_count=${#cpp_files[@]}
     echo "   ${C_CYAN}C++ files:${C_RESET} $cpp_count"
 
   else
     echo "${C_RED}Not inside a project directory (CMakeLists.txt not found).${C_RESET}"
   fi
 
-  _print_header "COMPILER FEATURES CHECK"
+  echo ""
+  _cp_header "COMPILER FEATURES CHECK"
 
   # Test with GCC if available.
   if [ -n "$GXX_PATH" ]; then
     echo "${C_CYAN}Testing GCC features:${C_RESET}"
     local test_file test_bin
-    test_file=$(mktemp "/tmp/cp_gcc_test_XXXXXX.cpp")
-    test_bin=$(mktemp "/tmp/cp_gcc_test_XXXXXX")
+    test_file=$(mktemp "${TMPDIR:-/tmp}/cp_gcc_test_XXXXXX.cpp") || {
+      _cp_error "Unable to create the GCC diagnostic source file."
+      return 1
+    }
+    test_bin=$(mktemp "${TMPDIR:-/tmp}/cp_gcc_test_XXXXXX") || {
+      rm -f -- "$test_file"
+      _cp_error "Unable to create the GCC diagnostic binary."
+      return 1
+    }
     cat > "$test_file" << 'EOF'
 #include <bits/stdc++.h>
 #include <ext/pb_ds/assoc_container.hpp>
@@ -358,15 +431,14 @@ using namespace __gnu_pbds;
 int main() { cout << "OK" << endl; return 0; }
 EOF
 
-    if $GXX_PATH -std=c++23 "$test_file" -o "$test_bin" 2>/dev/null; then
+    if "$GXX_PATH" -std=c++23 "$test_file" -o "$test_bin" 2>/dev/null; then
       echo "  ${C_GREEN}bits/stdc++.h: Available${C_RESET}"
       echo "  ${C_GREEN}PBDS: Available${C_RESET}"
       echo "  ${C_GREEN}C++23: Supported${C_RESET}"
-      rm -f "$test_bin"
     else
       echo "  ${C_RED}Some GCC features may not be available. Check your installation.${C_RESET}"
     fi
-    rm -f "$test_file"
+    rm -f -- "$test_file" "$test_bin"
   fi
 
   # Test with Clang if available.
@@ -376,8 +448,15 @@ EOF
 
     # Test PCH.h compatibility.
     local test_pch test_pch_bin
-    test_pch=$(mktemp "/tmp/cp_clang_test_XXXXXX.cpp")
-    test_pch_bin=$(mktemp "/tmp/cp_clang_test_XXXXXX")
+    test_pch=$(mktemp "${TMPDIR:-/tmp}/cp_clang_test_XXXXXX.cpp") || {
+      _cp_error "Unable to create the Clang diagnostic source file."
+      return 1
+    }
+    test_pch_bin=$(mktemp "${TMPDIR:-/tmp}/cp_clang_test_XXXXXX") || {
+      rm -f -- "$test_pch"
+      _cp_error "Unable to create the Clang diagnostic binary."
+      return 1
+    }
     cat > "$test_pch" << 'EOF'
 #define USE_CLANG_SANITIZE
 #include "PCH.h"
@@ -385,39 +464,57 @@ using namespace std;
 int main() { cout << "OK" << endl; return 0; }
 EOF
 
-    # Check if PCH.h exists in algorithms directory.
+    # Prefer the project link, then test the centralized header directly.
+    local pch_header="" pch_include_dir=""
     if [ -f "algorithms/PCH.h" ]; then
-      if $CLANGXX_PATH -std=c++23 -I./algorithms "$test_pch" -o "$test_pch_bin" 2>/dev/null; then
+      pch_header="algorithms/PCH.h"
+      pch_include_dir="./algorithms"
+    elif [ -f "$CP_ALGORITHMS_DIR/libs/PCH.h" ]; then
+      pch_header="$CP_ALGORITHMS_DIR/libs/PCH.h"
+      pch_include_dir="$CP_ALGORITHMS_DIR/libs"
+    fi
+    if [ -n "$pch_header" ]; then
+      if "$CLANGXX_PATH" -std=c++23 -I"$pch_include_dir" \
+        -I"$CP_ALGORITHMS_DIR" \
+        "$test_pch" -o "$test_pch_bin" 2>/dev/null
+      then
         echo "  ${C_GREEN}PCH.h: Compatible${C_RESET}"
         echo "  ${C_GREEN}C++23: Supported${C_RESET}"
-        rm -f "$test_pch_bin"
       else
-        echo "  ${C_YELLOW}PCH.h compilation failed (check algorithms/PCH.h)${C_RESET}"
+        echo "  ${C_YELLOW}PCH.h compilation failed.${C_RESET}"
+        echo "    Header: $pch_header"
       fi
     else
-      echo "  ${C_YELLOW}PCH.h: Not found in algorithms/ directory${C_RESET}"
+      echo "  ${C_YELLOW}PCH.h: Not found.${C_RESET}"
+      echo "    Checked project and central libraries."
     fi
 
     # Test sanitizer support.
     local test_san san_bin
-    test_san=$(mktemp "/tmp/cp_clang_san_XXXXXX.cpp")
-    san_bin=$(mktemp "/tmp/cp_clang_san_XXXXXX")
+    test_san=$(mktemp "${TMPDIR:-/tmp}/cp_clang_san_XXXXXX.cpp") || {
+      rm -f -- "$test_pch" "$test_pch_bin"
+      _cp_error "Unable to create the sanitizer diagnostic source file."
+      return 1
+    }
+    san_bin=$(mktemp "${TMPDIR:-/tmp}/cp_clang_san_XXXXXX") || {
+      rm -f -- "$test_pch" "$test_pch_bin" "$test_san"
+      _cp_error "Unable to create the sanitizer diagnostic binary."
+      return 1
+    }
     printf "#include <iostream>\nint main(){return 0;}" > "$test_san"
-    if $CLANGXX_PATH -fsanitize=address "$test_san" -o "$san_bin" 2>/dev/null; then
+    if "$CLANGXX_PATH" -fsanitize=address "$test_san" -o "$san_bin" 2>/dev/null; then
       echo "  ${C_GREEN}AddressSanitizer: Available${C_RESET}"
-      rm -f "$san_bin"
     else
       echo "  ${C_RED}AddressSanitizer: Not available${C_RESET}"
     fi
 
-    if $CLANGXX_PATH -fsanitize=undefined "$test_san" -o "$san_bin" 2>/dev/null; then
+    if "$CLANGXX_PATH" -fsanitize=undefined "$test_san" -o "$san_bin" 2>/dev/null; then
       echo "  ${C_GREEN}UBSanitizer: Available${C_RESET}"
-      rm -f "$san_bin"
     else
       echo "  ${C_RED}UBSanitizer: Not available${C_RESET}"
     fi
 
-    rm -f "$test_pch" "$test_san"
+    rm -f -- "$test_pch" "$test_pch_bin" "$test_san" "$san_bin"
   fi
 
   echo ""

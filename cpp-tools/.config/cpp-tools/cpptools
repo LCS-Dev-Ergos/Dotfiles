@@ -17,7 +17,10 @@ fi
 
 SCRIPT_DIR="$( cd "$( dirname "$SCRIPT_PATH" )" &> /dev/null && pwd )"
 
-source "$SCRIPT_DIR/competitive.sh"
+if ! source "$SCRIPT_DIR/competitive.sh"; then
+  print -u2 -r -- "cpp-tools: initialization failed"
+  exit 70
+fi
 
 if (( $# == 0 )); then
   cpphelp
