@@ -1,93 +1,263 @@
 # ============================================================================ #
 # +++++++++++++++++++++++++++++++ HELP & USAGE +++++++++++++++++++++++++++++++ #
 # ============================================================================ #
-#
-# Help output and startup messaging for cpp-tools.
-#
-# Functions:
-#   - cpphelp  Display the full command reference.
-#
+# Canonical command reference and startup messaging for cpp-tools. Every UI
+# mode consumes the same registry, preventing Gum and fallback output drift.
 # ============================================================================ #
+
+typeset -ga _CP_HELP_SECTIONS=(
+  "Setup & Configuration"
+  "Build, Run & Test"
+  "Compiler Selection"
+  "Utilities"
+  "Submission Preparation"
+  "Aliases & Shortcuts"
+)
+
+typeset -ga _CP_HELP_ROWS=()
+
+_cp_help_register() {
+  _CP_HELP_ROWS+=("$1"$'\t'"$2"$'\t'"$3"$'\t'"$4")
+}
+
+_cp_help_register \
+  "Setup & Configuration" "cppinit" "" \
+  "Initialize or verify a project."
+_cp_help_register \
+  "Setup & Configuration" "cppnew" "[--no-config] [name] [template]" \
+  "Create a source file from a selected template."
+_cp_help_register \
+  "Setup & Configuration" "cppdelete" \
+  "[-y|--yes] [--no-config] <target...>" \
+  "Delete problems and their generated files."
+_cp_help_register \
+  "Setup & Configuration" "cppbatch" "[count] [template]" \
+  "Create sequential lettered problems."
+_cp_help_register \
+  "Setup & Configuration" "cppconf" \
+  "[options] [build-type] [compiler]" \
+  "Configure the active CMake build profile."
+_cp_help_register \
+  "Setup & Configuration" "cppcontest" "<directory>" \
+  "Create and initialize a contest directory."
+
+_cp_help_register \
+  "Build, Run & Test" "cppbuild" "[target]" "Build a target."
+_cp_help_register \
+  "Build, Run & Test" "cpprun" "[target]" "Run a compiled target."
+_cp_help_register \
+  "Build, Run & Test" "cppgo" \
+  "[--force] [--input file] [target] [input]" \
+  "Build and run a target with optional input."
+_cp_help_register \
+  "Build, Run & Test" "cppforcego" "[target] [input]" \
+  "Force a rebuild, then run the target."
+_cp_help_register \
+  "Build, Run & Test" "cppi" "[target]" \
+  "Build and run with terminal input."
+_cp_help_register \
+  "Build, Run & Test" "cppjudge" "[target]" \
+  "Run all discovered sample cases."
+_cp_help_register \
+  "Build, Run & Test" "cppstress" "[target] [iterations]" \
+  "Repeat execution with a timeout."
+
+_cp_help_register \
+  "Compiler Selection" "cppgcc" "[build-type]" "Configure with GCC."
+_cp_help_register \
+  "Compiler Selection" "cppclang" "[build-type]" \
+  "Configure with Clang."
+_cp_help_register \
+  "Compiler Selection" "cppprof" "" "Configure a profiling build."
+_cp_help_register \
+  "Compiler Selection" "cppinfo" "" \
+  "Show the active build configuration."
+
+_cp_help_register \
+  "Utilities" "cppfocus" "[target|--clear]" \
+  "Pin or clear the default target."
+_cp_help_register \
+  "Utilities" "cppwatch" "[target]" \
+  "Rebuild when the source changes."
+_cp_help_register \
+  "Utilities" "cppclean" "[-y|--yes]" "Remove build artifacts."
+_cp_help_register \
+  "Utilities" "cppdeepclean" "" "Remove all generated project files."
+_cp_help_register \
+  "Utilities" "cppstats" "" "Show elapsed problem times."
+_cp_help_register \
+  "Utilities" "cpparchive" "" "Archive the current contest."
+_cp_help_register \
+  "Utilities" "cppdiag" "" "Inspect the toolchain and environment."
+_cp_help_register \
+  "Utilities" "cppcheck" "" "Validate templates and required tools."
+_cp_help_register \
+  "Utilities" "cpphelp" "" "Show this command reference."
+
+_cp_help_register \
+  "Submission Preparation" "cppsubmit" "[--strict] [target]" \
+  "Generate a single-file submission."
+_cp_help_register \
+  "Submission Preparation" "cpptestsubmit" \
+  "[--no-generate] [--strict] [target] [input]" \
+  "Compile and test a submission."
+_cp_help_register \
+  "Submission Preparation" "cppfull" \
+  "[--strict] [target] [input]" \
+  "Run the complete submission workflow."
+
+_cp_help_register \
+  "Aliases & Shortcuts" "cppgo_A ... cppgo_H" "" \
+  "Run lettered problems."
+_cp_help_register \
+  "Aliases & Shortcuts" "cppgo_A1, cppgo_A2, ..." "" \
+  "Run numbered variants."
+_cp_help_register \
+  "Aliases & Shortcuts" "cppc / cppb / cppr / cppg" "" \
+  "Short command aliases."
+
+unfunction _cp_help_register
 
 # -----------------------------------------------------------------------------
 # cpphelp
 # -----------------------------------------------------------------------------
-# Print a formatted command reference for cpp-tools.
+# Render the command registry using the same visual grammar as zfuncs: a compact
+# heading, light rules, uppercase categories, and borderless command rows.
+# Narrow terminals use two-line records without dropping descriptions.
 # -----------------------------------------------------------------------------
 function cpphelp() {
-  local sep="${C_CYAN}  ───────────────────────────────────────────────────────────────────────────${C_RESET}"
-  cat << EOF
+  emulate -L zsh
+  if (( $# )); then
+    _cp_error "Usage: cpphelp"
+    return 64
+  fi
 
-${C_BOLD}${C_CYAN}  cpp-tools${C_RESET}${C_BOLD} · Competitive Programming Utilities${C_RESET}
-${sep}
+  _cp_ui_refresh || return $?
+  _cp_ui_resolve_mode || return $?
+  local mode="$REPLY"
+  _cp_ui_width || return $?
+  local -i width=$REPLY
+  local section row row_section command arguments description syntax
+  local -a fields
+  local -i name_width=10 arguments_width=0 description_width=0
 
-${C_BOLD}  Setup & Configuration${C_RESET}
-    ${C_GREEN}cppinit${C_RESET}                               Initialize or verify a project directory
-    ${C_GREEN}cppnew${C_RESET}     ${C_YELLOW}[name] [template]${C_RESET}          Create a .cpp from template (default/pbds/advanced/base)
-    ${C_GREEN}cppdelete${C_RESET}  ${C_YELLOW}[name...]${C_RESET}                  Delete one or more problems (interactive)
-    ${C_GREEN}cppbatch${C_RESET}   ${C_YELLOW}[count] [template]${C_RESET}         Create multiple problems at once (A, B, C, …)
-    ${C_GREEN}cppconf${C_RESET}    ${C_YELLOW}[build-type] [compiler]${C_RESET}    (Re)configure the project build
-               ${C_YELLOW}[timing=on/off] [pch=on/off/auto]${C_RESET}   flags: ${C_YELLOW}[-b] [-c] [--timing] [--pch] [--pch-rebuild]${C_RESET}
-    ${C_GREEN}cppcontest${C_RESET} ${C_YELLOW}[dir_name]${C_RESET}                 Create a new contest directory and initialize it
+  for row in "${_CP_HELP_ROWS[@]}"; do
+    fields=("${(@ps:\t:)row}")
+    command="${fields[2]-}"
+    arguments="${fields[3]-}"
+    description="${fields[4]-}"
+    (( ${#command} > name_width )) && name_width=${#command}
+    (( ${#arguments} > arguments_width )) &&
+      arguments_width=${#arguments}
+    (( ${#description} > description_width )) &&
+      description_width=${#description}
+  done
 
-${sep}
-${C_BOLD}  Build, Run & Test${C_RESET}
-    ${C_GREEN}cppbuild${C_RESET}    ${C_YELLOW}[name]${C_RESET}                    Build a target (defaults to most recent)
-    ${C_GREEN}cpprun${C_RESET}      ${C_YELLOW}[name]${C_RESET}                    Run a compiled target
-    ${C_GREEN}cppgo${C_RESET}       ${C_YELLOW}[--force] [name] [input]${C_RESET}  Build and run (uses <name>.in by default)
-    ${C_GREEN}cppforcego${C_RESET}  ${C_YELLOW}[name]${C_RESET}                    Force-rebuild and run (updates timestamp)
-    ${C_GREEN}cppi${C_RESET}        ${C_YELLOW}[name]${C_RESET}                    Interactive mode: build and run with stdin
-    ${C_GREEN}cppjudge${C_RESET}    ${C_YELLOW}[name]${C_RESET}                    Test against ${C_YELLOW}name.in${C_RESET} / ${C_YELLOW}name.*.in${C_RESET} / ${C_YELLOW}name_*.in${C_RESET}
-    ${C_GREEN}cppstress${C_RESET}   ${C_YELLOW}[name] [n]${C_RESET}                Stress-test a solution for n iterations (default: 100)
+  local -i wide_required=$(( name_width + arguments_width +
+    description_width + 6 ))
+  local -i wide=0
+  (( wide_required <= width )) && wide=1
 
-${sep}
-${C_BOLD}  Compiler Selection${C_RESET}
-    ${C_GREEN}cppgcc${C_RESET}      ${C_YELLOW}[build-type]${C_RESET}              Configure with GCC (default: Debug)
-    ${C_GREEN}cppclang${C_RESET}    ${C_YELLOW}[build-type]${C_RESET}              Configure with Clang (default: Debug)
-    ${C_GREEN}cppprof${C_RESET}                               Configure profiling build (Clang + timing)
-    ${C_GREEN}cppinfo${C_RESET}                               Show current compiler and build configuration
+  local rule_character="-" rule_color="" muted="" reset=""
+  if [[ "$mode" != plain ]]; then
+    rule_character="─"
+    rule_color=$'\e[38;5;245m'
+    muted=$'\e[38;5;252m'
+    reset="$C_RESET"
+    _cp_heading \
+      "CPP-TOOLS" \
+      "${#_CP_HELP_ROWS[@]} commands · "\
+"${#_CP_HELP_SECTIONS[@]} categories · "\
+"cpptools <command>"
+  else
+    print -r -- "CPP-TOOLS"
+    print -r -- \
+      "${#_CP_HELP_ROWS[@]} commands · "\
+"${#_CP_HELP_SECTIONS[@]} categories · "\
+"cpptools <command>"
+  fi
 
-${sep}
-${C_BOLD}  Utilities${C_RESET}
-    ${C_GREEN}cppfocus${C_RESET}    ${C_YELLOW}[name|--clear]${C_RESET}            Pin or clear the default target
-    ${C_GREEN}cppwatch${C_RESET}    ${C_YELLOW}[name]${C_RESET}                    Auto-rebuild on file change (requires fswatch)
-    ${C_GREEN}cppclean${C_RESET}                              Remove build artifacts
-    ${C_GREEN}cppdeepclean${C_RESET}                          Remove all generated files (interactive)
-    ${C_GREEN}cppstats${C_RESET}                              Show timing statistics for problems
-    ${C_GREEN}cpparchive${C_RESET}                            Create a compressed archive of the contest
-    ${C_GREEN}cppdiag${C_RESET}                               Display detailed toolchain diagnostic info
-    ${C_GREEN}cppcheck${C_RESET}                              Check template system and environment health
-    ${C_GREEN}cpphelp${C_RESET}                               Show this help message
+  _cp_repeat "$rule_character" "$width"
+  print -r -- "${rule_color}${REPLY}${reset}"
+  print -r -- ""
 
-${sep}
-${C_BOLD}  Submission Preparation${C_RESET}
-    ${C_GREEN}cppsubmit${C_RESET}     ${C_YELLOW}[--strict] [name]${C_RESET}           Generate a single-file submission
-    ${C_GREEN}cpptestsubmit${C_RESET} ${C_YELLOW}[--strict] [name] [input]${C_RESET}   Test the generated submission file
-    ${C_GREEN}cppfull${C_RESET}       ${C_YELLOW}[name] [input]${C_RESET}              Full workflow: dev test → generate → test submission
+  for section in "${_CP_HELP_SECTIONS[@]}"; do
+    local category_title="${(U)section}"
+    local -i category_rule_width=$(( ${#category_title} + 4 ))
+    (( category_rule_width < 24 )) && category_rule_width=24
+    (( category_rule_width > 48 )) && category_rule_width=48
+    (( category_rule_width > width - 2 )) &&
+      category_rule_width=$(( width - 2 ))
+    _cp_repeat "$rule_character" "$category_rule_width"
+    local category_rule="$REPLY"
 
-${sep}
-${C_BOLD}  Aliases & Shortcuts${C_RESET}
-    ${C_GREEN}cppgo_A${C_RESET}, ${C_GREEN}cppgo_B${C_RESET}, …                   Quick run for problem_A, problem_B, …
-    ${C_GREEN}cppgo_A1${C_RESET}, ${C_GREEN}cppgo_A2${C_RESET}, …                 Quick run for numbered variants (problem_A1, …)
+    if [[ "$mode" == plain ]]; then
+      print -r -- "$category_title"
+      print -r -- "  $category_rule"
+    else
+      _cp_section "$category_title" || return $?
+      print -r -- "${rule_color}  ${category_rule}${reset}"
+    fi
 
-    ${C_BOLD}Short:${C_RESET}  ${C_GREEN}cppc${C_RESET}=cppconf  ${C_GREEN}cppb${C_RESET}=cppbuild  ${C_GREEN}cppr${C_RESET}=cpprun  ${C_GREEN}cppg${C_RESET}=cppgo
+    for row in "${_CP_HELP_ROWS[@]}"; do
+      fields=("${(@ps:\t:)row}")
+      row_section="${fields[1]-}"
+      [[ "$row_section" == "$section" ]] || continue
+      command="${fields[2]-}"
+      arguments="${fields[3]-}"
+      description="${fields[4]-}"
 
-${sep}
-${C_BOLD}  Workspace${C_RESET}
-    Root:        ${C_CYAN}${CP_WORKSPACE_ROOT}${C_RESET}
-    Algorithms:  ${C_CYAN}${CP_ALGORITHMS_DIR}${C_RESET}
-    Entrypoint:  ${C_CYAN}cpptools <cmd>${C_RESET}
+      _cp_ui_sanitize_text "$command"
+      command="$REPLY"
+      _cp_ui_sanitize_text "$arguments"
+      arguments="$REPLY"
+      _cp_ui_sanitize_text "$description"
+      description="$REPLY"
 
-  ${C_CYAN}·${C_RESET} Commands default to the focused target or the most recently modified .cpp file.
-  ${C_CYAN}·${C_RESET} Workspace protection prevents initialization outside the CP directory.
+      if (( wide )); then
+        printf '  %s%-*s%s  %s%-*s%s  %s%s%s\n' \
+          "$C_CYAN" "$name_width" "$command" "$C_RESET" \
+          "$C_YELLOW" "$arguments_width" "$arguments" "$C_RESET" \
+          "$muted" "$description" "$reset"
+      else
+        syntax="  ${C_CYAN}${command}${C_RESET}"
+        [[ -z "$arguments" ]] ||
+          syntax+=" ${C_YELLOW}${arguments}${C_RESET}"
+        print -r -- "$syntax"
+        print -r -- "    ${muted}${description}${reset}"
+      fi
+    done
+    print -r -- ""
+  done
 
-EOF
+  local root algorithms
+  _cp_ui_sanitize_text "$CP_WORKSPACE_ROOT"
+  root="$REPLY"
+  _cp_ui_sanitize_text "$CP_ALGORITHMS_DIR"
+  algorithms="$REPLY"
+  local workspace_title="WORKSPACE"
+  _cp_repeat "$rule_character" 24
+  local workspace_rule="$REPLY"
+  if [[ "$mode" == plain ]]; then
+    print -r -- "$workspace_title"
+    print -r -- "  $workspace_rule"
+  else
+    _cp_section "$workspace_title" || return $?
+    print -r -- "${rule_color}  ${workspace_rule}${reset}"
+  fi
+  print -r -- "  ${C_CYAN}Root${C_RESET}        $root"
+  print -r -- "  ${C_CYAN}Algorithms${C_RESET}  $algorithms"
+  print -r -- ""
+  print -r -- \
+    "${muted}Commands use the focused target or newest source. "\
+"Workspace checks guard every mutation.${reset}"
+  print -r -- ""
 }
 
-# Display load message only if not in quiet mode.
+# Display the load message only when explicitly enabled.
 : "${CP_QUIET_LOAD:=0}"
-if [ "$CP_QUIET_LOAD" = "0" ]; then
-  echo "${C_GREEN}Competitive Programming utilities loaded. Type 'cpphelp' for commands.${C_RESET}"
+if [[ "$CP_QUIET_LOAD" == 0 ]]; then
+  _cp_success "Competitive Programming utilities loaded. Run cpphelp."
 fi
 
 # ============================================================================ #
