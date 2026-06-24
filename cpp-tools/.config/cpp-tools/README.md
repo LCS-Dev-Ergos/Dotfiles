@@ -18,14 +18,25 @@ The primary goal is to solve common frustrations like compiler conflicts (`GCC` 
 
 Before you begin, ensure you have the following installed on your system:
 
-1. **GCC**: For modern C++ features, `<bits/stdc++.h>`, and PBDS.
+1. **Zsh**: The command modules use Zsh-specific syntax and semantics.
+2. **GCC**: For modern C++ features, `<bits/stdc++.h>`, and PBDS.
     - **macOS**: `brew install gcc`
     - **Debian/Ubuntu**: `sudo apt install build-essential g++`
-2. **CMake**: The build system generator.
+3. **CMake**: The build system generator.
     - **macOS**: `brew install cmake`
     - **Debian/Ubuntu**: `sudo apt install cmake`
-3. **(Optional, for `cppwatch`) `fswatch`**:
+4. **(Optional, for `cppwatch`) `fswatch`**:
     - **macOS**: `brew install fswatch`
+5. **Optional: [Gum](https://github.com/charmbracelet/gum)** for a polished CLI:
+    Enables the styled help heading, build spinners, confirmations, selection,
+    and larger result tables. Routine status lines remain shell-native. Every
+    feature has an ANSI/plain fallback, so Gum is never required.
+    - **macOS**: `brew install gum`
+    - **Debian/Ubuntu**: see the [Gum installation guide](https://github.com/charmbracelet/gum#installation) (apt repository available)
+
+The UI mode is controlled by `CP_UI_STYLE=auto|gum|ansi|plain`. `auto` uses
+Gum only on a terminal and selects plain output for pipes. `NO_COLOR=1` always
+selects plain output. The older `CP_NO_GUM=1` override remains supported.
 
 ## Installation
 
@@ -38,8 +49,8 @@ Before you begin, ensure you have the following installed on your system:
     # ...and move the script and templates folder there.
     ```
 
-2. **Source the Script in Your Shell Configuration:**
-    Add the following line to the end of your `~/.zshrc` (for Zsh) or `~/.bashrc` (for Bash) file to load the utilities automatically.
+2. **Source the Script in Your Zsh Configuration:**
+    Add the following block to `~/.zshrc` to load the utilities automatically.
 
     ```bash
     # Load competitive programming utilities
@@ -48,8 +59,8 @@ Before you begin, ensure you have the following installed on your system:
     fi
     ```
 
-3. **Reload Your Shell:**
-    Apply the changes by running `source ~/.zshrc` (or `source ~/.bashrc`) or by opening a new terminal window.
+3. **Reload Zsh:**
+    Run `source ~/.zshrc` or open a new terminal window.
 
 ## Workflow
 
@@ -103,20 +114,9 @@ The script will run your code against each `.in` file and `diff` the output with
 
 ## Command Reference
 
-| Command                | Description                                                                        |
-| :--------------------- | :--------------------------------------------------------------------------------- |
-| `cppcontest <dir>`     | Creates, navigates into, and initializes a new contest directory.                  |
-| `cppinit`              | Initializes or verifies a CMake project in the current directory (idempotent).     |
-| `cppnew <name> [tpl]`  | Creates a new source file from a template (`base`, `default`, `pbds`, `advanced`). |
-| `cppconf [type]`       | (Re)configures the CMake project (`Debug`, `Release`, `Sanitize`).                 |
-| `cppbuild [name]`      | Builds a specific target (defaults to the most recently modified file).            |
-| `cpprun [name]`        | Runs a target's executable.                                                        |
-| `cppgo [name] [input]` | Builds and runs. Uses `input_cases/<name>.in` by default.                          |
-| `cppjudge [name]`      | Tests the solution against all corresponding `.in`/`.exp` sample files.            |
-| `cppwatch [name]`      | Automatically rebuilds a target when its source file changes.                      |
-| `cppclean`             | Removes the `build` directory and other artifacts.                                 |
-| `cppdiag`              | Displays detailed diagnostic information about the toolchain and environment.      |
-| `cpphelp`              | Displays this help message.                                                        |
+Run `cpptools help` (or `cpphelp` in an interactive shell) for the canonical,
+responsive command reference. The help page is generated from the same command
+registry in every UI mode, so Gum and fallback output cannot drift apart.
 
 ## Project Directory Structure
 
