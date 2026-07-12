@@ -1,0 +1,61 @@
+name: Validate Zsh configuration
+
+on:
+  push:
+    paths:
+      - "zsh/**"
+      - "docs/zsh-dependencies.md"
+      - ".github/workflows/zsh-validate.yml"
+  pull_request:
+    paths:
+      - "zsh/**"
+      - "docs/zsh-dependencies.md"
+      - ".github/workflows/zsh-validate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install Linux validation dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes zsh gawk stow
+
+      - name: Install macOS validation dependencies
+        if: runner.os == 'macOS'
+        run: brew install gawk stow
+
+      - name: Install pinned shdoc
+        run: |
+          zsh zsh/.config/zsh/scripts/install-shdoc.zsh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/shdoc" --version
+
+      - name: Check dependency contract
+        run: |
+          zsh/.config/zsh/scripts/check-zsh-dependencies.zsh \
+            --required --check-manifests
+
+      - name: Run complete verification suite
+        run: zsh/.config/zsh/tests/run-all.zsh --full

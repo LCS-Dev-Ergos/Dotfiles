@@ -1,0 +1,32 @@
+#!/usr/bin/env zsh
+# shellcheck shell=zsh
+# Copy or symlink this file to ~/.zshenv when provisioning a new machine.
+
+typeset _zsh_bootstrap_config="${XDG_CONFIG_HOME:-$HOME/.config}/zsh"
+if [[ "${ZSH_STARTUP_TRACE:-0}" == "1" ]]; then
+  source "$_zsh_bootstrap_config/startup-trace.zsh"
+  _zsh_startup_trace_mark "bootstrap:entry"
+fi
+
+[[ -r "$HOME/.cargo/env" ]] && source "$HOME/.cargo/env"
+(( $+functions[_zsh_startup_trace_mark] )) &&
+  _zsh_startup_trace_mark "bootstrap:cargo"
+
+# Static equivalent of `brew shellenv`; avoids a fork in every shell, including
+# non-interactive subprocesses. The repo .zshenv adds keg-only LLVM when present.
+if [[ -d /opt/homebrew ]]; then
+  export HOMEBREW_PREFIX="/opt/homebrew"
+  export HOMEBREW_CELLAR="/opt/homebrew/Cellar"
+  export HOMEBREW_REPOSITORY="/opt/homebrew"
+  export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:${PATH:-/usr/bin:/bin:/usr/sbin:/sbin}"
+  export MANPATH="/opt/homebrew/share/man${MANPATH:+:$MANPATH}:"
+  export INFOPATH="/opt/homebrew/share/info:${INFOPATH:-}"
+fi
+(( $+functions[_zsh_startup_trace_mark] )) &&
+  _zsh_startup_trace_mark "bootstrap:homebrew"
+
+typeset _repo_zshenv="$_zsh_bootstrap_config/.zshenv"
+[[ -r "$_repo_zshenv" ]] && source "$_repo_zshenv"
+(( $+functions[_zsh_startup_trace_mark] )) &&
+  _zsh_startup_trace_mark "bootstrap:complete"
+unset _repo_zshenv _zsh_bootstrap_config

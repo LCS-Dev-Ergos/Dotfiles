@@ -1,0 +1,61 @@
+# level	feature	commands	homebrew	arch	description
+required	core	zsh	zsh	zsh	Shell runtime used by every configuration profile.
+required	core	git	git	git	Repository operations, plugins, and update workflows.
+required	core	python3	python	python	Python backends and the complete regression suite.
+required	bootstrap	stow	stow	stow	Installs the dotfiles package into the home directory.
+required	documentation	gawk	gawk	gawk	Runtime required by shdoc.
+required	documentation	shdoc	-	aur:shdoc-git	Validates metadata and generates the command catalog.
+recommended	ui	gum	gum	gum	Rich one-shot headings, cards, tables, prompts, and spinners.
+recommended	navigation	fzf	fzf	fzf	Interactive selectors and fuzzy completion workflows.
+recommended	navigation	zoxide	zoxide	zoxide	Directory ranking and fast navigation.
+recommended	history	atuin	atuin	atuin	Searchable synchronized shell history.
+recommended	files	bat	bat	bat	Syntax-highlighted previews and command help.
+recommended	files	eza	eza	eza	Modern directory listings and tree previews.
+recommended	files	yazi	yazi	yazi	Terminal file manager with cwd handoff.
+recommended	environment	direnv	direnv	direnv	Per-project environment activation.
+recommended	data	jq	jq	jq	JSON parsing for shell helpers and APIs.
+recommended	search	rg	ripgrep	ripgrep	Fast repository and text search.
+recommended	search	fd	fd	fd	Fast file discovery used by fuzzy workflows.
+recommended	files	tree	tree	tree	Portable directory tree output.
+recommended	network	wget	wget	wget	Non-interactive downloads and compatibility aliases.
+recommended	prompt	starship	starship	starship	Primary cross-platform prompt engine.
+recommended	github	gh	gh	github-cli	GitHub command-line workflows.
+recommended	documentation	tldr	tealdeer	tealdeer	Concise command examples used by hlp.
+optional	prompt	oh-my-posh	oh-my-posh	-	Secondary prompt engine before the minimal fallback.
+optional	diagnostics	fastfetch	fastfetch	fastfetch	Interactive system summary.
+optional	diagnostics	duf	duf	duf	Human-friendly disk usage display.
+optional	archive	7z|7za	sevenzip	7zip	7-Zip archive extraction.
+optional	archive	pigz	pigz	pigz	Parallel gzip decompression.
+optional	archive	pbzip2	pbzip2	pbzip2	Parallel bzip2 decompression.
+optional	archive	pixz	pixz	pixz	Parallel xz decompression.
+optional	archive	lzip	lzip	lzip	Lzip archive extraction.
+optional	archive	lz4	lz4	lz4	LZ4 archive extraction.
+optional	archive	lrzuntar|lrunzip	lrzip	lrzip	Long Range ZIP archive extraction.
+optional	archive	unar|unrar	unar	unarchiver	RAR and multi-format archive extraction.
+optional	archive	cabextract	cabextract	cabextract	Microsoft Cabinet archive extraction.
+optional	archive	rpm2cpio	rpm	rpm-tools	RPM payload extraction.
+optional	network	curl	curl	curl	HTTP clients used by network helpers.
+optional	network	nc	-	openbsd-netcat	Portable TCP port probing.
+optional	network	qrencode	qrencode	qrencode	Local QR-code generation.
+optional	clipboard	xclip	-	xclip	X11 clipboard integration.
+optional	clipboard	wl-copy	-	wl-clipboard	Wayland clipboard integration.
+optional	documents	qpdf	qpdf	qpdf	PDF structure checks, rotation, and metadata cleanup.
+optional	documents	gs	ghostscript	ghostscript	PDF recompression through Ghostscript.
+optional	documents	exiftool	exiftool	perl-image-exiftool	Document and image metadata inspection.
+optional	documents	pdftotext	poppler	poppler	PDF text extraction and validation.
+optional	documents	ddjvu	djvulibre	djvulibre	DjVu document conversion.
+optional	security	clamscan|clamdscan	clamav	clamav	Malware scanning backend.
+optional	security	yara	yara	yara	Rule-based file scanning backend.
+optional	security	nmap	nmap	nmap	Advanced network diagnostics.
+optional	blog	hugo	hugo	hugo	Static-site builds for the blog workflow.
+optional	blog	rsync	rsync	rsync	Guarded Obsidian-to-Hugo synchronization.
+optional	containers	docker	-	docker	Container shell and development workflows.
+optional	toolchain	clang	llvm	clang	LLVM compiler selection.
+optional	toolchain	gcc	gcc	gcc	GNU compiler selection.
+optional	toolchain	ccache	ccache	ccache	Compiler result caching and diagnostics.
+optional	toolchain	cmake	cmake	cmake	CMake-based project workflows.
+optional	toolchain	gtime|time	gnu-time	time	Detailed command timing where available.
+optional	languages	fnm	fnm	fnm	Lazy Node.js version management.
+optional	languages	pyenv	pyenv	pyenv	Lazy Python version management.
+optional	languages	rbenv	rbenv	rbenv	Lazy Ruby version management.
+optional	ai	fabric-ai	fabric-ai	aur:fabric-ai-bin	Fabric patterns and Obsidian note generation.
