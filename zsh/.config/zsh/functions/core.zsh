@@ -12,19 +12,47 @@
 #   - mkcd      Create directory and cd into it.
 #   - bak       Create timestamped backup of a file.
 #   - epoch     Display current Unix timestamp.
+#   - reload    Replace the current process with a clean Zsh instance.
 #
 # ============================================================================ #
 
+# Remove framework/plugin aliases before defining the canonical implementation.
+unalias reload 2>/dev/null
+
+# -----------------------------------------------------------------------------
+# reload
+# @description Replaces the current Zsh process with a clean instance,
+# preserving whether the current shell is a login shell. Unlike sourcing
+# .zshrc again, this cannot duplicate hooks, widgets, or deferred plugin jobs.
+# @noargs
+# @exitcode 1 If no executable Zsh binary can be resolved.
+# @exitcode 2 If arguments are supplied.
+# -----------------------------------------------------------------------------
+reload() {
+  (( $# == 0 )) || {
+    print -u2 "Usage: reload"
+    return 2
+  }
+
+  local zsh_bin="${commands[zsh]:-${SHELL:-}}"
+  [[ -n "$zsh_bin" && -x "$zsh_bin" ]] || {
+    print -u2 "reload: could not resolve the Zsh executable"
+    return 1
+  }
+
+  if [[ -o login ]]; then
+    exec "$zsh_bin" -l
+  else
+    exec "$zsh_bin"
+  fi
+}
+
 # -----------------------------------------------------------------------------
 # up
-# -----------------------------------------------------------------------------
-# Navigate up N directories in the filesystem hierarchy.
-#
-# Usage:
-#   up [n]
-#
-# Arguments:
-#   n - Number of directories to go up (default: 1)
+# @description Moves up parent directories; defaults to one.
+# A value of zero leaves the current directory unchanged.
+# @arg $1 integer Optional non-negative parent count; defaults to 1.
+# @exitcode 1 If the argument is invalid or changing directory fails.
 # -----------------------------------------------------------------------------
 function up() {
   local d=""
@@ -47,11 +75,9 @@ function up() {
 
 # -----------------------------------------------------------------------------
 # mkcd
-# -----------------------------------------------------------------------------
-# Create a directory (including parents) and change into it.
-#
-# Usage:
-#   mkcd <directory>
+# @description Creates a directory, including parents, and enters it.
+# @arg $1 path Directory to create and enter.
+# @exitcode 1 If the directory is missing or creation or entry fails.
 # -----------------------------------------------------------------------------
 function mkcd() {
   if [[ -z "$1" ]]; then
@@ -63,12 +89,10 @@ function mkcd() {
 
 # -----------------------------------------------------------------------------
 # bak
-# -----------------------------------------------------------------------------
-# Create a timestamped backup of a file.
-# Format: original.YYYY-MM-DD_HH-MM-SS.bak
-#
-# Usage:
-#   bak <file>
+# @description Creates a timestamped .bak copy of a regular file, preserving
+# its attributes; a same-second backup may be overwritten.
+# @arg $1 path File to back up.
+# @exitcode 1 If the source is missing, not regular, or cannot be copied.
 # -----------------------------------------------------------------------------
 function bak() {
   if [[ $# -eq 0 ]]; then
@@ -76,9 +100,7 @@ function bak() {
     return 1
   fi
 
-  # Check if file exists.
   if [[ -f "$1" ]]; then
-    # Create backup with timestamp.
     local backup_file="${1}.$(date +'%Y-%m-%d_%H-%M-%S').bak"
     if cp -p "$1" "$backup_file" 2>/dev/null; then
       echo "${C_GREEN}Backup created: ${backup_file}${C_RESET}"
@@ -94,9 +116,8 @@ function bak() {
 
 # -----------------------------------------------------------------------------
 # epoch
-# -----------------------------------------------------------------------------
-# Display current Unix timestamp and human-readable date.
-# Platform-aware (macOS uses -r, Linux uses -d).
+# @description Displays the Unix timestamp and local human-readable date.
+# @noargs
 # -----------------------------------------------------------------------------
 function epoch() {
   local ts=${EPOCHSECONDS:-$(date +%s)}

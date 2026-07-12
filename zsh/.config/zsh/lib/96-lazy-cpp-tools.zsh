@@ -35,4 +35,4 @@ typeset -f _lazy_loader_core >/dev/null 2>&1 || return 0
 unfunction _lazy_loader_core 2>/dev/null
 
 # ============================================================================ #
-# # End of 96-lazy-cpp-tools.zsh
+# # End of lib/96-lazy-cpp-tools.zsh

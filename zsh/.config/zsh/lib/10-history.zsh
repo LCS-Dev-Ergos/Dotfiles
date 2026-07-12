@@ -26,6 +26,9 @@
 # Definitions for history file and sizes.
 HISTFILE="${ZDOTDIR:-$HOME}/.zsh_history"
 [[ -f "$HISTFILE" ]] && chmod 600 "$HISTFILE" 2>/dev/null
+# Keep the in-memory working set smaller than the on-disk archive. Duplicate
+# expiry therefore prioritizes the most recent 20k commands while 50k remain
+# searchable across sessions.
 HISTSIZE=20000
 SAVEHIST=50000
 setopt BANG_HIST        # support !-style history expansion.
@@ -39,4 +42,4 @@ setopt INC_APPEND_HISTORY SHARE_HISTORY
 set -o notify
 
 # ============================================================================ #
-# End of 10-history.zsh
+# End of lib/10-history.zsh
