@@ -26,10 +26,22 @@
 # ============================================================================ #
 
 # Profiling (enable by exporting ZSH_PROFILE=1 before starting the shell).
-[[ -n "${ZSH_PROFILE:-}" ]] && zmodload zsh/zprof
+[[ "${ZSH_PROFILE:-0}" == "1" ]] && zmodload -i zsh/zprof 2>/dev/null
 
 # Load zsh/datetime for $EPOCHSECONDS (avoids forking `date +%s`).
 zmodload -F zsh/datetime b:strftime p:EPOCHSECONDS 2>/dev/null
+
+# Shared colors, platform, filesystem, and cache primitives. This explicit
+# source also makes direct sourcing of 00-initialization deterministic; the
+# runtime module stays independent from the numbered startup glob.
+typeset _zsh_runtime_helpers="${${(%):-%N}:A:h:h}/runtime-helpers.zsh"
+if [[ -r "$_zsh_runtime_helpers" ]]; then
+  source "$_zsh_runtime_helpers"
+else
+  print -u2 "Warning: runtime helpers not found: $_zsh_runtime_helpers"
+  return 1
+fi
+unset _zsh_runtime_helpers
 
 # Protect against unset variables in functions.
 setopt LOCAL_OPTIONS
@@ -85,56 +97,14 @@ fi
 # ============================================================================ #
 
 # ---- ANSI Color Definitions ---- #
-# Check if the current shell is interactive and supports colors.
-# If so, define color variables. Otherwise, they will be empty strings.
-if [[ -t 1 ]]; then
-  zmodload -i zsh/terminfo 2>/dev/null
-  if [[ -n "${terminfo[colors]-}" ]] && (( terminfo[colors] >= 8 )); then
-    C_RESET="\e[0m"
-    C_BOLD="\e[1m"
-    C_RED="\e[31m"
-    C_GREEN="\e[32m"
-    C_YELLOW="\e[33m"
-    C_BLUE="\e[34m"
-    C_CYAN="\e[36m"
-  else
-    C_RESET=""
-    C_BOLD=""
-    C_RED=""
-    C_GREEN=""
-    C_YELLOW=""
-    C_BLUE=""
-    C_CYAN=""
-  fi
-else
-  C_RESET=""
-  C_BOLD=""
-  C_RED=""
-  C_GREEN=""
-  C_YELLOW=""
-  C_BLUE=""
-  C_CYAN=""
-fi
+_zsh_init_colors
 
 # Export this variable to let .zshrc know that this file has already run.
 # This is the crucial synchronization mechanism.
 export ZPROFILE_HAS_RUN=true
 
-# Detect operating system using $OSTYPE (zsh builtin, no fork).
-case "$OSTYPE" in
-  darwin*)
-    PLATFORM="macOS"
-    ARCH_LINUX=false
-    ;;
-  linux*)
-    PLATFORM="Linux"
-    [[ -f /etc/arch-release ]] && ARCH_LINUX=true || ARCH_LINUX=false
-    ;;
-  *)
-    PLATFORM="Other"
-    ARCH_LINUX=false
-    ;;
-esac
+# Platform detection is provided by runtime-helpers.zsh.
+_zsh_detect_platform
 
 # CPU count (computed once, reused by OPAMJOBS, CARGO_BUILD_JOBS, etc.).
 typeset -gi _ZSH_NCPUS
@@ -171,20 +141,14 @@ autoload -Uz add-zsh-hook
 
 # -----------------------------------------------------------------------------
 # _zsh_defer
-# -----------------------------------------------------------------------------
-# Defer a function until ZLE is idle (after the first prompt is shown).
-# This helps shift non-critical startup work out of the hot path.
-# Usage:
-#   _zsh_defer function_name
+# @internal
+# @description Queues a named function to run once ZLE is idle, after the
+# first prompt is shown, to keep non-critical work out of the startup path.
+# @arg $1 string Name of the function to defer.
 # -----------------------------------------------------------------------------
 if [[ $- == *i* ]]; then
   typeset -ga _ZSH_DEFER_TASKS=()
   typeset -gi _ZSH_DEFER_ARMED=0
-  typeset -gi _ZSH_HAS_ZSTAT=0
-
-  if zmodload -i zsh/stat 2>/dev/null; then
-    _ZSH_HAS_ZSTAT=1
-  fi
 
   # Run deferred tasks.
   _zsh_defer_run() {
@@ -230,69 +194,21 @@ if [[ $- == *i* ]]; then
   }
 
   # ---------------------------------------------------------------------------
-  # _zsh_mtime
-  # ---------------------------------------------------------------------------
-  # Return file modification time using zstat when available.
-  _zsh_mtime() {
-    local file="$1"
-    local -a stat_info
-
-    if (( _ZSH_HAS_ZSTAT )) && zstat -L -A stat_info +mtime -- "$file" 2>/dev/null; then
-      print -r -- "$stat_info[1]"
-      return 0
-    fi
-
-    if [[ "$OSTYPE" == darwin* ]]; then
-      command stat -f %m "$file" 2>/dev/null
-    else
-      command stat -c %Y "$file" 2>/dev/null
-    fi
-  }
-
-  # ---------------------------------------------------------------------------
-  # _zsh_is_secure_file
-  # ---------------------------------------------------------------------------
-  # Ensure file is owned by the current user and not group/world-writable.
-  _zsh_is_secure_file() {
-    local file="$1"
-    [[ -f "$file" && -r "$file" ]] || return 1
-
-    local -a stat_info
-    if (( _ZSH_HAS_ZSTAT )) && zstat -L -A stat_info +mode +uid -- "$file" 2>/dev/null; then
-      local mode=$stat_info[1]
-      local uid=$stat_info[2]
-      (( uid == EUID )) || return 1
-      (( mode & 0022 )) && return 1
-      return 0
-    fi
-
-    local mode uid
-    if [[ "$OSTYPE" == darwin* ]]; then
-      uid="$(command stat -f %u "$file" 2>/dev/null)" || return 1
-      mode="$(command stat -f %Lp "$file" 2>/dev/null)" || return 1
-    else
-      uid="$(command stat -c %u "$file" 2>/dev/null)" || return 1
-      mode="$(command stat -c %a "$file" 2>/dev/null)" || return 1
-    fi
-
-    [[ "$uid" =~ ^[0-9]+$ ]] || return 1
-    [[ "$mode" =~ ^[0-9]+$ ]] || return 1
-    (( uid == EUID )) || return 1
-    (( 8#$mode & 022 )) && return 1
-    return 0
-  }
-
-  # ---------------------------------------------------------------------------
   # _zsh_cache_auto_check
+  # @internal
+  # @description Rebuilds completion/lazy-loader caches and recompiles .zwc
+  # bytecode once, deferred to after the first prompt, when any startup
+  # config file changed since the last stamp. Disable with ZSH_CACHE_AUTO=0.
+  # @noargs
   # ---------------------------------------------------------------------------
-  # One-time cache reset when config files changed since last stamp.
-  # Deferred to run after first prompt for faster startup.
-  # Disable with: ZSH_CACHE_AUTO=0
   _zsh_cache_auto_check() {
     [[ "${ZSH_CACHE_AUTO:-1}" == "1" ]] || return 0
 
     emulate -L zsh
-    setopt noxtrace noverbose nullglob
+  # The fallback removes only files rooted in the resolved Zsh cache paths.
+  # Keep that maintenance non-interactive: RM_STAR_SILENT otherwise makes Zsh
+  # ask for confirmation before expanding the cache-directory wildcard.
+  setopt noxtrace noverbose nullglob rmstarsilent
 
     local cfg_root="${ZSH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zsh}"
     [[ -d "$cfg_root" ]] || return 0
@@ -301,9 +217,10 @@ if [[ $- == *i* ]]; then
     local stamp_file="$cache_dir/config.mtime"
     local zdot="${ZDOTDIR:-$HOME}"
 
-    # Collect config files that affect startup (skip scripts/ which are lazy-loaded).
+    # Collect startup config files; scripts/ are lazy-loaded.
     local -a files
     files=(
+      "$cfg_root"/runtime-helpers.zsh(N.)
       "$cfg_root"/lib/*.zsh(N.)
       "$cfg_root"/functions/*.zsh(N.)
       "$cfg_root"/conf.d/**/*.zsh(N.)
@@ -335,6 +252,21 @@ if [[ $- == *i* ]]; then
         autoload -Uz compinit
         compinit -C
       fi
+
+      # Keep bytecode synchronized automatically instead of silently falling
+      # back to stale source files until a manual `zshcache --compile` run.
+      local -a compile_files
+      compile_files=(
+        "$cfg_root"/runtime-helpers.zsh(N.)
+        "$cfg_root"/lib/*.zsh(N.)
+        "$cfg_root"/functions/*.zsh(N.)
+        "$cfg_root"/conf.d/**/*.zsh(N.)
+      )
+      local compile_file
+      for compile_file in "${compile_files[@]}"; do
+        zcompile -U "$compile_file" 2>/dev/null ||
+          print -u2 "Warning: zcompile failed for $compile_file"
+      done
       command mkdir -p "$cache_dir" 2>/dev/null
       : >| "$stamp_file"
     fi
@@ -348,4 +280,4 @@ fi
 unsetopt xtrace verbose
 
 # ============================================================================ #
-# End of 00-init.zsh
+# End of lib/00-initialization.zsh

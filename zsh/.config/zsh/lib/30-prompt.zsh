@@ -29,7 +29,10 @@
 #
 # ============================================================================ #
 
-# On HyDE: this file is loaded only when "HYDE_ZSH_PROMPT!=1" (user wants lib/ prompt)
+typeset -f _zsh_cache_is_fresh >/dev/null 2>&1 ||
+  source "${${(%):-%N}:A:h:h}/runtime-helpers.zsh"
+
+# On HyDE, load this file only when HYDE_ZSH_PROMPT is not 1.
 # The guard below is a safety net for direct sourcing.
 if [[ "$HYDE_ENABLED" == "1" ]] && [[ "${HYDE_ZSH_PROMPT}" == "1" ]]; then
     # HyDE's shell.zsh handles prompt instead
@@ -42,23 +45,52 @@ setopt PROMPT_SUBST
 # ++++++++++++++++++++++++++++++++ STARSHIP +++++++++++++++++++++++++++++++++ #
 
 # -----------------------------------------------------------------------------
-# _init_starship_prompt
+# _zsh_load_starship_init
+# @internal
+# @description Loads cached Starship init code when it belongs to the selected
+# executable, otherwise regenerates and atomically replaces the cache.
+# @arg $1 path Absolute path to the selected Starship executable.
+# @exitcode 1 If Starship initialization or cache evaluation fails.
 # -----------------------------------------------------------------------------
-# Initialize Starship prompt with transient prompt feature.
-#
-# The transient prompt technique uses zle -F with a file descriptor to schedule
-# prompt restoration. This is the same approach used by Powerlevel10k.
-#
-# Flow:
-#   1. User presses Enter -> zle-line-finish fires.
-#   2. Apply transient prompt, open fd to /dev/null, register zle -F callback.
-#   3. Command executes.
-#   4. zle -F callback fires (fd is readable), restores full prompt.
-#   5. precmd runs, prompt is already correct.
-#
-# Returns:
-#   0 - Success.
-#   1 - Starship not available or initialization failed.
+_zsh_load_starship_init() {
+  local starship_bin="$1"
+  [[ -n "$starship_bin" && -x "$starship_bin" ]] || return 1
+
+  local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
+  local cache_file="$cache_dir/starship-init.zsh"
+  local cache_header="# starship-bin: $starship_bin"
+  local cached_header=""
+  if _zsh_cache_is_fresh "$cache_file"; then
+    IFS= read -r cached_header < "$cache_file"
+  fi
+
+  if [[ "$cached_header" == "$cache_header" &&
+        "$cache_file" -nt "$starship_bin" ]]; then
+    source "$cache_file"
+    return $?
+  fi
+
+  local init_code
+  init_code="$("$starship_bin" init zsh)" || {
+    print "Warning: Starship init failed" >&2
+    return 1
+  }
+  eval "$init_code" || return 1
+  {
+    print -r -- "$cache_header"
+    print -r -- "$init_code"
+  } | _zsh_cache_put "$cache_file" 2>/dev/null
+}
+
+# -----------------------------------------------------------------------------
+# _init_starship_prompt
+# @internal
+# @description Initializes Starship with the transient-prompt technique (same
+# as Powerlevel10k): on Enter, apply the transient prompt and open a zle -F
+# callback on /dev/null; once the fd is readable after the command runs, the
+# callback restores the full prompt before precmd fires.
+# @noargs
+# @exitcode 1 If Starship is unavailable or initialization fails.
 # -----------------------------------------------------------------------------
 _init_starship_prompt() {
   # Require /dev/null and zsh/system module.
@@ -67,24 +99,8 @@ _init_starship_prompt() {
 
   setopt PROMPT_SUBST
 
-  # Cache starship init output to avoid forking on subsequent starts.
-  # Invalidated automatically when the starship binary is updated.
-  local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
-  local cache_file="$cache_dir/starship-init.zsh"
-  local starship_bin="${commands[starship]}"
-
-  if [[ -r "$cache_file" && "$cache_file" -nt "$starship_bin" ]]; then
-    source "$cache_file"
-  else
-    local init_code
-    init_code="$(starship init zsh)" || {
-      print "Warning: Starship init failed" >&2
-      return 1
-    }
-    eval "$init_code"
-    command mkdir -p "$cache_dir" 2>/dev/null
-    print -r -- "$init_code" >| "$cache_file" 2>/dev/null
-  fi
+  local starship_bin="${commands[starship]-}"
+  _zsh_load_starship_init "$starship_bin" || return 1
 
   if [[ -z "$PROMPT" ]]; then
     print "Warning: Starship failed to initialize" >&2
@@ -327,10 +343,15 @@ _init_minimal_prompt() {
 # ++++++++++++++++++++++++++ PROMPT INITIALIZATION +++++++++++++++++++++++++++ #
 # ============================================================================ #
 
-# Initialize prompt system in priority order.
-() {
+# -----------------------------------------------------------------------------
+# _zsh_init_prompt_system
+# @internal
+# @description Activates the first available prompt after PATH normalization.
+# @noargs
+# -----------------------------------------------------------------------------
+_zsh_init_prompt_system() {
   # Priority 1: Starship.
-  if command -v starship >/dev/null 2>&1; then
+  if (( $+commands[starship] )); then
     _init_starship_prompt && return 0
     print "Starship init failed, trying fallback..." >&2
   fi
@@ -354,4 +375,4 @@ _init_minimal_prompt() {
 }
 
 # ============================================================================ #
-# End of 30-prompt.zsh
+# End of lib/30-prompt.zsh

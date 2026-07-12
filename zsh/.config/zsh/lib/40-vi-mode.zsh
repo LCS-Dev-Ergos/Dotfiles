@@ -43,15 +43,11 @@ export KEYTIMEOUT=1
 # +++++++++++++++++++++++++++++++ Cursor Shape +++++++++++++++++++++++++++++++ #
 
 # -----------------------------------------------------------------------------
-# _vi_set_cursor <shape>
-# -----------------------------------------------------------------------------
-# Set terminal cursor shape using DECSCUSR escape sequence.
-#
-# Arguments:
-#   $1 - Cursor shape number (1-6, see table above)
-#
-# Note: VSCode's integrated terminal has limited cursor control support.
-# We skip cursor changes in VSCode to avoid rendering issues.
+# _vi_set_cursor
+# @internal
+# @description Sets the terminal cursor shape via a DECSCUSR escape sequence;
+# skipped in VS Code's integrated terminal, which has limited cursor support.
+# @arg $1 integer Cursor shape number (1-6; see the table above).
 # -----------------------------------------------------------------------------
 if [[ -n "$VSCODE_INJECTION" ]]; then
   _vi_set_cursor() { :; }
@@ -103,7 +99,7 @@ _vi_line_init() {
 # Chains to previous widget (e.g., Starship's) to preserve functionality.
 # -----------------------------------------------------------------------------
 
-# Capture existing widget before overwriting on every load, so reloads stay in sync.
+# Capture the existing widget before overwriting it on reload.
 typeset -g _VI_PREV_KEYMAP_SELECT=
 typeset -gi _VI_IN_KEYMAP=0
 
@@ -207,4 +203,4 @@ zle -N edit-command-line
 bindkey -M vicmd 'v' edit-command-line
 
 # ============================================================================ #
-# End of 40-vi-mode.zsh
+# End of lib/40-vi-mode.zsh

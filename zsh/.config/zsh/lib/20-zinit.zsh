@@ -16,6 +16,9 @@
 #
 # ============================================================================ #
 
+typeset -f _zsh_mtime >/dev/null 2>&1 ||
+  source "${${(%):-%N}:A:h:h}/runtime-helpers.zsh"
+
 # On HyDE: this file is loaded only when "HYDE_ZSH_NO_PLUGINS=1".
 # The guard below is a safety net for direct sourcing.
 if [[ "$HYDE_ENABLED" == "1" ]] && [[ "${HYDE_ZSH_NO_PLUGINS}" != "1" ]]; then
@@ -30,6 +33,7 @@ fi
 : "${ZSH_COMPINIT_CHECK_HOURS:=24}"
 : "${ZSH_ENABLE_ZSH_COMPLETIONS:=1}"
 : "${ZSH_ENABLE_FZF_TAB:=1}"
+: "${ZSH_ENABLE_BREW_COMMAND_NOT_FOUND:=0}"
 
 # Install and source Zinit from XDG data directory.
 typeset -g ZINIT_HOME="${XDG_DATA_HOME:-$HOME/.local/share}/zinit/zinit.git"
@@ -45,9 +49,10 @@ fi
 if [[ ! -f "$ZINIT_HOME/zinit.zsh" ]]; then
   # Fallback to OMZ backup when Zinit isn't available (offline/first boot).
   typeset _zinit_module_dir="${${(%):-%x}:A:h}"
-  typeset _zinit_omz_backup="${_zinit_module_dir}/20-omz.zsh.bak"
+  typeset _zinit_omz_backup="${_zinit_module_dir}/20-omz-fallback.zsh"
   if [[ "${ZSH_ZINIT_FALLBACK_OMZ:-1}" == "1" ]] && [[ -r "$_zinit_omz_backup" ]]; then
-    print -u2 "Warning: zinit not available at $ZINIT_HOME (fallback: 20-omz.zsh.bak)"
+    print -u2 \
+      "Warning: zinit unavailable (fallback: 20-omz-fallback.zsh)"
     source "$_zinit_omz_backup"
     unset _zinit_module_dir _zinit_omz_backup
     return 0
@@ -60,7 +65,8 @@ fi
 source "$ZINIT_HOME/zinit.zsh"
 
 # Optional optimization from Zinit docs: skip some disk checks on startup.
-# Safe after first plugin install/update; disable with ZSH_ZINIT_OPTIMIZE_DISK_ACCESSES=0.
+# Safe after the first plugin install; disable with
+# ZSH_ZINIT_OPTIMIZE_DISK_ACCESSES=0.
 : "${ZSH_ZINIT_OPTIMIZE_DISK_ACCESSES:=1}"
 if [[ "${ZSH_ZINIT_OPTIMIZE_DISK_ACCESSES}" == "1" ]]; then
   ZINIT[OPTIMIZE_OUT_DISK_ACCESSES]=1
@@ -88,13 +94,7 @@ _zinit_compinit_periodic() {
   current_sig="${ZSH_COMPDUMP}|${(j.:.)fpath}"
 
   if [[ -f "$stamp_file" ]]; then
-    if typeset -f _zsh_mtime >/dev/null 2>&1; then
-      epoch_last="$(_zsh_mtime "$stamp_file")"
-    elif [[ "${PLATFORM:-}" == "macOS" ]]; then
-      epoch_last="$(stat -f %m "$stamp_file" 2>/dev/null || echo 0)"
-    else
-      epoch_last="$(stat -c %Y "$stamp_file" 2>/dev/null || echo 0)"
-    fi
+    epoch_last="$(_zsh_mtime "$stamp_file")"
   fi
 
   [[ "$epoch_last" =~ ^[0-9]+$ ]] || epoch_last=0
@@ -185,7 +185,7 @@ zinit snippet OMZL::theme-and-appearance.zsh
 setopt auto_cd auto_pushd pushd_ignore_dups pushdminus
 alias d='dirs -v | head -10'
 
-# OMZ-compat function replacements are loaded from functions/omz-compat.zsh.
+# OMZ-compat function replacements are loaded from functions/omz-compatibility.zsh.
 
 # Core OMZ plugin snippets loaded synchronously.
 typeset -a _zinit_omz_plugins_sync=(
@@ -194,8 +194,23 @@ typeset -a _zinit_omz_plugins_sync=(
 )
 typeset -a _zinit_omz_plugins_deferred=(
   jsontools
-  command-not-found
 )
+
+# Homebrew's command-not-found handler performs a synchronous formula lookup
+# for every typo and can block the prompt for several seconds. Keep native
+# Zsh failure behavior on macOS unless suggestions were explicitly requested.
+if [[ "$PLATFORM" != macOS ||
+      "${ZSH_ENABLE_BREW_COMMAND_NOT_FOUND:-0}" == 1 ]]; then
+  _zinit_omz_plugins_deferred+=(command-not-found)
+elif [[ "${functions[command_not_found_handler]-}" ==
+    *homebrew_command_not_found_handle* ]]; then
+  # A reload must also remove a handler installed earlier in this shell.
+  unfunction command_not_found_handler 2>/dev/null
+  if [[ "${functions[homebrew_command_not_found_handle]-}" ==
+      *'brew which-formula'* ]]; then
+    unfunction homebrew_command_not_found_handle 2>/dev/null
+  fi
+fi
 typeset _zinit_omz_plugin
 for _zinit_omz_plugin in "${_zinit_omz_plugins_sync[@]}"; do
   zinit snippet "OMZP::${_zinit_omz_plugin}/${_zinit_omz_plugin}.plugin.zsh"
@@ -218,7 +233,7 @@ _zinit_add_completion_paths
 _zinit_compinit_periodic
 _zinit_replay_compdefs
 
-# fzf-tab should be loaded after compinit and before autosuggestions/highlighting.
+# Load fzf-tab after compinit and before autosuggestions/highlighting.
 if [[ "${ZSH_ENABLE_FZF_TAB}" == "1" ]]; then
   zinit ice lucid
   zinit light Aloxaf/fzf-tab
@@ -259,4 +274,4 @@ if [[ "$PLATFORM" == "macOS" ]] || [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" ==
 fi
 
 # ============================================================================ #
-# End of 20-zinit.zsh
+# End of lib/20-zinit.zsh

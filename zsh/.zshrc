@@ -47,6 +47,13 @@ else
     fi
 fi
 
+if [[ "${ZSH_STARTUP_TRACE:-0}" == "1" ]] &&
+  (( ! $+functions[_zsh_startup_trace_mark] )); then
+    source "$ZSH_CONFIG_DIR/startup-trace.zsh"
+fi
+(( $+functions[_zsh_startup_trace_mark] )) &&
+    _zsh_startup_trace_mark ".zshrc:entry"
+
 # Debug: Uncomment to troubleshoot configuration directory detection.
 # echo "ZSH_CONFIG_DIR=$ZSH_CONFIG_DIR"
 # echo "HYDE_ENABLED=${HYDE_ENABLED:-not set}"
@@ -56,15 +63,28 @@ fi
 # Enable with: ZSH_FAST_START=1
 # -----------------------------------------------------------------------------
 if [[ "${ZSH_FAST_START:-}" == "1" ]]; then
-    source "$ZSH_CONFIG_DIR/lib/00-init.zsh"
+    source "$ZSH_CONFIG_DIR/lib/00-initialization.zsh"
+    (( $+functions[_zsh_startup_trace_mark] )) &&
+        _zsh_startup_trace_mark "module:00-initialization.zsh"
     source "$ZSH_CONFIG_DIR/lib/10-history.zsh"
+    (( $+functions[_zsh_startup_trace_mark] )) &&
+        _zsh_startup_trace_mark "module:10-history.zsh"
     source "$ZSH_CONFIG_DIR/lib/40-vi-mode.zsh"
+    (( $+functions[_zsh_startup_trace_mark] )) &&
+        _zsh_startup_trace_mark "module:40-vi-mode.zsh"
     source "$ZSH_CONFIG_DIR/lib/60-aliases.zsh"
+    (( $+functions[_zsh_startup_trace_mark] )) &&
+        _zsh_startup_trace_mark "module:60-aliases.zsh"
     source "$ZSH_CONFIG_DIR/lib/75-variables.zsh"
+    (( $+functions[_zsh_startup_trace_mark] )) &&
+        _zsh_startup_trace_mark "module:75-variables.zsh"
     source "$ZSH_CONFIG_DIR/lib/90-path.zsh"
+    (( $+functions[_zsh_startup_trace_mark] )) &&
+        _zsh_startup_trace_mark "module:90-path.zsh"
     PROMPT='%F{cyan}%n@%m%f:%F{yellow}%~%f %(?.%F{green}.%F{red})%#%f '
     RPROMPT='%F{240}%D{%H:%M:%S}%f'
-    return
+    (( $+functions[_zsh_startup_trace_arm] )) && _zsh_startup_trace_arm
+    return 0
 fi
 
 # ++++++++++++++++++++++++++++ LOAD CORE MODULES +++++++++++++++++++++++++++++ #
@@ -88,6 +108,7 @@ fi
 # Determine which modules to load based on platform/environment and user prefs.
 typeset -a config_modules
 typeset -ga _ZSH_HEAVY_FUNCTION_FILES=()
+: "${ZSH_FUNCTION_MARKER_SCAN_LINES:=12}"
 
 # -----------------------------------------------------------------------------
 # Function file loader helpers
@@ -103,22 +124,26 @@ _zsh_source_function_file() {
             setopt localoptions no_aliases
             source "$file"
         }
-        return $?
+        local -i source_status=$?
+        (( $+functions[_zsh_startup_trace_mark] )) &&
+            _zsh_startup_trace_mark "function:${file:t}"
+        return $source_status
     fi
-    echo "Warning: Cannot read function file: $file"
+    print -u2 "Warning: Cannot read function file: $file"
     return 1
 }
 
 _zsh_queue_function_file() {
     local file="$1"
-    case "${file:t}" in
-        network.zsh | pdf.zsh | productivity.zsh)
+    local line
+    local -i lines_seen=0
+    while IFS= read -r line && (( lines_seen++ < ZSH_FUNCTION_MARKER_SCAN_LINES )); do
+        if [[ "$line" == "# zsh-load: deferred" ]]; then
             _ZSH_HEAVY_FUNCTION_FILES+=("$file")
-            ;;
-        *)
-            _zsh_source_function_file "$file"
-            ;;
-    esac
+            return 0
+        fi
+    done < "$file"
+    _zsh_source_function_file "$file"
 }
 
 _zsh_load_heavy_functions() {
@@ -148,8 +173,10 @@ if [[ "$HYDE_ENABLED" == "1" ]]; then
     #   - HYDE_ZSH_PROMPT=0     → use lib/30-prompt.zsh (user's config)
 
     # Load base modules first.
-    source "$ZSH_CONFIG_DIR/lib/00-init.zsh"
+    source "$ZSH_CONFIG_DIR/lib/00-initialization.zsh"
     source "$ZSH_CONFIG_DIR/lib/10-history.zsh"
+    (( $+functions[_zsh_startup_trace_mark] )) &&
+        _zsh_startup_trace_mark "modules:base"
 
     # OMZ: user's lib/ or HyDE's shell.zsh?
     if [[ "${HYDE_ZSH_NO_PLUGINS}" == "1" ]]; then
@@ -180,6 +207,8 @@ if [[ "$HYDE_ENABLED" == "1" ]]; then
     [[ -f "$ZSH_CONFIG_DIR/lib/94-lazy-loader-core.zsh" ]] && source "$ZSH_CONFIG_DIR/lib/94-lazy-loader-core.zsh"
     [[ -f "$ZSH_CONFIG_DIR/lib/95-lazy-scripts.zsh" ]] && source "$ZSH_CONFIG_DIR/lib/95-lazy-scripts.zsh"
     [[ -f "$ZSH_CONFIG_DIR/lib/96-lazy-cpp-tools.zsh" ]] && source "$ZSH_CONFIG_DIR/lib/96-lazy-cpp-tools.zsh"
+    (( $+functions[_zsh_startup_trace_mark] )) &&
+        _zsh_startup_trace_mark "modules:ready"
 
     # Load custom functions (shell.zsh only loads them when HYDE_ZSH_NO_PLUGINS!=1).
     if [[ "${HYDE_ZSH_NO_PLUGINS}" == "1" ]]; then
@@ -188,6 +217,8 @@ if [[ "$HYDE_ENABLED" == "1" ]]; then
         done
         _zsh_schedule_heavy_functions
     fi
+    (( $+functions[_zsh_startup_trace_mark] )) &&
+        _zsh_startup_trace_mark "functions:ready"
 else
     # -------------------------------------------------------------------------
     # ++++++++++++++++++++++++ macOS or non-HyDE Linux ++++++++++++++++++++++++
@@ -196,11 +227,13 @@ else
     config_modules=("$ZSH_CONFIG_DIR/lib/"*.zsh(N))
 
     if (( ${#config_modules} == 0 )); then
-        echo "Warning: No Zsh configuration modules found in $ZSH_CONFIG_DIR/lib/"
-        echo "    Please check your ZSH_CONFIG_DIR setting."
+        print -u2 "Warning: No Zsh configuration modules found in $ZSH_CONFIG_DIR/lib/"
+        print -u2 "    Please check your ZSH_CONFIG_DIR setting."
     else
         for config_module in "${config_modules[@]}"; do
             source "$config_module"
+            (( $+functions[_zsh_startup_trace_mark] )) &&
+                _zsh_startup_trace_mark "module:${config_module:t}"
         done
     fi
 
@@ -209,15 +242,25 @@ else
     function_files=("$ZSH_CONFIG_DIR"/functions/*.zsh(N))
 
     if (( ${#function_files} == 0 )); then
-        echo "Warning: No function files found in $ZSH_CONFIG_DIR/functions/"
-        echo "    ZSH_CONFIG_DIR=$ZSH_CONFIG_DIR"
-        echo "    Please check if the functions directory exists and contains .zsh files."
+        print -u2 "Warning: No function files found in $ZSH_CONFIG_DIR/functions/"
+        print -u2 "    ZSH_CONFIG_DIR=$ZSH_CONFIG_DIR"
+        print -u2 "    Please check if the functions directory exists and contains .zsh files."
     else
         for file in "${function_files[@]}"; do
             _zsh_queue_function_file "$file"
         done
         _zsh_schedule_heavy_functions
     fi
+    (( $+functions[_zsh_startup_trace_mark] )) &&
+        _zsh_startup_trace_mark "functions:ready"
+fi
+
+# Activate the prompt only after 90-path.zsh has selected the definitive tool
+# locations. This prevents cached init code from pinning a shadowed executable.
+if (( $+functions[_zsh_init_prompt_system] )); then
+    _zsh_init_prompt_system
+    (( $+functions[_zsh_startup_trace_mark] )) &&
+        _zsh_startup_trace_mark "prompt:ready"
 fi
 
 # +++++++++++++++++++++++++++++ EXTERNAL SCRIPTS +++++++++++++++++++++++++++++ #
@@ -235,77 +278,26 @@ if [[ "${ZSH_LAZY_SCRIPTS:-1}" != "1" ]]; then
         () {
             setopt localoptions noxtrace noverbose
             local script
-            for script in "$ZSH_CONFIG_DIR/scripts"/*.sh(N); do
+            for script in "$ZSH_CONFIG_DIR/scripts"/*.zsh(N); do
+                case "${script:t}" in
+                    check-zsh-dependencies.zsh|\
+                    generate-zsh-completions.zsh|\
+                    install-shdoc.zsh)
+                        continue
+                        ;;
+                esac
                 [[ -r "$script" ]] && source "$script"
             done
         }
     fi
 fi
 
-# ============================================================================ #
-# +++++++++++++++++++++++++++ MODULE DOCUMENTATION +++++++++++++++++++++++++++ #
-# ============================================================================ #
-#
-# 00-init.zsh:
-#   Base shell configuration, safety settings, color definitions, and platform
-#   detection. Provides foundational variables used by other modules.
-#
-# 10-history.zsh:
-#   Shell history configuration with advanced features for command recall,
-#   deduplication, and history sharing across sessions.
-#
-# 20-zinit.zsh:
-#   Zinit plugin initialization with platform-aware plugin management.
-#   Provides syntax highlighting, autosuggestions, and utility plugins.
-#
-# 30-prompt.zsh:
-#   Multi-tier prompt system with automatic fallback cascade. Supports
-#   Starship (preferred), Oh-My-Posh, PowerLevel10k, and minimal fallback.
-#
-# 40-vi-mode.zsh:
-#   Vi mode configuration with cursor shape changes and custom keybindings.
-#   Provides vim-like editing experience in the command line.
-#
-# 50-tools.zsh:
-#   Integration of modern command-line tools with lazy-loading for performance.
-#   Includes Atuin, Yazi, Ghostty, fzf (with Tokyo Night theme), zoxide, direnv.
-#
-# 60-aliases.zsh:
-#   Cross-platform aliases and utility functions organized by category:
-#   navigation, development tools, compilation shortcuts, git, productivity,
-#   and platform-specific utilities.
-#
-# 70-ai-tools.zsh:
-#   Configuration for AI-powered tools and coding agents. Includes Fabric
-#   (LLM patterns with Obsidian integration) and OpenCode (MCP-based assistant).
-#
-# 75-variables.zsh:
-#   Environment variables and configuration for development tools, build systems,
-#   and project-specific paths. Platform-aware exports for macOS and Linux.
-#
-# 80-languages.zsh:
-#   Initialization of programming language version managers and runtime
-#   environments. Includes static managers (Nix, Homebrew, Haskell, OCaml) and
-#   dynamic managers (SDKMAN, pyenv, conda, rbenv, fnm).
-#
-# 85-completions.zsh:
-#   Shell completion initialization for various tools (Docker, ngrok, Angular).
-#   Loads late to ensure all PATH modifications are complete.
-#
-# 90-path.zsh:
-#   Final PATH assembly and cleanup. Rebuilds PATH in deterministic order with
-#   version manager shims at top priority. Removes duplicates and orphaned paths.
-#
-# 94-lazy-loader-core.zsh
-#   Core logic for lazy-loading scripts and functions on demand. Provides helper
-#   functions to queue and load heavy function files after startup, and to source
-#   scripts from ~/.config/zsh/scripts/ on demand.
-#
-# 95-lazy-scripts.zsh:
-#   Lazy loader for ~/.config/zsh/scripts (on-demand sourcing).
-#
-# 96-lazy-cpp-tools.zsh:
-#   Lazy loader for ~/.config/cpp-tools/competitive.sh (on-demand sourcing).
-#
+(( $+functions[_zsh_startup_trace_mark] )) &&
+    _zsh_startup_trace_mark "startup:configured"
+(( $+functions[_zsh_startup_trace_arm] )) && _zsh_startup_trace_arm
+
+return 0
+
+# Module inventory and architecture live in README.md to avoid duplicated docs.
 # ============================================================================ #
 # End of ~/.zshrc

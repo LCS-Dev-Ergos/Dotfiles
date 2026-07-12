@@ -23,6 +23,10 @@
 #   scan_files    One or more files to parse for function/alias definitions.
 #
 # ============================================================================ #
+
+typeset -f _zsh_is_secure_file >/dev/null 2>&1 ||
+  source "${${(%):-%N}:A:h:h}/runtime-helpers.zsh"
+
 [[ $- == *i* ]] || return 0
 
 _lazy_loader_core() {
@@ -151,11 +155,7 @@ _lazy_loader_core() {
   if [[ ! -f "$cache_file" ]]; then
     regen=1
   else
-    if typeset -f _zsh_is_secure_file >/dev/null 2>&1; then
-      _zsh_is_secure_file "$cache_file" || regen=1
-    elif [[ ! -O "$cache_file" || -L "$cache_file" ]]; then
-      regen=1
-    fi
+    _zsh_is_secure_file "$cache_file" || regen=1
 
     local first_line
     read -r first_line < "$cache_file" 2>/dev/null
@@ -191,14 +191,7 @@ _lazy_loader_core() {
 
   # ----- Source cache with security check ----------------------------------- #
   if [[ -r "$cache_file" ]]; then
-    local cache_safe=false
-    if typeset -f _zsh_is_secure_file >/dev/null 2>&1; then
-      _zsh_is_secure_file "$cache_file" && cache_safe=true
-    elif [[ -O "$cache_file" && ! -L "$cache_file" ]]; then
-      cache_safe=true
-    fi
-
-    if $cache_safe; then
+    if _zsh_is_secure_file "$cache_file"; then
       source "$cache_file"
     else
       print -u2 "${msg_prefix}: warning: skipping insecure cache file: $cache_file"
@@ -209,4 +202,4 @@ _lazy_loader_core() {
 }
 
 # ============================================================================ #
-# # End of 94-lazy-loader-core.zsh
+# # End of lib/94-lazy-loader-core.zsh

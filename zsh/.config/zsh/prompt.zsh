@@ -1,3 +1,5 @@
+#!/usr/bin/env zsh
+# shellcheck shell=zsh
 # ============================================================================ #
 #            ██████╗ ██████╗  ██████╗ ███╗   ███╗██████╗ ████████╗
 #            ██╔══██╗██╔══██╗██╔═══██╗████╗ ████║██╔══██╗╚══██╔══╝
@@ -7,7 +9,7 @@
 #            ╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚═╝     ╚═╝╚═╝        ╚═╝
 # ============================================================================ #
 
-return 1 # TODO <--- Comment out or REMOVE this line to disable HyDE's prompt
+return 1 # Intentional: tells HyDE to defer prompt ownership to lib/30-prompt.zsh.
 #! As long as this file returns non-zero, HyDE will ignore this file!
 #! return 0 will lead to no prompt being loaded.
 
