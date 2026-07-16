@@ -30,6 +30,7 @@ in
     pkgs.nerd-fonts.jetbrains-mono
     pkgs.nerd-fonts.monaspace
     pkgs.nerd-fonts.symbols-only
+    pkgs.julia-mono
     notoSansSymbols2
     pkgs.symbola
   ];
