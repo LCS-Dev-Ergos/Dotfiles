@@ -15,12 +15,10 @@
 
 # -----------------------------------------------------------------------------
 # gbr
-# -----------------------------------------------------------------------------
-# Show local git branches sorted by most recent commit date.
-# Displays branch name, commit hash, subject, author, and relative date.
-#
-# Usage:
-#   gbr
+# @description Lists local branches by most recent commit, including each
+# branch's latest commit summary and relative commit date.
+# @noargs
+# @exitcode 1 If the current directory is not inside a Git repository.
 # -----------------------------------------------------------------------------
 function gbr() {
   if ! git rev-parse --git-dir >/dev/null 2>&1; then
@@ -28,7 +26,6 @@ function gbr() {
     return 1
   fi
 
-  # Display branches sorted by most recent commit date.
   git for-each-ref \
     --sort=-committerdate refs/heads/ \
     --format='%(HEAD) %(color:yellow)%(refname:short)%(color:reset) - \
@@ -38,12 +35,10 @@ function gbr() {
 
 # -----------------------------------------------------------------------------
 # gstash
-# -----------------------------------------------------------------------------
-# Interactive git stash management using fzf for selection.
-# Preview shows the diff for each stash entry before applying.
-#
-# Usage:
-#   gstash
+# @description Interactively selects a stash with fzf, previews its diff, and
+# applies the selected stash without removing it.
+# @noargs
+# @exitcode 1 If Git validation, fzf detection, or stash application fails.
 # -----------------------------------------------------------------------------
 function gstash() {
   if ! git rev-parse --git-dir >/dev/null 2>&1; then
@@ -56,7 +51,6 @@ function gstash() {
     return 1
   fi
 
-  # Interactive stash selection with preview.
   local stash
   stash=$(git stash list | fzf --preview 'git stash show -p $(echo {} | cut -d: -f1)' \
     --header='Select stash to apply. Press CTRL-C to cancel')

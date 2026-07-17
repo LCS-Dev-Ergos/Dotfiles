@@ -1,5 +1,6 @@
 #!/usr/bin/env zsh
 # shellcheck shell=zsh
+# zsh-load: deferred
 # ============================================================================ #
 # ++++++++++++++++++++++++++++++ PDF UTILITIES +++++++++++++++++++++++++++++++ #
 # ============================================================================ #
@@ -26,19 +27,40 @@
 # ============================================================================ #
 
 # -----------------------------------------------------------------------------
-# pdfextract
+# _pdf_install_hint
+# @internal
+# @description Prints platform-specific install commands for a required tool.
+# @arg $1 string Tool name.
+# @arg $2 path Homebrew package name.
+# @arg $3 path Arch package name.
+# @arg $4 path Debian package name.
+# @arg $5 path Optional Fedora package name.
 # -----------------------------------------------------------------------------
-# Extract specific page range from a PDF document using qpdf.
-# Validates page numbers against document length and handles edge cases.
-#
-# Usage:
-#   pdfextract <input.pdf> <start_page> <end_page> [output.pdf]
-#
-# Arguments:
-#   input.pdf  - Source PDF file (required).
-#   start_page - First page to extract (required, 1-indexed).
-#   end_page   - Last page to extract (required, 1-indexed).
-#   output.pdf - Output filename (optional, auto-generated if not provided).
+_pdf_install_hint() {
+    local tool="$1" brew_pkg="$2" arch_pkg="$3" apt_pkg="$4" dnf_pkg="${5:-$4}"
+    print -u2 "Install $tool with:"
+    case "$PLATFORM" in
+        macOS) print -u2 "  brew install $brew_pkg" ;;
+        Linux)
+            if [[ "$ARCH_LINUX" == true ]]; then
+                print -u2 "  sudo pacman -S $arch_pkg"
+            else
+                print -u2 "  sudo apt install $apt_pkg (Debian/Ubuntu)"
+                print -u2 "  sudo dnf install $dnf_pkg (Fedora)"
+            fi
+            ;;
+    esac
+}
+
+# -----------------------------------------------------------------------------
+# pdfextract
+# @description Extracts an inclusive page range from a PDF with qpdf.
+# The end page is clamped to the document length when necessary.
+# @arg $1 path Input PDF.
+# @arg $2 integer First page, starting at 1.
+# @arg $3 integer Last page, starting at 1.
+# @arg $4 path Optional output PDF; generated when omitted.
+# @exitcode 1 If dependencies, arguments, input, or extraction are invalid.
 # -----------------------------------------------------------------------------
 function pdfextract() {
     setopt localoptions pipefail no_aliases
@@ -46,15 +68,7 @@ function pdfextract() {
     # Check if qpdf is installed.
     if ! command -v qpdf >/dev/null 2>&1; then
         echo "${C_RED}Error: qpdf is not installed.${C_RESET}" >&2
-        echo "Please install qpdf first:" >&2
-        if [[ "$PLATFORM" == "macOS" ]]; then
-            echo "  brew install qpdf" >&2
-        elif [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" == true ]]; then
-            echo "  sudo pacman -S qpdf" >&2
-        elif [[ "$PLATFORM" == "Linux" ]]; then
-            echo "  sudo apt install qpdf (Debian/Ubuntu)" >&2
-            echo "  sudo dnf install qpdf (Fedora)" >&2
-        fi
+        _pdf_install_hint qpdf qpdf qpdf qpdf qpdf
         return 1
     fi
 
@@ -149,28 +163,19 @@ function pdfextract() {
 # -----------------------------------------------------------------------------
 # pdfrotate
 # -----------------------------------------------------------------------------
-# Rotate specific pages of a PDF file in-place.
-# Uses qpdf for safe, lossless rotation that preserves PDF structure.
-#
-# Usage:
-#   pdfrotate <file.pdf> <rotation> [pages]
-#
-# Arguments:
-#   file.pdf  - PDF file to rotate (required)
-#   rotation  - Rotation angle: left (-90°), right (+90°), or 180 (required)
-#   pages     - Page spec: single (5), range (1-10), list (1,3,5), or all
-#
-# Examples:
-#   pdfrotate doc.pdf right        Rotate all pages clockwise 90°
-#   pdfrotate doc.pdf left 1-5     Rotate pages 1-5 counter-clockwise 90°
-#   pdfrotate doc.pdf 180 3        Rotate page 3 by 180°
-#   pdfrotate doc.pdf right 1,3,5  Rotate pages 1, 3, and 5 clockwise
+# pdfrotate
+# @description Rotates selected PDF pages in place with qpdf.
+# Accepts left/l, right/r, or 180; pages default to all.
+# @arg $1 path PDF to modify.
+# @arg $2 string Rotation: left, right, or 180.
+# @arg $3 string Optional page selection; defaults to all.
+# @exitcode 1 If qpdf, input, permissions, rotation, or operation is invalid.
 # -----------------------------------------------------------------------------
 function pdfrotate() {
   # Validate required tools.
   if ! command -v qpdf >/dev/null 2>&1; then
     echo "${C_RED}Error: qpdf is required.${C_RESET}" >&2
-    echo "${C_YELLOW}Install: brew install qpdf${C_RESET}" >&2
+    _pdf_install_hint qpdf qpdf qpdf qpdf qpdf
     return 1
   fi
 
@@ -247,16 +252,11 @@ function pdfrotate() {
 
 # -----------------------------------------------------------------------------
 # djvu_to_pdf
-# -----------------------------------------------------------------------------
-# Convert DjVu documents to PDF format using ddjvu from djvulibre.
-# Automatically adds .pdf extension to output if missing.
-#
-# Usage:
-#   djvu_to_pdf <input.djvu> [output.pdf]
-#
-# Arguments:
-#   input.djvu - Source DjVu file (.djvu, .djv) (required).
-#   output.pdf - Output PDF filename (optional, auto-generated from input name).
+# @description Converts a DjVu document to PDF with ddjvu.
+# The output filename defaults to the input basename with a .pdf extension.
+# @arg $1 path Input DjVu document.
+# @arg $2 path Optional output PDF.
+# @exitcode 1 If ddjvu, input, arguments, or conversion is invalid.
 # -----------------------------------------------------------------------------
 function djvu_to_pdf() {
     setopt localoptions pipefail no_aliases
@@ -264,15 +264,7 @@ function djvu_to_pdf() {
     # Check if ddjvu is installed (part of djvulibre).
     if ! command -v ddjvu >/dev/null 2>&1; then
         echo "${C_RED}Error: ddjvu is not installed.${C_RESET}" >&2
-        echo "Please install djvulibre first:" >&2
-        if [[ "$PLATFORM" == "macOS" ]]; then
-            echo "  brew install djvulibre" >&2
-        elif [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" == true ]]; then
-            echo "  sudo pacman -S djvulibre" >&2
-        elif [[ "$PLATFORM" == "Linux" ]]; then
-            echo "  sudo apt install djvulibre-bin (Debian/Ubuntu)" >&2
-            echo "  sudo dnf install djvulibre (Fedora)" >&2
-        fi
+        _pdf_install_hint djvulibre djvulibre djvulibre djvulibre-bin djvulibre
         return 1
     fi
 
@@ -339,18 +331,12 @@ function djvu_to_pdf() {
 
 # -----------------------------------------------------------------------------
 # copy_pdf_bookmarks
-# -----------------------------------------------------------------------------
-# Copy bookmarks (table of contents) from one PDF to another using Python
-# script. Requires copy_bookmarks.py in ~/.config/zsh/scripts/python/ or
-# current directory.
-#
-# Usage:
-#   copy_pdf_bookmarks <source_with_bookmarks.pdf> <target_without_bookmarks.pdf> [output.pdf]
-#
-# Arguments:
-#   source_with_bookmarks.pdf    - PDF with bookmarks to copy (required).
-#   target_without_bookmarks.pdf - PDF to receive bookmarks (required).
-#   output.pdf                   - Output filename (optional, auto-generated).
+# @description Copies bookmarks between PDFs using the repository's Python tool.
+# The output filename defaults to the target basename with bookmarks appended.
+# @arg $1 path Source PDF containing bookmarks.
+# @arg $2 path Target PDF to receive bookmarks.
+# @arg $3 path Optional output PDF.
+# @exitcode 1 If dependencies, scripts, inputs, or copying are invalid.
 # -----------------------------------------------------------------------------
 function copy_pdf_bookmarks() {
     setopt localoptions pipefail no_aliases
@@ -358,15 +344,7 @@ function copy_pdf_bookmarks() {
     # Check if Python 3 is installed.
     if ! command -v python3 >/dev/null 2>&1; then
         echo "${C_RED}Error: Python 3 is not installed.${C_RESET}" >&2
-        echo "Please install Python 3 first:" >&2
-        if [[ "$PLATFORM" == "macOS" ]]; then
-            echo "  brew install python3" >&2
-        elif [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" == true ]]; then
-            echo "  sudo pacman -S python" >&2
-        elif [[ "$PLATFORM" == "Linux" ]]; then
-            echo "  sudo apt install python3 (Debian/Ubuntu)" >&2
-            echo "  sudo dnf install python3 (Fedora)" >&2
-        fi
+        _pdf_install_hint "Python 3" python3 python python3 python3
         return 1
     fi
 
@@ -480,41 +458,20 @@ function copy_pdf_bookmarks() {
 
 # -----------------------------------------------------------------------------
 # remove_pdf_watermarks
-# -----------------------------------------------------------------------------
-# Wrapper around the reusable Python watermark removal CLI.
-# Detects repeated watermark-like overlays without rasterizing pages and
-# forwards all arguments to remove_watermarks.py.
-#
-# Usage:
-#   remove_pdf_watermarks <input.pdf> [output.pdf] [options...]
-#
-# Common options:
-#   --dry-run              Analyze only; do not write output.
-#   --verbose              Show more candidate diagnostics.
-#   --match-text "TEXT"    Prefer overlays containing matching text.
-#   --report report.json   Write JSON report.
-#   --fallback-redact      Use white-fill fallback only if structural edit fails.
-#
-# Examples:
-#   remove_pdf_watermarks file.pdf
-#   remove_pdf_watermarks file.pdf --dry-run --verbose
-#   remove_pdf_watermarks file.pdf cleaned.pdf --match-text "Acquistato da"
+# @description Delegates watermark removal to the trusted Python CLI.
+# Supports dry-run, diagnostics, text matching, reports, and fallback redaction.
+# @arg $1 path Input PDF; additional output and CLI arguments may follow.
+# @exitcode 1 If dependencies, scripts, backends, or processing are unavailable.
 # -----------------------------------------------------------------------------
 function remove_pdf_watermarks() {
+    emulate -L zsh
     setopt localoptions pipefail no_aliases
+    _zsh_ui_load || return 1
 
     # Check if Python 3 is installed.
     if ! command -v python3 >/dev/null 2>&1; then
-        echo "${C_RED}Error: Python 3 is not installed.${C_RESET}" >&2
-        echo "Please install Python 3 first:" >&2
-        if [[ "$PLATFORM" == "macOS" ]]; then
-            echo "  brew install python3" >&2
-        elif [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" == true ]]; then
-            echo "  sudo pacman -S python" >&2
-        elif [[ "$PLATFORM" == "Linux" ]]; then
-            echo "  sudo apt install python3 (Debian/Ubuntu)" >&2
-            echo "  sudo dnf install python3 (Fedora)" >&2
-        fi
+        _zsh_ui_log error "Python 3 is not installed."
+        _pdf_install_hint "Python 3" python3 python python3 python3
         return 1
     fi
 
@@ -533,7 +490,8 @@ function remove_pdf_watermarks() {
     done
 
     if [[ -z "$script_path" ]]; then
-        echo "${C_RED}Error: remove_watermarks.py script not found in trusted paths.${C_RESET}" >&2
+        _zsh_ui_log error \
+            "remove_watermarks.py was not found in trusted paths."
         echo "Checked:" >&2
         echo "  1. \$PDF_REMOVE_WATERMARKS_SCRIPT (if set)" >&2
         echo "  2. ${HOME}/.config/zsh/scripts/python/remove_watermarks.py" >&2
@@ -566,7 +524,7 @@ function remove_pdf_watermarks() {
     # Check if at least one supported PDF backend library is installed.
     if [[ "$help_mode" == false ]]; then
         if ! python3 -c 'import importlib.util, sys; sys.exit(0 if importlib.util.find_spec("pypdf") or importlib.util.find_spec("PyPDF2") else 1)' 2>/dev/null; then
-            echo "${C_RED}Error: Neither pypdf nor PyPDF2 is installed.${C_RESET}" >&2
+            _zsh_ui_log error "Neither pypdf nor PyPDF2 is installed."
             echo "Please install a supported backend first:" >&2
             echo "  python3 -m pip install pypdf" >&2
             echo "  or: python3 -m pip install PyPDF2" >&2
@@ -574,62 +532,41 @@ function remove_pdf_watermarks() {
         fi
     fi
 
-    echo "${C_CYAN}Launching PDF watermark remover...${C_RESET}"
-    python3 "$script_path" "$@"
+    if [[ "$help_mode" == false ]]; then
+        _zsh_ui_heading \
+            "PDF watermark removal" \
+            "Analyzing repeated text and overlay geometry"
+    fi
+    command python3 "$script_path" "$@"
 }
 
 # -----------------------------------------------------------------------------
 # remove_pdf_metadata
-# -----------------------------------------------------------------------------
-# Remove metadata from PDF documents for privacy and security.
-# Uses qpdf for PDF processing and exiftool for comprehensive metadata removal.
-# Displays metadata before and after removal for verification.
-#
-# Usage:
-#   remove_pdf_metadata <input.pdf> [output.pdf]
-#
-# Arguments:
-#   input.pdf  - PDF file to clean (required).
-#   output.pdf - Output filename (optional, overwrites original if not provided).
-#
-# Removed metadata:
-#   Author, Creator, Producer, Title, Subject, Keywords, CreateDate, ModifyDate.
+# @description Removes PDF metadata with qpdf and optional exiftool cleanup.
+# Omitting the output prompts before overwriting the input PDF.
+# @arg $1 path Input PDF.
+# @arg $2 path Optional output PDF; omission overwrites input after approval.
+# @exitcode 1 If dependencies, input, validation, or cleanup fails.
 # -----------------------------------------------------------------------------
 function remove_pdf_metadata() {
+    emulate -L zsh
     setopt localoptions pipefail no_aliases
+    _zsh_ui_load || return 1
 
     # Check if qpdf is installed.
     if ! command -v qpdf >/dev/null 2>&1; then
-        echo "${C_RED}Error: qpdf is not installed.${C_RESET}" >&2
-        echo "Please install qpdf first:" >&2
-        if [[ "$PLATFORM" == "macOS" ]]; then
-            echo "  brew install qpdf" >&2
-        elif [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" == true ]]; then
-            echo "  sudo pacman -S qpdf" >&2
-        elif [[ "$PLATFORM" == "Linux" ]]; then
-            echo "  sudo apt install qpdf (Debian/Ubuntu)" >&2
-            echo "  sudo dnf install qpdf (Fedora)" >&2
-        fi
+        _zsh_ui_log error "qpdf is not installed."
+        _pdf_install_hint qpdf qpdf qpdf qpdf qpdf
         return 1
     fi
 
     # Check if exiftool is installed (highly recommended for metadata removal).
     if ! command -v exiftool >/dev/null 2>&1; then
-        echo "${C_YELLOW}Warning: exiftool is not installed.${C_RESET}"
-        echo "${C_YELLOW}For complete metadata removal, it's highly recommended:${C_RESET}"
-        if [[ "$PLATFORM" == "macOS" ]]; then
-            echo "  brew install exiftool"
-        elif [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" == true ]]; then
-            echo "  sudo pacman -S perl-image-exiftool"
-        elif [[ "$PLATFORM" == "Linux" ]]; then
-            echo "  sudo apt install libimage-exiftool-perl (Debian/Ubuntu)"
-            echo "  sudo dnf install perl-Image-ExifTool (Fedora)"
-        fi
-        echo
-        echo -n "${C_YELLOW}Continue anyway? (y/N): ${C_RESET}"
-        read -r response
-        if [[ ! "$response" =~ ^[Yy]$ ]]; then
-            echo "${C_CYAN}Operation cancelled.${C_RESET}"
+        _zsh_ui_log warn \
+            "exiftool is unavailable; qpdf alone cannot remove all metadata."
+        _pdf_install_hint exiftool exiftool perl-image-exiftool libimage-exiftool-perl perl-Image-ExifTool
+        if ! _zsh_ui_confirm "Continue with basic qpdf cleanup?"; then
+            _zsh_ui_log info "Operation cancelled."
             return 0
         fi
     fi
@@ -651,12 +588,12 @@ function remove_pdf_metadata() {
 
     # Check if input file exists and is a PDF.
     if [[ ! -f "$input_file" ]]; then
-        echo "${C_RED}Error: Input file '$input_file' not found.${C_RESET}" >&2
+        _zsh_ui_log error "Input file '$input_file' not found."
         return 1
     fi
 
     if [[ ! "$input_file" =~ \.(pdf|PDF)$ ]]; then
-        echo "${C_RED}Error: Input file must be a PDF document.${C_RESET}" >&2
+        _zsh_ui_log error "Input file must be a PDF document."
         return 1
     fi
 
@@ -664,20 +601,17 @@ function remove_pdf_metadata() {
     if [[ -z "$output_file" ]]; then
         overwrite_mode=true
 
-        echo -n "${C_YELLOW}No output file specified. Overwrite '$input_file'? (y/N): ${C_RESET}"
-        read -r response
-        if [[ ! "$response" =~ ^[Yy]$ ]]; then
-            echo "${C_CYAN}Operation cancelled.${C_RESET}"
+        if ! _zsh_ui_confirm \
+            "No output was specified. Overwrite '$input_file'?"; then
+            _zsh_ui_log info "Operation cancelled."
             return 0
         fi
 
-        # Use mktemp in the same directory as the input so the final mv is atomic
-        # (mv across filesystems is non-atomic). qpdf refuses to overwrite an
-        # existing file, so we remove the placeholder created by mktemp while
-        # keeping the reserved unique name. Register a trap to clean up on
-        # interruption before the rename completes.
+        # Use mktemp beside input so final mv is atomic across filesystems.
+        # qpdf refuses an existing output, so remove the placeholder while
+        # retaining the unique name. Register a trap for interruption cleanup.
         output_file="$(command mktemp "${input_file}.tmp.XXXXXX" 2>/dev/null)" || {
-            echo "${C_RED}Error: Unable to create temporary file.${C_RESET}" >&2
+            _zsh_ui_log error "Unable to create a temporary output file."
             return 1
         }
         command rm -f -- "$output_file" 2>/dev/null
@@ -691,17 +625,16 @@ function remove_pdf_metadata() {
 
     # Check if output file already exists (and we're not in overwrite mode).
     if [[ "$overwrite_mode" == false && -f "$output_file" ]]; then
-        echo -n "${C_YELLOW}Output file '$output_file' already exists. Overwrite? (y/N): ${C_RESET}"
-        read -r response
-        if [[ ! "$response" =~ ^[Yy]$ ]]; then
-            echo "${C_CYAN}Operation cancelled.${C_RESET}"
+        if ! _zsh_ui_confirm \
+            "Output '$output_file' already exists. Overwrite it?"; then
+            _zsh_ui_log info "Operation cancelled."
             return 0
         fi
     fi
 
     # Display current metadata before removal (if exiftool is available).
     if command -v exiftool >/dev/null 2>&1; then
-        echo "${C_CYAN}Current metadata:${C_RESET}"
+        _zsh_ui_section "Current metadata"
         local current_meta=$(exiftool -G -s "$input_file" 2>/dev/null | grep -E "(Author|Creator|Producer|Title|Subject|Keywords|CreateDate|ModifyDate)")
         if [[ -n "$current_meta" ]]; then
             echo "$current_meta"
@@ -712,11 +645,14 @@ function remove_pdf_metadata() {
     fi
 
     # Perform metadata removal.
-    echo "${C_CYAN}Removing metadata from '$input_file'...${C_RESET}"
+    _zsh_ui_heading \
+        "PDF metadata removal" \
+        "Cleaning '${input_file:t}'"
 
     # First, check if the PDF is valid.
     if ! qpdf --check "$input_file" >/dev/null 2>&1; then
-        echo "${C_YELLOW}Warning: PDF validation check reported issues, attempting anyway...${C_RESET}"
+        _zsh_ui_log warn \
+            "PDF validation reported issues; attempting cleanup anyway."
     fi
 
     # Use qpdf to remove metadata - using basic compatible options.
@@ -728,28 +664,22 @@ function remove_pdf_metadata() {
 
         # qpdf alone doesn't remove metadata, we need exiftool for that.
         if command -v exiftool >/dev/null 2>&1; then
-            echo "${C_CYAN}Removing metadata with exiftool...${C_RESET}"
+            _zsh_ui_log info "Removing extended metadata with exiftool."
             # Remove all metadata.
             if exiftool -all:all= -overwrite_original "$output_file" 2>/dev/null; then
-                echo "${C_GREEN}✓ Metadata removed successfully${C_RESET}"
+                _zsh_ui_log ok "Extended metadata removed."
             else
-                echo "${C_YELLOW}Warning: exiftool had issues removing some metadata${C_RESET}"
+                _zsh_ui_log warn "exiftool could not remove all metadata."
             fi
         else
-            echo "${C_YELLOW}Warning: exiftool not found. Only basic PDF cleanup performed.${C_RESET}"
-            echo "${C_YELLOW}For complete metadata removal, install exiftool:${C_RESET}"
-            if [[ "$PLATFORM" == "macOS" ]]; then
-                echo "  brew install exiftool"
-            elif [[ "$PLATFORM" == "Linux" ]]; then
-                echo "  sudo apt install libimage-exiftool-perl (Debian/Ubuntu)"
-                echo "  sudo pacman -S perl-image-exiftool (Arch)"
-            fi
+            _zsh_ui_log warn "Only basic qpdf cleanup was performed."
+            _pdf_install_hint exiftool exiftool perl-image-exiftool libimage-exiftool-perl perl-Image-ExifTool
         fi
 
         # If in overwrite mode, atomically replace the original file.
         if [[ "$overwrite_mode" == true ]]; then
             if ! command mv -f -- "$output_file" "$input_file"; then
-                echo "${C_RED}Error: Failed to replace original file.${C_RESET}" >&2
+                _zsh_ui_log error "Failed to replace the original file."
                 trap - EXIT INT TERM HUP
                 return 1
             fi
@@ -757,20 +687,18 @@ function remove_pdf_metadata() {
             trap - EXIT INT TERM HUP
         fi
 
-        echo "${C_GREEN}✓ Successfully processed PDF${C_RESET}"
-        echo "${C_GREEN}✓ Output file: '$output_file'${C_RESET}"
-
-        # Show file size comparison.
+        local -a result_lines=("Output    $output_file")
         if command -v du >/dev/null 2>&1; then
             local input_size=$(du -h "$input_file" | cut -f1)
             local output_size=$(du -h "$output_file" | cut -f1)
-            echo "${C_BLUE}Original: $input_size → Cleaned: $output_size${C_RESET}"
+            result_lines+=("Size      $input_size → $output_size")
         fi
+        _zsh_ui_card "PDF metadata removed" "${result_lines[@]}"
 
         # Show remaining metadata (if exiftool is available).
         if command -v exiftool >/dev/null 2>&1; then
             echo
-            echo "${C_CYAN}Remaining metadata:${C_RESET}"
+            _zsh_ui_section "Remaining metadata"
             local remaining_meta=$(exiftool -G -s "$output_file" 2>/dev/null | grep -E "(Author|Creator|Producer|Title|Subject|Keywords|CreateDate|ModifyDate)")
             if [[ -n "$remaining_meta" ]]; then
                 echo "$remaining_meta"
@@ -780,11 +708,10 @@ function remove_pdf_metadata() {
         fi
 
     else
-        # In overwrite mode, the EXIT trap will clean up the temp file on return.
-        # In explicit-output mode, leave the partial file alone — it's the path
-        # the user named.
+        # In overwrite mode, EXIT cleans up the temporary file on return.
+        # In explicit-output mode, leave a partial file at the user-named path.
 
-        echo "${C_RED}Error: Failed to remove metadata.${C_RESET}" >&2
+        _zsh_ui_log error "Failed to remove PDF metadata."
         echo
         echo "${C_YELLOW}qpdf error message:${C_RESET}" >&2
         echo "$qpdf_error" >&2
@@ -812,23 +739,15 @@ function remove_pdf_metadata() {
 
 # -----------------------------------------------------------------------------
 # remove_pdf_metadata_batch
-# -----------------------------------------------------------------------------
-# Remove metadata from multiple PDF files in a single operation.
-# Creates cleaned copies with "_cleaned" suffix. Processes all valid PDFs
-# and provides summary statistics.
-#
-# Usage:
-#   remove_pdf_metadata_batch <file1.pdf> [file2.pdf] [file3.pdf] ...
-#   remove_pdf_metadata_batch *.pdf
-#
-# Arguments:
-#   file1.pdf, file2.pdf, ... - PDF files to process (one or more required).
-#
-# Output:
-#   Creates files with "_cleaned" suffix (e.g., document_cleaned.pdf).
+# @description Cleans multiple PDFs and creates copies with a _cleaned suffix.
+# Uses qpdf and applies exiftool cleanup when available.
+# @arg $1 path First PDF; additional PDFs may follow.
+# @exitcode 1 If qpdf is unavailable or any input cannot be processed.
 # -----------------------------------------------------------------------------
 function remove_pdf_metadata_batch() {
+    emulate -L zsh
     setopt localoptions pipefail no_aliases
+    _zsh_ui_load || return 1
 
     # Check if at least one argument is provided.
     if [[ $# -lt 1 ]]; then
@@ -839,7 +758,7 @@ function remove_pdf_metadata_batch() {
 
     # Check if qpdf is installed.
     if ! command -v qpdf >/dev/null 2>&1; then
-        echo "${C_RED}Error: qpdf is not installed.${C_RESET}" >&2
+        _zsh_ui_log error "qpdf is not installed."
         return 1
     fi
 
@@ -847,20 +766,20 @@ function remove_pdf_metadata_batch() {
     local exiftool_available=true
     if ! command -v exiftool >/dev/null 2>&1; then
         exiftool_available=false
-        echo "${C_YELLOW}Warning: exiftool not found; only qpdf cleanup will be applied.${C_RESET}" >&2
+        _zsh_ui_log warn \
+            "exiftool is unavailable; only qpdf cleanup will be applied."
     fi
 
     local total_files=$#
     local success_count=0
     local fail_count=0
 
-    echo "${C_CYAN}Processing $total_files PDF file(s)...${C_RESET}"
-    echo
+    _zsh_ui_section "PDF metadata batch · $total_files files"
 
     # Process each PDF file.
     for pdf_file in "$@"; do
         if [[ -f "$pdf_file" && "$pdf_file" =~ \.(pdf|PDF)$ ]]; then
-            echo "${C_BLUE}Processing: $pdf_file${C_RESET}"
+            _zsh_ui_log info "Processing: $pdf_file"
 
             # Create output filename with suffix.
             local base_name="${pdf_file%.*}"
@@ -875,44 +794,37 @@ function remove_pdf_metadata_batch() {
                     exiftool -all:all= -overwrite_original "$output_file" >/dev/null 2>&1
                 fi
 
-                echo "  ${C_GREEN}✓ Created: $output_file${C_RESET}"
+                _zsh_ui_log ok "Created: $output_file"
                 ((success_count++))
             else
-                echo "  ${C_RED}✗ Failed to process${C_RESET}"
+                _zsh_ui_log error "Failed to process: $pdf_file"
                 ((fail_count++))
             fi
-            echo
         else
-            echo "${C_YELLOW}Skipping: $pdf_file (not a valid PDF)${C_RESET}"
-            echo
+            _zsh_ui_log warn "Skipping non-PDF input: $pdf_file"
             ((fail_count++))
         fi
     done
 
-    echo "${C_CYAN}Summary:${C_RESET}"
-    echo "  ${C_GREEN}Success: $success_count${C_RESET}"
-    [[ $fail_count -gt 0 ]] && echo "  ${C_RED}Failed: $fail_count${C_RESET}"
+    _zsh_ui_card \
+        "PDF metadata batch complete" \
+        "Successful  $success_count" \
+        "Failed      $fail_count"
+    (( fail_count == 0 ))
 }
 
 # -----------------------------------------------------------------------------
 # remove_pdf_metadata_simple
-# -----------------------------------------------------------------------------
-# Simplified metadata removal for problematic PDFs that fail with the standard
-# function. Uses basic qpdf command without advanced options.
-# Fallback option when remove_pdf_metadata encounters issues.
-#
-# Usage:
-#   remove_pdf_metadata_simple <input.pdf> [output.pdf]
-#
-# Arguments:
-#   input.pdf  - PDF file to clean (required).
-#   output.pdf - Output filename (optional, creates "_cleaned" version).
-#
-# Note:
-#   Use this when remove_pdf_metadata fails due to PDF compatibility issues.
+# @description Performs simplified qpdf metadata cleanup for problematic PDFs.
+# Creates a _cleaned PDF when no output path is supplied.
+# @arg $1 path Input PDF.
+# @arg $2 path Optional output PDF.
+# @exitcode 1 If qpdf, input, or processing is invalid.
 # -----------------------------------------------------------------------------
 function remove_pdf_metadata_simple() {
+    emulate -L zsh
     setopt localoptions pipefail no_aliases
+    _zsh_ui_load || return 1
 
     # Check if correct number of arguments is provided.
     if [[ $# -lt 1 || $# -gt 2 ]]; then
@@ -923,7 +835,7 @@ function remove_pdf_metadata_simple() {
 
     # Check if qpdf is installed.
     if ! command -v qpdf >/dev/null 2>&1; then
-        echo "${C_RED}Error: qpdf is not installed.${C_RESET}" >&2
+        _zsh_ui_log error "qpdf is not installed."
         return 1
     fi
 
@@ -932,13 +844,13 @@ function remove_pdf_metadata_simple() {
 
     # Check if input file exists and is a PDF.
     if [[ ! -f "$input_file" ]]; then
-        echo "${C_RED}Error: Input file '$input_file' not found.${C_RESET}" >&2
+        _zsh_ui_log error "Input file '$input_file' not found."
         return 1
     fi
 
     # Check if input file is a PDF.
     if [[ ! "$input_file" =~ \.(pdf|PDF)$ ]]; then
-        echo "${C_RED}Error: Input file must be a PDF document.${C_RESET}" >&2
+        _zsh_ui_log error "Input file must be a PDF document."
         return 1
     fi
 
@@ -955,30 +867,31 @@ function remove_pdf_metadata_simple() {
 
     # Check if output file already exists and ask for confirmation.
     if [[ -f "$output_file" ]]; then
-        echo -n "${C_YELLOW}Output file '$output_file' already exists. Overwrite? (y/N): ${C_RESET}"
-        read -r response
-        if [[ ! "$response" =~ ^[Yy]$ ]]; then
-            echo "${C_CYAN}Operation cancelled.${C_RESET}"
+        if ! _zsh_ui_confirm \
+            "Output '$output_file' already exists. Overwrite it?"; then
+            _zsh_ui_log info "Operation cancelled."
             return 0
         fi
     fi
 
-    echo "${C_CYAN}Attempting simple metadata removal...${C_RESET}"
+    _zsh_ui_heading \
+        "Simple PDF metadata cleanup" \
+        "Processing '${input_file:t}'"
 
     # Try the simplest possible qpdf command.
     if qpdf "$input_file" "$output_file" 2>&1; then
-        echo "${C_GREEN}✓ Successfully created: $output_file${C_RESET}"
+        _zsh_ui_log ok "Created: $output_file"
 
         # Try to remove additional metadata with exiftool if available.
         if command -v exiftool >/dev/null 2>&1; then
-            echo "${C_CYAN}Removing additional metadata with exiftool...${C_RESET}"
+            _zsh_ui_log info "Removing extended metadata with exiftool."
             exiftool -all:all= -overwrite_original "$output_file" >/dev/null 2>&1
-            echo "${C_GREEN}✓ Additional metadata removed${C_RESET}"
+            _zsh_ui_log ok "Extended metadata removed."
         fi
 
         return 0
     else
-        echo "${C_RED}Error: Even simple processing failed.${C_RESET}" >&2
+        _zsh_ui_log error "Simple PDF processing failed."
         return 1
     fi
 }

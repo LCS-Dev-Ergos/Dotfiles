@@ -15,16 +15,13 @@
 # These tools enhance shell productivity and user experience.
 #
 # Tools integrated:
-#   - Atuin: Magical shell history with sync.
-#   - Yazi: Terminal file manager with cd integration.
-#   - Ghostty: Terminal emulator integration.
-#   - fzf: Fuzzy finder with Tokyo Night theme.
-#   - zoxide: Smart cd replacement.
-#   - direnv: Directory-specific environment loading.
+#   - Atuin, fzf, zoxide, and direnv (deferred initialization).
+#   - Yazi and Kitty file/session helpers.
+#   - OrbStack, man-page tooling, and tldr/man dispatch through `hlp`.
 #
 # Performance:
 #   - Deferred loading for atuin, fzf, zoxide, direnv.
-#   - Immediate loading for Yazi (lightweight).
+#   - Immediate loading only for lightweight shell wrappers.
 #
 # ============================================================================ #
 
@@ -53,11 +50,8 @@ fi
 # -----------------------------------------------------------------------------
 # y
 # -----------------------------------------------------------------------------
-# Wrapper function for yazi to change directory after execution.
-# Yazi writes the final directory to a temp file which we read on exit.
-#
-# Usage:
-#   y [directory]
+# @description Runs yazi and changes to its selected directory on exit.
+# @arg $@ path Optional yazi directory and options.
 # -----------------------------------------------------------------------------
 function y() {
   local tmp cwd
@@ -75,17 +69,10 @@ function y() {
 
 # -----------------------------------------------------------------------------
 # _tools_lazy_init
-# -----------------------------------------------------------------------------
-# Lazy initialization for fzf, zoxide, and direnv to improve startup time.
-# Runs once on first precmd hook, then removes itself.
-#
-# Initializes:
-#   - fzf: Fuzzy finder shell integration.
-#   - zoxide: Smarter cd command.
-#   - direnv: Directory-specific environment loading.
-#
-# Returns:
-#   0 - Tools initialized or already initialized.
+# @internal
+# @description Initializes fzf, zoxide, and direnv shell integration on first
+# precmd, then removes its own hook.
+# @noargs
 # -----------------------------------------------------------------------------
 _tools_lazy_init() {
   # Remove hook before running to avoid re-entry races.
@@ -251,8 +238,10 @@ else
 fi
 
 # -----------------------------------------------------------------------------
-# hlp — tries tldr first, falls back to man.
-# Usage: hlp <command>
+# hlp
+# @description Shows concise tldr examples, falling back to a man page.
+# @arg $@ string Command or topic plus optional arguments.
+# @exitcode 1 If no help tool is available or lookup fails.
 # -----------------------------------------------------------------------------
 hlp() {
   if (( $# == 0 )); then
@@ -277,61 +266,73 @@ hlp() {
   return 1
 }
 
-alias h='hlp'
+# `h` is the colorized help function from functions/cli-tools.zsh. Keep `hlp`
+# as the tldr/man dispatcher without shadowing that function.
 
 # +++++++++++++++++++++++++++++++ YABAI TOOLS ++++++++++++++++++++++++++++++++ #
 
 # -----------------------------------------------------------------------------#
 # yabai_windows_table
 # -----------------------------------------------------------------------------#
-# Print a table of all windows across spaces/displays using yabai metadata.
-# Tries Nushell for nice formatting, falls back to jq, then raw JSON.
+# @description Prints yabai windows across spaces and displays.
+# Uses jq for structured extraction and the shared Gum/native table renderer.
+# @noargs
+# @exitcode 1 If yabai is unavailable or its query fails.
 # -----------------------------------------------------------------------------#
 yabai_windows_table() {
+  emulate -L zsh
+  setopt localoptions pipefail
+  _zsh_ui_load || return 1
+
   if ! command -v yabai >/dev/null 2>&1; then
-    echo "yabai not found in PATH" >&2
+    _zsh_ui_log error "yabai not found in PATH."
     return 1
   fi
 
   local json
-  json="$(yabai -m query --windows 2>/dev/null)" || {
-    echo "failed to query yabai windows" >&2
+  json="$(command yabai -m query --windows 2>/dev/null)" || {
+    _zsh_ui_log error "Failed to query yabai windows."
     return 1
   }
 
   if [[ -z "$json" ]]; then
-    echo "no windows reported by yabai"
+    _zsh_ui_log info "No windows reported by yabai."
     return 0
-  fi
-
-  if command -v nu >/dev/null 2>&1; then
-    # Nushell pretty table.
-    printf '%s\n' "$json" | nu --stdin -c '
-      from json
-      | select display space app title id
-      | sort-by display space app title
-      | table -w 160
-    '
-    return $?
   fi
 
   if command -v jq >/dev/null 2>&1; then
-    printf "%-7s %-7s %-30s %-14s %s\n" "display" "space" "app" "window_id" "title"
-    echo "$json" | jq -r '.[] | [.display, .space, .app, .id, .title] | @tsv' |
-    while IFS=$'\t' read -r d s a i t; do
-      printf "%-7s %-7s %-30s %-14s %s\n" "$d" "$s" "$a" "$i" "$t"
-    done
-    return 0
+    local table_data window_count
+    window_count="$(print -r -- "$json" | command jq -er \
+      'if type == "array" then length else error("expected an array") end' \
+      2>/dev/null)" || {
+      _zsh_ui_log error "jq could not parse the yabai response."
+      return 1
+    }
+    if (( window_count == 0 )); then
+      _zsh_ui_log info "No windows reported by yabai."
+      return 0
+    fi
+    table_data="$(print -r -- "$json" | command jq -r \
+      'sort_by(.display, .space, .app, .title)[] |
+       [.display, .space, .app, .id, .title] | @tsv')" || {
+      _zsh_ui_log error "jq could not parse the yabai response."
+      return 1
+    }
+    local -a rows=("${(@f)table_data}")
+    _zsh_ui_section "Yabai windows · $window_count"
+    _zsh_ui_table \
+      $'Display\tSpace\tApplication\tWindow ID\tTitle' "${rows[@]}"
+    return $?
   fi
 
-  # Last resort: raw JSON
-  echo "$json"
+  _zsh_ui_log warn "jq is unavailable; printing raw yabai JSON."
+  print -r -- "$json"
 }
 
 # +++++++++++++++++++++++++++++++++ GHOSTTY ++++++++++++++++++++++++++++++++++ #
 
 # Command alias (only needed on macOS where app bundle isn't in PATH).
-# On Linux (Arch), ghostty is typically installed via package manager and already in PATH.
+# On Linux, Ghostty is typically installed by the package manager.
 if [[ "$PLATFORM" == "macOS" && -x "/Applications/Ghostty.app/Contents/MacOS/ghostty" ]]; then
   alias ghostty="/Applications/Ghostty.app/Contents/MacOS/ghostty"
 fi
@@ -397,17 +398,10 @@ fi
 # -----------------------------------------------------------------------------
 # kitty_save_session
 # -----------------------------------------------------------------------------
-# Save the current kitty instance (all windows/tabs) into ~/.kitty-saved by
-# calling kitty's built-in remote-control action `save_as_session`. Behaves
-# like a simple “resurrect”: run inside kitty, then later start kitty with
-# `kitty --session ~/.kitty-saved/<name>.kitty-session`.
-#
-# Usage:
-#   kitty_save_session [name]   # default: session-YYYYMMDD-HHMMSS
-#
-# Env vars:
-#   KITTY_SAVE_DIR   Directory to store sessions (default: ~/.kitty-saved)
-#   KITTY_LISTEN_ON  Remote control socket (default: unix:/tmp/kitty)
+# @description Saves the current Kitty windows and tabs as a session file.
+# @arg $1 string Optional session name; defaults to a timestamp.
+# KITTY_SAVE_DIR and KITTY_LISTEN_ON override the save directory and socket.
+# @exitcode 1 If Kitty or its remote-control socket is unavailable.
 # -----------------------------------------------------------------------------
 kitty_save_session() {
   if ! command -v kitty >/dev/null 2>&1; then
@@ -445,12 +439,9 @@ alias ksave='kitty_save_session'
 # -----------------------------------------------------------------------------
 # kitty_restore_session
 # -----------------------------------------------------------------------------
-# Restore a saved kitty session. Prefers switching the current kitty instance
-# via the goto_session action; if no RC socket is reachable, falls back to
-# launching a new kitty process with --session.
-#
-# Usage:
-#   kitty_restore_session [name]   # default: newest file in save dir
+# @description Restores a saved Kitty session in the current or a new instance.
+# @arg $1 string Optional session name; otherwise selects with fzf or newest.
+# @exitcode 1 If the session directory, file, or Kitty control is unavailable.
 # -----------------------------------------------------------------------------
 kitty_restore_session() {
   if ! command -v kitty >/dev/null 2>&1; then
@@ -508,12 +499,10 @@ alias krest='kitty_restore_session'
 # -----------------------------------------------------------------------------
 # kget
 # -----------------------------------------------------------------------------
-# Download files from remote host to local machine via Kitty transfer protocol.
-# Wrapper around `kitten transfer` with compression enabled by default.
-#
-# Usage:
-#   kget <remote-file> [local-destination]
-#   kget file1 file2 /local/dir/
+# @description Downloads files through Kitty's compressed transfer protocol.
+# @arg $@ path Remote files and optional local destination.
+# Requires an SSH session on the remote host.
+# @exitcode 1 If not in SSH or no files are supplied.
 # -----------------------------------------------------------------------------
 kget() {
   if [[ -z "${SSH_CONNECTION:-}" ]]; then
@@ -529,7 +518,7 @@ kget() {
   local last="${args[-1]}"
 
   # Auto-add trailing slash for directory destinations.
-  # Heuristic: if multiple files OR last arg has no extension, treat as directory.
+  # Multiple files or a last argument without an extension imply a directory.
   if (( $# > 1 )) && [[ "$last" != */ ]]; then
     local basename="${last:t}"
     # No dot in basename = likely a directory, not a file.
@@ -544,14 +533,11 @@ kget() {
 # -----------------------------------------------------------------------------
 # kput
 # -----------------------------------------------------------------------------
-# Upload files from local machine to remote host via Kitty transfer protocol.
-# Wrapper around `kitten transfer --direction=upload` with compression enabled.
-#
-# If no arguments given and fzf is available, opens interactive file selector.
-#
-# Usage:
-#   kput <local-file>... [remote-destination]
-#   kput                 # interactive fzf selection
+# @description Uploads files through Kitty's compressed transfer protocol.
+# With no arguments, uses fzf to select files when available.
+# @arg $@ path Local files and optional remote destination.
+# Requires an SSH session on the remote host.
+# @exitcode 1 If not in SSH, selection is cancelled, or transfer fails.
 # -----------------------------------------------------------------------------
 kput() {
   if [[ -z "${SSH_CONNECTION:-}" ]]; then
@@ -582,4 +568,4 @@ kput() {
 }
 
 # ============================================================================ #
-# End of 50-tools.zsh
+# End of lib/50-tools.zsh

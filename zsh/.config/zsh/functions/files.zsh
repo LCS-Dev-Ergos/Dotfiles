@@ -22,18 +22,18 @@
 
 # -----------------------------------------------------------------------------
 # extract
-# -----------------------------------------------------------------------------
-# Universal extraction function supporting many archive formats.
-# Behavior matches/extends OMZ extract:
-#   - Extract each archive into a dedicated directory.
-#   - Optional archive removal with -r/--remove on successful extraction.
-#   - Auto-flatten when extraction yields a single top-level entry.
-#
-# Usage:
-#   extract <archive> [archive ...]
-#   extract -r <archive> [archive ...]
+# @description Extracts supported archives into dedicated directories,
+# flattening a single top-level entry when possible.
+# @arg $1 path First archive file; additional archives may be supplied.
+# @option -r | --remove Delete each source archive after successful extraction.
+# @option -h | --help Show usage information.
+# @exitcode 1 If an archive is missing, unsupported, or fails to extract.
 # -----------------------------------------------------------------------------
 function extract() {
+  if [[ "$1" == -h || "$1" == --help ]]; then
+    echo "Usage: extract [-r|--remove] <archive> [archive ...]"
+    return 0
+  fi
   setopt localoptions noautopushd nullglob
 
   if [[ $# -eq 0 ]]; then
@@ -305,31 +305,44 @@ function extract() {
 alias x='extract'
 
 # -----------------------------------------------------------------------------
-# mktar, mkgz, mktbz, mkzip
-# -----------------------------------------------------------------------------
-# Quick helpers to create compressed archives from directories.
-#
-# Usage:
-#   mktar <directory>  - Create .tar archive
-#   mkgz <directory>   - Create .tar.gz archive
-#   mktbz <directory>  - Create .tar.bz2 archive
-#   mkzip <directory>  - Create .zip archive
+# mktar
+# @description Creates a tar archive named after a directory.
+# @arg $1 path Directory to archive.
+# @exitcode 1 If the directory argument is missing or archive creation fails.
 # -----------------------------------------------------------------------------
 mktar() {
   [[ -z "$1" ]] && { echo "${C_YELLOW}Usage: mktar <directory>${C_RESET}"; return 1; }
   tar -cvf "${1%%/}.tar" "${1%%/}/"
 }
 
+# -----------------------------------------------------------------------------
+# mkgz
+# @description Creates a gzip-compressed tar archive named after a directory.
+# @arg $1 path Directory to archive.
+# @exitcode 1 If the directory argument is missing or archive creation fails.
+# -----------------------------------------------------------------------------
 mkgz() {
   [[ -z "$1" ]] && { echo "${C_YELLOW}Usage: mkgz <directory>${C_RESET}"; return 1; }
   tar -czvf "${1%%/}.tar.gz" "${1%%/}/"
 }
 
+# -----------------------------------------------------------------------------
+# mktbz
+# @description Creates a bzip2-compressed tar archive named after a directory.
+# @arg $1 path Directory to archive.
+# @exitcode 1 If the directory argument is missing or archive creation fails.
+# -----------------------------------------------------------------------------
 mktbz() {
   [[ -z "$1" ]] && { echo "${C_YELLOW}Usage: mktbz <directory>${C_RESET}"; return 1; }
   tar -cjvf "${1%%/}.tar.bz2" "${1%%/}/"
 }
 
+# -----------------------------------------------------------------------------
+# mkzip
+# @description Creates a ZIP archive named after a directory.
+# @arg $1 path Directory to archive.
+# @exitcode 1 If the directory argument is missing or archive creation fails.
+# -----------------------------------------------------------------------------
 mkzip() {
   [[ -z "$1" ]] && { echo "${C_YELLOW}Usage: mkzip <directory>${C_RESET}"; return 1; }
   zip -r "${1%%/}.zip" "${1%%/}/"
@@ -337,11 +350,10 @@ mkzip() {
 
 # -----------------------------------------------------------------------------
 # findlarge
-# -----------------------------------------------------------------------------
-# Find and list files larger than specified size (sorted by size).
-#
-# Usage:
-#   findlarge [size_in_MB] [directory]
+# @description Lists files larger than a size threshold, sorted by size.
+# @arg $1 integer Optional minimum size in MB; defaults to 100.
+# @arg $2 path Optional directory to scan; defaults to the current directory.
+# @exitcode 1 If the size argument is not numeric.
 # -----------------------------------------------------------------------------
 function findlarge() {
   local size="${1:-100}"
@@ -358,12 +370,9 @@ function findlarge() {
 
 # -----------------------------------------------------------------------------
 # tre
-# -----------------------------------------------------------------------------
-# Display directory tree respecting .gitignore rules.
-# Uses eza if available, falls back to tree.
-#
-# Usage:
-#   tre [directory]
+# @description Displays a .gitignore-aware directory tree using eza or tree.
+# @arg $1 path Optional directory to display; defaults to the current directory.
+# @exitcode 1 If neither eza nor tree is installed.
 # -----------------------------------------------------------------------------
 function tre() {
   if command -v eza >/dev/null 2>&1; then
@@ -378,63 +387,72 @@ function tre() {
 
 # -----------------------------------------------------------------------------
 # count
-# -----------------------------------------------------------------------------
-# Count files and directories with detailed breakdown.
-#
-# Usage:
-#   count [directory] [options]
-#
-# Options:
-#   -r, --recursive  Count recursively (max depth: 5)
-#   -a, --all        Show all item types including symlinks
-#   -h, --help       Show help message
+# @description Counts files, directories, symlinks, and hidden entries.
+# Recursive mode scans to depth 5; root scanning requires explicit '/'.
+# @arg $1 path Optional directory to inspect; defaults to the current directory.
+# @option -r | --recursive Scan recursively to a maximum depth of 5.
+# @option -a | --all Include symlinks even when none are found.
+# @option -h | --help Show usage information.
+# @exitcode 1 If options are invalid or the target cannot be scanned.
 # -----------------------------------------------------------------------------
 function count() {
+  emulate -L zsh
+  setopt localoptions pipefail
+  _zsh_ui_load || return 1
+
   local target="."
   local recursive=0
   local show_all=0
   local max_depth=1
-
+  local target_seen=0
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
       -r | --recursive) recursive=1; max_depth=5; shift ;;
       -a | --all) show_all=1; shift ;;
       -h | --help)
-        echo "${C_CYAN}Usage: count [directory] [options]${C_RESET}"
-        echo ""
-        echo "Options:"
-        echo "  -r, --recursive  Count recursively (max depth: 5)"
-        echo "  -a, --all        Show all item types including symlinks"
-        echo "  -h, --help       Show this help message"
-        echo ""
-        echo "Examples:"
-        echo "  count              Count items in current directory"
-        echo "  count /tmp         Count items in /tmp"
-        echo "  count -r           Count recursively"
-        echo "  count -a /var/log  Count all types in /var/log"
+        print -rl -- \
+          "Usage: count [directory] [options]" \
+          "" \
+          "Options:" \
+          "  -r, --recursive  Count recursively (max depth: 5)" \
+          "  -a, --all        Show all item types including symlinks" \
+          "  -h, --help       Show this help message" \
+          "" \
+          "Examples:" \
+          "  count              Count items in current directory" \
+          "  count /tmp         Count items in /tmp" \
+          "  count -r           Count recursively" \
+          "  count -a /var/log  Count all types in /var/log"
         return 0 ;;
       -*)
-        echo "${C_RED}Error: Unknown option '$1'${C_RESET}" >&2
-        echo "Use 'count --help' for usage information." >&2
+        _zsh_ui_log error "Unknown option '$1'. Run 'count --help'."
         return 1 ;;
-      *) target="$1"; shift ;;
+      *)
+        if (( target_seen )); then
+          _zsh_ui_log error "Only one target directory can be counted."
+          return 1
+        fi
+        target="$1"
+        target_seen=1
+        shift
+        ;;
     esac
   done
 
   # Validate target exists before proceeding.
   if [[ ! -e "$target" ]]; then
-    echo "${C_RED}Error: '$target' does not exist${C_RESET}" >&2
+    _zsh_ui_log error "'$target' does not exist."
     return 1
   fi
 
   if [[ ! -d "$target" ]]; then
-    echo "${C_RED}Error: '$target' is not a directory${C_RESET}" >&2
+    _zsh_ui_log error "'$target' is not a directory."
     return 1
   fi
 
   if [[ ! -r "$target" ]]; then
-    echo "${C_RED}Error: No read permission for '$target'${C_RESET}" >&2
+    _zsh_ui_log error "No read permission for '$target'."
     return 1
   fi
 
@@ -442,13 +460,14 @@ function count() {
   # The -P flag resolves all symbolic links in the path to their real locations.
   local canonical_path
   canonical_path="$(cd -P "$target" 2>/dev/null && pwd)" || {
-    echo "${C_RED}Error: Cannot access '$target'${C_RESET}" >&2
+    _zsh_ui_log error "Cannot access '$target'."
     return 1
   }
 
   # Require explicit '/' argument when scanning root to prevent accidents.
   if [[ "$target" == "." && "$canonical_path" == "/" ]]; then
-    echo "${C_RED}Error: Refusing to scan root directory. Specify '/' explicitly if intended.${C_RESET}" >&2
+    _zsh_ui_log error \
+      "Refusing an implicit root scan; pass '/' explicitly if intended."
     return 1
   fi
 
@@ -462,84 +481,88 @@ function count() {
   local item err_file
   err_file="$(command mktemp -t count-err.XXXXXX 2>/dev/null)" || err_file=""
 
-  while IFS= read -r -d '' item; do
-    if [[ -L "$item" ]]; then
-      ((symlinks++))
-    elif [[ -f "$item" ]]; then
-      ((files++))
-    elif [[ -d "$item" ]]; then
-      ((dirs++))
+  {
+    if [[ -n "$err_file" ]]; then
+      while IFS= read -r -d '' item; do
+        if [[ -L "$item" ]]; then
+          ((symlinks++))
+        elif [[ -f "$item" ]]; then
+          ((files++))
+        elif [[ -d "$item" ]]; then
+          ((dirs++))
+        fi
+      done < <(command find "$canonical_path" -mindepth 1 \
+        -maxdepth "$max_depth" -print0 2>"$err_file")
+    else
+      while IFS= read -r -d '' item; do
+        if [[ -L "$item" ]]; then
+          ((symlinks++))
+        elif [[ -f "$item" ]]; then
+          ((files++))
+        elif [[ -d "$item" ]]; then
+          ((dirs++))
+        fi
+      done < <(command find "$canonical_path" -mindepth 1 \
+        -maxdepth "$max_depth" -print0 2>/dev/null)
     fi
-  done < <(find "$canonical_path" -mindepth 1 -maxdepth "$max_depth" -print0 ${err_file:+2>"$err_file"})
 
-  while IFS= read -r -d '' item; do
-    ((hidden++))
-  done < <(find "$canonical_path" -mindepth 1 -maxdepth "$max_depth" -name '.*' -print0 2>/dev/null)
+    while IFS= read -r -d '' item; do
+      ((hidden++))
+    done < <(command find "$canonical_path" -mindepth 1 \
+      -maxdepth "$max_depth" -name '.*' -print0 2>/dev/null)
 
-  if [[ -n "$err_file" && -s "$err_file" ]]; then
-    local err_lines
-    err_lines="$(command wc -l <"$err_file" 2>/dev/null | tr -d ' ')"
-    echo "${C_YELLOW}Warning: ${err_lines:-some} entries could not be scanned (permissions).${C_RESET}" >&2
-  fi
-  [[ -n "$err_file" ]] && command rm -f -- "$err_file" 2>/dev/null
+    if [[ -n "$err_file" && -s "$err_file" ]]; then
+      local err_lines
+      err_lines="$(command wc -l <"$err_file" 2>/dev/null | tr -d ' ')"
+      _zsh_ui_log warn \
+        "${err_lines:-Some} entries could not be scanned due to permissions."
+    fi
+  } always {
+    [[ -n "$err_file" ]] &&
+      command rm -f -- "$err_file" 2>/dev/null
+  }
 
   # Calculate total.
   total=$((files + dirs + symlinks))
 
-  # Display results with formatted output.
-  echo ""
-  echo "${C_CYAN}═══════════════════════════════════════════════════${C_RESET}"
-  if [[ $recursive -eq 1 ]]; then
-    echo "${C_CYAN}Directory Count (Recursive, max depth: $max_depth)${C_RESET}"
-  else
-    echo "${C_CYAN}Directory Count (Non-recursive)${C_RESET}"
-  fi
-  echo "${C_CYAN}═══════════════════════════════════════════════════${C_RESET}"
-  echo ""
-  printf "${C_YELLOW}%-15s${C_RESET} %s\n" "Location:" "$canonical_path"
-  echo ""
-  printf "${C_GREEN}%-15s${C_RESET} %'6d\n" "Files:" "$files"
-  printf "${C_GREEN}%-15s${C_RESET} %'6d\n" "Directories:" "$dirs"
-
-  # Always show symlinks if there are any, or if --all flag is used.
-  if [[ $show_all -eq 1 ]] || [[ $symlinks -gt 0 ]]; then
-    printf "${C_MAGENTA}%-15s${C_RESET} %'6d\n" "Symlinks:" "$symlinks"
-  fi
-
-  printf "${C_BLUE}%-15s${C_RESET} %'6d\n" "Hidden:" "$hidden"
-
-  echo "${C_CYAN}───────────────────────────────────────────────────${C_RESET}"
-  printf "${C_YELLOW}%-15s${C_RESET} %'6d\n" "Total:" "$total"
-  echo "${C_CYAN}═══════════════════════════════════════════════════${C_RESET}"
-  echo ""
+  local scope="Non-recursive"
+  (( recursive )) && scope="Recursive · max depth $max_depth"
+  _zsh_ui_sanitize_text "$canonical_path"
+  local display_path="$REPLY"
+  local -a summary=(
+    "Location     $display_path"
+    ""
+    "Files        $files"
+    "Directories  $dirs"
+  )
+  (( show_all || symlinks > 0 )) && summary+=("Symlinks     $symlinks")
+  summary+=("Hidden       $hidden" "Total        $total")
+  _zsh_ui_card "Directory count · $scope" "${summary[@]}"
 }
 # -----------------------------------------------------------------------------
 # dirsize
-# -----------------------------------------------------------------------------
-# Calculate and display directory sizes in descending order with pagination.
-# Uses Nushell for table rendering if available, falls back to column formatting.
-# Only scans immediate subdirectories (depth=1) for performance and safety.
-#
-# Usage:
-#   dirsize [directory] [options]
-#
-# Arguments:
-#   directory - Target directory to analyze (default: current directory).
-#
-# Options:
-#   -n, --limit NUM     Results per page (default: 25).
-#   -a, --all           Include files, not just directories.
-#   -h, --help          Show help message.
+# @description Delegates directory-size analysis to the repository's
+# Python helper.
+# @arg $@ string Optional directory and options forwarded to the dirsize helper.
+# @exitcode 1 If the helper script is missing or the delegated command fails.
 # -----------------------------------------------------------------------------
 function dirsize() {
+  emulate -L zsh
+  setopt localoptions no_aliases pipefail
+  _zsh_ui_load || return 1
+
   local python_script="$ZSH_CONFIG_DIR/scripts/python/dirsize.py"
 
   if [[ ! -f "$python_script" ]]; then
-    echo "${C_RED}Error: Python script not found at '$python_script'${C_RESET}" >&2
+    _zsh_ui_log error "Directory-size backend not found: $python_script"
+    return 1
+  fi
+  if ! (( $+commands[python3] )); then
+    _zsh_ui_log error "Python 3 is required for directory-size analysis."
     return 1
   fi
 
-  python3 "$python_script" "$@"
+  command python3 "$python_script" "$@"
 }
 
 # Create alias for dirsize.
