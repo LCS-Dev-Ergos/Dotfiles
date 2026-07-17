@@ -1,5 +1,6 @@
 #!/usr/bin/env zsh
 # shellcheck shell=zsh
+# zsh-load: deferred
 # ============================================================================ #
 # ++++++++++++++++++++++++++++ NETWORK FUNCTIONS +++++++++++++++++++++++++++++ #
 # ============================================================================ #
@@ -18,25 +19,27 @@
 #
 # ============================================================================ #
 
+typeset -f _zsh_cache_is_fresh >/dev/null 2>&1 ||
+  source "${ZSH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zsh}/runtime-helpers.zsh"
+
 # -----------------------------------------------------------------------------
 # weather
-# -----------------------------------------------------------------------------
-# Get weather information using wttr.in service.
-# Implements 1-hour caching to reduce API calls.
-#
-# Usage:
-#   weather [city]
-#
-# Arguments:
-#   city - Location name (default: Bari)
+# @description Displays weather for a city using wttr.in, caching results for
+# one hour and falling back to cached data when fetching fails.
+# @arg $1 string Optional city name; defaults to Bari.
+# @option -h | --help Show usage information.
+# @exitcode 1 If the cache cannot be created or no weather data is available.
 # -----------------------------------------------------------------------------
 function weather() {
+  if [[ "$1" == -h || "$1" == --help ]]; then
+    echo "Usage: weather [city]"
+    return 0
+  fi
   local location="${1:-Bari}"
   local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/weather"
   local location_key="${location//[^A-Za-z0-9._-]/_}"
   local cache_file="$cache_dir/${location_key}.cache"
   local location_url="${location// /%20}"
-  local current_time=${EPOCHSECONDS:-$(date +%s)}
   local cache_age=3600
 
   command mkdir -p -- "$cache_dir" 2>/dev/null || {
@@ -44,20 +47,9 @@ function weather() {
     return 1
   }
 
-  if [[ -f "$cache_file" ]]; then
-    local file_time
-    if typeset -f _zsh_mtime >/dev/null 2>&1; then
-      file_time="$(_zsh_mtime "$cache_file")"
-    elif [[ "$PLATFORM" == "macOS" ]]; then
-      file_time=$(command stat -f %m "$cache_file" 2>/dev/null)
-    else
-      file_time=$(command stat -c %Y "$cache_file" 2>/dev/null)
-    fi
-    [[ "$file_time" =~ ^[0-9]+$ ]] || file_time=0
-    if (( current_time - file_time < cache_age )); then
-      cat "$cache_file"
-      return 0
-    fi
+  if _zsh_cache_is_fresh "$cache_file" "$cache_age"; then
+    cat "$cache_file"
+    return 0
   fi
 
   local tmp_file
@@ -84,43 +76,74 @@ function weather() {
 
 # -----------------------------------------------------------------------------
 # myip
-# -----------------------------------------------------------------------------
-# Get public IP address and geolocation information.
-#
-# Usage:
-#   myip
+# @description Fetches public IP and geolocation details from ipinfo.io.
+# @option -h | --help Show usage information.
+# @exitcode 1 If the public IP information cannot be fetched.
 # -----------------------------------------------------------------------------
 function myip() {
-  echo "${C_CYAN}Fetching public IP info...${C_RESET}"
+  emulate -L zsh
+  setopt localoptions pipefail
+  _zsh_ui_load || return 1
+
+  if [[ "$1" == -h || "$1" == --help ]]; then
+    echo "Usage: myip"
+    return 0
+  fi
+  _zsh_ui_log info "Fetching public IP information."
   local response
-  if ! response="$(curl -fsS --max-time 10 --connect-timeout 5 "https://ipinfo.io/json" 2>/dev/null)"; then
-    echo "${C_RED}Error: Unable to fetch public IP info.${C_RESET}" >&2
+  if ! response="$(curl -fsS --max-time 10 --connect-timeout 5 \
+      "https://ipinfo.io/json" 2>/dev/null)"; then
+    _zsh_ui_log error "Unable to fetch public IP information."
     return 1
   fi
-  print -r -- "$response" |
-    grep -E '"ip"|"city"|"region"|"country"|"org"' |
-    sed 's/^  //;s/[",]//g' |
-    awk -F: -v color="${C_GREEN}" -v reset="${C_RESET}" '{printf "%s%s%s%s\n", $1 ":", color, $2, reset}'
+  if (( $+commands[jq] )); then
+    local details
+    details="$(print -r -- "$response" | command jq -r '
+      [
+        ["IP address", (.ip // "Unknown")],
+        ["City", (.city // "Unknown")],
+        ["Region", (.region // "Unknown")],
+        ["Country", (.country // "Unknown")],
+        ["Network", (.org // "Unknown")]
+      ][] | @tsv
+    ')" || {
+      _zsh_ui_log error "ipinfo.io returned invalid JSON."
+      return 1
+    }
+    _zsh_ui_section "Public IP information"
+    _zsh_ui_table $'Field\tValue' "${(@f)details}"
+    return $?
+  fi
+
+  _zsh_ui_log warn "jq is unavailable; printing raw ipinfo.io JSON."
+  print -r -- "$response"
 }
 
 # -----------------------------------------------------------------------------
 # portscan
-# -----------------------------------------------------------------------------
-# Simple port scanner for a specified host using netcat or bash /dev/tcp.
-# Scans a range of ports and reports which ones are open.
-#
-# Usage:
-#   portscan <host> [start_port] [end_port]
-#
-# Arguments:
-#   host       - Target hostname or IP address (required)
-#   start_port - Starting port number (default: 1)
-#   end_port   - Ending port number (default: 1000)
+# @description Scans a host over a port range and reports open ports.
+# @arg $1 string Hostname or IP address to scan.
+# @arg $2 integer Optional starting port; defaults to 1.
+# @arg $3 integer Optional ending port; defaults to 1000.
+# @option -h | --help Show usage information.
+# @exitcode 1 If a port is invalid or no supported scanner is available.
 # -----------------------------------------------------------------------------
 function portscan() {
+  emulate -L zsh
+  setopt localoptions pipefail
+  _zsh_ui_load || return 1
+
+  if [[ "$1" == -h || "$1" == --help ]]; then
+    echo "Usage: portscan <host> [start_port] [end_port]"
+    return 0
+  fi
   if [[ $# -lt 1 ]]; then
     echo "${C_YELLOW}Usage: portscan <host> [start_port] [end_port]${C_RESET}" >&2
     echo "Default range: 1-1000" >&2
+    return 1
+  fi
+  if (( $# > 3 )); then
+    _zsh_ui_log error "Usage: portscan <host> [start_port] [end_port]"
     return 1
   fi
 
@@ -128,13 +151,26 @@ function portscan() {
   local start_port="${2:-1}"
   local end_port="${3:-1000}"
 
-  # Validate port numbers.
-  if ! [[ "$start_port" =~ ^[0-9]+$ ]] || ! [[ "$end_port" =~ ^[0-9]+$ ]]; then
-    echo "${C_RED}Error: Port numbers must be positive integers.${C_RESET}" >&2
+  if [[ -z "$host" || "$host" == -* || "$host" == *[[:space:]]* ||
+        "$host" == *[[:cntrl:]]* ]]; then
+    _zsh_ui_log error \
+      "Hostnames cannot be empty, option-like, or contain whitespace."
     return 1
   fi
 
-  echo "${C_CYAN}Scanning ports $start_port-$end_port on $host...${C_RESET}"
+  # Validate port numbers.
+  if ! [[ "$start_port" =~ ^[0-9]+$ ]] || ! [[ "$end_port" =~ ^[0-9]+$ ]]; then
+    _zsh_ui_log error "Port numbers must be positive integers."
+    return 1
+  fi
+  if (( start_port < 1 || end_port > 65535 || start_port > end_port )); then
+    _zsh_ui_log error "Use a valid ascending port range within 1-65535."
+    return 1
+  fi
+
+  _zsh_ui_heading \
+    "Port scan" \
+    "$host · ports $start_port-$end_port"
 
   # Detect netcat flavor. BSD nc (macOS default) supports `port1-port2` range
   # syntax; nmap-ncat/openbsd-netcat on Linux generally do not. Probe the help
@@ -143,22 +179,29 @@ function portscan() {
   if command -v nc >/dev/null 2>&1; then
     if [[ "$PLATFORM" == "macOS" ]]; then
       nc_supports_range=1
-    elif nc -h 2>&1 | grep -qE 'port\[s\]|port range'; then
+    elif command nc -h 2>&1 | command grep -qE 'port\[s\]|port range'; then
       nc_supports_range=1
     fi
   fi
 
   if (( nc_supports_range )); then
     # -z: zero-I/O scan, -v: verbose, -w 1: 1s timeout.
-    nc -z -v -w 1 "$host" "$start_port"-"$end_port" 2>&1 |
-      grep "succeeded" |
-      sed "s/^/${C_GREEN}/;s/$/${C_RESET}/"
+    local scan_output line
+    scan_output="$(command nc -z -v -w 1 "$host" \
+      "$start_port"-"$end_port" 2>&1 | command grep "succeeded")" || true
+    if [[ -n "$scan_output" ]]; then
+      for line in "${(@f)scan_output}"; do
+        _zsh_ui_log ok "$line"
+      done
+    else
+      _zsh_ui_log info "No open ports found in the selected range."
+    fi
   elif command -v nc >/dev/null 2>&1; then
     # Linux nc fallback: iterate per port.
     local port
     for ((port = start_port; port <= end_port; port++)); do
-      if nc -z -w 1 "$host" "$port" 2>/dev/null; then
-        echo "${C_GREEN}Port $port: OPEN${C_RESET}"
+      if command nc -z -w 1 "$host" "$port" 2>/dev/null; then
+        _zsh_ui_log ok "Port $port is open."
       fi
     done
   elif zmodload zsh/net/tcp 2>/dev/null; then
@@ -167,32 +210,38 @@ function portscan() {
       if ztcp "$host" "$port" >/dev/null 2>&1; then
         fd="$REPLY"
         ztcp -c "$fd" >/dev/null 2>&1 || :
-        echo "${C_GREEN}Port $port: OPEN${C_RESET}"
+        _zsh_ui_log ok "Port $port is open."
       fi
     done
   else
-    echo "${C_RED}Error: netcat not found and zsh/net/tcp module unavailable.${C_RESET}" >&2
+    _zsh_ui_log error \
+      "Neither netcat nor the zsh/net/tcp module is available."
     return 1
   fi
 }
 
 # -----------------------------------------------------------------------------
 # serve
-# -----------------------------------------------------------------------------
-# Start a simple HTTP server in the current directory using Python.
-# Supports both local-only and public access modes with port validation.
-#
-# Usage:
-#   serve [port] [--public]
-#
-# Arguments:
-#   port     - Port number (default: 8000, range: 1-65535)
-#   --public - Bind to 0.0.0.0 instead of 127.0.0.1 for network access
+# @description Starts a Python HTTP server for the current directory,
+# binding locally by default; --public exposes it on all interfaces.
+# @arg $1 integer Optional port; defaults to 8000.
+# @option --public Bind to 0.0.0.0 instead of localhost.
+# @option -h | --help Show usage information.
+# @exitcode 1 If the port is invalid, approval is denied, or Python is missing.
 # -----------------------------------------------------------------------------
 function serve() {
+  emulate -L zsh
+  setopt localoptions pipefail
+  _zsh_ui_load || return 1
+
+  if [[ "$1" == -h || "$1" == --help ]]; then
+    echo "Usage: serve [port] [--public]"
+    return 0
+  fi
   local port="8000"
   local bind_address="127.0.0.1"
   local public_mode=false
+  local port_seen=false
 
   # Parse arguments
   while [[ $# -gt 0 ]]; do
@@ -200,9 +249,15 @@ function serve() {
       --public) public_mode=true; bind_address="0.0.0.0"; shift ;;
       *)
         if [[ "$1" =~ ^[0-9]+$ ]]; then
+          if [[ "$port_seen" == true ]]; then
+            _zsh_ui_log error "Only one port can be specified."
+            return 1
+          fi
           port="$1"
+          port_seen=true
         else
-          echo "${C_RED}Error: Invalid argument '$1'. Usage: serve [port] [--public]${C_RESET}" >&2
+          _zsh_ui_log error \
+            "Invalid argument '$1'. Usage: serve [port] [--public]"
           return 1
         fi
         shift
@@ -212,23 +267,25 @@ function serve() {
 
   # Validate port number.
   if [[ $port -lt 1 || $port -gt 65535 ]]; then
-    echo "${C_RED}Error: Invalid port number. Use a number between 1 and 65535.${C_RESET}" >&2
+    _zsh_ui_log error "Use a port number between 1 and 65535."
     return 1
   fi
 
   # Check if port is already in use.
-  if lsof -Pi :"$port" -sTCP:LISTEN -t >/dev/null 2>&1; then
-    echo "${C_YELLOW}Warning: Port $port is already in use.${C_RESET}" >&2
-    echo -n "Choose another port or press Enter to continue anyway: "
+  if (( $+commands[lsof] )) &&
+      command lsof -Pi :"$port" -sTCP:LISTEN -t >/dev/null 2>&1; then
+    _zsh_ui_log warn "Port $port is already in use."
+    printf 'Choose another port or press Enter to continue anyway: '
     read -r new_port
     if [[ -n "$new_port" ]]; then
       if ! [[ "$new_port" =~ ^[0-9]+$ ]] || [[ $new_port -lt 1 || $new_port -gt 65535 ]]; then
-        echo "${C_RED}Error: Invalid port number. Use a number between 1 and 65535.${C_RESET}" >&2
+        _zsh_ui_log error "Use a port number between 1 and 65535."
         return 1
       fi
       port="$new_port"
-      if lsof -Pi :"$port" -sTCP:LISTEN -t >/dev/null 2>&1; then
-        echo "${C_RED}Error: Port $port is still in use.${C_RESET}" >&2
+      if (( $+commands[lsof] )) &&
+          command lsof -Pi :"$port" -sTCP:LISTEN -t >/dev/null 2>&1; then
+        _zsh_ui_log error "Port $port is still in use."
         return 1
       fi
     fi
@@ -237,11 +294,11 @@ function serve() {
   # Warn before exposing sensitive directories over HTTP.
   case "$PWD" in
     "$HOME"|"$HOME/.ssh"*|"$HOME/.gnupg"*|"$HOME/.aws"*|"$HOME/.config"*)
-      echo "${C_YELLOW}Warning: serving '$PWD' may expose sensitive files.${C_RESET}" >&2
-      echo -n "Continue? (y/N): "
-      local _confirm
-      read -r _confirm
-      [[ "$_confirm" =~ ^[Yy]$ ]] || { echo "${C_CYAN}Cancelled.${C_RESET}"; return 1; }
+      _zsh_ui_log warn "Serving '$PWD' may expose sensitive files."
+      _zsh_ui_confirm "Continue and expose this directory?" || {
+        _zsh_ui_log info "Server start cancelled."
+        return 1
+      }
       ;;
   esac
 
@@ -250,9 +307,11 @@ function serve() {
   if [[ "$public_mode" == true ]]; then
     local ip="127.0.0.1"
     if [[ "$PLATFORM" == "macOS" ]]; then
-      ip="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo "127.0.0.1")"
+      ip="$(command ipconfig getifaddr en0 2>/dev/null ||
+        command ipconfig getifaddr en1 2>/dev/null ||
+        print -r -- "127.0.0.1")"
     elif [[ "$PLATFORM" == "Linux" ]]; then
-      ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+      ip="$(command hostname -I 2>/dev/null | command awk '{print $1}')"
       [[ -z "$ip" ]] && ip="127.0.0.1"
     fi
     url_msg="http://${ip}:${port} (Public)"
@@ -260,138 +319,147 @@ function serve() {
     url_msg="http://localhost:${port} (Local only)"
   fi
 
-  echo "${C_CYAN}Serving current directory on ${url_msg}${C_RESET}"
-  echo "${C_CYAN}Press Ctrl+C to stop the server${C_RESET}"
+  _zsh_ui_sanitize_text "$PWD"
+  local display_directory="$REPLY"
+  _zsh_ui_card \
+    "HTTP server" \
+    "Directory  $display_directory" \
+    "URL        $url_msg" \
+    "Stop       Ctrl+C"
 
-  # Python 3.
-  if command -v python3 &>/dev/null; then
-    python3 -m http.server "$port" --bind "$bind_address"
-    return
+  if ! (( $+commands[python3] )); then
+    _zsh_ui_log error "Python 3 is required to start the server safely."
+    return 1
   fi
-  # Python 2 (fallback).
-  if command -v python &>/dev/null; then
-    echo "${C_YELLOW}Warning: Python 2 is deprecated and binds on all interfaces by default.${C_RESET}"
-    python -m SimpleHTTPServer "$port"
-    return
-  fi
-
-  echo "${C_RED}Error: Python not found. Cannot start server.${C_RESET}" >&2
-  return 1
+  command python3 -m http.server "$port" --bind "$bind_address"
 }
 
 # -----------------------------------------------------------------------------
 # shorten
-# -----------------------------------------------------------------------------
-# Shorten URL using is.gd service and optionally copy to clipboard.
-# Automatically adds https:// prefix if missing.
-#
-# Usage:
-#   shorten <url>
-#
-# Arguments:
-#   url - URL to shorten (required)
+# @description Sends a URL to is.gd and displays the shortened result.
+# Adds https:// when no scheme is present and copies it when possible.
+# @arg $1 string URL to shorten.
+# @option -h | --help Show usage information.
+# @exitcode 1 If the URL, encoder, or shortening request fails.
 # -----------------------------------------------------------------------------
 function shorten() {
-  if [[ $# -eq 0 ]]; then
+  emulate -L zsh
+  setopt localoptions pipefail
+  _zsh_ui_load || return 1
+
+  if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+    echo "Usage: shorten <url>  # sends the URL to is.gd"
+    return 0
+  fi
+  if [[ $# -ne 1 ]]; then
     echo "${C_YELLOW}Usage: shorten <url>${C_RESET}" >&2
     return 1
   fi
 
   local url="$1"
 
-  # Basic URL validation.
-  if [[ ! "$url" =~ ^https?:// ]]; then
-    echo "${C_YELLOW}Warning: URL should start with http:// or https://${C_RESET}"
-    url="https://$url"
-  fi
-
-  # URL-encode using whichever tool is available.
-  local encoded_url
-  if command -v jq >/dev/null 2>&1; then
-    encoded_url="$(printf '%s' "$url" | jq -sRr @uri)"
-  elif command -v python3 >/dev/null 2>&1; then
-    encoded_url="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.stdin.read(), safe=""), end="")' <<<"$url")"
-  elif command -v perl >/dev/null 2>&1; then
-    encoded_url="$(printf '%s' "$url" | perl -MURI::Escape -ne 'chomp; print uri_escape($_)')"
-  else
-    echo "${C_RED}Error: shorten requires jq, python3, or perl for URL encoding.${C_RESET}" >&2
+  if [[ "$url" == *[[:cntrl:]]* ]]; then
+    _zsh_ui_log error "URLs cannot contain terminal control characters."
     return 1
   fi
 
+  # Basic URL validation.
+  if [[ ! "$url" =~ ^https?:// ]]; then
+    _zsh_ui_log warn "URL has no scheme; assuming https://."
+    url="https://$url"
+  fi
+
+  # omz_urlencode owns all URL encoding and includes its own fallbacks.
+  local encoded_url
+  if ! typeset -f omz_urlencode >/dev/null 2>&1; then
+    _zsh_ui_log error "omz_urlencode is unavailable."
+    return 1
+  fi
+  encoded_url="$(omz_urlencode -r -P "$url")" || return 1
+
+  if ! (( $+commands[curl] )); then
+    _zsh_ui_log error "curl is required to contact is.gd."
+    return 1
+  fi
+
+  _zsh_ui_log warn "Sending this URL to the third-party is.gd service."
+
   # Shorten the URL.
   local short_url
-  short_url=$(curl -fsS --max-time 15 --connect-timeout 5 "https://is.gd/create.php?format=simple&url=${encoded_url}" 2>/dev/null)
+  short_url="$(command curl -fsS --max-time 15 --connect-timeout 5 \
+    "https://is.gd/create.php?format=simple&url=${encoded_url}" \
+    2>/dev/null)" || short_url=""
 
-  if [[ -n "$short_url" ]]; then
-    echo "${C_GREEN}Short URL: $short_url${C_RESET}"
+  if [[ "$short_url" == https://is.gd/* &&
+        "$short_url" != *[[:cntrl:]]* ]]; then
+    local clipboard_status="Not available"
     # Copy to clipboard if possible.
     if command -v pbcopy >/dev/null 2>&1; then
-      echo -n "$short_url" | pbcopy
-      echo "${C_BLUE}Copied to clipboard!${C_RESET}"
+      print -rn -- "$short_url" | command pbcopy
+      clipboard_status="Copied"
     elif command -v xclip >/dev/null 2>&1; then
-      echo -n "$short_url" | xclip -selection clipboard
-      echo "${C_BLUE}Copied to clipboard!${C_RESET}"
+      print -rn -- "$short_url" | command xclip -selection clipboard
+      clipboard_status="Copied"
     fi
+    _zsh_ui_card \
+      "Short URL" \
+      "$short_url" \
+      "Clipboard  $clipboard_status"
   else
-    echo "${C_RED}Error: Failed to shorten URL.${C_RESET}" >&2
+    _zsh_ui_log error "Failed to shorten the URL."
     return 1
   fi
 }
 
 # -----------------------------------------------------------------------------
 # cheat
-# -----------------------------------------------------------------------------
-# Get a cheat sheet for a command using cheat.sh service.
-# Displays practical examples and common usage patterns.
-#
-# Usage:
-#   cheat <command>
+# @description Fetches a command cheat sheet from cheat.sh and opens it
+# in a pager.
+# @arg $1 string Command or query to look up.
+# @option -h | --help Show usage information.
+# @exitcode 1 If the query is missing or the URL encoder is unavailable.
 # -----------------------------------------------------------------------------
 function cheat() {
+  if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+    echo "Usage: cheat <command>"
+    return 0
+  fi
   if [[ -z "$1" ]]; then
     echo "${C_YELLOW}Usage: cheat <command>${C_RESET}" >&2
     return 1
   fi
-  local query="$1"
-  if typeset -f omz_urlencode >/dev/null 2>&1; then
-    query="$(omz_urlencode "$query")"
-  elif command -v jq >/dev/null 2>&1; then
-    query="$(printf '%s' "$query" | jq -sRr @uri)"
-  elif command -v python3 >/dev/null 2>&1; then
-    query="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.stdin.read(), safe=""), end="")' <<<"$query")"
-  else
-    # Last-resort manual encoding for the most common cheat.sh-breaking chars.
-    local _enc="" _i _c _o
-    for (( _i=1; _i <= ${#query}; _i++ )); do
-      _c="${query[$_i]}"
-      case "$_c" in
-        [A-Za-z0-9._~-]) _enc+="$_c" ;;
-        " ") _enc+="+" ;;
-        *) _o=$(( [##16] #_c )); _enc+="%${(l:2::0:)_o}" ;;
-      esac
-    done
-    query="$_enc"
-  fi
+  typeset -f omz_urlencode >/dev/null 2>&1 || {
+    echo "${C_RED}Error: omz_urlencode is unavailable.${C_RESET}" >&2
+    return 1
+  }
+  local query
+  query="$(omz_urlencode -r -P "$1")" || return 1
   curl -fsS --max-time 15 --connect-timeout 5 "https://cheat.sh/${query}" | less -R
 }
 
 # -----------------------------------------------------------------------------
 # qr
-# -----------------------------------------------------------------------------
-# Generate a QR code in the terminal using qrenco.de service.
-# Useful for quickly sharing text, URLs, or WiFi credentials.
-#
-# Usage:
-#   qr <text>
-#
-# Arguments:
-#   text - Text or URL to encode in QR code (required)
+# @description Renders a terminal QR code with qrencode, or sends text
+# to qrenco.de when qrencode is unavailable.
+# The remote fallback should not be used for secrets.
+# @arg $1 string Text or URL to encode.
+# @option -h | --help Show usage information.
+# @exitcode 1 If the text is missing or QR generation fails.
 # -----------------------------------------------------------------------------
 function qr() {
+  if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+    echo "Usage: qr <text>  # local with qrencode; otherwise sends text to qrenco.de"
+    return 0
+  fi
   if [[ -z "$1" ]]; then
     echo "${C_YELLOW}Usage: qr <text>${C_RESET}" >&2
     return 1
   fi
+  if command -v qrencode >/dev/null 2>&1; then
+    printf '%s' "$1" | qrencode -t ANSIUTF8 -o -
+    return $?
+  fi
+  echo "${C_YELLOW}Privacy: qrencode is unavailable; sending text to qrenco.de. Do not use this fallback for credentials.${C_RESET}" >&2
   curl -fsSF-="\<-" --max-time 10 --connect-timeout 5 "https://qrenco.de" <<<"$1"
 }
 

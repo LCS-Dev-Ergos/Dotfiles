@@ -18,13 +18,12 @@
 # ============================================================================ #
 
 # -----------------------------------------------------------------------------
-# _fuzzy_change_directory (ffcd)
-# -----------------------------------------------------------------------------
-# Interactively navigate to a directory using fzf.
-# Excludes common build/cache directories for faster searching.
-#
-# Usage:
-#   ffcd [initial_query]
+# _fuzzy_change_directory
+# @internal
+# @description Interactively changes to a directory selected with fzf.
+# Excludes common build and cache directories and accepts an initial query.
+# @arg $1 string Optional initial fzf query.
+# @exitcode 1 If no directory is selected.
 # -----------------------------------------------------------------------------
 _fuzzy_change_directory() {
   local initial_query="$1"
@@ -55,12 +54,11 @@ _fuzzy_change_directory() {
 }
 
 # -----------------------------------------------------------------------------
-# _fuzzy_edit_search_file (ffe)
-# -----------------------------------------------------------------------------
-# Fuzzy find a file and open it in the editor.
-#
-# Usage:
-#   ffe [initial_query]
+# _fuzzy_edit_search_file
+# @internal
+# @description Interactively selects a file with fzf and opens it in the editor.
+# @arg $1 string Optional initial fzf query.
+# @exitcode 1 If no file is selected or the editor fails.
 # -----------------------------------------------------------------------------
 _fuzzy_edit_search_file() {
   local initial_query="$1"
@@ -93,12 +91,11 @@ _fuzzy_edit_search_file() {
 }
 
 # -----------------------------------------------------------------------------
-# _fuzzy_edit_search_file_content (ffec)
-# -----------------------------------------------------------------------------
-# Search for content in files and open matching file in editor.
-#
-# Usage:
-#   ffec <search_pattern>
+# _fuzzy_edit_search_file_content
+# @internal
+# @description Searches files with rg or grep and opens a selected match.
+# @arg $1 string Search pattern.
+# @exitcode 1 If the search pattern is missing.
 # -----------------------------------------------------------------------------
 _fuzzy_edit_search_file_content() {
   local search_pattern="${1:-}"
@@ -147,12 +144,11 @@ _fuzzy_edit_search_file_content() {
 }
 
 # -----------------------------------------------------------------------------
-# _fuzzy_search_cmd_history (ffch)
-# -----------------------------------------------------------------------------
-# Fuzzy search command history with preview.
-#
-# Usage:
-#   ffch [initial_query]
+# _fuzzy_search_cmd_history
+# @internal
+# @description Fuzzy-searches shell history and loads the selection into ZLE.
+# @arg $1 string Optional initial fzf query.
+# @exitcode 1 If fzf integration is unavailable or selection fails.
 # -----------------------------------------------------------------------------
 _fuzzy_search_cmd_history() {
   local selected

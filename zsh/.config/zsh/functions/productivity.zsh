@@ -1,5 +1,6 @@
 #!/usr/bin/env zsh
 # shellcheck shell=zsh
+# zsh-load: deferred
 # ============================================================================ #
 # ++++++++++++++++++++++++++ PRODUCTIVITY FUNCTIONS ++++++++++++++++++++++++++ #
 # ============================================================================ #
@@ -20,16 +21,10 @@
 
 # -----------------------------------------------------------------------------
 # note
-# -----------------------------------------------------------------------------
-# Quick note-taking function with automatic timestamping and monthly organization.
-# Notes are stored in markdown format in monthly files.
-#
-# Usage:
-#   note [text]    - Add note with text.
-#   note           - Interactive mode (Ctrl+D to finish).
-#
-# Environment:
-#   NOTES_DIR - Custom notes directory (default: ~/.notes)
+# @description Appends a timestamped note to a monthly Markdown file under
+# NOTES_DIR or ~/.notes; without text, reads until CTRL-D.
+# @arg $@ string Optional note text; multiple arguments are joined with spaces.
+# @exitcode 1 If the notes directory or file cannot be created.
 # -----------------------------------------------------------------------------
 function note() {
   local notes_dir="${NOTES_DIR:-$HOME/.notes}"
@@ -57,7 +52,6 @@ function note() {
   command chmod 600 "$notes_file" 2>/dev/null || :
 
   if [[ $# -eq 0 ]]; then
-    # Interactive mode.
     echo "${C_CYAN}Enter note (Ctrl+D to finish):${C_RESET}"
     local note_content
     note_content=$(cat)
@@ -66,7 +60,6 @@ function note() {
       echo "${C_GREEN}Note saved to $notes_file${C_RESET}"
     fi
   else
-    # Quick mode with arguments.
     echo -e "\n## $timestamp\n$*" >>"$notes_file"
     echo "${C_GREEN}Note saved to $notes_file${C_RESET}"
   fi
@@ -74,142 +67,205 @@ function note() {
 
 # -----------------------------------------------------------------------------
 # bm
-# -----------------------------------------------------------------------------
-# Simple bookmark system for directories with add/delete/list/jump operations.
-# Bookmarks are stored in ~/.directory_bookmarks
-#
-# Usage:
-#   bm add <name>    - Bookmark current directory.
-#   bm del <name>    - Delete bookmark.
-#   bm list          - List all bookmarks (default).
-#   bm <name>        - Jump to bookmarked directory.
+# @description Adds, deletes, lists, or jumps to bookmarks stored in
+# ~/.directory_bookmarks.
+# @arg $1 string Optional subcommand or bookmark name; defaults to list.
+# @arg $2 string Optional bookmark name for the add or del subcommands.
+# @exitcode 1 If a name is invalid, absent, or cannot be entered.
 # -----------------------------------------------------------------------------
 function bm() {
+  emulate -L zsh
+  setopt localoptions pipefail
+  _zsh_ui_load || return 1
+
   local bookmarks_file="$HOME/.directory_bookmarks"
   local action="${1:-list}"
   local name="$2"
 
-  # Ensure bookmarks file is initialized with restrictive permissions.
-  # Bookmark names/paths can reveal sensitive directories (work, vpn, etc.).
-  if [[ ! -e "$bookmarks_file" ]]; then
-    (umask 077 && : >"$bookmarks_file") 2>/dev/null || :
+  # Refuse links and non-regular files before any chmod or redirection. This
+  # keeps a compromised bookmark path from targeting another user file.
+  if [[ -L "$bookmarks_file" ]]; then
+    _zsh_ui_log error "Refusing symlinked bookmarks file: $bookmarks_file"
+    return 1
   fi
-  command chmod 600 "$bookmarks_file" 2>/dev/null || :
+  if [[ -e "$bookmarks_file" && ! -f "$bookmarks_file" ]]; then
+    _zsh_ui_log error "Bookmarks path is not a regular file."
+    return 1
+  fi
+
+  # Bookmark names and paths can reveal sensitive directories.
+  if [[ ! -e "$bookmarks_file" ]]; then
+    (umask 077 && : >| "$bookmarks_file") 2>/dev/null || {
+      _zsh_ui_log error "Cannot create the bookmarks file."
+      return 1
+    }
+  fi
+  command chmod 600 "$bookmarks_file" 2>/dev/null || {
+    _zsh_ui_log error "Cannot secure the bookmarks file."
+    return 1
+  }
+  if ! typeset -f _zsh_is_secure_file >/dev/null 2>&1 ||
+      ! _zsh_is_secure_file "$bookmarks_file"; then
+    _zsh_ui_log error "Bookmarks file ownership or permissions are unsafe."
+    return 1
+  fi
 
   case "$action" in
     add)
       if [[ -z "$name" ]]; then
-        echo "${C_YELLOW}Usage: bm add <name>${C_RESET}" >&2
+        _zsh_ui_log error "Usage: bm add <name>"
         return 1
       fi
-      if [[ "$name" == *"="* || "$name" == *$'\n'* ]]; then
-        echo "${C_RED}Error: Bookmark name cannot contain '=' or newlines.${C_RESET}" >&2
+      if [[ "$name" == *"="* || "$name" == *[[:cntrl:]]* ]]; then
+        _zsh_ui_log error \
+          "Bookmark names cannot contain '=', tabs, or newlines."
         return 1
       fi
 
       local current_dir="$PWD"
-      local tmp_file="${bookmarks_file}.tmp.$$"
+      if [[ "$current_dir" == *[[:cntrl:]]* ]]; then
+        _zsh_ui_log error \
+          "Directory paths containing control characters cannot be saved."
+        return 1
+      fi
+      local tmp_file
+      tmp_file="$(command mktemp "${bookmarks_file}.tmp.XXXXXX" \
+        2>/dev/null)" || {
+        _zsh_ui_log error "Cannot create a secure temporary file."
+        return 1
+      }
 
-      if [[ -f "$bookmarks_file" ]]; then
-        if ! command awk -F= -v key="$name" '$1 != key { print }' "$bookmarks_file" >"$tmp_file"; then
-          command rm -f -- "$tmp_file" 2>/dev/null
-          echo "${C_RED}Error: Failed to update bookmarks.${C_RESET}" >&2
+      {
+        if ! command env BM_KEY="$name" awk -F= \
+            '$1 != ENVIRON["BM_KEY"] { print }' \
+            "$bookmarks_file" >| "$tmp_file"; then
+          _zsh_ui_log error "Failed to update bookmarks."
           return 1
         fi
-      else
-        : >"$tmp_file" || {
-          echo "${C_RED}Error: Cannot create bookmarks file.${C_RESET}" >&2
+
+        print -r -- "$name=$current_dir" >> "$tmp_file" || {
+          _zsh_ui_log error "Failed to write bookmark '$name'."
           return 1
         }
-      fi
-
-      print -r -- "$name=$current_dir" >>"$tmp_file" || {
-        command rm -f -- "$tmp_file" 2>/dev/null
-        echo "${C_RED}Error: Failed to write bookmark.${C_RESET}" >&2
-        return 1
+        command chmod 600 "$tmp_file" 2>/dev/null || {
+          _zsh_ui_log error "Failed to secure updated bookmarks."
+          return 1
+        }
+        command mv -f -- "$tmp_file" "$bookmarks_file" || {
+          _zsh_ui_log error "Failed to save bookmarks."
+          return 1
+        }
+        tmp_file=""
+      } always {
+        if [[ -n "$tmp_file" ]]; then
+          command rm -f -- "$tmp_file" 2>/dev/null
+        fi
       }
-
-      command mv -- "$tmp_file" "$bookmarks_file" || {
-        command rm -f -- "$tmp_file" 2>/dev/null
-        echo "${C_RED}Error: Failed to save bookmarks.${C_RESET}" >&2
-        return 1
-      }
-
-      command chmod 600 "$bookmarks_file" 2>/dev/null || :
-      echo "${C_GREEN}Bookmark '$name' saved for $current_dir${C_RESET}"
+      _zsh_ui_log ok "Bookmark '$name' saved for $current_dir."
       ;;
 
     del)
       if [[ -z "$name" ]]; then
-        echo "${C_YELLOW}Usage: bm del <name>${C_RESET}" >&2
+        _zsh_ui_log error "Usage: bm del <name>"
         return 1
       fi
-      if [[ "$name" == *"="* || "$name" == *$'\n'* ]]; then
-        echo "${C_RED}Error: Invalid bookmark name.${C_RESET}" >&2
+      if [[ "$name" == *"="* || "$name" == *[[:cntrl:]]* ]]; then
+        _zsh_ui_log error "Invalid bookmark name."
         return 1
       fi
 
       if [[ ! -f "$bookmarks_file" ]]; then
-        echo "${C_RED}Error: No bookmarks file found.${C_RESET}" >&2
+        _zsh_ui_log error "No bookmarks file found."
         return 1
       fi
 
-      if ! command awk -F= -v key="$name" 'BEGIN { found = 0 } $1 == key { found = 1 } END { exit found ? 0 : 1 }' "$bookmarks_file"; then
-        echo "${C_RED}Error: Bookmark '$name' not found.${C_RESET}" >&2
+      if ! command env BM_KEY="$name" awk -F= \
+          'BEGIN { found = 0 }
+           $1 == ENVIRON["BM_KEY"] { found = 1 }
+           END { exit found ? 0 : 1 }' "$bookmarks_file"; then
+        _zsh_ui_log error "Bookmark '$name' not found."
         return 1
       fi
 
-      local tmp_file="${bookmarks_file}.tmp.$$"
-      if ! command awk -F= -v key="$name" '$1 != key { print }' "$bookmarks_file" >"$tmp_file"; then
-        command rm -f -- "$tmp_file" 2>/dev/null
-        echo "${C_RED}Error: Failed to update bookmarks.${C_RESET}" >&2
-        return 1
-      fi
-
-      command mv -- "$tmp_file" "$bookmarks_file" || {
-        command rm -f -- "$tmp_file" 2>/dev/null
-        echo "${C_RED}Error: Failed to save bookmarks.${C_RESET}" >&2
+      local tmp_file
+      tmp_file="$(command mktemp "${bookmarks_file}.tmp.XXXXXX" \
+        2>/dev/null)" || {
+        _zsh_ui_log error "Cannot create a secure temporary file."
         return 1
       }
+      {
+        if ! command env BM_KEY="$name" awk -F= \
+            '$1 != ENVIRON["BM_KEY"] { print }' \
+            "$bookmarks_file" >| "$tmp_file"; then
+          _zsh_ui_log error "Failed to update bookmarks."
+          return 1
+        fi
+        command chmod 600 "$tmp_file" 2>/dev/null || {
+          _zsh_ui_log error "Failed to secure updated bookmarks."
+          return 1
+        }
+        command mv -f -- "$tmp_file" "$bookmarks_file" || {
+          _zsh_ui_log error "Failed to save bookmarks."
+          return 1
+        }
+        tmp_file=""
+      } always {
+        if [[ -n "$tmp_file" ]]; then
+          command rm -f -- "$tmp_file" 2>/dev/null
+        fi
+      }
 
-      echo "${C_GREEN}Bookmark '$name' deleted${C_RESET}"
+      _zsh_ui_log ok "Bookmark '$name' deleted."
       ;;
 
     list)
       if [[ -f "$bookmarks_file" ]]; then
-        echo "${C_CYAN}Directory Bookmarks:${C_RESET}"
         local bm_name dir
+        local -a bookmark_rows=()
         while IFS='=' read -r bm_name dir; do
           [[ -z "$bm_name" ]] && continue
-          echo "  ${C_YELLOW}$bm_name${C_RESET} -> $dir"
+          bm_name="${bm_name//$'\t'/\\t}"
+          dir="${dir//$'\t'/\\t}"
+          bookmark_rows+=("${bm_name}"$'\t'"${dir}")
         done <"$bookmarks_file"
+        if (( ${#bookmark_rows[@]} )); then
+          _zsh_ui_section "Directory bookmarks · ${#bookmark_rows[@]}"
+          _zsh_ui_table $'Name\tDirectory' "${bookmark_rows[@]}"
+        else
+          _zsh_ui_log info "No bookmarks found."
+        fi
       else
-        echo "${C_YELLOW}No bookmarks found.${C_RESET}"
+        _zsh_ui_log info "No bookmarks found."
       fi
       ;;
 
     *)
       if [[ -f "$bookmarks_file" ]]; then
-        if [[ "$action" == *"="* || "$action" == *$'\n'* ]]; then
-          echo "${C_RED}Error: Invalid bookmark name.${C_RESET}" >&2
+        if [[ "$action" == *"="* || "$action" == *[[:cntrl:]]* ]]; then
+          _zsh_ui_log error "Invalid bookmark name."
           return 1
         fi
 
         local dir
-        dir="$(command awk -v key="$action" 'index($0, key "=") == 1 { print substr($0, length(key) + 2); exit }' "$bookmarks_file")"
+        dir="$(command env BM_KEY="$action" awk \
+          'index($0, ENVIRON["BM_KEY"] "=") == 1 {
+             print substr($0, length(ENVIRON["BM_KEY"]) + 2)
+             exit
+           }' "$bookmarks_file")"
         if [[ -n "$dir" ]]; then
           if builtin cd -- "$dir"; then
-            echo "${C_GREEN}Jumped to bookmark '$action': $PWD${C_RESET}"
+            _zsh_ui_log ok "Jumped to bookmark '$action': $PWD"
           else
-            echo "${C_RED}Error: Target directory for bookmark '$action' is not accessible.${C_RESET}" >&2
+            _zsh_ui_log error \
+              "Target for bookmark '$action' is not accessible."
             return 1
           fi
         else
-          echo "${C_RED}Error: Bookmark '$action' not found.${C_RESET}" >&2
+          _zsh_ui_log error "Bookmark '$action' not found."
           return 1
         fi
       else
-        echo "${C_RED}Error: No bookmarks file found.${C_RESET}" >&2
+        _zsh_ui_log error "No bookmarks file found."
         return 1
       fi
       ;;
@@ -218,24 +274,15 @@ function bm() {
 
 # -----------------------------------------------------------------------------
 # cleanup
-# -----------------------------------------------------------------------------
-# Clean various temporary and cache files across the system.
-# Supports dry-run mode to preview what will be deleted.
-#
-# Cleaned locations:
-#   - System temp directories (/tmp, /private/var/tmp)
-#   - User caches (~/.cache, ~/Library/Caches on macOS)
-#   - Package manager caches (npm, yarn)
-#
-# Usage:
-#   cleanup [--dry-run]
-#
-# Arguments:
-#   --dry-run - Show what would be deleted without actually removing files.
+# @description Removes old user-owned temp and cache entries, or previews
+# deletions. CLEANUP_MIN_AGE_DAYS sets the threshold; default is 7.
+# @option --dry-run Preview targets without deleting them.
+# @exitcode 1 If an unsupported option is supplied.
 # -----------------------------------------------------------------------------
 function cleanup() {
   emulate -L zsh
   setopt noxtrace noverbose nullglob
+  _zsh_ui_load || return 1
 
   local dry_run=false
   local min_age_days="${CLEANUP_MIN_AGE_DAYS:-7}"
@@ -244,16 +291,18 @@ function cleanup() {
     "")
       ;;
     *)
-      echo "${C_YELLOW}Usage: cleanup [--dry-run]${C_RESET}" >&2
+      _zsh_ui_log error "Usage: cleanup [--dry-run]"
       return 1
       ;;
   esac
 
   if ! [[ "$min_age_days" =~ ^[0-9]+$ ]]; then
+    _zsh_ui_log warn \
+      "Invalid CLEANUP_MIN_AGE_DAYS; using the 7-day default."
     min_age_days=7
   fi
 
-  echo "${C_CYAN}Cleaning temporary files older than ${min_age_days} days...${C_RESET}"
+  _zsh_ui_section "User cache cleanup · older than $min_age_days days"
 
   local -a tmp_roots=()
   local -a cache_roots=()
@@ -285,7 +334,7 @@ function cleanup() {
     done < <(find "$root" -mindepth 1 -maxdepth 1 -user "$USER" -mtime "+$min_age_days" -print0 2>/dev/null)
   done
 
-  # User cache roots: only top-level entries owned by user, older than threshold.
+  # User cache roots: top-level, user-owned entries older than the threshold.
   for root in "${cache_roots[@]}"; do
     [[ -d "$root" ]] || continue
     while IFS= read -r -d '' item; do
@@ -294,48 +343,65 @@ function cleanup() {
   done
 
   if (( ${#targets[@]} == 0 )); then
-    echo "${C_YELLOW}No temporary/cache files found to clean.${C_RESET}"
+    _zsh_ui_log info "No eligible temporary or cache entries found."
     return 0
   fi
 
   if [[ "$dry_run" == true ]]; then
-    echo "${C_YELLOW}DRY RUN - No files will be deleted${C_RESET}"
     local item size
+    local -a preview_rows=()
     for item in "${targets[@]}"; do
       size="$(du -sh -- "$item" 2>/dev/null | awk '{print $1}')"
       [[ -z "$size" ]] && size="?"
-      echo "  Would remove: $item ($size)"
+      preview_rows+=("${size}"$'\t'"${item//$'\t'/\\t}")
     done
+    _zsh_ui_table $'Size\tCandidate' "${preview_rows[@]}"
+    _zsh_ui_log info \
+      "Dry run only; ${#targets[@]} entries would be removed."
   else
     # Defense-in-depth: validate each target is a regular file, directory, or
     # symlink before deletion. Skips device/socket/fifo and silently bypasses
     # entries that vanished between enumeration and removal.
     local item
+    local -i removed=0 failed=0 skipped=0
     for item in "${targets[@]}"; do
       if [[ -f "$item" || -d "$item" || -L "$item" ]]; then
-        command rm -rf -- "$item" 2>/dev/null
+        if command rm -rf -- "$item" 2>/dev/null; then
+          (( removed++ ))
+        else
+          (( failed++ ))
+        fi
+      else
+        (( skipped++ ))
       fi
     done
-    echo "${C_GREEN}Cleanup completed!${C_RESET}"
+    if (( failed )); then
+      _zsh_ui_log warn \
+        "Removed $removed entries; $failed failed and $skipped disappeared."
+      return 1
+    fi
+    local cleanup_summary="Removed $removed entries"
+    (( skipped )) &&
+      cleanup_summary+="; $skipped disappeared before cleanup"
+    _zsh_ui_log ok "${cleanup_summary}."
   fi
 }
 
 # -----------------------------------------------------------------------------
 # zshcache
-# -----------------------------------------------------------------------------
-# Reset Zsh-related caches to fix inconsistencies after config changes.
-# Removes compdump files, cached completions, and lazy cache stubs.
-#
-# Usage:
-#   zshcache [--dry-run] [--rebuild] [--compile] [--quiet]
-#
-# Arguments:
-#   --dry-run - Show what would be removed without deleting.
-#   --rebuild - Run compinit after cleanup to rebuild caches.
-#   --compile - Compile Zsh files to .zwc bytecode.
-#   --quiet   - Suppress informational output.
+# @description Removes Zsh completion and related caches with optional
+# dry-run, rebuild, compile, and quiet modes.
+# @option --dry-run | --dryrun Preview removals without changing files.
+# @option --rebuild Rebuild compinit; compile when configured.
+# @option --compile Compile the configured Zsh files to `.zwc` bytecode.
+# @option --quiet Suppress informational output.
+# @option --help Show usage information.
+# @exitcode 1 If an unknown option is supplied.
 # -----------------------------------------------------------------------------
 function zshcache() {
+  emulate -L zsh
+  setopt localoptions nullglob
+
   local dry_run=false
   local rebuild=false
   local compile=false
@@ -360,11 +426,11 @@ function zshcache() {
     esac
   done
 
+  [[ "$quiet" == true ]] || _zsh_ui_load || return 1
+
   if [[ "$rebuild" == true && "${ZSH_CACHE_COMPILE:-1}" == "1" ]]; then
     compile=true
   fi
-
-  setopt localoptions nullglob
 
   local zdot="${ZDOTDIR:-$HOME}"
   local xdg_cache="${XDG_CACHE_HOME:-$HOME/.cache}"
@@ -392,18 +458,25 @@ function zshcache() {
   fi
 
   if [[ "$dry_run" == true ]]; then
-    [[ "$quiet" == true ]] || echo "${C_YELLOW}DRY RUN - Zsh cache files that would be removed:${C_RESET}"
-    for item in "${targets[@]}"; do
-      [[ "$quiet" == true ]] || echo "  $item"
-    done
-    if (( ${#broken_links[@]} )); then
-      [[ "$quiet" == true ]] || echo "${C_YELLOW}Broken zinit symlinks that would be removed:${C_RESET}"
-      for _link in "${broken_links[@]}"; do
-        [[ "$quiet" == true ]] || echo "  $_link"
+    if [[ "$quiet" != true ]]; then
+      local -a cache_rows=()
+      for item in "${targets[@]}"; do
+        cache_rows+=($'Cache\t'"${item//$'\t'/\\t}")
       done
+      for _link in "${broken_links[@]}"; do
+        cache_rows+=($'Broken link\t'"${_link//$'\t'/\\t}")
+      done
+      if (( ${#cache_rows[@]} )); then
+        _zsh_ui_section "Zsh cache dry run"
+        _zsh_ui_table $'Type\tPath' "${cache_rows[@]}"
+      else
+        _zsh_ui_log info "No Zsh cache entries would be removed."
+      fi
+      [[ "$rebuild" == true ]] &&
+        _zsh_ui_log info "Dry run: compinit rebuild skipped."
+      [[ "$compile" == true ]] &&
+        _zsh_ui_log info "Dry run: bytecode compilation skipped."
     fi
-    [[ "$rebuild" == true ]] && { [[ "$quiet" == true ]] || echo "${C_YELLOW}DRY RUN - compinit rebuild skipped.${C_RESET}"; }
-    [[ "$compile" == true ]] && { [[ "$quiet" == true ]] || echo "${C_YELLOW}DRY RUN - zcompile skipped.${C_RESET}"; }
     return 0
   else
     (( ${#targets[@]} )) && command rm -rf -- "${targets[@]}" 2>/dev/null
@@ -414,7 +487,7 @@ function zshcache() {
         command rm -- "$_link" 2>/dev/null
       fi
     done
-    [[ "$quiet" == true ]] || echo "${C_GREEN}Zsh cache cleanup completed.${C_RESET}"
+    [[ "$quiet" == true ]] || _zsh_ui_log ok "Zsh cache cleanup completed."
   fi
 
   _zshcache_compile() {
@@ -444,12 +517,13 @@ function zshcache() {
     for file in "${compile_files[@]}"; do
       if ! zcompile -U "$file" 2>/dev/null; then
         failed=1
-        [[ "$quiet" == true ]] || echo "${C_YELLOW}Warning: zcompile failed for $file${C_RESET}"
+        [[ "$quiet" == true ]] ||
+          _zsh_ui_log warn "zcompile failed for $file."
       fi
     done
 
     if (( failed == 0 )); then
-      [[ "$quiet" == true ]] || echo "${C_GREEN}Zsh bytecode compiled.${C_RESET}"
+      [[ "$quiet" == true ]] || _zsh_ui_log ok "Zsh bytecode compiled."
     fi
   }
 
@@ -460,12 +534,16 @@ function zshcache() {
     [[ "${ZSH_DISABLE_COMPFIX:-false}" == true ]] && _insecure_mode="-u"
     command mkdir -p "${xdg_cache}/zsh" 2>/dev/null
     if compinit "$_insecure_mode" -d "$_compdump" 2>/dev/null; then
-      # Update stamp and signature so next startup uses the fast path (compinit -C).
+      # Update the stamp and signature so startup can use compinit -C.
       : >| "${xdg_cache}/zsh/compinit.last" 2>/dev/null
       print -r -- "${_compdump}|${(j.:.)fpath}" >| "${xdg_cache}/zsh/compinit.sig" 2>/dev/null
-      [[ "$quiet" == true ]] || echo "${C_GREEN}compinit rebuilt.${C_RESET}"
+      [[ "$quiet" == true ]] || _zsh_ui_log ok "compinit rebuilt."
     else
-      echo "${C_RED}zshcache: compinit returned an error.${C_RESET}" >&2
+      if [[ "$quiet" == true ]]; then
+        print -u2 "zshcache: compinit returned an error"
+      else
+        _zsh_ui_log error "compinit returned an error."
+      fi
     fi
   fi
 
@@ -478,15 +556,10 @@ function zshcache() {
 
 # -----------------------------------------------------------------------------
 # fkill
-# -----------------------------------------------------------------------------
-# Interactively find and kill processes using fzf for selection.
-# Allows multi-selection and sends specified signal to selected processes.
-#
-# Usage:
-#   fkill [signal]
-#
-# Arguments:
-#   signal - Signal number to send (default: 15/SIGTERM)
+# @description Interactively selects processes with fzf and sends a signal.
+# Defaults to SIGTERM (15) and supports multiple selections.
+# @arg $1 integer Optional signal number; defaults to 15.
+# @exitcode 1 If fzf is unavailable or killing a selected process fails.
 # -----------------------------------------------------------------------------
 function fkill() {
   if ! command -v fzf >/dev/null 2>&1; then
@@ -495,14 +568,10 @@ function fkill() {
   fi
 
   local pid
-  # Use ps to get processes, pipe to fzf for selection, and awk to get the PID.
-  # Added -r to read to prevent backslash interpretation.
   pid=$(ps -ef | sed 1d | fzf -m --tac --header='Select process(es) to kill. Press CTRL-C to cancel' | awk '{print $2}')
 
   if [[ -n "$pid" ]]; then
-    # Kill the selected process(es) with SIGTERM (15) by default, or specified signal.
     local signal="${1:-15}"
-    # Use quotes to handle multiple PIDs correctly.
     echo "$pid" | xargs kill -"${signal}" 2>/dev/null
     if [[ $? -eq 0 ]]; then
       echo "${C_GREEN}Process(es) with PID(s): $pid killed with signal ${signal}.${C_RESET}"
@@ -517,11 +586,10 @@ function fkill() {
 
 # -----------------------------------------------------------------------------
 # dshell
-# -----------------------------------------------------------------------------
-# Interactively select a running Docker container and access its shell.
-#
-# Usage:
-#   dshell
+# @description Selects a running Docker container with fzf and opens
+# a shell through docker exec.
+# @noargs
+# @exitcode 1 If Docker or fzf is unavailable, or shell access fails.
 # -----------------------------------------------------------------------------
 function dshell() {
   if ! command -v docker >/dev/null 2>&1; then
@@ -534,7 +602,6 @@ function dshell() {
     return 1
   fi
 
-  # Select a running container using fzf.
   local container
   container=$(docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Status}}" |
     fzf --header-lines=1 --header='Select container for shell access' |
@@ -548,12 +615,10 @@ function dshell() {
 
 # -----------------------------------------------------------------------------
 # preview
-# -----------------------------------------------------------------------------
-# Interactively preview and select files using fzf with bat/eza integration.
-# Shows directory tree for folders and syntax-highlighted content for files.
-#
-# Usage:
-#   preview
+# @description Selects files or directories with fzf and previews them using
+# eza or tree, and bat or head.
+# @noargs
+# @exitcode 1 If fzf is unavailable or the preview command fails.
 # -----------------------------------------------------------------------------
 function preview() {
   if ! command -v fzf >/dev/null 2>&1; then
@@ -561,7 +626,6 @@ function preview() {
     return 1
   fi
 
-  # Use eza for directory listings, bat for file previews.
   fzf --preview '
     if [ -d {} ]; then
       command -v eza >/dev/null 2>&1 && eza --tree --color=always {} || ls -la {}

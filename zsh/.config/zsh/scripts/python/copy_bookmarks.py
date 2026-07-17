@@ -45,64 +45,40 @@ def get_outline_page_number(reader, outline_item):
         return 0
 
 
-def add_outline_recursively(writer, outline, source_reader, parent=None):
+def add_single_outline_item(writer, outline_item, source_reader, parent=None):
     """
-    Recursive function that adds the original outline to the new PDF
-    while maintaining the hierarchical structure.
+    Add one outline entry to the writer and return the created bookmark
+    handle, or None when the entry cannot be added.
     """
-    # If outline is None or empty, terminate.
-    if not outline:
+    if not isinstance(outline_item, dict) or "/Title" not in outline_item:
         return None
 
-    # If outline is a list, process each element at the same level.
-    if isinstance(outline, list):
-        for item in outline:
-            add_outline_recursively(writer, item, source_reader, parent)
-        return None
+    title = outline_item["/Title"]
+    page_num = get_outline_page_number(source_reader, outline_item)
 
-    # Now we have a single outline element (dictionary).
-    if not isinstance(outline, dict):
-        return None
-
-    # Check if this is a valid bookmark with a title.
-    if "/Title" not in outline:
-        return None
-
-    title = outline["/Title"]
-    page_num = get_outline_page_number(source_reader, outline)
-
-    # Create the bookmark in the new PDF with the correct parent.
-    # Use positional argument for parent to ensure compatibility.
     try:
-        # PyPDF2's add_outline_item signature: add_outline_item(title, page_number, parent=None).
-        # We need to make sure parent is properly passed.
-        if parent is not None:
-            current_bookmark = writer.add_outline_item(title, page_num, parent)
-        else:
-            current_bookmark = writer.add_outline_item(title, page_num)
+        return writer.add_outline_item(title, page_num, parent)
     except Exception as e:
         print(f"Warning: Could not add bookmark '{title}': {e}")
         return None
 
-    # Now recursively process children if they exist.
-    # Children are stored in a linked list structure using /First and /Next.
-    if "/First" in outline and outline["/First"]:
-        first_child = outline["/First"]
 
-        # Process the first child with current_bookmark as parent.
-        add_outline_recursively(
-            writer, first_child, source_reader, parent=current_bookmark
-        )
+def add_outline_list(writer, outline, source_reader, parent=None):
+    """
+    Copy a reader outline while maintaining the hierarchical structure.
 
-        # Process all siblings of the first child (they share the same parent).
-        current_sibling = first_child
-        while "/Next" in current_sibling and current_sibling["/Next"]:
-            current_sibling = current_sibling["/Next"]
-            add_outline_recursively(
-                writer, current_sibling, source_reader, parent=current_bookmark
-            )
-
-    return current_bookmark
+    Modern PyPDF2/pypdf readers represent children as a nested list that
+    immediately follows their parent Destination, so a nested list attaches
+    to the most recently created bookmark at this level.
+    """
+    last_bookmark = parent
+    for item in outline:
+        if isinstance(item, list):
+            add_outline_list(writer, item, source_reader, parent=last_bookmark)
+            continue
+        created = add_single_outline_item(writer, item, source_reader, parent)
+        if created is not None:
+            last_bookmark = created
 
 
 def validate_pdf_file(file_path, file_description):
@@ -128,33 +104,19 @@ def validate_pdf_file(file_path, file_description):
 
 def print_outline_structure(outline, indent=0, max_depth=10):
     """
-    Debug function to print the structure of bookmarks.
+    Debug function to print the outline tree as parsed by the reader.
     """
-    if indent > max_depth:
-        return
-
-    if not outline:
+    if indent > max_depth or not outline:
         return
 
     if isinstance(outline, list):
-        print(f"{'  ' * indent}[List with {len(outline)} items]")
-        for i, item in enumerate(outline):
-            print(f"{'  ' * indent}Item {i}:")
-            print_outline_structure(item, indent + 1, max_depth)
+        for item in outline:
+            if isinstance(item, list):
+                print_outline_structure(item, indent + 1, max_depth)
+            elif isinstance(item, dict):
+                print(f"{'  ' * indent}- {item.get('/Title', 'No title')}")
     elif isinstance(outline, dict):
-        if "/Title" in outline:
-            title = outline.get("/Title", "No title")
-            print(f"{'  ' * indent}- {title}")
-            if "/First" in outline:
-                print(f"{'  ' * (indent + 1)}[Children:]")
-                child = outline["/First"]
-                print_outline_structure(child, indent + 2, max_depth)
-
-                # Print siblings.
-                current = child
-                while "/Next" in current and current["/Next"]:
-                    current = current["/Next"]
-                    print_outline_structure(current, indent + 2, max_depth)
+        print(f"{'  ' * indent}- {outline.get('/Title', 'No title')}")
 
 
 def copy_bookmarks(source_pdf_path, target_pdf_path, output_pdf_path):
@@ -178,7 +140,7 @@ def copy_bookmarks(source_pdf_path, target_pdf_path, output_pdf_path):
         with open(source_pdf_path, "rb") as source_file:
             try:
                 source_pdf = PyPDF2.PdfReader(source_file)
-            except PyPDF2.PdfReadError as e:  # type: ignore
+            except PyPDF2.errors.PdfReadError as e:
                 raise ValueError(f"Cannot read source PDF: {e}")
 
             # Check that the source PDF contains bookmarks.
@@ -211,20 +173,12 @@ def copy_bookmarks(source_pdf_path, target_pdf_path, output_pdf_path):
                 print()
 
                 # Copy the outline structure maintaining hierarchy.
-                # PyPDF2 can return outline as a list or as a nested dict structure.
                 print("Copying bookmarks with hierarchy...")
 
-                if isinstance(source_pdf.outline, list):
-                    # Process each top-level item
-                    for item in source_pdf.outline:
-                        add_outline_recursively(
-                            pdf_writer, item, source_pdf, parent=None
-                        )
-                else:
-                    # Handle non-list outline structure.
-                    add_outline_recursively(
-                        pdf_writer, source_pdf.outline, source_pdf, parent=None
-                    )
+                outline = source_pdf.outline
+                if not isinstance(outline, list):
+                    outline = [outline]
+                add_outline_list(pdf_writer, outline, source_pdf)
 
                 # Save the new PDF with bookmarks.
                 with open(output_pdf_path, "wb") as output_file:

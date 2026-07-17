@@ -47,17 +47,12 @@ if command -v bat &>/dev/null; then
   alias cat='bat --style=plain --paging=never --color=auto'
 
   # ---------------------------------------------------------------------------
-  # h - Help viewer using bat
+  # h
+  # @description Displays a command's --help output with bat highlighting.
+  # @arg $1 string Command whose help output to display.
+  # @arg $@ string Optional arguments forwarded to the command.
+  # @exitcode 1 If no command is supplied.
   # ---------------------------------------------------------------------------
-  # Helper function to display colorized help pages with bat.
-  # Usage: h <command> [args] - Shows --help with syntax highlighting.
-  # Example: h git, h docker, h npm install
-  #
-  # IMPORTANT: Requires the 'help' syntax to be installed. Run once:
-  #   mkdir -p "$(bat --config-dir)/syntaxes"
-  #   cd "$(bat --config-dir)/syntaxes"
-  #   git clone https://github.com/victor-gp/cmd-help-sublime-syntax
-  #   bat cache --build
   # ---------------------------------------------------------------------------
    h() {
     if [[ $# -eq 0 ]]; then
