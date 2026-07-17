@@ -18,7 +18,7 @@
 #   - OpenCode: AI coding assistant with MCP support.
 #
 # Features (Fabric):
-#   - Pattern aliases for direct command execution.
+#   - Namespaced pattern execution through `fabric-pattern`.
 #   - YouTube transcript extraction (yt function).
 #   - Obsidian integration with automatic markdown file creation.
 #   - Frontmatter metadata for Obsidian compatibility.
@@ -31,7 +31,8 @@
 # ============================================================================ #
 
 # Configure Obsidian integration path (adjust to your Obsidian vault).
-export FABRIC_OUTPUT_DIR="$HOME/Documents/Obsidian-Vault/XSPC-Vault/Fabric"
+export FABRIC_OUTPUT_DIR="${FABRIC_OUTPUT_DIR:-\
+$HOME/Documents/Obsidian-Vault/XSPC-Vault/Fabric}"
 
 # Enable EXA Web Search in OpenCode.
 export OPENCODE_ENABLE_EXA="true"
@@ -39,22 +40,39 @@ export OPENCODE_ENABLE_EXA="true"
 # Main Fabric alias (fabric-ai is the actual command).
 alias fabric="fabric-ai"
 
+# Remove top-level wrappers created by the previous implementation. Compare
+# function bodies so a user replacement with the same name is never removed.
+if (( ${+parameters[_FABRIC_PATTERN_WRAPPERS]} )); then
+  local _fabric_legacy_name _fabric_current_body _fabric_owned_body
+  for _fabric_legacy_name in "${(k)_FABRIC_PATTERN_WRAPPERS[@]}"; do
+    _fabric_current_body="${functions[$_fabric_legacy_name]-}"
+    _fabric_owned_body="${_FABRIC_PATTERN_WRAPPERS[$_fabric_legacy_name]}"
+    if [[ "${_fabric_current_body//[[:space:]]/}" == \
+          "${_fabric_owned_body//[[:space:]]/}" ]]; then
+      unfunction -- "$_fabric_legacy_name" 2>/dev/null
+    fi
+  done
+  unset _fabric_legacy_name _fabric_current_body _fabric_owned_body
+  unset _FABRIC_PATTERN_WRAPPERS
+fi
+
+# Completion discovery is lazy and cached for the current shell. A successful
+# pattern update invalidates it.
+typeset -ga _FABRIC_PATTERN_NAMES=()
+typeset -gi _FABRIC_PATTERN_CACHE_READY=0
+
 # -----------------------------------------------------------------------------
-# yt - YouTube Transcript Fetcher
+# yt
 # -----------------------------------------------------------------------------
-# Fetch YouTube video transcripts with optional timestamps.
-# Integrates with Fabric for processing video content.
-#
-# Usage:
-#   yt <youtube-url>                 - Get transcript without timestamps
-#   yt -t <youtube-url>              - Get transcript with timestamps
-#   yt --timestamps <youtube-url>    - Get transcript with timestamps
-#
-# Example:
-#   yt https://www.youtube.com/watch?v=dQw4w9WgXcQ
-#   yt -t https://www.youtube.com/watch?v=dQw4w9WgXcQ | fabric --pattern summarize
+# @description Fetches a YouTube transcript through Fabric.
+# @arg $@ string URL, optionally preceded by -t or --timestamps.
+# @exitcode 1 If the URL or argument count is invalid.
 # -----------------------------------------------------------------------------
 yt() {
+  if [[ "${1:-}" == -h || "${1:-}" == --help ]]; then
+    echo "Usage: yt [-t|--timestamps] <youtube-link>"
+    return 0
+  fi
   # Validate arguments.
   if [[ "$#" -eq 0 ]] || [[ "$#" -gt 2 ]]; then
     echo "${C_RED}Usage: yt [-t | --timestamps] <youtube-link>${C_RESET}" >&2
@@ -76,141 +94,261 @@ yt() {
 
   # Get the video link.
   local video_link="$1"
-  fabric -y "$video_link" "$transcript_flag"
+  (( $+commands[fabric-ai] )) || {
+    print -u2 "yt: fabric-ai is unavailable"
+    return 1
+  }
+  command fabric-ai -y "$video_link" "$transcript_flag"
 }
 
 # -----------------------------------------------------------------------------
-# _fabric_lazy_init
+# _fabric_pattern_exists
+# @internal
+# @description Checks whether a safe pattern name identifies a readable
+# directory-based or legacy flat-file Fabric pattern.
+# @arg $1 string Pattern name.
+# @exitcode 1 If the name is unsafe or the pattern is unavailable.
 # -----------------------------------------------------------------------------
-# Build pattern aliases and Obsidian integration functions on demand.
-# Deferred by default to keep startup fast.
-#
-# Enhanced pattern execution with automatic Obsidian note creation.
-# When a title is provided, saves the output to a dated markdown file.
-# Without a title, streams the output directly to stdout.
-#
-# For each pattern in ~/.config/fabric/patterns/, a function is created that:
-#   - With title: Saves to $FABRIC_OUTPUT_DIR/YYYY-MM-DD-title.md
-#   - Without title: Streams output directly
-#
-# Security:
-#   - Pattern names are validated (alphanumeric, dash, underscore only)
-#   - Titles are sanitized (path traversal prevention)
-#
-# Usage:
-#   <pattern-name> [title]
-#
-# Examples:
-#   summarize "Meeting Notes"           - Saves to Obsidian vault
-#   echo "Some text" | summarize        - Streams to stdout
-#   yt <url> | extract_wisdom "Video Summary"
-# -----------------------------------------------------------------------------
-_fabric_lazy_init() {
-  setopt localoptions noxtrace noverbose
-  unfunction _fabric_lazy_init 2>/dev/null
+_fabric_pattern_exists() {
+  local pattern_name="$1"
+  [[ "$pattern_name" =~ ^[a-zA-Z0-9_-]+$ ]] || return 1
+  local fabric_patterns_dir="$HOME/.config/fabric/patterns"
+  local pattern_path="$fabric_patterns_dir/$pattern_name"
+  [[ -d "$pattern_path" && -r "$pattern_path/system.md" ]] ||
+    [[ -f "$pattern_path" && -s "$pattern_path" ]]
+}
 
-  if ! command -v fabric >/dev/null 2>&1; then
+# -----------------------------------------------------------------------------
+# _fabric_pattern_names
+# @internal
+# @description Populates reply with safe Fabric pattern names, scanning once
+# per shell or after a successful pattern update.
+# @noargs
+# @set reply array Available pattern names in lexical order.
+# -----------------------------------------------------------------------------
+_fabric_pattern_names() {
+  if (( _FABRIC_PATTERN_CACHE_READY )); then
+    reply=("${_FABRIC_PATTERN_NAMES[@]}")
     return 0
   fi
 
-  local fabric_patterns_dir="$HOME/.config/fabric/patterns"
-  [[ -d "$fabric_patterns_dir" ]] || return 0
-
-  # Create output directory if it doesn't exist.
-  [[ ! -d "$FABRIC_OUTPUT_DIR" ]] && mkdir -p "$FABRIC_OUTPUT_DIR"
-
-  # Single dispatcher function (defined once, called by all pattern wrappers).
-  _fabric_run_pattern() {
-    local pname="$1"
-    shift
-    local title="$1"
-    local date_stamp
-    date_stamp="$(date +'%Y-%m-%d')"
-
-    if [[ -n "$title" ]]; then
-      # Sanitize title (security: prevent path traversal).
-      title="${title//[\/\\]/_}"
-      title="${title//\.\./_}"
-      title="${title//[[:cntrl:]]/}"
-      title="${title## }"
-      title="${title%% }"
-
-      # Defense-in-depth: enforce a strict allowlist for the final title.
-      if [[ -z "$title" || ! "$title" =~ ^[A-Za-z0-9_.\ -]+$ ]]; then
-        echo "${C_RED}fabric: invalid title (allowed chars: A-Z a-z 0-9 _ . - space)${C_RESET}" >&2
-        return 1
-      fi
-
-      local output_path="$FABRIC_OUTPUT_DIR/${date_stamp}-${title}.md"
-
-      # Save to Obsidian vault with metadata.
-      {
-        echo "---"
-        echo "title: $title"
-        echo "date: $date_stamp"
-        echo "pattern: $pname"
-        echo "tags: [fabric, $pname]"
-        echo "---"
-        echo ""
-        fabric --pattern "$pname"
-      } > "$output_path"
-      echo "${C_GREEN}Saved to: $output_path${C_RESET}"
-    else
-      # Stream output directly.
-      fabric --pattern "$pname" --stream
-    fi
-  }
-
-  # Build pattern wrapper functions without eval.
-  for pattern_file in "$fabric_patterns_dir"/*; do
-    [[ ! -f "$pattern_file" ]] && continue
-    typeset pattern_name="${pattern_file:t}"
-
-    # Validate pattern name (security: prevent injection).
-    [[ ! "$pattern_name" =~ ^[a-zA-Z0-9_-]+$ ]] && continue
-
-    # Remove any existing alias before creating function.
-    unalias "$pattern_name" 2>/dev/null
-
-    functions[$pattern_name]="_fabric_run_pattern $pattern_name \"\$@\""
+  local patterns_dir="$HOME/.config/fabric/patterns"
+  local pattern_entry pattern_name
+  local -aU discovered=()
+  for pattern_entry in "$patterns_dir"/*(N); do
+    pattern_name="${pattern_entry:t}"
+    [[ "$pattern_name" =~ ^[a-zA-Z0-9_-]+$ ]] || continue
+    _fabric_pattern_exists "$pattern_name" && discovered+=("$pattern_name")
   done
+  _FABRIC_PATTERN_NAMES=("${(on)discovered[@]}")
+  _FABRIC_PATTERN_CACHE_READY=1
+  reply=("${_FABRIC_PATTERN_NAMES[@]}")
 }
 
-# Initialize Fabric functions unless in fast start mode.
-if [[ "${ZSH_FAST_START:-}" != "1" ]]; then
-  if [[ "${ZSH_DEFER_FABRIC:-1}" == "1" ]] && typeset -f _zsh_defer >/dev/null 2>&1; then
-    _zsh_defer _fabric_lazy_init
-  else
-    _fabric_lazy_init
+# -----------------------------------------------------------------------------
+# _fabric_pattern_completion
+# @internal
+# @description Completes the pattern operand accepted by fabric-pattern.
+# @noargs
+# -----------------------------------------------------------------------------
+_fabric_pattern_completion() {
+  setopt localoptions
+  local context state state_descr line
+  typeset -A opt_args
+  _arguments -C \
+    '(-h --help)'{-h,--help}'[show command help]' \
+    '(-l --list)'{-l,--list}'[list available patterns]' \
+    '1:Fabric pattern:->patterns' \
+    '2::Obsidian note title:' \
+    '*:: :_message "no more arguments"'
+
+  if [[ "$state" == patterns ]]; then
+    _fabric_pattern_names
+    compadd -a reply
   fi
-fi
+}
+
+# -----------------------------------------------------------------------------
+# _fabric_run_pattern
+# @internal
+# @description Executes one validated Fabric pattern, streaming without a
+# title or atomically publishing a private Obsidian note when a title is given.
+# @arg $1 string Fabric pattern name.
+# @arg $2 string Optional Obsidian note title.
+# @exitcode 1 If validation, Fabric execution, or note publication fails.
+# -----------------------------------------------------------------------------
+_fabric_run_pattern() {
+  emulate -L zsh
+  setopt localoptions localtraps pipefail
+
+  local pname="$1"
+  local title="${2:-}"
+
+  if [[ -n "$title" ]]; then
+    title="${title//[\/\\]/_}"
+    title="${title//\.\./_}"
+    title="${title//[[:cntrl:]]/}"
+    while [[ "$title" == ' '* ]]; do title="${title# }"; done
+    while [[ "$title" == *' ' ]]; do title="${title% }"; done
+
+    if [[ -z "$title" || ! "$title" =~ ^[A-Za-z0-9_.\ -]+$ ]]; then
+      print -u2 \
+        "${C_RED}fabric-pattern: invalid title${C_RESET}"
+      return 1
+    fi
+
+    if [[ ! -d "$FABRIC_OUTPUT_DIR" ]] &&
+        ! command mkdir -p -- "$FABRIC_OUTPUT_DIR"; then
+      print -u2 \
+        "${C_RED}fabric-pattern: could not create output directory${C_RESET}"
+      return 1
+    fi
+
+    local date_stamp
+    date_stamp="$(date +'%Y-%m-%d')"
+    local output_path="$FABRIC_OUTPUT_DIR/${date_stamp}-${title}.md"
+    local response_path=""
+    local note_path=""
+    trap 'command rm -f -- "${response_path:-}" "${note_path:-}" \
+      2>/dev/null; return 130' INT TERM HUP
+
+    response_path="$(
+      mktemp "$FABRIC_OUTPUT_DIR/.fabric-response.XXXXXX" 2>/dev/null
+    )" || {
+      print -u2 \
+        "${C_RED}fabric-pattern: could not create temporary output${C_RESET}"
+      return 1
+    }
+    command chmod 600 "$response_path" 2>/dev/null || {
+      command rm -f -- "$response_path" 2>/dev/null
+      return 1
+    }
+
+    command fabric-ai --pattern "$pname" >| "$response_path"
+    local rc=$?
+    if (( rc != 0 )); then
+      command rm -f -- "$response_path" 2>/dev/null
+      print -u2 \
+        "${C_RED}fabric-pattern: '$pname' failed; no note was saved.${C_RESET}"
+      return $rc
+    fi
+
+    note_path="$(
+      mktemp "$FABRIC_OUTPUT_DIR/.fabric-note.XXXXXX" 2>/dev/null
+    )" || {
+      command rm -f -- "$response_path" 2>/dev/null
+      return 1
+    }
+    command chmod 600 "$note_path" 2>/dev/null || {
+      command rm -f -- "$response_path" "$note_path" 2>/dev/null
+      return 1
+    }
+
+    if ! {
+      printf '%s\n' \
+        "---" \
+        "title: $title" \
+        "date: $date_stamp" \
+        "pattern: $pname" \
+        "tags: [fabric, $pname]" \
+        "---" \
+        "" &&
+        command cat -- "$response_path"
+    } >| "$note_path"; then
+      command rm -f -- "$response_path" "$note_path" 2>/dev/null
+      return 1
+    fi
+
+    command rm -f -- "$response_path"
+    response_path=""
+    if ! command mv -f -- "$note_path" "$output_path"; then
+      command rm -f -- "$note_path" 2>/dev/null
+      return 1
+    fi
+    note_path=""
+    print "${C_GREEN}Saved to: $output_path${C_RESET}"
+  else
+    command fabric-ai --pattern "$pname" --stream
+  fi
+}
+
+# -----------------------------------------------------------------------------
+# fabric-pattern
+# -----------------------------------------------------------------------------
+# @description Runs a Fabric pattern without creating a global function for
+# that pattern. Streams to stdout unless an optional title is supplied, in
+# which case the result is saved atomically as a private Obsidian note.
+# @arg $1 string Pattern name, or --list.
+# @arg $2 string Optional Obsidian note title.
+# @exitcode 1 If arguments are invalid or pattern execution fails.
+# @example
+#   fabric-pattern summarize
+#   echo "Some text" | fabric-pattern extract_wisdom "Video Summary"
+# -----------------------------------------------------------------------------
+fabric-pattern() {
+  case "${1:-}" in
+    -h|--help|"")
+      print "Usage: fabric-pattern <pattern> [note-title]"
+      print "       fabric-pattern --list"
+      [[ -n "${1:-}" ]] && return 0 || return 1
+      ;;
+    -l|--list)
+      (( $# == 1 )) || return 1
+      fabric-list
+      return
+      ;;
+  esac
+
+  (( $# <= 2 )) || {
+    print -u2 "fabric-pattern: expected a pattern and optional note title"
+    return 1
+  }
+  local pattern_name="$1"
+  if ! _fabric_pattern_exists "$pattern_name"; then
+    print -u2 "fabric-pattern: unknown or unsafe pattern '$pattern_name'"
+    print -u2 "Run 'fabric-pattern --list' to inspect available patterns."
+    return 1
+  fi
+  (( $+commands[fabric-ai] )) || {
+    print -u2 "fabric-pattern: fabric-ai is unavailable"
+    return 1
+  }
+  _fabric_run_pattern "$pattern_name" "${2:-}"
+}
 
 # -----------------------------------------------------------------------------
 # fabric-update
 # -----------------------------------------------------------------------------
-# Update Fabric patterns and models.
-# Convenience wrapper for keeping Fabric up-to-date.
-#
-# Usage:
-#   fabric-update
+# @description Updates the locally installed Fabric patterns.
+# @noargs
+# @exitcode 1 If the Fabric update fails.
 # -----------------------------------------------------------------------------
 fabric-update() {
+  (( $+commands[fabric-ai] )) || {
+    print -u2 "fabric-update: fabric-ai is unavailable"
+    return 1
+  }
   echo "${C_CYAN}Updating Fabric patterns...${C_RESET}"
-  fabric --update
+  command fabric-ai --updatepatterns || return 1
+  _FABRIC_PATTERN_NAMES=()
+  _FABRIC_PATTERN_CACHE_READY=0
   echo "${C_GREEN}Fabric patterns updated successfully.${C_RESET}"
 }
 
 # -----------------------------------------------------------------------------
 # fabric-list
 # -----------------------------------------------------------------------------
-# List all available Fabric patterns with descriptions.
-#
-# Usage:
-#   fabric-list
+# @description Lists available Fabric patterns and descriptions.
+# @noargs
+# @exitcode 1 If Fabric is unavailable or listing fails.
 # -----------------------------------------------------------------------------
 fabric-list() {
+  (( $+commands[fabric-ai] )) || {
+    print -u2 "fabric-list: fabric-ai is unavailable"
+    return 1
+  }
   echo "${C_CYAN}Available Fabric patterns:${C_RESET}"
-  fabric --list
+  command fabric-ai --listpatterns
 }
 
 # ============================================================================ #
@@ -224,20 +362,21 @@ fabric-list() {
 # ============================================================================ #
 
 _GITHUB_PAT_OP_REF="op://Personal/GITHUB_PAT/credential"
+typeset -g _CACHED_GITHUB_PAT="${_CACHED_GITHUB_PAT:-}"
 
 _load_github_pat() {
-  [[ -n "${GITHUB_PAT:-}" ]] && return 0
+  [[ -n "${GITHUB_PAT:-${_CACHED_GITHUB_PAT:-}}" ]] && return 0
   command -v op &>/dev/null || return 1
 
   local key
   key=$(op read "$_GITHUB_PAT_OP_REF" 2>/dev/null) || return 1
   [[ -z "$key" ]] && return 1
 
-  export GITHUB_PAT="$key"
+  _CACHED_GITHUB_PAT="$key"
 }
 
 github-pat-unlock() {
-  unset -v GITHUB_PAT
+  unset -v GITHUB_PAT _CACHED_GITHUB_PAT
   if _load_github_pat; then
     print "${C_GREEN}GITHUB_PAT loaded from 1Password.${C_RESET}"
   else
@@ -250,27 +389,28 @@ github-pat-unlock() {
 # +++++++++++++++++++++++++++++ CONTEXT7 API KEY +++++++++++++++++++++++++++++ #
 # ============================================================================ #
 #
-# Loads CONTEXT7_API_KEY from 1Password lazily — deferred to keep startup fast.
+# Loads CONTEXT7_API_KEY from 1Password lazily to keep startup fast.
 # Required by Claude Code Context7 MCP and OpenCode Context7 MCP server
 # (configured as {env:CONTEXT7_API_KEY} in their respective configs).
 #
 # ============================================================================ #
 
 _CONTEXT7_OP_REF="op://Personal/CONTEXT7_API_KEY/credential"
+typeset -g _CACHED_CONTEXT7_API_KEY="${_CACHED_CONTEXT7_API_KEY:-}"
 
 _load_context7_api_key() {
-  [[ -n "${CONTEXT7_API_KEY:-}" ]] && return 0
+  [[ -n "${CONTEXT7_API_KEY:-${_CACHED_CONTEXT7_API_KEY:-}}" ]] && return 0
   command -v op &>/dev/null || return 1
 
   local key
   key=$(op read "$_CONTEXT7_OP_REF" 2>/dev/null) || return 1
   [[ -z "$key" ]] && return 1
 
-  export CONTEXT7_API_KEY="$key"
+  _CACHED_CONTEXT7_API_KEY="$key"
 }
 
 context7-unlock() {
-  unset CONTEXT7_API_KEY
+  unset CONTEXT7_API_KEY _CACHED_CONTEXT7_API_KEY
   if _load_context7_api_key; then
     print "${C_GREEN}CONTEXT7_API_KEY loaded from 1Password.${C_RESET}"
   else
@@ -305,6 +445,7 @@ context7-unlock() {
 
 # 1Password reference — adjust vault/item name if different.
 _GEMINI_OP_REF="op://Personal/Gemini API Key/credential"
+typeset -g _CACHED_GEMINI_API_KEY="${_CACHED_GEMINI_API_KEY:-}"
 
 # -----------------------------------------------------------------------------
 # _load_gemini_api_key
@@ -314,45 +455,45 @@ _GEMINI_OP_REF="op://Personal/Gemini API Key/credential"
 # Returns 1 on failure (key missing, vault locked, op unauthenticated).
 # -----------------------------------------------------------------------------
 _load_gemini_api_key() {
-  [[ -n "${GEMINI_API_KEY:-}" ]] && return 0   # already cached for this session
+  [[ -n "${GEMINI_API_KEY:-${_CACHED_GEMINI_API_KEY:-}}" ]] && return 0
   command -v op &>/dev/null       || return 1   # op not installed
 
   local key
   key=$(op read "$_GEMINI_OP_REF" 2>/dev/null) || return 1
   [[ -z "$key" ]]                 && return 1   # item not found or vault locked
 
-  export GEMINI_API_KEY="$key"
+  _CACHED_GEMINI_API_KEY="$key"
 }
 
 # -----------------------------------------------------------------------------
-# gemini (wrapper)
+# gemini
 # -----------------------------------------------------------------------------
-# Lazy-loads GEMINI_API_KEY on first invocation, then delegates to the real
-# gemini binary. The key stays in the environment for the rest of the session,
-# so 1Password is queried at most once per shell.
+# @description Loads GEMINI_API_KEY from 1Password, then runs Gemini.
+# The key is cached in the environment for the rest of the session.
+# @arg $@ string Arguments forwarded to the Gemini command.
+# @exitcode 1 If the key cannot be loaded.
 # -----------------------------------------------------------------------------
 gemini() {
-  if [[ -z "${GEMINI_API_KEY:-}" ]]; then
+  if [[ -z "${GEMINI_API_KEY:-${_CACHED_GEMINI_API_KEY:-}}" ]]; then
     if ! _load_gemini_api_key; then
       print "${C_RED}gemini: Could not load GEMINI_API_KEY from 1Password.${C_RESET}" >&2
       print "${C_YELLOW}Make sure 1Password is unlocked and the item exists at: ${_GEMINI_OP_REF}${C_RESET}" >&2
       return 1
     fi
   fi
-  command gemini "$@"
+  local gemini_key="${GEMINI_API_KEY:-${_CACHED_GEMINI_API_KEY:-}}"
+  GEMINI_API_KEY="$gemini_key" command gemini "$@"
 }
 
 # -----------------------------------------------------------------------------
 # gemini-unlock
 # -----------------------------------------------------------------------------
-# Force-reloads GEMINI_API_KEY from 1Password, discarding any cached value.
-# Useful when the key was rotated, or when the vault was locked at first use.
-#
-# Usage:
-#   gemini-unlock
+# @description Discards and reloads GEMINI_API_KEY from 1Password.
+# @noargs
+# @exitcode 1 If 1Password is unavailable or the key cannot be read.
 # -----------------------------------------------------------------------------
 gemini-unlock() {
-  unset GEMINI_API_KEY
+  unset GEMINI_API_KEY _CACHED_GEMINI_API_KEY
   if _load_gemini_api_key; then
     print "${C_GREEN}GEMINI_API_KEY loaded from 1Password.${C_RESET}"
   else
@@ -363,15 +504,22 @@ gemini-unlock() {
 }
 
 # -----------------------------------------------------------------------------
-# claude (wrapper)
+# claude
 # -----------------------------------------------------------------------------
-# Lazy-loads GITHUB_PAT and CONTEXT7_API_KEY on first invocation, then
-# delegates to the real claude binary. Keys stay cached for the session.
+# @description Loads optional GitHub and Context7 keys, then runs Claude.
+# Keys are cached in the environment for the rest of the session.
+# @arg $@ string Arguments forwarded to the Claude command.
 # -----------------------------------------------------------------------------
 claude() {
-  [[ -z "${GITHUB_PAT:-}" ]]       && _load_github_pat
-  [[ -z "${CONTEXT7_API_KEY:-}" ]] && _load_context7_api_key
-  command claude "$@"
+  if [[ -z "${GITHUB_PAT:-${_CACHED_GITHUB_PAT:-}}" ]] && ! _load_github_pat; then
+    print "${C_YELLOW}claude: Could not load GITHUB_PAT from 1Password (GitHub MCP may be unavailable).${C_RESET}" >&2
+  fi
+  if [[ -z "${CONTEXT7_API_KEY:-${_CACHED_CONTEXT7_API_KEY:-}}" ]] && ! _load_context7_api_key; then
+    print "${C_YELLOW}claude: Could not load CONTEXT7_API_KEY from 1Password (Context7 MCP may be unavailable).${C_RESET}" >&2
+  fi
+  local github_pat="${GITHUB_PAT:-${_CACHED_GITHUB_PAT:-}}"
+  local context7_key="${CONTEXT7_API_KEY:-${_CACHED_CONTEXT7_API_KEY:-}}"
+  GITHUB_PAT="$github_pat" CONTEXT7_API_KEY="$context7_key" command claude "$@"
 }
 
 # ============================================================================ #
@@ -398,6 +546,7 @@ claude() {
 
 # 1Password reference — adjust vault/item name if different.
 _KILO_OP_REF="op://Personal/Kilo API Key/credential"
+typeset -g _CACHED_KILO_API_KEY="${_CACHED_KILO_API_KEY:-}"
 
 # -----------------------------------------------------------------------------
 # _load_kilo_api_key
@@ -407,45 +556,46 @@ _KILO_OP_REF="op://Personal/Kilo API Key/credential"
 # Returns 1 on failure (key missing, vault locked, op unauthenticated).
 # -----------------------------------------------------------------------------
 _load_kilo_api_key() {
-  [[ -n "${KILO_API_KEY:-}" ]] && return 0   # already cached for this session
+  [[ -n "${KILO_API_KEY:-${_CACHED_KILO_API_KEY:-}}" ]] && return 0
   command -v op &>/dev/null       || return 1   # op not installed
 
   local key
   key=$(op read "$_KILO_OP_REF" 2>/dev/null) || return 1
   [[ -z "$key" ]]                 && return 1   # item not found or vault locked
 
-  export KILO_API_KEY="$key"
+  _CACHED_KILO_API_KEY="$key"
 }
 
 # -----------------------------------------------------------------------------
-# opencode (wrapper)
+# opencode
 # -----------------------------------------------------------------------------
-# Lazy-loads KILO_API_KEY on first invocation, then delegates to the real
-# opencode binary. The key stays in the environment for the rest of the
-# session, so 1Password is queried at most once per shell.
+# @description Loads optional provider keys, then runs OpenCode.
+# Keys are cached in the environment for the rest of the session.
+# @arg $@ string Arguments forwarded to the OpenCode command.
 # -----------------------------------------------------------------------------
 opencode() {
-  if [[ -z "${KILO_API_KEY:-}" ]]; then
+  if [[ -z "${KILO_API_KEY:-${_CACHED_KILO_API_KEY:-}}" ]]; then
     if ! _load_kilo_api_key; then
       print "${C_YELLOW}opencode: Could not load KILO_API_KEY from 1Password (kilopass provider may be unavailable).${C_RESET}" >&2
     fi
   fi
-  [[ -z "${GITHUB_PAT:-}" ]]       && _load_github_pat
-  [[ -z "${CONTEXT7_API_KEY:-}" ]] && _load_context7_api_key
-  command opencode "$@"
+  [[ -z "${GITHUB_PAT:-${_CACHED_GITHUB_PAT:-}}" ]] && _load_github_pat
+  [[ -z "${CONTEXT7_API_KEY:-${_CACHED_CONTEXT7_API_KEY:-}}" ]] && _load_context7_api_key
+  local kilo_key="${KILO_API_KEY:-${_CACHED_KILO_API_KEY:-}}"
+  local github_pat="${GITHUB_PAT:-${_CACHED_GITHUB_PAT:-}}"
+  local context7_key="${CONTEXT7_API_KEY:-${_CACHED_CONTEXT7_API_KEY:-}}"
+  KILO_API_KEY="$kilo_key" GITHUB_PAT="$github_pat" CONTEXT7_API_KEY="$context7_key" command opencode "$@"
 }
 
 # -----------------------------------------------------------------------------
 # kilo-unlock
 # -----------------------------------------------------------------------------
-# Force-reloads KILO_API_KEY from 1Password, discarding any cached value.
-# Useful when the key was rotated, or when the vault was locked at first use.
-#
-# Usage:
-#   kilo-unlock
+# @description Discards and reloads KILO_API_KEY from 1Password.
+# @noargs
+# @exitcode 1 If 1Password is unavailable or the key cannot be read.
 # -----------------------------------------------------------------------------
 kilo-unlock() {
-  unset KILO_API_KEY
+  unset KILO_API_KEY _CACHED_KILO_API_KEY
   if _load_kilo_api_key; then
     print "${C_GREEN}KILO_API_KEY loaded from 1Password.${C_RESET}"
   else
@@ -456,4 +606,4 @@ kilo-unlock() {
 }
 
 # ============================================================================ #
-# End of 70-ai-tools.zsh
+# End of lib/70-ai-tools.zsh
