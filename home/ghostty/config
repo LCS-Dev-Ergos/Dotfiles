@@ -1,4 +1,4 @@
-# ================================ General ================================== #
+# =====----- General ----------------------------------------------------===== #
 
 # Font Settings
 font-family = CaskaydiaCove Nerd Font
@@ -15,7 +15,8 @@ font-feature = CaskaydiaCove Nerd Font:liga=1
 # Subscripts/superscripts, letterlike symbols, arrows and math operators
 font-codepoint-map = U+2070-U+209F,U+2100-U+214F,U+2190-U+22FF,U+27C0-U+27EF,U+2980-U+2AFF=JuliaMono
 
-# ================================ Settings ================================= #
+# =====----- Settings ---------------------------------------------------===== #
+
 window-padding-balance = true
 window-padding-x = 16
 window-padding-y = 12
@@ -59,7 +60,7 @@ custom-shader = shaders/cursor_smear.glsl
 # custom-shader = shaders/debug_cursor_animated.glsl
 # custom-shader = shaders/debug_cursor_static.glsl
 
-# =============================== Color Palette ============================= #
+# =====----- Color Palette ----------------------------------------------===== #
 
 # Tokyo Night Palette
 palette = 0=414868
@@ -86,7 +87,7 @@ palette = 14=7dcfff
 palette = 7=c0caf5
 palette = 15=c0caf5
 
-# ================================ Keybindings ============================== #
+# =====----- Keybindings ------------------------------------------------===== #
 
 # Config Management
 keybind = cmd+s>r=reload_config
@@ -142,3 +143,6 @@ keybind = ctrl+shift+0=reset_font_size
 
 # Reload Configuration
 keybind = cmd+r=reload_config
+
+# =====------------------------------------------------------------------===== #
+# End of Ghostty Configuration.

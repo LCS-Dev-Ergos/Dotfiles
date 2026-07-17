@@ -29,7 +29,7 @@ fi
 export ZPROFILE_HAS_RUN=true
 export TERM=xterm-256color
 
-# ========================= OH-MY-ZSH CONFIGURATION ========================== #
+# =====----- OH-MY-ZSH CONFIGURATION ------------------------------------===== #
 
 if [[ -d "/usr/share/oh-my-zsh" ]]; then
     export ZSH="/usr/share/oh-my-zsh"
@@ -58,7 +58,7 @@ if [[ -n "$ZSH" ]]; then
     source "$ZSH/oh-my-zsh.sh" 2>/dev/null || true
 fi
 
-# =========================== PROMPT CONFIGURATION =========================== #
+# =====----- PROMPT CONFIGURATION ---------------------------------------===== #
 
 # PowerLevel10k if available, otherwise basic prompt.
 if [[ -f "/usr/share/zsh-theme-powerlevel10k/powerlevel10k.zsh-theme" ]]; then
@@ -72,7 +72,7 @@ else
     PROMPT='%F{cyan}%n@%m%f:%F{blue}%~%f$ '
 fi
 
-# ================================= VI MODE ================================== #
+# =====----- VI MODE ----------------------------------------------------===== #
 
 bindkey -v
 export KEYTIMEOUT=1
@@ -87,7 +87,7 @@ function zle-keymap-select() {
 zle -N zle-line-init
 zle -N zle-keymap-select
 
-# ============================ FZF CONFIGURATION ============================= #
+# =====----- FZF CONFIGURATION ------------------------------------------===== #
 
 if command -v fzf >/dev/null 2>&1; then
     eval "$(fzf --zsh 2>/dev/null)" || true
@@ -112,7 +112,7 @@ if command -v fzf >/dev/null 2>&1; then
     fi
 fi
 
-# ================================= ALIASES ================================== #
+# =====----- ALIASES ----------------------------------------------------===== #
 
 # Navigation.
 alias ..="cd .."
@@ -168,7 +168,7 @@ alias count="wc -l"
 alias size="du -sh"
 alias ping="ping -c 5"
 
-# ============================ C/C++ DEVELOPMENT ============================= #
+# =====----- C/C++ DEVELOPMENT ------------------------------------------===== #
 
 # Determine include paths.
 if [[ -d "/usr/local/include" ]]; then
@@ -227,7 +227,7 @@ if command -v valgrind >/dev/null 2>&1; then
     alias valgrind-call="valgrind --tool=callgrind"
 fi
 
-# ========================== ENVIRONMENT VARIABLES =========================== #
+# =====----- ENVIRONMENT VARIABLES --------------------------------------===== #
 
 # Clang-Format Configuration.
 export CLANG_FORMAT_CONFIG="$HOME/.config/clang-format/.clang-format"
@@ -249,7 +249,7 @@ if command -v thefuck >/dev/null 2>&1; then
     eval "$(thefuck --alias fk 2>/dev/null)" || true
 fi
 
-# ========================= LANGUAGE VERSION MANAGER ========================= #
+# =====----- LANGUAGE VERSION MANAGER -----------------------------------===== #
 
 # PyENV.
 if command -v pyenv >/dev/null 2>&1; then
@@ -276,7 +276,7 @@ if command -v rbenv >/dev/null 2>&1; then
     eval "$(rbenv init - zsh 2>/dev/null)" || true
 fi
 
-# ========================== COMPLETIONS MANAGEMENT ========================== #
+# =====----- COMPLETIONS MANAGEMENT -------------------------------------===== #
 
 autoload -Uz compinit
 if [[ -f "$ZSH_COMPDUMP" ]]; then
@@ -290,7 +290,7 @@ if [[ -d "$HOME/.docker/completions" ]]; then
     fpath=("$HOME/.docker/completions" $fpath)
 fi
 
-# ============================= PATH MANAGEMENT ============================== #
+# =====----- PATH MANAGEMENT --------------------------------------------===== #
 
 build_path() {
     local -a path_dirs=(

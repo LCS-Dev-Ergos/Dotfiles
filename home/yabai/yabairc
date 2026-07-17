@@ -1,8 +1,8 @@
 #!/usr/bin/env sh
 # ============================================================================ #
-# ========================= Yabai Configuration file ========================= #
+# =====----- Yabai Configuration file -----------------------------------===== #
 
-# ============================ Scripting Addition ============================ #
+# =====----- Scripting Addition -----------------------------------------===== #
 # For this to work you must configure sudo such that
 # it will be able to run the command without password
 
@@ -15,7 +15,7 @@ yabai -m signal --add event=window_focused action="sketchybar --trigger window_f
 #                       sleep \$(yabai -m config window_opacity_duration) && yabai -m window \
 #                       \$YABAI_WINDOW_ID --opacity 0.0"
 
-# =========================== Aspect Customization =========================== #
+# =====----- Aspect Customization ---------------------------------------===== #
 
 yabai -m config external_bar all:40:0 \
     mouse_follows_focus off \
@@ -47,9 +47,9 @@ yabai -m config external_bar all:40:0 \
 # +++++++++++++++++++++++++++++++ Custom Rules +++++++++++++++++++++++++++++++ #
 yabai -m rule --add app="kitty" opacity=0.9875
 
-# ========================= End Aspect Customization ========================= #
+# =====----- End Aspect Customization -----------------------------------===== #
 
-# ============================= Disabling Rules ============================== #
+# =====----- Disabling Rules --------------------------------------------===== #
 
 # Exclude problematic apps from being managed:
 EXCLUDED_APPS="1Password|Activity Monitor|Alfred|App Store|Archive Utility|Audio MIDI Setup|BetterDisplay| \
@@ -171,9 +171,9 @@ yabai -m rule --add \
     title="^(save|Save|Vault)$" \
     manage=off
 
-# =========================== End Disabling Rules ============================ #
+# =====----- End Disabling Rules ----------------------------------------===== #
 
-# =============================== Other Stuff ================================ #
+# =====----- Other Stuff ------------------------------------------------===== #
 # - bsp, stack or float
 yabai -m config layout bsp
 echo "yabai configuration loaded..."
@@ -191,4 +191,4 @@ echo "yabai configuration loaded..."
 #                    Rider,RustRover-EAP" \
 #         inactive_color=0xE63c3836       \
 
-# ============================= End Other Stuff ============================== #
+# =====----- End Other Stuff --------------------------------------------===== #

@@ -20,7 +20,7 @@
 #   11. PATH builder
 # ============================================================================ #
 
-# ============================ BASE CONFIGURATION ============================ #
+# =====----- BASE CONFIGURATION -----------------------------------------===== #
 
 # Load zsh/datetime for $EPOCHSECONDS — avoids forking `date +%s`.
 zmodload -F zsh/datetime b:strftime p:EPOCHSECONDS 2>/dev/null
@@ -77,7 +77,7 @@ typeset -gi _ZSH_NCPUS
 
 autoload -Uz add-zsh-hook
 
-# ========================== HISTORY CONFIGURATION =========================== #
+# =====----- HISTORY CONFIGURATION --------------------------------------===== #
 
 HISTFILE="${ZDOTDIR:-$HOME}/.zsh_history"
 [[ -f "$HISTFILE" ]] && chmod 600 "$HISTFILE" 2>/dev/null
@@ -93,7 +93,7 @@ setopt HIST_IGNORE_SPACE      # Omit commands prefixed with a space.
 setopt INC_APPEND_HISTORY     # Write to history file immediately.
 setopt SHARE_HISTORY          # Share history across concurrent sessions.
 
-# ======================== ZINIT BOOTSTRAP & PLUGINS ========================= #
+# =====----- ZINIT BOOTSTRAP & PLUGINS ----------------------------------===== #
 
 # Feature flags — export these before sourcing to customise the plugin set.
 : "${ZSH_ENABLE_FZF_TAB:=1}"
@@ -232,7 +232,7 @@ else
     compinit -i -d "$ZSH_COMPDUMP"
 fi
 
-# ================================= VI MODE ================================== #
+# =====----- VI MODE ----------------------------------------------------===== #
 
 bindkey -v
 export KEYTIMEOUT=1   # 10ms delay between key sequences (faster Esc).
@@ -267,7 +267,7 @@ zle-line-init() {
 zle -N zle-keymap-select
 zle -N zle-line-init
 
-# =========================== PROMPT CONFIGURATION =========================== #
+# =====----- PROMPT CONFIGURATION ---------------------------------------===== #
 
 # Priority: starship -> powerlevel10k -> minimal fallback.
 
@@ -288,7 +288,7 @@ else
     PROMPT='%F{cyan}%n@%m%f:%F{blue}%~%f %(?.%F{green}.%F{red}[%?] )%f$ '
 fi
 
-# ============================ FZF CONFIGURATION ============================= #
+# =====----- FZF CONFIGURATION ------------------------------------------===== #
 
 # Tokyo Night color scheme — set early so fzf-tab inherits it.
 _srv_fzf_set_theme() {
@@ -352,7 +352,7 @@ _srv_fzf_init() {
 }
 add-zsh-hook precmd _srv_fzf_init
 
-# ============================= MODERN CLI TOOLS ============================= #
+# =====----- MODERN CLI TOOLS -------------------------------------------===== #
 
 # ------ bat (better cat) ------ #
 if command -v bat >/dev/null 2>&1; then
@@ -449,7 +449,7 @@ hlp() {
 # When bat is available, 'alias h=_srv_bat_help' was already set above.
 command -v bat >/dev/null 2>&1 || alias h='hlp'
 
-# ========================== ENVIRONMENT VARIABLES =========================== #
+# =====----- ENVIRONMENT VARIABLES --------------------------------------===== #
 
 # Preferred editor: nvim → vim → vi.
 if   command -v nvim >/dev/null 2>&1; then export EDITOR="nvim"; export VISUAL="nvim"
@@ -499,7 +499,7 @@ fi
 # Docker.
 export DOCKER_CLI_HINTS=false   # Suppress "Learn more" hints in the CLI.
 
-# ================================= ALIASES ================================== #
+# =====----- ALIASES ----------------------------------------------------===== #
 
 # ----- Navigation ----- #
 alias ..='cd ..'
@@ -693,7 +693,7 @@ if ! typeset -f extract >/dev/null 2>&1; then
     alias x='extract'
 fi
 
-# ============================ LANGUAGE MANAGERS ============================= #
+# =====----- LANGUAGE MANAGERS ------------------------------------------===== #
 
 # ----- pyenv — lazy ----- #
 if [[ -d "$HOME/.pyenv" ]]; then
@@ -768,7 +768,7 @@ if [[ -x "/home/linuxbrew/.linuxbrew/bin/brew" ]]; then
     export MANPATH="$HOMEBREW_PREFIX/share/man${MANPATH:+:$MANPATH}"
 fi
 
-# =============================== PATH BUILDER =============================== #
+# =====----- PATH BUILDER -----------------------------------------------===== #
 #
 # Rebuilds PATH in a deterministic, priority-ordered sequence:
 #   1. Dynamic version-manager shims (highest priority).
