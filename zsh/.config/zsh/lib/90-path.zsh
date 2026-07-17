@@ -28,13 +28,20 @@
 #   - Preserves VS Code and other dynamically added paths.
 #   - Removes duplicates via "typeset -U".
 #
+# Contract: 80-languages.zsh may call zsh_rebuild_path after lazy fnm init.
+#
 # ============================================================================ #
+
+typeset -f _zsh_cache_is_fresh >/dev/null 2>&1 ||
+  source "${${(%):-%N}:A:h:h}/runtime-helpers.zsh"
 
 # -----------------------------------------------------------------------------
 # zsh_rebuild_path
 # -----------------------------------------------------------------------------
-# Rebuild PATH in deterministic order with version manager shims at top.
-# Ensures consistent PATH priority across shell sessions and removes duplicates.
+# @description Rebuilds PATH deterministically with version-manager shims first.
+# Removes duplicates and caches the result for up to 24 hours.
+# @noargs
+# @exitcode 1 If PATH rebuilding or cache handling fails.
 # -----------------------------------------------------------------------------
 zsh_rebuild_path() {
   # Store original PATH for debugging and fallback (exported for inspection).
@@ -64,17 +71,14 @@ zsh_rebuild_path() {
 
   local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
   local cache_file="$cache_dir/path.cache"
-  local cache_version="2"
+  local cache_version="4"
   local cache_signature="${cache_version}|${stable_original_path}|${PLATFORM}"
   cache_signature+="|${PYENV_ROOT}|${SDKMAN_DIR}"
   cache_signature+="|${GEM_HOME}|${GOPATH}|${ANDROID_HOME}"
 
-  local cache_ok=false
-  if [[ -r "$cache_file" && -O "$cache_file" && ! -L "$cache_file" ]]; then
-    cache_ok=true
-  fi
-
-  if $cache_ok; then
+  # A 24-hour TTL makes newly installed template directories visible without
+  # requiring a manual `zshfix`, while the signature handles env changes.
+  if _zsh_cache_is_fresh "$cache_file" 86400; then
     local cached_signature cached_path
     {
       IFS= read -r cached_signature
@@ -145,7 +149,10 @@ zsh_rebuild_path() {
       "/usr/sbin" "/sbin"
 
       # --------- Functional Languages ---------- #
-      "$HOME/.nix-profile/bin" "/nix/var/nix/profiles/default/bin"
+      "/etc/profiles/per-user/$USER/bin"
+      "$HOME/.nix-profile/bin"
+      "/nix/var/nix/profiles/default/bin"
+      "/run/current-system/sw/bin"
       "$HOME/Library/Application Support/Coursier/bin"
       "$HOME/.ghcup/bin" "$HOME/.cabal/bin"
       "$HOME/.cargo/bin"
@@ -207,7 +214,10 @@ zsh_rebuild_path() {
       "/home/linuxbrew/.linuxbrew/bin" "/home/linuxbrew/.linuxbrew/sbin"
 
       # --------- Functional Languages ---------- #
-      "$HOME/.nix-profile/bin" "/nix/var/nix/profiles/default/bin"
+      "/etc/profiles/per-user/$USER/bin"
+      "$HOME/.nix-profile/bin"
+      "/nix/var/nix/profiles/default/bin"
+      "/run/current-system/sw/bin"
       "$HOME/.ghcup/bin" "$HOME/.cabal/bin"
       "$HOME/.cargo/bin"
       "$HOME/.elan/bin"
@@ -295,8 +305,7 @@ zsh_rebuild_path() {
   # by the logic above, but -gU ensures it stays unique globally.
   typeset -gU PATH fpath manpath
 
-  command mkdir -p "$cache_dir" 2>/dev/null
-  # Persist a FNM-free PATH so future shells with a different FNM_MULTISHELL_PATH
+  # Persist a FNM-free PATH for shells with a different FNM_MULTISHELL_PATH.
   # can reuse this cache. The current shell's FNM dir was already added to the
   # live $PATH above; on cache hit, the next shell re-prepends its own.
   local cacheable_path
@@ -304,7 +313,7 @@ zsh_rebuild_path() {
   {
     print -r -- "$cache_signature"
     print -r -- "$cacheable_path"
-  } >| "$cache_file" 2>/dev/null
+  } | _zsh_cache_put "$cache_file" 2>/dev/null
 
   unset -f _path_strip_fnm
 }
@@ -313,4 +322,4 @@ zsh_rebuild_path() {
 zsh_rebuild_path
 
 # ============================================================================ #
-# # End of 90-path.zsh
+# # End of lib/90-path.zsh

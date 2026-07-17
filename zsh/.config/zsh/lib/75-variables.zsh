@@ -75,10 +75,20 @@ export JAVA_HOME_17
 
 # Wrapper function for scala commands to use Java 17.
 if [[ -n "$JAVA_HOME_17" ]]; then
+  # -------------------------------------------------------------------------
+  # scala
+  # @description Runs Scala with the configured Java 17 installation.
+  # @arg $@ string Arguments forwarded to scala.
+  # -------------------------------------------------------------------------
   scala() {
     JAVA_HOME="$JAVA_HOME_17" command scala "$@"
   }
 
+  # -------------------------------------------------------------------------
+  # scalac
+  # @description Runs the Scala compiler with Java 17.
+  # @arg $@ string Arguments forwarded to scalac.
+  # -------------------------------------------------------------------------
   scalac() {
     JAVA_HOME="$JAVA_HOME_17" command scalac "$@"
   }
@@ -108,13 +118,23 @@ export ZSH_BENCH_DIR="${ZSH_TOOLS_DIR}/zsh-bench"
 
 # -------- OS-specific environment variables -------- #
 if [[ "$PLATFORM" == 'macOS' ]]; then
-  # Force the use of system binaries to avoid conflicts.
-  export LD="/usr/bin/ld"
-  export AR="/usr/bin/ar"
-  # Activate these flags if you intend to use Homebrew's LLVM.
-  export CPATH="/opt/homebrew/include"
-  export LDFLAGS="-L/opt/homebrew/opt/llvm/lib"
-  export CPPFLAGS="-I/opt/homebrew/opt/llvm/include"
+  # Keep compiler/linker selection project-local. `use_llvm`, `use_gnu`, and
+  # `use_system` own toolchain flags explicitly and reversibly.
+
+  # Give terminal-launched Emacs the libgccjit paths it needs without leaking
+  # LIBRARY_PATH into every compiler, build, hook, and child process.
+  local gcc_target_dir=(/opt/homebrew/opt/gcc/lib/gcc/current/gcc/*/*(N))
+  if (( ${#gcc_target_dir} )); then
+    typeset -g _EMACS_NATIVE_LIBRARY_PATH="${gcc_target_dir[1]}:/opt/homebrew/opt/gcc/lib/gcc/current:/opt/homebrew/opt/libgccjit/lib/gcc/current"
+    # -------------------------------------------------------------------------
+    # emacs
+    # @description Runs Emacs with the Homebrew native library path.
+    # @arg $@ string Arguments forwarded to emacs.
+    # -------------------------------------------------------------------------
+    emacs() {
+      LIBRARY_PATH="${_EMACS_NATIVE_LIBRARY_PATH}${LIBRARY_PATH:+:$LIBRARY_PATH}" command emacs "$@"
+    }
+  fi
 
   # GO Language.
   # Note: PATH is handled by 90-path.zsh via $GOPATH/bin.
@@ -180,9 +200,9 @@ fi
 if [[ -n "${LCS_Data:-}" ]]; then
   export BLOG_POSTS_DIR="$LCS_Data/Blog/CS-Topics/content/posts/"
   export BLOG_STATIC_IMAGES_DIR="$LCS_Data/Blog/CS-Topics/static/images"
-  export IMAGES_SCRIPT_PATH="$LCS_Data/Blog/Automatic-Updates/images.py"
+  export IMAGES_SCRIPT_PATH="${ZSH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zsh}/scripts/blog/python/images.py"
 fi
 export OBSIDIAN_ATTACHMENTS_DIR="$HOME/Documents/Obsidian-Vault/XSPC-Vault/Blog/images"
 
 # ============================================================================ #
-# End of 75-variables.zsh
+# End of lib/75-variables.zsh

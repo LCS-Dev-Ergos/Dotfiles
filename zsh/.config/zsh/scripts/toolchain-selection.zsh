@@ -25,7 +25,7 @@
 #   use_system  # Restore original system environment
 #
 # Environment Variables (preserved):
-#   CC, CXX, LDFLAGS, CPPFLAGS, PKG_CONFIG_PATH, PATH
+#   CC, CXX, CPATH, LDFLAGS, CPPFLAGS, PKG_CONFIG_PATH, PATH
 #
 # Author: XtremeXSPC
 # License: MIT
@@ -36,11 +36,11 @@
 # shellcheck disable=SC2034
 
 _toolchain_helpers_dir="${ZSH_CONFIG_DIR:-$HOME/.config/zsh}/scripts"
-if [[ -r "${_toolchain_helpers_dir}/_shared_helpers.sh" ]]; then
+if [[ -r "${_toolchain_helpers_dir}/_shared-helpers.zsh" ]]; then
   # shellcheck disable=SC1091
-  source "${_toolchain_helpers_dir}/_shared_helpers.sh"
+  source "${_toolchain_helpers_dir}/_shared-helpers.zsh"
 else
-  printf "[ERROR] Shared helpers not found: %s/_shared_helpers.sh\n" "$_toolchain_helpers_dir" >&2
+  printf "[ERROR] Shared helpers not found: %s/_shared-helpers.zsh\n" "$_toolchain_helpers_dir" >&2
   return 1 2>/dev/null || exit 1
 fi
 unset _toolchain_helpers_dir
@@ -49,19 +49,9 @@ unset _toolchain_helpers_dir
 
 # -----------------------------------------------------------------------------
 # _toolchain_init_colors
-# -----------------------------------------------------------------------------
-# Initializes terminal color codes for formatted output.
-# Detects terminal capabilities and sets color variables. Falls back to
-# empty strings if terminal doesn't support colors.
-#
-# Usage:
-#   _toolchain_init_colors
-#
-# Returns:
-#   0 - Always succeeds
-#
-# Side Effects:
-#   - Sets global color variables: C_RESET, C_BOLD, C_RED, C_GREEN, etc.
+# @internal
+# @description Sets C_* color variables for toolchain switcher output.
+# @noargs
 # -----------------------------------------------------------------------------
 _toolchain_init_colors() {
   _shared_init_colors
@@ -71,20 +61,11 @@ _toolchain_init_colors() {
 
 # -----------------------------------------------------------------------------
 # _toolchain_detect_platform
-# -----------------------------------------------------------------------------
-# Detects operating system and Linux distribution.
-# Sets TOOLCHAIN_OS (macOS/Linux/Other) and TOOLCHAIN_DISTRO (Arch) globals.
-# Idempotent - returns immediately if already detected.
-#
-# Usage:
-#   _toolchain_detect_platform
-#
-# Returns:
-#   0 - Always succeeds.
-#
-# Side Effects:
-#   - Sets TOOLCHAIN_OS global variable.
-#   - Sets TOOLCHAIN_DISTRO for Arch Linux detection.
+# @internal
+# @description Detects the OS and Linux distribution; idempotent once cached.
+# @noargs
+# @set TOOLCHAIN_OS string Detected platform: macOS, Linux, or Other.
+# @set TOOLCHAIN_DISTRO string "Arch" on Arch Linux, empty otherwise.
 # -----------------------------------------------------------------------------
 _toolchain_detect_platform() {
   if [[ -n "${TOOLCHAIN_OS:-}" ]]; then
@@ -115,6 +96,7 @@ if [[ -z "${_TOOLCHAIN_SAVED_ENV:-}" ]]; then
   _TOOLCHAIN_SAVED_ENV=1
   TOOLCHAIN_ORIGINAL_LDFLAGS="${LDFLAGS-__TOOLCHAIN_UNSET__}"
   TOOLCHAIN_ORIGINAL_CPPFLAGS="${CPPFLAGS-__TOOLCHAIN_UNSET__}"
+  TOOLCHAIN_ORIGINAL_CPATH="${CPATH-__TOOLCHAIN_UNSET__}"
   TOOLCHAIN_ORIGINAL_PKG_CONFIG_PATH="${PKG_CONFIG_PATH-__TOOLCHAIN_UNSET__}"
   TOOLCHAIN_ORIGINAL_CC="${CC-__TOOLCHAIN_UNSET__}"
   TOOLCHAIN_ORIGINAL_CXX="${CXX-__TOOLCHAIN_UNSET__}"
@@ -124,22 +106,10 @@ fi
 
 # -----------------------------------------------------------------------------
 # _toolchain_log
-# -----------------------------------------------------------------------------
-# Formatted logging function with color-coded severity levels.
-# Supports info, ok, warn, and error levels with appropriate colors.
-#
-# Usage:
-#   _toolchain_log <level> <message...>
-#
-# Arguments:
-#   level - Log level: info, ok, warn, error (required).
-#   message - Log message text, supports multiple arguments (required).
-#
-# Returns:
-#   0 - Always succeeds.
-#
-# Side Effects:
-#   - Outputs to stdout for info/ok, stderr for warn/error.
+# @internal
+# @description Prints a leveled, color-coded log line; warn/error go to stderr.
+# @arg $1 string Level: info, ok, warn, or error.
+# @arg $@ string Message text.
 # -----------------------------------------------------------------------------
 _toolchain_log() {
   _shared_log "$@"
@@ -147,22 +117,10 @@ _toolchain_log() {
 
 # -----------------------------------------------------------------------------
 # _toolchain_restore_var
-# -----------------------------------------------------------------------------
-# Restores an environment variable to its original state.
-# Handles both set and unset variables using sentinel value.
-#
-# Usage:
-#   _toolchain_restore_var <name> <original_value>
-#
-# Arguments:
-#   name - Environment variable name (required).
-#   original_value - Original value or "__TOOLCHAIN_UNSET__" sentinel (required).
-#
-# Returns:
-#   0 - Always succeeds.
-#
-# Side Effects:
-#   - Exports variable with original value or unsets it.
+# @internal
+# @description Restores an environment variable to its pre-switch state.
+# @arg $1 string Environment variable name.
+# @arg $2 string Original value, or the "__TOOLCHAIN_UNSET__" sentinel.
 # -----------------------------------------------------------------------------
 _toolchain_restore_var() {
   local name="$1" value="$2"
@@ -175,22 +133,15 @@ _toolchain_restore_var() {
 
 # -----------------------------------------------------------------------------
 # _toolchain_reset_env_to_original
-# -----------------------------------------------------------------------------
-# Resets all compiler-related environment variables to original state.
-# Restores LDFLAGS, CPPFLAGS, PKG_CONFIG_PATH, CC, and CXX.
-#
-# Usage:
-#   _toolchain_reset_env_to_original
-#
-# Returns:
-#   0 - Always succeeds.
-#
-# Side Effects:
-#   - Restores or unsets compiler environment variables.
+# @internal
+# @description Restores LDFLAGS, CPPFLAGS, CPATH, PKG_CONFIG_PATH, CC, and CXX
+# to the values captured before any toolchain switch.
+# @noargs
 # -----------------------------------------------------------------------------
 _toolchain_reset_env_to_original() {
   _toolchain_restore_var LDFLAGS "$TOOLCHAIN_ORIGINAL_LDFLAGS"
   _toolchain_restore_var CPPFLAGS "$TOOLCHAIN_ORIGINAL_CPPFLAGS"
+  _toolchain_restore_var CPATH "$TOOLCHAIN_ORIGINAL_CPATH"
   _toolchain_restore_var PKG_CONFIG_PATH "$TOOLCHAIN_ORIGINAL_PKG_CONFIG_PATH"
   _toolchain_restore_var CC "$TOOLCHAIN_ORIGINAL_CC"
   _toolchain_restore_var CXX "$TOOLCHAIN_ORIGINAL_CXX"
@@ -198,22 +149,11 @@ _toolchain_reset_env_to_original() {
 
 # -----------------------------------------------------------------------------
 # _toolchain_set_path
-# -----------------------------------------------------------------------------
-# Modifies PATH to prioritize specified toolchain binary directory.
-# Prepends bin_dir to original PATH or restores original if empty.
-#
-# Usage:
-#   _toolchain_set_path <bin_dir>
-#
-# Arguments:
-#   bin_dir - Toolchain binary directory or empty to restore (required).
-#
-# Returns:
-#   0 - Always succeeds.
-#
-# Side Effects:
-#   - Exports PATH with bin_dir prepended.
-#   - Sets TOOLCHAIN_ACTIVE_BIN global variable.
+# @internal
+# @description Prepends a toolchain binary directory to the original PATH, or
+# restores the original PATH when called with an empty argument.
+# @arg $1 path Toolchain binary directory; empty to restore.
+# @set TOOLCHAIN_ACTIVE_BIN string The prepended directory, or empty.
 # -----------------------------------------------------------------------------
 _toolchain_set_path() {
   local bin_dir="$1"
@@ -232,22 +172,12 @@ _toolchain_set_path() {
 
 # -----------------------------------------------------------------------------
 # _toolchain_get_homebrew_prefix
-# -----------------------------------------------------------------------------
-# Determines Homebrew installation prefix with fallback detection.
-# Checks HOMEBREW_PREFIX env, brew command, and common installation paths.
-#
-# Usage:
-#   prefix=$(_toolchain_get_homebrew_prefix)
-#
-# Returns:
-#   0 - Homebrew prefix found (outputs path to stdout).
-#   1 - Homebrew not found.
-#
-# Side Effects:
-#   - Outputs Homebrew prefix path to stdout on success.
-#
-# Dependencies:
-#   brew - Homebrew package manager (optional).
+# @internal
+# @description Resolves the Homebrew prefix from HOMEBREW_PREFIX, `brew
+# --prefix`, or common install paths, in that order.
+# @noargs
+# @exitcode 1 If no Homebrew installation is found.
+# @stdout The Homebrew prefix path, on success.
 # -----------------------------------------------------------------------------
 _toolchain_get_homebrew_prefix() {
   if [[ -n "${HOMEBREW_PREFIX:-}" && -d "${HOMEBREW_PREFIX}" ]]; then
@@ -276,95 +206,78 @@ _toolchain_get_homebrew_prefix() {
 
 # -----------------------------------------------------------------------------
 # _toolchain_find_best_binary
-# -----------------------------------------------------------------------------
-# Finds the best available version of a compiler binary.
-# Searches PATH and additional directories for versioned binaries (e.g., gcc-14).
-# Prefers highest version number over unversioned binaries.
-#
-# Usage:
-#   binary_path=$(_toolchain_find_best_binary <base_name> [extra_dirs...])
-#
-# Arguments:
-#   base_name - Base binary name (e.g., "gcc", "clang") (required).
-#   extra_dirs - Additional directories to search (optional).
-#
-# Returns:
-#   0 - Binary found (outputs path to stdout).
-#   1 - Binary not found (outputs nothing).
-#
-# Side Effects:
-#   - Outputs binary path to stdout on success.
-#
-# Dependencies:
-#   find - File search utility.
+# @internal
+# @description Searches preferred directories before PATH for the highest
+# versioned binary matching base_name-N (e.g. gcc-15), falling back to an
+# unversioned match within the same priority tier.
+# @arg $1 string Base binary name (e.g. "gcc", "clang").
+# @arg $@ path Additional directories to search.
+# @stdout The resolved binary path, on success.
 # -----------------------------------------------------------------------------
 _toolchain_find_best_binary() {
   local base="$1"
   shift
-  local fallback="" best="" best_ver=-1 dir candidate_path ver ver_str
+  local fallback="" best="" dir candidate_path ver ver_str group
+  local -i best_ver=-1
 
-  local -a dirs=()
-  local IFS=:
-  for dir in $PATH; do
-    dirs+=("$dir")
-  done
+  local -a preferred_dirs=() path_dirs=("${path[@]}") dirs=()
   for dir in "$@"; do
-    dirs+=("$dir")
+    [[ -n "$dir" ]] && preferred_dirs+=("$dir")
   done
 
-  for dir in "${dirs[@]}"; do
-    [[ -d "$dir" ]] || continue
-    if [[ -x "$dir/$base" && -z "$fallback" ]]; then
-      fallback="$dir/$base"
+  # Explicitly selected installations are a higher-priority tier than PATH.
+  # This prevents Apple Clang from winning after Homebrew LLVM was selected.
+  for group in preferred path; do
+    if [[ "$group" == preferred ]]; then
+      dirs=("${preferred_dirs[@]}")
+      (( ${#dirs[@]} )) || continue
+    else
+      dirs=("${path_dirs[@]}")
     fi
+    typeset -U dirs
+    fallback=""
+    best=""
+    best_ver=-1
 
-    # Prefer versioned binaries (e.g., clang-20, gcc-14) without relying on shell globbing.
-    while IFS= read -r candidate_path; do
-      ver_str="${candidate_path##*-}"
-      case "$ver_str" in
-        '' | *[!0-9]*) continue ;;
-      esac
-      ver=$ver_str
-      if ((ver > best_ver)); then
-        best_ver=$ver
-        best="$candidate_path"
+    for dir in "${dirs[@]}"; do
+      [[ -d "$dir" ]] || continue
+      if [[ -x "$dir/$base" && -z "$fallback" ]]; then
+        fallback="$dir/$base"
       fi
-    done < <(find "$dir" -maxdepth 1 -type f -name "$base-[0-9]*" -print 2>/dev/null)
+
+      # Include executable symlinks: Homebrew commonly exposes versioned GCC
+      # names that way.
+      for candidate_path in "$dir/$base"-*(N); do
+        [[ -x "$candidate_path" ]] || continue
+        ver_str="${candidate_path##*-}"
+        [[ "$ver_str" == <-> ]] || continue
+        ver=$ver_str
+        if (( ver > best_ver )); then
+          best_ver=$ver
+          best="$candidate_path"
+        fi
+      done
+    done
+
+    if [[ -n "$best" ]]; then
+      print -r -- "$best"
+      return 0
+    elif [[ -n "$fallback" ]]; then
+      print -r -- "$fallback"
+      return 0
+    fi
   done
 
-  # Last resort: whatever command -v sees.
-  if [[ -z "$best" && -z "$fallback" ]]; then
-    local from_path
-    from_path=$(command -v "$base" 2>/dev/null || true)
-    if [[ -n "$from_path" ]]; then
-      fallback="$from_path"
-    fi
-  fi
-
-  if [[ -n "$best" ]]; then
-    printf "%s\n" "$best"
-  elif [[ -n "$fallback" ]]; then
-    printf "%s\n" "$fallback"
-  fi
+  return 1
 }
 
 # -----------------------------------------------------------------------------
 # _toolchain_select_llvm_bin_dir
-# -----------------------------------------------------------------------------
-# Locates LLVM/Clang installation binary directory.
-# Searches platform-specific locations and selects highest version.
-# macOS: Homebrew (/opt/homebrew, /usr/local)
-# Linux: System paths (/usr/lib/llvm*, /opt/llvm*)
-#
-# Usage:
-#   llvm_dir=$(_toolchain_select_llvm_bin_dir)
-#
-# Returns:
-#   0 - LLVM directory found (outputs path to stdout).
-#   1 - LLVM not found (outputs nothing).
-#
-# Side Effects:
-#   - Outputs LLVM bin directory path to stdout on success.
+# @internal
+# @description Locates the highest-versioned LLVM/Clang bin directory: Homebrew
+# on macOS, or /usr/lib/llvm*, /opt/llvm* and similar on Linux.
+# @noargs
+# @stdout The LLVM bin directory path, on success.
 # -----------------------------------------------------------------------------
 _toolchain_select_llvm_bin_dir() {
   local -a candidates=()
@@ -409,20 +322,12 @@ _toolchain_select_llvm_bin_dir() {
 
 # -----------------------------------------------------------------------------
 # _toolchain_select_gcc_bin_dir
-# -----------------------------------------------------------------------------
-# Locates GNU GCC installation binary directory.
-# macOS: Homebrew GCC installation
-# Linux: System GCC (/usr/bin, /usr/local/bin)
-#
-# Usage:
-#   gcc_dir=$(_toolchain_select_gcc_bin_dir)
-#
-# Returns:
-#   0 - GCC directory found (outputs path to stdout).
-#   1 - GCC not found (outputs nothing).
-#
-# Side Effects:
-#   - Outputs GCC bin directory path to stdout on success.
+# @internal
+# @description Locates the GCC bin directory: Homebrew GCC on macOS, or
+# /usr/bin / /usr/local/bin on Linux.
+# @noargs
+# @exitcode 1 If no GCC installation is found.
+# @stdout The GCC bin directory path, on success.
 # -----------------------------------------------------------------------------
 _toolchain_select_gcc_bin_dir() {
   if [[ "$TOOLCHAIN_OS" == "macOS" ]]; then
@@ -452,73 +357,120 @@ _toolchain_select_gcc_bin_dir() {
 
 # -----------------------------------------------------------------------------
 # _toolchain_verify_compiler
-# -----------------------------------------------------------------------------
-# Verifies compiler availability and displays version information.
-# Executes compiler with --version flag to confirm functionality.
-#
-# Usage:
-#   _toolchain_verify_compiler <compiler>
-#
-# Arguments:
-#   compiler - Compiler binary name or path (required).
-#
-# Returns:
-#   0 - Compiler found and working.
-#   1 - Compiler not found or not functional.
-#
-# Side Effects:
-#   - Logs compiler version or warning message.
+# @internal
+# @description Runs the compiler with --version and logs the result.
+# @arg $1 string Compiler binary name or path.
+# @exitcode 1 If the compiler is not found or does not run.
 # -----------------------------------------------------------------------------
 _toolchain_verify_compiler() {
   local compiler="$1"
-  if command -v "$compiler" >/dev/null 2>&1; then
+  local label="${2:-Compiler}"
+  local resolved
+  resolved="$(command -v "$compiler" 2>/dev/null)"
+  if [[ -n "$resolved" ]]; then
     local version_output
-    version_output=$("$compiler" --version 2>/dev/null | head -n 1)
+    version_output=$("$resolved" --version 2>/dev/null | head -n 1)
     if [[ -n "$version_output" ]]; then
-      _toolchain_log ok "${compiler}: ${version_output}"
+      _toolchain_log ok "${label}: ${resolved:t} · ${version_output}"
       return 0
     fi
   fi
-  _toolchain_log warn "Compiler '${compiler}' not found or not working properly."
+  _toolchain_log warn \
+    "${label} compiler '${compiler}' is unavailable or unusable."
   return 1
+}
+
+# -----------------------------------------------------------------------------
+# _toolchain_validate_resolution
+# @internal
+# @description Verifies that CC and CXX resolve to the compiler paths selected
+# before PATH was updated, guarding against stale hashes and wrong precedence.
+# @arg $1 path Expected C compiler.
+# @arg $2 path Expected C++ compiler.
+# @exitcode 1 If either selected compiler resolves elsewhere.
+# -----------------------------------------------------------------------------
+_toolchain_validate_resolution() {
+  local expected_cc="$1" expected_cxx="$2"
+  local resolved_cc resolved_cxx
+  rehash
+  resolved_cc="$(command -v "$CC" 2>/dev/null)"
+  resolved_cxx="$(command -v "$CXX" 2>/dev/null)"
+
+  if [[ -z "$resolved_cc" || "${resolved_cc:A}" != "${expected_cc:A}" ]]; then
+    _toolchain_log error \
+      "CC resolves to '${resolved_cc:-missing}', expected '$expected_cc'."
+    return 1
+  fi
+  if [[ -z "$resolved_cxx" ||
+        "${resolved_cxx:A}" != "${expected_cxx:A}" ]]; then
+    _toolchain_log error \
+      "CXX resolves to '${resolved_cxx:-missing}', expected '$expected_cxx'."
+    return 1
+  fi
+}
+
+# -----------------------------------------------------------------------------
+# _toolchain_capture_state
+# @internal
+# @description Stores the current toolchain environment in reply for rollback.
+# @noargs
+# @set reply array Current PATH, state markers, and compiler variables.
+# -----------------------------------------------------------------------------
+_toolchain_capture_state() {
+  reply=(
+    "$PATH"
+    "${TOOLCHAIN_ACTIVE-__TOOLCHAIN_UNSET__}"
+    "${TOOLCHAIN_ACTIVE_BIN-__TOOLCHAIN_UNSET__}"
+    "${LDFLAGS-__TOOLCHAIN_UNSET__}"
+    "${CPPFLAGS-__TOOLCHAIN_UNSET__}"
+    "${CPATH-__TOOLCHAIN_UNSET__}"
+    "${PKG_CONFIG_PATH-__TOOLCHAIN_UNSET__}"
+    "${CC-__TOOLCHAIN_UNSET__}"
+    "${CXX-__TOOLCHAIN_UNSET__}"
+  )
+}
+
+# -----------------------------------------------------------------------------
+# _toolchain_restore_state
+# @internal
+# @description Restores a state captured by _toolchain_capture_state.
+# @arg $@ string Nine state fields returned in reply.
+# -----------------------------------------------------------------------------
+_toolchain_restore_state() {
+  (( $# == 9 )) || return 2
+  export PATH="$1"
+  if [[ "$2" == "__TOOLCHAIN_UNSET__" ]]; then
+    unset TOOLCHAIN_ACTIVE
+  else
+    TOOLCHAIN_ACTIVE="$2"
+  fi
+  if [[ "$3" == "__TOOLCHAIN_UNSET__" ]]; then
+    unset TOOLCHAIN_ACTIVE_BIN
+  else
+    TOOLCHAIN_ACTIVE_BIN="$3"
+  fi
+  _toolchain_restore_var LDFLAGS "$4"
+  _toolchain_restore_var CPPFLAGS "$5"
+  _toolchain_restore_var CPATH "$6"
+  _toolchain_restore_var PKG_CONFIG_PATH "$7"
+  _toolchain_restore_var CC "$8"
+  _toolchain_restore_var CXX "$9"
+  rehash
 }
 
 # +++++++++++++++++++++++++ MAIN TOOLCHAIN FUNCTIONS +++++++++++++++++++++++++ #
 
 # -----------------------------------------------------------------------------
 # use_llvm
-# -----------------------------------------------------------------------------
-# Activates LLVM/Clang toolchain for C/C++ development.
-# Automatically detects and configures the best available LLVM installation
-# from Homebrew (macOS) or system packages (Linux). Sets CC, CXX, PATH,
-# and compiler flags (LDFLAGS, CPPFLAGS on macOS).
-#
-# Usage:
-#   use_llvm
-#
-# Returns:
-#   0 - LLVM toolchain activated successfully.
-#   1 - LLVM toolchain not found.
-#
-# Side Effects:
-#   - Modifies PATH to prioritize LLVM bin directory.
-#   - Exports CC=clang, CXX=clang++.
-#   - Sets LDFLAGS and CPPFLAGS on macOS for Homebrew LLVM.
-#   - Resets other compiler environment variables to original state.
-#   - Displays activation status and compiler versions.
-#
-# Environment Variables Modified:
-#   PATH, CC, CXX, LDFLAGS (macOS), CPPFLAGS (macOS).
-#
-# Dependencies:
-#   clang, clang++ - LLVM compiler binaries.
+# @description Activates the best available LLVM/Clang toolchain.
+# Updates compiler variables and PATH, with Homebrew flags on macOS.
+# @noargs
+# @exitcode 1 If an LLVM toolchain is unavailable.
 # -----------------------------------------------------------------------------
 use_llvm() {
   _toolchain_init_colors
   _toolchain_detect_platform
-  printf "%s%s[+] Activating LLVM/Clang toolchain...%s\n" "$C_BOLD" "$C_CYAN" "$C_RESET"
-
-  _toolchain_reset_env_to_original
+  _zsh_ui_heading "LLVM/Clang toolchain" "Activating for the current shell"
 
   local llvm_bin_dir clang_bin cxx_bin prefix_for_flags
   llvm_bin_dir=$(_toolchain_select_llvm_bin_dir) || true
@@ -527,9 +479,14 @@ use_llvm() {
   cxx_bin=$(_toolchain_find_best_binary "clang++" "$llvm_bin_dir") || true
 
   if [[ -z "$clang_bin" || -z "$cxx_bin" ]]; then
-    _toolchain_log error "No Clang toolchain found. Install with Homebrew (macOS) or your package manager (e.g., pacman -S clang / apt install clang)."
+    _toolchain_log error \
+      "No Clang toolchain found; install LLVM with the platform package manager."
     return 1
   fi
+
+  _toolchain_capture_state
+  local -a previous_state=("${reply[@]}")
+  _toolchain_reset_env_to_original
 
   local bin_dir_for_path
   bin_dir_for_path="$(dirname "$clang_bin")"
@@ -537,12 +494,14 @@ use_llvm() {
 
   prefix_for_flags="${bin_dir_for_path%/bin}"
   if [[ "$TOOLCHAIN_OS" == "macOS" && -d "$prefix_for_flags/lib" ]]; then
-    local base_ldflags base_cppflags
+    local base_ldflags base_cppflags base_cpath
     [[ "$TOOLCHAIN_ORIGINAL_LDFLAGS" == "__TOOLCHAIN_UNSET__" ]] && base_ldflags="" || base_ldflags="$TOOLCHAIN_ORIGINAL_LDFLAGS"
     [[ "$TOOLCHAIN_ORIGINAL_CPPFLAGS" == "__TOOLCHAIN_UNSET__" ]] && base_cppflags="" || base_cppflags="$TOOLCHAIN_ORIGINAL_CPPFLAGS"
+    [[ "$TOOLCHAIN_ORIGINAL_CPATH" == "__TOOLCHAIN_UNSET__" ]] && base_cpath="" || base_cpath="$TOOLCHAIN_ORIGINAL_CPATH"
 
     export LDFLAGS="-L${prefix_for_flags}/lib${base_ldflags:+ ${base_ldflags}}"
     export CPPFLAGS="-I${prefix_for_flags}/include${base_cppflags:+ ${base_cppflags}}"
+    export CPATH="${prefix_for_flags}/include${base_cpath:+:${base_cpath}}"
   fi
 
   export CC
@@ -550,44 +509,32 @@ use_llvm() {
   CC=$(basename "$clang_bin")
   CXX=$(basename "$cxx_bin")
 
-  _toolchain_log info "PATH=${PATH}"
-  _toolchain_log ok "CC='${CC}', CXX='${CXX}'"
-  _toolchain_verify_compiler "$CC"
-  _toolchain_verify_compiler "$CXX"
+  _toolchain_validate_resolution "$clang_bin" "$cxx_bin" || {
+    _toolchain_restore_state "${previous_state[@]}"
+    return 1
+  }
+  local -i verify_status=0
+  _toolchain_verify_compiler "$CC" "C" || verify_status=1
+  _toolchain_verify_compiler "$CXX" "C++" || verify_status=1
+  if (( verify_status != 0 )); then
+    _toolchain_restore_state "${previous_state[@]}"
+    return 1
+  fi
+  TOOLCHAIN_ACTIVE="llvm"
+  _toolchain_log ok "LLVM/Clang is active for this shell."
 }
 
 # -----------------------------------------------------------------------------
 # use_gnu
-# -----------------------------------------------------------------------------
-# Activates GNU GCC toolchain for C/C++ development.
-# Automatically detects and configures the best available GCC installation
-# from Homebrew (macOS) or system packages (Linux). Sets CC, CXX, and PATH.
-#
-# Usage:
-#   use_gnu
-#
-# Returns:
-#   0 - GCC toolchain activated successfully.
-#   1 - GCC toolchain not found.
-#
-# Side Effects:
-#   - Modifies PATH to prioritize GCC bin directory.
-#   - Exports CC=gcc, CXX=g++.
-#   - Resets other compiler environment variables to original state.
-#   - Displays activation status and compiler versions.
-#
-# Environment Variables Modified:
-#   PATH, CC, CXX.
-#
-# Dependencies:
-#   gcc, g++ - GNU compiler collection binaries.
+# @description Activates the best available GNU GCC toolchain.
+# Updates compiler variables and PATH, then reports compiler versions.
+# @noargs
+# @exitcode 1 If a GCC toolchain is unavailable.
 # -----------------------------------------------------------------------------
 use_gnu() {
   _toolchain_init_colors
   _toolchain_detect_platform
-  printf "%s%s[+] Activating GNU GCC toolchain...%s\n" "$C_BOLD" "$C_CYAN" "$C_RESET"
-
-  _toolchain_reset_env_to_original
+  _zsh_ui_heading "GNU GCC toolchain" "Activating for the current shell"
 
   local gcc_bin_dir gcc_bin gxx_bin
   gcc_bin_dir=$(_toolchain_select_gcc_bin_dir) || true
@@ -596,9 +543,14 @@ use_gnu() {
   gxx_bin=$(_toolchain_find_best_binary "g++" "$gcc_bin_dir") || true
 
   if [[ -z "$gcc_bin" || -z "$gxx_bin" ]]; then
-    _toolchain_log error "GCC not found. Install via Homebrew (macOS) or your distro packages (e.g., pacman -S gcc / apt install build-essential)."
+    _toolchain_log error \
+      "GCC not found; install it with the platform package manager."
     return 1
   fi
+
+  _toolchain_capture_state
+  local -a previous_state=("${reply[@]}")
+  _toolchain_reset_env_to_original
 
   local bin_dir_for_path
   bin_dir_for_path="$(dirname "$gcc_bin")"
@@ -609,66 +561,58 @@ use_gnu() {
   CC=$(basename "$gcc_bin")
   CXX=$(basename "$gxx_bin")
 
-  _toolchain_log info "PATH=${PATH}"
-  _toolchain_log ok "CC='${CC}', CXX='${CXX}'"
-  _toolchain_verify_compiler "$CC"
-  _toolchain_verify_compiler "$CXX"
+  _toolchain_validate_resolution "$gcc_bin" "$gxx_bin" || {
+    _toolchain_restore_state "${previous_state[@]}"
+    return 1
+  }
+  local -i verify_status=0
+  _toolchain_verify_compiler "$CC" "C" || verify_status=1
+  _toolchain_verify_compiler "$CXX" "C++" || verify_status=1
+  if (( verify_status != 0 )); then
+    _toolchain_restore_state "${previous_state[@]}"
+    return 1
+  fi
+  TOOLCHAIN_ACTIVE="gnu"
+  _toolchain_log ok "GNU GCC is active for this shell."
 }
 
 # -----------------------------------------------------------------------------
 # use_system
-# -----------------------------------------------------------------------------
-# Restores original system toolchain and environment variables.
-# Resets PATH and all compiler-related variables (CC, CXX, LDFLAGS, CPPFLAGS)
-# to their state before any toolchain switching occurred.
-#
-# Usage:
-#   use_system
-#
-# Returns:
-#   0 - System toolchain restored successfully.
-#   1 - Original PATH not available (shell restart required).
-#
-# Side Effects:
-#   - Restores PATH to original value.
-#   - Resets CC, CXX, LDFLAGS, CPPFLAGS, PKG_CONFIG_PATH to original state.
-#   - Displays system compiler information.
-#
-# Environment Variables Modified:
-#   PATH, CC, CXX, LDFLAGS, CPPFLAGS, PKG_CONFIG_PATH.
+# @description Restores PATH and compiler variables saved before switching.
+# Reports the system C and C++ compilers after restoration.
+# @noargs
+# @exitcode 1 If the original PATH is unavailable.
 # -----------------------------------------------------------------------------
 use_system() {
   _toolchain_init_colors
-  printf "%s%s[*] Restoring system/default toolchain...%s\n" "$C_BOLD" "$C_YELLOW" "$C_RESET"
+  _zsh_ui_heading "System toolchain" "Restoring the original shell environment"
 
   if [[ -z "${TOOLCHAIN_ORIGINAL_PATH:-}" ]]; then
-    _toolchain_log error "TOOLCHAIN_ORIGINAL_PATH not set. Restart the shell if restoration fails."
+    _toolchain_log error \
+      "TOOLCHAIN_ORIGINAL_PATH is unset; restart the shell to recover."
     return 1
   fi
 
   _toolchain_set_path ""
   _toolchain_reset_env_to_original
 
-  local system_cc system_cxx
-  system_cc=$(command -v cc 2>/dev/null || command -v clang 2>/dev/null || command -v gcc 2>/dev/null)
-  system_cxx=$(command -v c++ 2>/dev/null || command -v clang++ 2>/dev/null || command -v g++ 2>/dev/null)
+  local system_cc="${CC:-cc}" system_cxx="${CXX:-c++}"
 
-  if [[ -n "$system_cc" ]]; then
-    _toolchain_log ok "System C compiler: $system_cc"
-    _toolchain_verify_compiler "$system_cc"
+  if command -v "$system_cc" >/dev/null 2>&1; then
+    _toolchain_verify_compiler "$system_cc" "C"
   else
     _toolchain_log warn "No system C compiler detected in PATH."
   fi
 
-  if [[ -n "$system_cxx" ]]; then
-    _toolchain_log ok "System C++ compiler: $system_cxx"
-    _toolchain_verify_compiler "$system_cxx"
+  if command -v "$system_cxx" >/dev/null 2>&1; then
+    _toolchain_verify_compiler "$system_cxx" "C++"
   else
     _toolchain_log warn "No system C++ compiler detected in PATH."
   fi
 
+  TOOLCHAIN_ACTIVE="system"
   _toolchain_log ok "System toolchain restored."
 }
 
 # ============================================================================ #
-# End of script.
+# End of toolchain-selection.zsh
