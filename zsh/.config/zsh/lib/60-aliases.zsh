@@ -8,7 +8,7 @@
 #             ██║  ██║███████╗██║██║  ██║███████║███████╗███████║
 #             ╚═╝  ╚═╝╚══════╝╚═╝╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝
 # ============================================================================ #
-# +++++++++++++++++++++++++++ ALIASES & FUNCTIONS ++++++++++++++++++++++++++++ #
+# +++++++++++++++++++++++++++++++++ ALIASES ++++++++++++++++++++++++++++++++++ #
 # ============================================================================ #
 #
 # Cross-platform aliases and utility functions organized by category:
@@ -19,7 +19,7 @@
 #   - Productivity tools.
 #   - Platform-specific utilities.
 #
-# Platform detection via $PLATFORM variable from 00-init.zsh
+# Platform detection via $PLATFORM variable from 00-initialization.zsh
 #
 # ============================================================================ #
 
@@ -39,15 +39,9 @@ alias mv="mv -i"
 # -----------------------------------------------------------------------------
 # cdf
 # -----------------------------------------------------------------------------
-# Change directory to the parent folder of a file selected via fzf.
-# Interactive file picker that navigates to the containing directory.
-#
-# Returns:
-#   0 - Successfully changed directory.
-#   1 - fzf not available or no file selected.
-#
-# Dependencies:
-#   fzf - Fuzzy finder.
+# @description Selects a file with fzf and enters its containing directory.
+# @noargs
+# @exitcode 1 If fzf is unavailable or selection is cancelled.
 # -----------------------------------------------------------------------------
 cdf() {
   if ! command -v fzf >/dev/null 2>&1; then
@@ -72,7 +66,7 @@ elif command -v redis-server >/dev/null 2>&1; then
   alias redis-start="redis-server"
 fi
 
-# Implemented in functions/dev-tools.zsh.
+# Implemented in functions/development-tools.zsh.
 alias fnm-clean='fnm_clean'
 
 # ++++++++++++++++++++++++++++ C/C++ COMPILATION +++++++++++++++++++++++++++++ #
@@ -80,81 +74,81 @@ alias fnm-clean='fnm_clean'
 # ---------- C Include Path ---------- #
 # Determine include path dynamically based on platform.
 if [[ "$PLATFORM" == 'macOS' ]] && [[ -d "/opt/homebrew/include" ]]; then
-  C_INCLUDE_PATH="-I/opt/homebrew/include"
+  _CC_INCLUDE_FLAG="-I/opt/homebrew/include"
 elif [[ -d "/usr/local/include" ]]; then
-  C_INCLUDE_PATH="-I/usr/local/include"
+  _CC_INCLUDE_FLAG="-I/usr/local/include"
 else
-  C_INCLUDE_PATH=""
+  _CC_INCLUDE_FLAG=""
 fi
 
 # Toolchain Information Alias.
 alias toolchain='ZSH_HIGHLIGHT_MAXLENGTH=0 get_toolchain_info 2> >(grep -v "^[a-z_]*=")'
 
 # Default C Compilation Alias.
-alias c-compile="clang -std=c23 -O3 -march=native -flto=thin -ffast-math $C_INCLUDE_PATH"
+alias c-compile="clang -std=c23 -O3 -march=native -flto=thin -ffast-math $_CC_INCLUDE_FLAG"
 
 # GCC C Compilation.
-alias gcc-c-compile="gcc -std=c23 -O3 -march=native -flto -ffast-math $C_INCLUDE_PATH"
-alias gcc-c-debug="gcc -std=c23 -g -O0 -Wall -Wextra -DDEBUG $C_INCLUDE_PATH"
+alias gcc-c-compile="gcc -std=c23 -O3 -march=native -flto -ffast-math $_CC_INCLUDE_FLAG"
+alias gcc-c-debug="gcc -std=c23 -g -O0 -Wall -Wextra -DDEBUG $_CC_INCLUDE_FLAG"
 
 # Clang C Compilation.
-alias clang-c-compile="clang -std=c23 -O3 -march=native -flto=thin -ffast-math $C_INCLUDE_PATH"
-alias clang-c-debug="clang -std=c23 -g -O0 -Wall -Wextra -DDEBUG $C_INCLUDE_PATH"
+alias clang-c-compile="clang -std=c23 -O3 -march=native -flto=thin -ffast-math $_CC_INCLUDE_FLAG"
+alias clang-c-debug="clang -std=c23 -g -O0 -Wall -Wextra -DDEBUG $_CC_INCLUDE_FLAG"
 
 # Ultra Performance Clang C with ThinLTO and PGO.
 alias clang-c-ultra="clang -std=c23 -O3 -march=native -mtune=native \
     -flto=thin -ffast-math -fprofile-generate=default.profraw -funroll-loops -fvectorize \
-    $C_INCLUDE_PATH"
+    $_CC_INCLUDE_FLAG"
 alias clang-c-ultra-use="clang -std=c23 -O3 -march=native -mtune=native \
     -flto=thin -ffast-math -fprofile-use=default.profdata -funroll-loops -fvectorize \
-    $C_INCLUDE_PATH"
+    $_CC_INCLUDE_FLAG"
 
 # Quick C compilation aliases.
-alias qc-compile="clang -std=c23 -O2 $C_INCLUDE_PATH"
-alias qc-debug="clang -std=c23 -g -O0 -Wall $C_INCLUDE_PATH"
+alias qc-compile="clang -std=c23 -O2 $_CC_INCLUDE_FLAG"
+alias qc-debug="clang -std=c23 -g -O0 -Wall $_CC_INCLUDE_FLAG"
 
 # --------- C++ Compilation ---------- #
 # Determine LLVM library path dynamically.
 if [[ "$PLATFORM" == 'macOS' ]]; then
   if [[ -d "/opt/homebrew/opt/llvm/lib/c++" ]]; then
-    LLVM_PREFIX="/opt/homebrew/opt/llvm"
+    _LLVM_PREFIX="/opt/homebrew/opt/llvm"
   elif [[ -d "/usr/local/opt/llvm/lib/c++" ]]; then
-    LLVM_PREFIX="/usr/local/opt/llvm"
+    _LLVM_PREFIX="/usr/local/opt/llvm"
   fi
-  if [[ -n "${LLVM_PREFIX:-}" && -d "$LLVM_PREFIX/lib/c++" ]]; then
-    CPP_LIB_PATH="-L$LLVM_PREFIX/lib/c++ -lc++"
+  if [[ -n "${_LLVM_PREFIX:-}" && -d "$_LLVM_PREFIX/lib/c++" ]]; then
+    _CPP_LIB_FLAGS="-L$_LLVM_PREFIX/lib/c++ -lc++"
   else
-    CPP_LIB_PATH="-lc++"
+    _CPP_LIB_FLAGS="-lc++"
   fi
 else
-  CPP_LIB_PATH="-lc++"
+  _CPP_LIB_FLAGS="-lc++"
 fi
 
 # Default C++ Compilation Alias.
-alias compile="clang++ -std=c++23 -stdlib=libc++ $CPP_LIB_PATH \
-    -O3 -march=native -flto=thin -ffast-math $C_INCLUDE_PATH"
+alias compile="clang++ -std=c++23 -stdlib=libc++ $_CPP_LIB_FLAGS \
+    -O3 -march=native -flto=thin -ffast-math $_CC_INCLUDE_FLAG"
 
 # GCC Compilation.
-alias gcc-compile="g++ -std=c++23 -O3 -march=native -flto -ffast-math $C_INCLUDE_PATH"
-alias gcc-debug="g++ -std=c++23 -g -O0 -Wall -Wextra -DDEBUG $C_INCLUDE_PATH"
+alias gcc-compile="g++ -std=c++23 -O3 -march=native -flto -ffast-math $_CC_INCLUDE_FLAG"
+alias gcc-debug="g++ -std=c++23 -g -O0 -Wall -Wextra -DDEBUG $_CC_INCLUDE_FLAG"
 
 # Clang Compilation.
-alias clang-compile="clang++ -std=c++23 -stdlib=libc++ $CPP_LIB_PATH \
-    -O3 -march=native -flto=thin -ffast-math $C_INCLUDE_PATH"
-alias clang-debug="clang++ -std=c++23 -stdlib=libc++ $CPP_LIB_PATH \
-    -g -O0 -Wall -Wextra -DDEBUG $C_INCLUDE_PATH"
+alias clang-compile="clang++ -std=c++23 -stdlib=libc++ $_CPP_LIB_FLAGS \
+    -O3 -march=native -flto=thin -ffast-math $_CC_INCLUDE_FLAG"
+alias clang-debug="clang++ -std=c++23 -stdlib=libc++ $_CPP_LIB_FLAGS \
+    -g -O0 -Wall -Wextra -DDEBUG $_CC_INCLUDE_FLAG"
 
 # Ultra Performance Clang with ThinLTO and PGO.
-alias clang-ultra="clang++ -std=c++23 -stdlib=libc++ $CPP_LIB_PATH -O3 -march=native -mtune=native \
+alias clang-ultra="clang++ -std=c++23 -stdlib=libc++ $_CPP_LIB_FLAGS -O3 -march=native -mtune=native \
     -flto=thin -ffast-math -fprofile-generate=default.profraw -funroll-loops -fvectorize \
-    $C_INCLUDE_PATH"
-alias clang-ultra-use="clang++ -std=c++23 -stdlib=libc++ $CPP_LIB_PATH -O3 -march=native -mtune=native \
+    $_CC_INCLUDE_FLAG"
+alias clang-ultra-use="clang++ -std=c++23 -stdlib=libc++ $_CPP_LIB_FLAGS -O3 -march=native -mtune=native \
     -flto=thin -ffast-math -fprofile-use=default.profdata -funroll-loops -fvectorize \
-    $C_INCLUDE_PATH"
+    $_CC_INCLUDE_FLAG"
 
 # Quick compilation aliases.
-alias qcompile="clang++ -std=c++23 -stdlib=libc++ $CPP_LIB_PATH -O2 $C_INCLUDE_PATH"
-alias qdebug="clang++ -std=c++23 -stdlib=libc++ $CPP_LIB_PATH -g -O0 -Wall $C_INCLUDE_PATH"
+alias qcompile="clang++ -std=c++23 -stdlib=libc++ $_CPP_LIB_FLAGS -O2 $_CC_INCLUDE_FLAG"
+alias qdebug="clang++ -std=c++23 -stdlib=libc++ $_CPP_LIB_FLAGS -g -O0 -Wall $_CC_INCLUDE_FLAG"
 
 # +++++++++++++++++++++++++++++++ GIT WORKFLOW +++++++++++++++++++++++++++++++ #
 
@@ -193,12 +187,9 @@ alias fastfetch='~/.config/fastfetch/scripts/fastfetch-dynamic.sh'
 # -----------------------------------------------------------------------------
 # kreload
 # -----------------------------------------------------------------------------
-# Reload Kitty configuration without restarting the terminal.
-# Uses SIGUSR1 signal to trigger live reload.
-#
-# Returns:
-#   0 - Configuration reloaded successfully.
-#   1 - Not running in Kitty or reload failed.
+# @description Reloads Kitty configuration without restarting the terminal.
+# @noargs
+# @exitcode 1 If not running in Kitty or reload fails.
 # -----------------------------------------------------------------------------
 kreload() {
   if [[ -z "$KITTY_PID" ]]; then
@@ -220,11 +211,8 @@ alias kedit='$EDITOR ~/.config/kitty/kitty.conf'
 # -----------------------------------------------------------------------------
 # stitle
 # -----------------------------------------------------------------------------
-# Manually set the terminal window/tab title.
-# Useful when auto-titling is disabled.
-#
-# Usage:
-#   stitle "My Title"
+# @description Sets the terminal window or tab title.
+# @arg $@ string Title text.
 # -----------------------------------------------------------------------------
 function stitle() {
   print -Pn "\e]2;${(V)*}\a"
@@ -235,16 +223,10 @@ function stitle() {
 # -----------------------------------------------------------------------------
 # fuck
 # -----------------------------------------------------------------------------
-# Lazy-load and create an alias for 'thefuck' command.
-#
-# Returns:
-#   Corrects mistyped commands.
-#
-# Notes:
-#   Aliases expand at parse time so we can't call the alias immediately from
-#   the function; due to history-expansion complexities with "thefuck", the
-#   workaround is to either ask the user to run it again or execute the alias's
-#   underlying command (raw command) once instead.
+# @description Lazily initializes thefuck and retries the current correction.
+# @arg $@ string Arguments forwarded to the thefuck alias.
+# Available only when thefuck is installed.
+# @exitcode 1 If the alias cannot be initialized.
 # -----------------------------------------------------------------------------
 if command -v thefuck >/dev/null 2>&1; then
   # Lazy load thefuck to save startup time.
@@ -270,26 +252,6 @@ if [[ "$PLATFORM" == 'macOS' ]]; then
 
   # TailScale alias for easier access.
   alias tailscale="/Applications/Tailscale.app/Contents/MacOS/Tailscale"
-
-  # ---------------------------------------------------------------------------
-  # brew
-  # ---------------------------------------------------------------------------
-  # Homebrew wrapper that triggers sketchybar updates after package operations.
-  # Automatically notifies sketchybar when packages are updated/upgraded.
-  #
-  # Triggers:
-  #   - Sends brew_update trigger to sketchybar after update/upgrade/outdated
-  # ---------------------------------------------------------------------------
-  function brew() {
-    command brew "$@"
-    case "${1:-}" in
-      upgrade|update|outdated)
-        # Ensure sketchybar is available before calling it.
-        # Run asynchronously (&!) to avoid blocking the terminal if sketchybar hangs.
-        command -v sketchybar >/dev/null 2>&1 && sketchybar --trigger brew_update &!
-        ;;
-    esac
-  }
 
   # --------- macOS utilities ---------- #
   alias update="brew update && brew upgrade"
@@ -356,105 +318,6 @@ elif [[ "$PLATFORM" == 'Linux' ]]; then
 
   # ------- Arch Linux Specific -------- #
   if [[ "$ARCH_LINUX" == true ]]; then
-    # -------------------------------------------------------------------------
-    # command_not_found_handler (toggleable)
-    # -------------------------------------------------------------------------
-    # Arch Linux command not found handler using pacman file database.
-    # Set ENABLE_CMD_NOT_FOUND=true to re-enable suggestions; defaults to off
-    # to avoid the lookup overhead when a typo occurs.
-    : "${ENABLE_CMD_NOT_FOUND:=false}"
-
-    if [[ "${ENABLE_CMD_NOT_FOUND}" == true ]]; then
-      function command_not_found_handler {
-        # Use $'\e' so colors contain the real escape byte, not the literal "\e".
-        local purple=$'\e[1;35m' bright=$'\e[0;1m' green=$'\e[1;32m' reset=$'\e[0m'
-        printf 'zsh: command not found: %s\n' "$1"
-        # shellcheck disable=SC2296
-        local entries=( "${(f)"$(/usr/bin/pacman -F --machinereadable -- "/usr/bin/$1")"}" )
-        if (( ${#entries[@]} )); then
-          printf '%s may be found in the following packages:\n' "${bright}$1${reset}"
-          local pkg
-          for entry in "${entries[@]}" ; do
-            # shellcheck disable=SC2296
-            local fields=( "${(0)entry}" )
-            if [[ "$pkg" != "${fields[2]}" ]]; then
-              printf "${purple}%s/${bright}%s ${green}%s${reset}\n" "${fields[1]}" "${fields[2]}" "${fields[3]}"
-            fi
-            printf '    /%s\n' "${fields[4]}"
-            pkg="${fields[2]}"
-          done
-        fi
-        return 127
-      }
-    fi
-
-    # Detect available AUR helper.
-    _aur_helper() {
-      if pacman -Qi yay &>/dev/null; then
-        print -r -- "yay"
-        return 0
-      fi
-      if pacman -Qi paru &>/dev/null; then
-        print -r -- "paru"
-        return 0
-      fi
-      return 1
-    }
-
-    # -------------------------------------------------------------------------
-    # in
-    # -------------------------------------------------------------------------
-    # Intelligent package installer for Arch Linux.
-    # Automatically determines whether packages are in official repos or AUR
-    # and uses the appropriate tool (pacman or AUR helper).
-    #
-    # Usage:
-    #   in <package1> [package2] [package3] ...
-    #
-    # Arguments:
-    #   package1, package2, ... - Package names to install.
-    #
-    # Returns:
-    #   0 - All packages installed successfully.
-    #   1 - Installation failed or no AUR helper available for AUR packages.
-    # -------------------------------------------------------------------------
-    function in {
-      local -a inPkg=("$@")
-      local -a arch=()
-      local -a aur=()
-      local aurhelper="$(_aur_helper 2>/dev/null)"
-      local pkg
-
-      for pkg in "${inPkg[@]}"; do
-        if pacman -Si "${pkg}" &>/dev/null; then
-          arch+=("${pkg}")
-        else
-          aur+=("${pkg}")
-        fi
-      done
-
-      if [[ ${#arch[@]} -gt 0 ]]; then
-        sudo pacman -S --needed "${arch[@]}"
-      fi
-
-      if [[ ${#aur[@]} -gt 0 ]] && [[ -n "$aurhelper" ]]; then
-        ${aurhelper} -S --needed "${aur[@]}"
-      fi
-    }
-
-    # Aliases for package management on Arch.
-    () {
-      local aurhelper="$(_aur_helper 2>/dev/null)"
-      if [[ -n "$aurhelper" ]]; then
-        alias un="${aurhelper} -Rns"
-        alias up="${aurhelper} -Syu"
-        alias pl="${aurhelper} -Qs"
-        alias pa="${aurhelper} -Ss"
-        alias pc="${aurhelper} -Sc"
-        alias po="pacman -Qtdq | ${aurhelper} -Rns -"
-      fi
-    }
-
     # Note: eza aliases (ld, lt) moved to functions/aliases.zsh
 
     # Other aliases for Arch.
@@ -464,4 +327,4 @@ elif [[ "$PLATFORM" == 'Linux' ]]; then
 fi
 
 # ============================================================================ #
-# End of 60-aliases.zsh
+# End of lib/60-aliases.zsh

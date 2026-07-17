@@ -11,7 +11,7 @@
 # ++++++++++++++++++++++ LANGUAGE ENVIRONMENT MANAGERS +++++++++++++++++++++++ #
 # ============================================================================ #
 #
-# Initialization of programming language version managers and runtime environments.
+# Initializes language version managers and runtime environments.
 # Organized into static (Nix, Homebrew, Haskell, OCaml) and dynamic managers
 # (SDKMAN, pyenv, conda, rbenv, fnm).
 #
@@ -24,7 +24,13 @@
 #   - Conditional initialization based on command availability.
 #   - Platform-aware detection.
 #
+# Contract: the fnm lazy initializer calls zsh_rebuild_path when the later PATH
+# module is available, preserving the active fnm multishell directory.
+#
 # ============================================================================ #
+
+typeset -f _zsh_cache_is_fresh >/dev/null 2>&1 ||
+  source "${${(%):-%N}:A:h:h}/runtime-helpers.zsh"
 
 # +++++++++++++++++++++++ STATIC ENVIRONMENT MANAGERS ++++++++++++++++++++++++ #
 
@@ -77,7 +83,7 @@ fi
 
 # --------------- Opam --------------- #
 # OCaml: Build and package manager optimization.
-export OPAMJOBS="${_ZSH_NCPUS:-4}"  # Parallel builds (uses cached CPU count from 00-init.zsh).
+export OPAMJOBS="${_ZSH_NCPUS:-4}"  # Parallel builds (uses cached CPU count from 00-initialization.zsh).
 export DUNE_CACHE=enabled           # Enable Dune build cache.
 export DUNE_CACHE_TRANSPORT=direct  # Faster cache access.
 # export OPAMYES=1  # Auto-confirm opam operations.
@@ -106,6 +112,11 @@ if [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]]; then
     source "$SDKMAN_DIR/bin/sdkman-init.sh"
   }
 
+  # -------------------------------------------------------------------------
+  # sdk
+  # @description Lazily initializes SDKMAN, then runs its sdk command.
+  # @arg $@ string Arguments forwarded to SDKMAN.
+  # -------------------------------------------------------------------------
   sdk() {
     unfunction sdk 2>/dev/null
     _sdkman_lazy_init
@@ -113,58 +124,23 @@ if [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]]; then
   }
 else
   # ---------------------------------------------------------------------------
-  # setup_java_home_fallback
+  # _setup_java_home_fallback
   # ---------------------------------------------------------------------------
-  # Auto-detect and configure JAVA_HOME when SDKMAN is not available.
-  # Platform-aware detection using system utilities and standard JVM paths.
-  #
-  # Detection methods:
-  #   macOS: /usr/libexec/java_home utility
-  #   Linux: update-alternatives, archlinux-java, or /usr/lib/jvm search
-  #
-  # Sets:
-  #   JAVA_HOME - Java installation directory.
-  #   PATH      - Adds $JAVA_HOME/bin.
+  # @internal
+  # @description Detects JAVA_HOME when SDKMAN is unavailable.
+  # Uses platform tools and caches a secure result for later shells.
+  # @noargs
   # ---------------------------------------------------------------------------
-  setup_java_home_fallback() {
+  _setup_java_home_fallback() {
     # Cache file location.
     local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
     local cache_file="$cache_dir/java_home"
-    local cache_safe=false
-    local cache_mtime=0
-    local now
-
-    # Check if cache exists and is less than 7 days old.
-    if [[ -f "$cache_file" ]]; then
-      # Source cache only if file ownership/permissions are safe.
-      if typeset -f _zsh_is_secure_file >/dev/null 2>&1; then
-        _zsh_is_secure_file "$cache_file" && cache_safe=true
-      elif [[ -r "$cache_file" && -O "$cache_file" && ! -L "$cache_file" ]]; then
-        cache_safe=true
-      fi
-
-      # Check modification time (macOS/Linux compatible).
-      local cache_valid=false
-      now="${EPOCHSECONDS:-$(date +%s)}"
-      if typeset -f _zsh_mtime >/dev/null 2>&1; then
-        cache_mtime="$(_zsh_mtime "$cache_file")"
-      elif [[ "$PLATFORM" == 'macOS' ]]; then
-        cache_mtime="$(command stat -f %m "$cache_file" 2>/dev/null)"
-      else
-        cache_mtime="$(command stat -c %Y "$cache_file" 2>/dev/null)"
-      fi
-      [[ "$cache_mtime" =~ ^[0-9]+$ ]] || cache_mtime=0
-      # 604800 seconds = 7 days.
-      if ((now - cache_mtime < 604800)); then
-        cache_valid=true
-      fi
-
-      if $cache_valid && $cache_safe; then
-        source "$cache_file"
-        return
-      elif $cache_valid && ! $cache_safe; then
-        echo "${C_YELLOW}Warning: skipping insecure Java cache file: $cache_file${C_RESET}" >&2
-      fi
+    # Check if cache exists, is safe, and is less than 7 days old.
+    if _zsh_cache_is_fresh "$cache_file" 604800; then
+      source "$cache_file"
+      return
+    elif [[ -f "$cache_file" ]] && ! _zsh_is_secure_file "$cache_file"; then
+      echo "${C_YELLOW}Warning: skipping insecure Java cache file: $cache_file${C_RESET}" >&2
     fi
 
     # Fallback to manual detection if cache is invalid or doesn't exist.
@@ -180,7 +156,7 @@ else
       fi
     elif [[ "$PLATFORM" == 'Linux' ]]; then
       local found_java_home=""
-      # Method 1: For Debian/Ubuntu/Fedora based systems (uses update-alternatives).
+      # Method 1: Debian, Ubuntu, or Fedora via update-alternatives.
       if command -v update-alternatives &>/dev/null && command -v java &>/dev/null; then
         local java_path=$(readlink -f "$(which java)" 2>/dev/null)
         if [[ -n "$java_path" ]]; then
@@ -211,18 +187,15 @@ else
 
     # Save to cache if JAVA_HOME was found.
     if [[ -n "$JAVA_HOME" ]]; then
-      mkdir -p "$cache_dir"
-      (
-        umask 077
-        {
-          print -r -- "export JAVA_HOME=${(qq)JAVA_HOME}"
-          print -r -- 'export PATH="$JAVA_HOME/bin:$PATH"'
-        } >| "$cache_file"
-      )
+      {
+        print -r -- "export JAVA_HOME=${(qq)JAVA_HOME}"
+        print -r -- 'export PATH="$JAVA_HOME/bin:$PATH"'
+      } | _zsh_cache_put "$cache_file"
     fi
   }
   # Execute the fallback function.
-  setup_java_home_fallback
+  _setup_java_home_fallback
+  unfunction _setup_java_home_fallback 2>/dev/null
 fi
 
 # -------------- PyENV --------------- #
@@ -238,6 +211,11 @@ if [[ -d "$HOME/.pyenv" ]]; then
       eval "$(command pyenv virtualenv-init -)" 2>/dev/null || echo "${C_YELLOW}Warning: pyenv virtualenv-init failed.${C_RESET}"
     }
 
+    # -------------------------------------------------------------------------
+    # pyenv
+    # @description Lazily initializes pyenv, then runs its command.
+    # @arg $@ string Arguments forwarded to pyenv.
+    # -------------------------------------------------------------------------
     pyenv() {
       unfunction pyenv 2>/dev/null
       _pyenv_lazy_init
@@ -254,7 +232,7 @@ export PIPENV_VENV_IN_PROJECT=1    # Store .venv in project directory.
 
 # --------------- Rust --------------- #
 # Rust: Parallel compilation and incremental builds.
-export CARGO_BUILD_JOBS="${_ZSH_NCPUS:-4}" # Uses cached CPU count from 00-init.zsh.
+export CARGO_BUILD_JOBS="${_ZSH_NCPUS:-4}" # Uses cached CPU count from 00-initialization.zsh.
 export CARGO_INCREMENTAL=1
 
 # -------------- C/C++ --------------- #
@@ -324,6 +302,11 @@ _conda_lazy_init() {
 }
 
 if [[ -f "/opt/miniconda3/bin/conda" || -f "$HOME/.miniforge3/bin/conda" ]]; then
+  # -------------------------------------------------------------------------
+  # conda
+  # @description Lazily initializes Conda, then runs its command.
+  # @arg $@ string Arguments forwarded to conda.
+  # -------------------------------------------------------------------------
   conda() {
     unfunction conda 2>/dev/null
     _conda_lazy_init
@@ -355,6 +338,11 @@ if [[ -d "$HOME/.rbenv" ]]; then
       eval "$(command rbenv init - zsh)" 2>/dev/null || echo "${C_YELLOW}Warning: rbenv init failed.${C_RESET}"
     }
 
+    # -------------------------------------------------------------------------
+    # rbenv
+    # @description Lazily initializes rbenv, then runs its command.
+    # @arg $@ string Arguments forwarded to rbenv.
+    # -------------------------------------------------------------------------
     rbenv() {
       unfunction rbenv 2>/dev/null
       _rbenv_lazy_init
@@ -460,6 +448,11 @@ if command -v fnm &>/dev/null; then
     add-zsh-hook precmd _fnm_lazy_init
   fi
 
+  # -------------------------------------------------------------------------
+  # fnm
+  # @description Initializes fnm on demand, then runs its command.
+  # @arg $@ string Arguments forwarded to fnm.
+  # -------------------------------------------------------------------------
   fnm() {
     if ! _fnm_ensure_ready; then
       command fnm "$@"
@@ -469,27 +462,71 @@ if command -v fnm &>/dev/null; then
     command fnm "$@"
   }
 
-  # Wrap node commands to ensure fnm is ready and heartbeat is setup on first use.
+  # Ensure fnm and its heartbeat before each Node-related command.
+  # -------------------------------------------------------------------------
+  # node
+  # @description Ensures fnm is ready, then runs Node.js.
+  # @arg $@ string Arguments forwarded to node.
+  # @exitcode 1 If fnm initialization fails.
+  # -------------------------------------------------------------------------
   node() {
     _fnm_ensure_ready || return 1
     command node "$@"
   }
 
+  # -------------------------------------------------------------------------
+  # npm
+  # @description Ensures fnm is ready, then runs npm.
+  # @arg $@ string Arguments forwarded to npm.
+  # @exitcode 1 If fnm initialization fails.
+  # -------------------------------------------------------------------------
   npm() {
     _fnm_ensure_ready || return 1
     command npm "$@"
   }
 
+  # -------------------------------------------------------------------------
+  # npx
+  # @description Ensures fnm is ready, then runs npx.
+  # @arg $@ string Arguments forwarded to npx.
+  # @exitcode 1 If fnm initialization fails.
+  # -------------------------------------------------------------------------
   npx() {
     _fnm_ensure_ready || return 1
     command npx "$@"
   }
 
+  # -------------------------------------------------------------------------
+  # corepack
+  # @description Ensures fnm is ready, then runs Corepack.
+  # @arg $@ string Arguments forwarded to corepack.
+  # @exitcode 1 If fnm initialization fails.
+  # -------------------------------------------------------------------------
   corepack() {
     _fnm_ensure_ready || return 1
     command corepack "$@"
   }
+
+  # -------------------------------------------------------------------------
+  # pi
+  # @description Initializes the default fnm Node environment, then launches
+  # the Pi coding agent installed in that environment.
+  # @arg $@ string Arguments forwarded to Pi.
+  # @exitcode 1 If fnm initialization fails; 127 if Pi is not installed.
+  # -------------------------------------------------------------------------
+  pi() {
+    _fnm_ensure_ready || return 1
+
+    local pi_bin="$(whence -p pi 2>/dev/null)"
+    if [[ -z "$pi_bin" ]]; then
+      print -u2 "pi: executable not found in the active Node environment"
+      return 127
+    fi
+
+    unfunction pi 2>/dev/null
+    "$pi_bin" "$@"
+  }
 fi
 
 # ============================================================================ #
-# End of 80-languages.zsh
+# End of lib/80-languages.zsh
