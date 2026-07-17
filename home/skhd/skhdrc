@@ -1,7 +1,7 @@
-# ====================== Skhd Configuration file ============================ #
+# =====----- Skhd Configuration file ------------------------------------===== #
 
-# =========================================================================== #
-# ====================== NAVIGAZIONE FINESTRE E SPAZI ======================= #
+# ============================================================================ #
+# =====----- NAVIGAZIONE FINESTRE E SPAZI -------------------------------===== #
 
 # Navigazione finestre (attraverso bordi display): lalt - {h, j, k, l}
 lalt - h : yabai -m window --focus west  || yabai -m display --focus west
@@ -23,8 +23,8 @@ lalt - 8 : ~/.config/skhd/focus_space.sh 8
 lalt - 9 : ~/.config/skhd/focus_space.sh 9
 lalt - 0 : ~/.config/skhd/focus_space.sh 10
 
-# =========================================================================== #
-# ====================== MOVIMENTI FINESTRE TRA SPAZI ======================= #
+# ============================================================================ #
+# =====----- MOVIMENTI FINESTRE TRA SPAZI -------------------------------===== #
 
 # Sposta finestra negli spazi specifici: shift + lalt - {1, 2, 3, 4, ... 0}
 shift + lalt - 1 : SPACES=($(yabai -m query --displays --display | jq '.spaces[]')) && [[ -n $SPACES[1] ]] \
@@ -73,8 +73,8 @@ shift + cmd - left : \
 shift + lalt - n : yabai -m window --space next && yabai -m space --focus next
 shift + lalt - p : yabai -m window --space prev && yabai -m space --focus prev
 
-# =========================================================================== #
-# ====================== MANIPOLAZIONE FINESTRE ============================= #
+# ============================================================================ #
+# =====----- MANIPOLAZIONE FINESTRE -------------------------------------===== #
 
 # Equalize grandezza finestre
 ctrl + lalt - e : yabai -m space --balance
@@ -117,8 +117,8 @@ shift + lalt - g : yabai -m space --gap rel:-20
 # Toggle finestra native fullscreen
 shift + lalt - f : yabai -m window --toggle native-fullscreen
 
-# =========================================================================== #
-# ====================== SPOSTAMENTO FINESTRE IN LAYOUT ===================== #
+# ============================================================================ #
+# =====----- SPOSTAMENTO FINESTRE IN LAYOUT -----------------------------===== #
 
 # Sposta finestra (warp) in direzione
 shift + cmd - h : yabai -m window --warp west
@@ -126,8 +126,8 @@ shift + cmd - j : yabai -m window --warp south
 shift + cmd - k : yabai -m window --warp north
 shift + cmd - l : yabai -m window --warp east
 
-# =========================================================================== #
-# ====================== STACKS E INSERIMENTO =============================== #
+# ============================================================================ #
+# =====----- STACKS E INSERIMENTO ---------------------------------------===== #
 
 # Aggiungi finestra attiva allo stack nella direzione: shift + ctrl - {h, j, k, l}
 shift + ctrl - h : yabai -m window west --stack $(yabai -m query --windows --window | jq -r '.id')
@@ -142,8 +142,8 @@ shift + ctrl + lalt - k : yabai -m window --insert north
 shift + ctrl + lalt - l : yabai -m window --insert east
 shift + ctrl + lalt - s : yabai -m window --insert stack
 
-# =========================================================================== #
-# ====================== RIDIMENSIONAMENTO FINESTRE ========================= #
+# ============================================================================ #
+# =====----- RIDIMENSIONAMENTO FINESTRE ---------------------------------===== #
 
 # Aumenta dimensione finestra
 ctrl + lalt - h : yabai -m window --resize left:-20:0
@@ -157,8 +157,8 @@ ctrl + lalt + cmd - j : yabai -m window --resize bottom:0:-20
 ctrl + lalt + cmd - k : yabai -m window --resize top:0:20
 ctrl + lalt + cmd - l : yabai -m window --resize right:-20:0
 
-# =========================================================================== #
-# ====================== LAYOUT E SERVIZI =================================== #
+# ============================================================================ #
+# =====----- LAYOUT E SERVIZI -------------------------------------------===== #
 
 # Toggle sketchybar
 shift + lalt - space : sketchybar --bar hidden=toggle
@@ -172,4 +172,4 @@ ctrl + alt - r : yabai --restart-service
 ctrl + lalt - a : yabai -m space --layout bsp
 ctrl + lalt - d : yabai -m space --layout float
 
-# =========================================================================== #
+# ============================================================================ #
