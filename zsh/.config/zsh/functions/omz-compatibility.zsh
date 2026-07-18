@@ -20,7 +20,11 @@ if [[ "$HYDE_ENABLED" == "1" ]] && [[ "${HYDE_ZSH_NO_PLUGINS}" != "1" ]]; then
 fi
 
 # -----------------------------------------------------------------------------
-# Clipboard helpers (adapted from OMZ lib/clipboard.zsh)
+# detect-clipboard
+# @internal
+# @description Selects a supported clipboard backend for clipcopy and clippaste.
+# @noargs
+# @exitcode 1 If no supported clipboard backend is available.
 # -----------------------------------------------------------------------------
 detect-clipboard() {
   emulate -L zsh
@@ -75,12 +79,24 @@ detect-clipboard() {
   fi
 }
 
+# -----------------------------------------------------------------------------
+# clipcopy
+# @description Copies a file or standard input to the detected clipboard.
+# @arg $1 path Optional file to copy; defaults to standard input.
+# @exitcode 1 If no clipboard backend is available or copying fails.
+# -----------------------------------------------------------------------------
 clipcopy() {
   unfunction clipcopy clippaste
   detect-clipboard || true
   clipcopy "$@"
 }
 
+# -----------------------------------------------------------------------------
+# clippaste
+# @description Writes the detected clipboard contents to standard output.
+# @noargs
+# @exitcode 1 If no clipboard backend is available or pasting fails.
+# -----------------------------------------------------------------------------
 clippaste() {
   unfunction clipcopy clippaste
   detect-clipboard || true
@@ -88,7 +104,11 @@ clippaste() {
 }
 
 # -----------------------------------------------------------------------------
-# open_command (adapted from OMZ lib/functions.zsh)
+# open_command
+# @description Opens a URL or path with the platform's default application.
+# @arg $1 string URL or path to open.
+# @arg $@ string Optional additional targets.
+# @exitcode 1 If the platform is unsupported or opening fails.
 # -----------------------------------------------------------------------------
 open_command() {
   local open_cmd
@@ -120,10 +140,16 @@ open_command() {
   ${=open_cmd} "$@" &>/dev/null
 }
 
-# -----------------------------------------------------------------------------
-# omz_urlencode (adapted from OMZ lib/functions.zsh)
-# -----------------------------------------------------------------------------
 zmodload zsh/langinfo 2>/dev/null || true
+# -----------------------------------------------------------------------------
+# omz_urlencode
+# @description Percent-encodes text using OMZ-compatible URL rules.
+# @arg $@ string Text to encode.
+# @option -r Encode reserved URL characters.
+# @option -m Encode mark characters.
+# @option -P Encode spaces as %20 instead of +.
+# @exitcode 1 If input cannot be converted to UTF-8.
+# -----------------------------------------------------------------------------
 omz_urlencode() {
   emulate -L zsh
   setopt norematchpcre
@@ -200,7 +226,10 @@ omz_urlencode() {
 }
 
 # -----------------------------------------------------------------------------
-# copyfile / copypath (adapted from OMZ plugins)
+# copyfile
+# @description Copies a regular file to the detected clipboard.
+# @arg $1 path File to copy.
+# @exitcode 1 If the file is missing, invalid, or cannot be copied.
 # -----------------------------------------------------------------------------
 copyfile() {
   emulate -L zsh
@@ -219,6 +248,12 @@ copyfile() {
   print ${(%):-"%B$1%b copied to clipboard."}
 }
 
+# -----------------------------------------------------------------------------
+# copypath
+# @description Copies an absolute path to the detected clipboard.
+# @arg $1 path Optional path; defaults to the current directory.
+# @exitcode 1 If the path cannot be copied.
+# -----------------------------------------------------------------------------
 copypath() {
   emulate -L zsh
   local file="${1:-.}"
@@ -228,9 +263,6 @@ copypath() {
   print ${(%):-"%B${file:a}%b copied to clipboard."}
 }
 
-# -----------------------------------------------------------------------------
-# colored-man-pages (adapted from OMZ plugin)
-# -----------------------------------------------------------------------------
 if (( ! ${+fg_bold} || ! ${+reset_color} || ! ${+bg} )); then
   autoload -Uz colors && colors
 fi
@@ -246,6 +278,12 @@ less_termcap[ue]="${reset_color}"
 
 typeset -g __omz_compat_dir="${${(%):-%x}:A:h}"
 
+# -----------------------------------------------------------------------------
+# colored
+# @description Runs a command with colored man-page terminal settings.
+# @arg $@ string Command and arguments to execute.
+# @exitcode 1 If the command fails.
+# -----------------------------------------------------------------------------
 colored() {
   local -a environment
   local k v
@@ -263,12 +301,36 @@ colored() {
   command env "${environment[@]}" "$@"
 }
 
+# -----------------------------------------------------------------------------
+# man
+# @description Runs man with colored terminal formatting.
+# @arg $@ string Manual page and arguments.
+# @exitcode 1 If man fails.
+# -----------------------------------------------------------------------------
 man() { colored man "$@"; }
+
+# -----------------------------------------------------------------------------
+# dman
+# @description Runs dman with colored terminal formatting.
+# @arg $@ string Manual page and arguments.
+# @exitcode 1 If dman fails.
+# -----------------------------------------------------------------------------
 dman() { colored dman "$@"; }
+
+# -----------------------------------------------------------------------------
+# debman
+# @description Runs debman with colored terminal formatting.
+# @arg $@ string Manual page and arguments.
+# @exitcode 1 If debman fails.
+# -----------------------------------------------------------------------------
 debman() { colored debman "$@"; }
 
 # -----------------------------------------------------------------------------
-# web_search (adapted from OMZ plugin)
+# web_search
+# @description Builds a search URL for a named engine and opens it.
+# @arg $1 string Search engine name.
+# @arg $@ string Optional query terms.
+# @exitcode 1 If the engine is unsupported or opening the search fails.
 # -----------------------------------------------------------------------------
 web_search() {
   emulate -L zsh
@@ -377,4 +439,4 @@ if [[ ${#ZSH_WEB_SEARCH_ENGINES} -gt 0 ]]; then
 fi
 
 # ============================================================================ #
-# End of omz-compat.zsh
+# End of omz-compatibility.zsh

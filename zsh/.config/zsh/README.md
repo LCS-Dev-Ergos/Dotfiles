@@ -1,265 +1,247 @@
-# Modular Zsh Configuration
+# ZSH Configuration
 
----
+Modular Zsh configuration for macOS and Linux/Arch, installed with GNU Stow.
+The default interactive startup defers expensive integrations and activates
+the prompt only after deterministic PATH assembly. Filesystem and cache
+operations are validated before executable shell code is sourced.
 
-## Overview
+## Bootstrap and installation
 
-This directory contains the modular Zsh configuration, refactored from a monolithic 2000+ line `.zshrc` file into an organized and maintainable system.
+The repository uses this layout:
 
-### Structure
-
-```path-tree
-~/.config/zsh/
-├── lib/                      # Core configuration modules
-│   ├── 00-init.zsh           # Base configuration & platform detection
-│   ├── 10-history.zsh        # History settings
-│   ├── 20-zinit.zsh          # Zinit plugin initialization
-│   ├── 30-prompt.zsh         # Prompt system (Starship/P10k/Minimal)
-│   ├── 40-vi-mode.zsh        # Vi mode & keybindings
-│   ├── 50-tools.zsh          # Modern tools (fzf, zoxide, yazi, atuin)
-│   ├── 60-aliases.zsh        # Aliases & utility functions
-│   ├── 70-ai-tools.zsh       # AI tools settings
-│   ├── 75-variables.zsh      # Global variables & exports
-│   ├── 80-languages.zsh      # Language managers (SDKMAN, pyenv, fnm)
-│   ├── 85-completions.zsh    # Completion systems
-│   ├── 90-path.zsh           # Final PATH assembly
-│   ├── 95-lazy-scripts.zsh   # Lazy loader for scripts/
-│   └── 96-lazy-cpp-tools.zsh # Lazy loader for cpp-tools/competitive.sh
-│
-├── scripts/                  # Custom user scripts (optional)
-└── README.md                 # This file
+```text
+Dotfiles/zsh/
+├── .zshenv.bootstrap       reproducible ~/.zshenv template
+├── .zprofile               login-shell environment
+├── .zshrc                  interactive loader
+└── .config/zsh/
+    ├── .zshenv             environment shared by all shell types
+    ├── lib/                ordered startup modules
+    ├── functions/          interactive command bundles
+    ├── conf.d/             environment-specific integration (HyDE)
+    ├── completions/        compinit-compatible `_name` files
+    ├── scripts/            lazy command modules and Python backends
+    ├── others/             standalone minimal/server configurations
+    ├── prompt.zsh          intentional HyDE prompt opt-out
+    └── user.zsh            HyDE preferences
 ```
 
----
+### Naming convention
 
-### Loading Order
+Shell sources, scripts, fixtures, and documentation use descriptive
+`kebab-case` filenames. Abbreviations are limited to established technical or
+product names such as Zsh, CLI, AI, PDF, C++, FZF, VS Code, and OCI. A leading
+underscore marks a private module; completion files retain Zsh's `_command`
+contract. Python modules and `test_*.py` files use `snake_case`, as required by
+Python imports and test discovery. Standard dotfiles and generated artifacts
+keep the names imposed by their respective tools.
 
-The numeric order of modules is **critical** for proper functionality:
-
-1. **00-init.zsh** - Must be first: defines base variables (PLATFORM, colors)
-2. **10-history.zsh** - History configuration
-3. **20-zinit.zsh** - Zinit plugins/snippets (requires init variables)
-4. **30-prompt.zsh** - Prompt system
-5. **40-vi-mode.zsh** - Vi mode
-6. **50-tools.zsh** - Modern tools with lazy-loading
-7. **60-aliases.zsh** - Aliases and functions
-8. **70-ai-tools.zsh** - AI tools settings
-9. **75-variables.zsh** - Global variables
-10. **80-languages.zsh** - Language managers
-11. **85-completions.zsh** - Completions
-12. **90-path.zsh** - Must be last among core modules: rebuilds final PATH
-13. **95-lazy-scripts.zsh** - Lazy loader for `scripts/` (on-demand)
-14. **96-lazy-cpp-tools.zsh** - Lazy loader for `cpp-tools/competitive.sh`
-
----
-
-### Benefits of Modular Architecture
-
-#### Maintainability
-
-- Each file has a single responsibility (Single Responsibility Principle)
-- Easy to find and modify specific configurations
-- Isolated changes don't impact other modules
-
-#### Performance
-
-- Ability to profile individual modules
-- Lazy-loading implemented where possible
-- Easy to identify startup bottlenecks
-
-#### Debugging
-
-- Disable specific modules by commenting out the source line
-- Isolated testing of functionality
-- Simpler logging and troubleshooting
-
-#### Portability
-
-- Modules shareable across different machines
-- Easy platform-specific adaptation
-- Selective configuration backup
-
-#### Version Control
-
-- Smaller, focused commits
-- More readable diffs
-- More meaningful git history
-
----
-
-### How to Customize
-
-#### Modify an Existing Module
-
-```bash
-# Edit the specific module
-nvim ~/.config/zsh/lib/60-aliases.zsh
-
-# Reload configuration
-source ~/.zshrc
-```
-
-#### Add Custom Scripts
-
-Create scripts in `~/.config/zsh/scripts/`:
-
-```bash
-# Example: custom functions
-cat > ~/.config/zsh/scripts/my-functions.sh << 'EOF'
-#!/usr/bin/env zsh
-
-my_custom_function() {
-    echo "Custom function"
-}
-EOF
-
-# Reload
-source ~/.zshrc
-```
-
-**Note:** scripts in `scripts/` are lazy-loaded by default. To eager-load them
-for debugging, start a shell with `ZSH_LAZY_SCRIPTS=0`. The C++ tools bundle
-(`cpp-tools/competitive.sh`) is also lazy-loaded; disable that via
-`ZSH_LAZY_CPP_TOOLS=0`.
-
-Language managers (SDKMAN, pyenv, conda, rbenv, fnm) are now initialized on
-first use; the first invocation of related commands may be slower.
-
-Performance toggles:
-
-- `ZSH_DISABLE_COMPFIX=true` skips compaudit (faster startup, less safety checks).
-- `ZSH_COMPINIT_CHECK_HOURS=24` controls how often a full `compinit` runs.
-- `ZSH_DEFER_FZF_GIT=1` defers `fzf-git.sh` loading until ZLE is idle.
-- `ZSH_DEFER_COMPLETIONS=1` defers ng/ngrok completion generation until idle.
-- `ZSH_DEFER_FABRIC=1` defers Fabric pattern loading until idle.
-- `ZSH_DEFER_ORBSTACK=1` defers OrbStack shell integration until idle.
-- `ZSH_LAZY_CPP_TOOLS=0` eager-loads `cpp-tools/competitive.sh`.
-- `ZSH_FAST_START=1` loads only a minimal module set + basic prompt.
-
-#### Temporarily Disable a Module
-
-Comment out the corresponding line in the loader (`~/.zshrc`):
+Provision a new machine with:
 
 ```zsh
-# for config_module in "$ZSH_CONFIG_DIR/lib/"*.zsh(N); do
-#     source "$config_module"
-# done
+cd ~/Dotfiles
+stow zsh
+ln -s ~/Dotfiles/zsh/.zshenv.bootstrap ~/.zshenv
 ```
 
-Or rename the module:
+If `~/.zshenv` already exists, compare it before replacing it. The bootstrap
+loads Cargo, sets the static Homebrew environment without running `brew
+shellenv` in every subprocess, and then sources the repository `.zshenv`.
 
-```bash
-mv ~/.config/zsh/lib/70-fabric.zsh ~/.config/zsh/lib/70-fabric.zsh.disabled
+On macOS, nix-darwin deliberately leaves `programs.zsh.enable` disabled while
+Stow owns the shell configuration. The repository `.zshenv` loads the standard
+multi-user Nix environment only when no system initializer has already done so.
+This boundary can later move to Home Manager without overlapping ownership.
+
+Supported dependencies are declared once in
+`packages/zsh-dependencies.tsv`. The generated `Brewfile` and Arch package
+list provide reproducible platform inventories; installation and trust details
+live in `docs/zsh-dependencies.md` at the repository root.
+
+## Startup architecture
+
+The normal loader sources `lib/*.zsh` in lexical order, then `functions/*.zsh`.
+A function file opts into deferred loading with a header marker:
+
+```zsh
+# zsh-load: deferred
 ```
 
----
+Current modules:
 
-### Metrics
+| Module                    | Responsibility                                                      |
+| ------------------------- | ------------------------------------------------------------------- |
+| `00-initialization.zsh`   | shell options, defer engine, VS Code integration, cache maintenance |
+| `runtime-helpers.zsh`     | colors, platform, mtime, permission checks, atomic cache writes     |
+| `10-history.zsh`          | shared, deduplicated history                                        |
+| `20-zinit.zsh`            | Zinit, plugins, periodic compinit                                   |
+| `30-prompt.zsh`           | prompt definitions; activation follows final PATH assembly          |
+| `40-vi-mode.zsh`          | vi keymaps and cursor behavior                                      |
+| `50-tools.zsh`            | Atuin, fzf, zoxide, direnv, Yazi, Kitty, OrbStack, man/tldr         |
+| `60-aliases.zsh`          | aliases and compilation shortcuts only                              |
+| `70-ai-tools.zsh`         | Fabric and credential-scoped AI command wrappers                    |
+| `75-variables.zsh`        | language/application variables; no global compiler flags            |
+| `80-languages.zsh`        | language managers and lazy runtime initialization                   |
+| `85-completions.zsh`      | cached generated completions                                        |
+| `90-path.zsh`             | deterministic PATH rebuild with signed 24-hour cache                |
+| `94-lazy-loader-core.zsh` | secure, auto-invalidating script stub generator                     |
+| `95-lazy-scripts.zsh`     | on-demand commands from `scripts/*.zsh`                             |
+| `96-lazy-cpp-tools.zsh`   | on-demand competitive-programming tools                             |
 
-#### Before Refactoring
+`ZSH_FAST_START=1` loads only the minimal core. Other useful toggles include
+`ZSH_DEFER_COMPLETIONS`, `ZSH_LAZY_SCRIPTS`, `ZSH_LAZY_CPP_TOOLS`,
+`ZSH_CUSTOM_COMPLETIONS`, and `ZSH_CACHE_AUTO`.
 
-- Single file: `.zshrc` (2075 lines)
-- Difficult maintenance
-- Complex testing
-- No separation of concerns
+Public shdoc metadata also generates completion specifications for custom
+commands. Generation is deferred and cached securely; pressing Tab only calls
+the in-memory `_arguments` completer. Existing specialized completions always
+take precedence over the generated baseline.
 
-#### After Refactoring
+## Command index
 
-- Main file: `.zshrc` (146 lines, -93%)
-- 12 specialized modules
-- Total: ~2371 lines (includes additional documentation)
-- Load time: unchanged
-- Maintainability: significantly improved
+### Files, navigation, and productivity
 
----
+| Command               | Source                       | Purpose                                              |
+| --------------------- | ---------------------------- | ---------------------------------------------------- |
+| `extract`             | `functions/files.zsh`        | extract common archive formats                       |
+| `count`               | `functions/files.zsh`        | count files, directories, links, and hidden entries  |
+| `dirsize`             | `functions/files.zsh`        | inspect directory sizes with the Python backend      |
+| `mkcd`, `bak`, `up`   | `functions/core.zsh`         | navigation and safe file backup helpers              |
+| `note`, `bm`          | `functions/productivity.zsh` | private notes and directory bookmarks                |
+| `cleanup`, `zshcache` | `functions/productivity.zsh` | cache cleanup/rebuild and bytecode compilation       |
+| `fabric-pattern`      | `lib/70-ai-tools.zsh`        | run Fabric patterns without global wrapper functions |
+| `zfuncs`              | `functions/zfuncs.zsh`       | list and validate documented public functions        |
+| `h`                   | `functions/cli-tools.zsh`    | colorized command help through bat                   |
+| `hlp`                 | `lib/50-tools.zsh`           | tldr with man fallback                               |
 
-### Troubleshooting
+### Network and documents
 
-#### Shell Won't Start
+| Command                    | Source                  | Purpose                                             |
+| -------------------------- | ----------------------- | --------------------------------------------------- |
+| `weather`, `myip`          | `functions/network.zsh` | remote weather and public-IP information            |
+| `portscan`, `serve`        | `functions/network.zsh` | port probe and guarded local HTTP server            |
+| `shorten`, `cheat`         | `functions/network.zsh` | is.gd and cheat.sh clients with shared URL encoding |
+| `qr`                       | `functions/network.zsh` | local QR via `qrencode`, explicit remote fallback   |
+| `pdfcompress`, `pdfrotate` | `functions/pdf.zsh`     | PDF compression and rotation                        |
+| `remove_pdf_watermarks`    | `functions/pdf.zsh`     | structural watermark analysis/removal               |
+| `remove_pdf_metadata*`     | `functions/pdf.zsh`     | qpdf/exiftool metadata cleanup                      |
 
-1. Use the backup configuration:
+### Development and operations
 
-```bash
-mv ~/.zshrc ~/.zshrc.broken
-mv ~/.zshrc.backup-TIMESTAMP ~/.zshrc
-source ~/.zshrc
+| Command                                | Source                                 | Purpose                                               |
+| -------------------------------------- | -------------------------------------- | ----------------------------------------------------- |
+| `toolchain`, `get_toolchain_info`      | `scripts/toolchain-information.zsh`    | show active compiler resolution                       |
+| `use_llvm`, `use_gnu`, `use_system`    | `scripts/toolchain-selection.zsh`      | reversible per-session toolchain selection            |
+| `fnm_clean`, `zsh_profile`, `zshdeps`  | `functions/development-tools.zsh`      | maintain fnm, profile startup, inspect dependencies   |
+| `security_scan`, `secscan`             | `scripts/security-scan.zsh`            | structural, YARA, and ClamAV file scanning            |
+| `vscode_sync_*`                        | `scripts/vscode-sync.zsh`              | setup, update, check, status, and remove VS Code sync |
+| `vscode_clean_extensions`              | `scripts/vscode-extension-cleaner.zsh` | quarantine duplicate extensions                       |
+| `utm_ubuntu_start`, `utm_ubuntu_login` | `scripts/utm-ubuntu.zsh`               | start/login to the UTM Ubuntu VM                      |
+
+### Blog workflow
+
+`scripts/blog-auto-updates.zsh` is a compatibility loader. Shared primitives
+live in `scripts/blog/_common.zsh`, commands in `scripts/blog/commands.zsh`,
+and canonical Python backends in `scripts/blog/python/`.
+
+| Command                                                    | Purpose                                      |
+| ---------------------------------------------------------- | -------------------------------------------- |
+| `blog_sync_posts`                                          | guarded backup plus Obsidian→Hugo mirror     |
+| `blog_detect_changes`                                      | Git or hash-based change detection           |
+| `blog_update_frontmatter`, `blog_process_images`           | invoke canonical Python transforms           |
+| `blog_build_hugo`, `blog_commit_changes`, `blog_push_main` | build and publish the main branch            |
+| `blog_deploy_hostinger`                                    | subtree deployment with `--force-with-lease` |
+| `blog_run_all`                                             | locked end-to-end workflow                   |
+| `blog_status`, `blog_help`                                 | diagnostics and usage                        |
+
+The sync refuses an empty Markdown source, creates a pre-sync backup before
+`rsync --delete`, sends logs to stderr so command substitutions remain clean,
+and uses an atomic mkdir lock to prevent concurrent full runs.
+
+## Security decisions
+
+- Cache/config files are sourced only when owned by the current user, readable,
+  non-symlinks, and not group/world-writable.
+- Cache writes use user-only temporary files followed by atomic rename.
+- 1Password values are cached in non-exported shell variables and exposed only
+  to the intended child command (`claude`, `gemini`, or `opencode`).
+- Fabric refuses pattern names that collide with commands/builtins and publishes
+  generated notes only after a successful run.
+- Zinit and its plugins intentionally track their upstream default revisions.
+  This is a convenience/supply-chain tradeoff rather than a reproducible pin;
+  review `zinit update` output before accepting plugin updates. Pin commits in
+  `20-zinit.zsh` if deterministic third-party code becomes a requirement.
+- `shorten` sends URLs to is.gd. `qr` stays local when `qrencode` is installed
+  and warns before falling back to qrenco.de; never send credentials remotely.
+
+## Toolchain policy
+
+Startup never exports `CPATH`, `LDFLAGS`, `CPPFLAGS`, `LD`, or `AR` globally.
+Use `use_llvm` or `use_gnu` when a shell needs an explicit toolchain, and
+`use_system` to restore its original state. Project-specific flags belong in
+the build system or `.envrc`. Terminal-launched Emacs receives the libgccjit
+library path only for that process.
+
+## Conventions
+
+- Two-space indentation for new shell code; legacy files are normalized when
+  touched substantially.
+- Function declarations use `name() { ... }`.
+- Diagnostics and logs go to stderr; stdout is reserved for command results.
+- Public commands implement `-h`/`--help`; new exceptions require a docstring.
+- Multi-file modules use a guard that verifies their public functions still
+  exist, because lazy stubs can replace function names after a reload.
+- Standalone/minimal configs carry a synchronization date in their header.
+
+## Validation
+
+Run the fast Zsh contract checks:
+
+```zsh
+~/.config/zsh/tests/run-all.zsh --quick
 ```
 
-1. Test single module:
+Run the complete suite, including Python regressions and startup smoke tests:
 
-```bash
-zsh -c 'source ~/.config/zsh/lib/00-init.zsh && echo OK'
+```zsh
+~/.config/zsh/tests/run-all.zsh --full
 ```
 
-#### Identify the Problematic Module
+The runner exits non-zero when any step fails and can be used locally or in CI.
+It also validates required tools and checks that platform package manifests
+still match the canonical dependency registry.
 
-```bash
-for module in ~/.config/zsh/lib/*.zsh; do
-    echo "Testing: $module"
-    zsh -c "source $module" 2>&1 | head -5
-done
+## Startup profiling
+
+Use the milestone tracer when total startup time and `zprof` do not tell the
+whole story:
+
+```zsh
+zsh_profile trace
+ZSH_PROFILE_FAST_START=1 zsh_profile trace
 ```
 
-#### Performance Issues
+The report starts before the child shell launches and ends when its first input
+line is ready. It separates `.zshenv`, individual modules, function bundles,
+`precmd`, and ZLE setup. This makes time spent before `.zshrc` visible too,
+including work performed by the installed `~/.zshenv`.
 
-Profile loading times:
+`zsh_profile time` measures total startup, while `zsh_profile zprof` reports
+function-level costs. `zsh_profile both` runs those two reports sequentially.
+All profiling is opt-in; normal startup only performs inexpensive condition
+checks and does not launch profiler subprocesses.
 
-```bash
-# Add at the beginning of each module:
-# local start=$(date +%s%N)
+For automation, set `ZSH_STARTUP_TRACE=1` and
+`ZSH_STARTUP_TRACE_FILE=/path/report.tsv`. The trace is written atomically with
+mode `600`. `ZSH_STARTUP_TRACE_FINISH=precmd` provides a deterministic fallback
+when no terminal is attached; interactive profiling uses the first ZLE
+`line-init` boundary instead.
 
-# Add at the end:
-# local end=$(date +%s%N)
-# echo "Module $(basename $0): $((($end - $start) / 1000000))ms"
-```
+## Output styling
 
----
-
-### Backup and Restore
-
-#### Automatic Backup
-
-A timestamped backup is automatically created before refactoring:
-
-```bash
-ls ~/.zshrc.backup-*
-```
-
-#### Manual Restore
-
-```bash
-# Restore most recent backup
-latest_backup=$(ls -t ~/.zshrc.backup-* | head -1)
-cp "$latest_backup" ~/.zshrc
-source ~/.zshrc
-```
-
----
-
-### Best Practices
-
-1. **Don't modify module order** without understanding dependencies
-2. **Test changes** before committing
-3. **Document customizations** in module comments
-4. **Use `local`** for temporary variables in functions
-5. **Follow existing style** for consistency
-
-### References
-
-- [Zsh Documentation](https://zsh.sourceforge.io/Doc/)
-- [Zinit](https://github.com/zdharma-continuum/zinit)
-- [Oh-My-Zsh](https://github.com/ohmyzsh/ohmyzsh)
-- [Starship Prompt](https://starship.rs/)
-
----
-
-## Credits
-
-Refactoring executed with a modular approach following these principles:
-
-- Single Responsibility Principle
-- Separation of Concerns
-- Don't Repeat Yourself (DRY)
-- Keep It Simple, Stupid (KISS)
-
----
+Shared presentation helpers use `ZSH_UI_STYLE=auto|plain|ansi|gum` and honor
+`NO_COLOR`. Gum is reserved for one-shot headings, cards, confirmations, and
+static tables; repeated logs and sections stay shell-native. `zfuncs` also
+accepts `ZFUNCS_STYLE` as a command-specific override. New functions follow the
+[function authoring policy](../../docs/function-authoring.md), including stable
+data output, mandatory native fallbacks, and a strict Gum process budget.
