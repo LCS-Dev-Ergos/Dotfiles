@@ -51,13 +51,14 @@ set -o notify
 if [[ -t 1 ]]; then
     zmodload -i zsh/terminfo 2>/dev/null
     if [[ -n "${terminfo[colors]-}" ]] && (( terminfo[colors] >= 8 )); then
-        C_RESET="\e[0m"
-        C_BOLD="\e[1m"
-        C_RED="\e[31m"
-        C_GREEN="\e[32m"
-        C_YELLOW="\e[33m"
-        C_BLUE="\e[34m"
-        C_CYAN="\e[36m"
+        C_RESET=$'\e[0m'
+        C_BOLD=$'\e[1m'
+        C_RED=$'\e[31m'
+        C_GREEN=$'\e[32m'
+        C_YELLOW=$'\e[33m'
+        C_BLUE=$'\e[34m'
+        C_MAGENTA=$'\e[35m'
+        C_CYAN=$'\e[36m'
     fi
 fi
 
@@ -856,4 +857,4 @@ _srv_build_path
 unset -f _srv_build_path
 
 # ============================================================================ #
-# End of script.
+# End of ~/.zshrc

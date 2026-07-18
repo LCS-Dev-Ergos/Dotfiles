@@ -6,7 +6,7 @@
 # Helper script to start a UTM virtual machine and mount a host shared directory.
 #
 # SYNOPSIS
-#   utm_ubuntu.sh [--no-login]
+#   utm-ubuntu.zsh [--no-login]
 #
 # DESCRIPTION
 #   Starts a UTM VM and mounts a host-shared directory into the guest with safety
@@ -41,7 +41,7 @@
 #
 # ============================================================================ #
 
-# When sourced by zsh during shell startup, expose helper commands and avoid changing shell options.
+# When sourced during startup, expose helpers without changing shell options.
 if [[ "${ZSH_EVAL_CONTEXT:-}" == *:file ]]; then
     typeset _utm_script_ref
     # shellcheck disable=SC2296
@@ -51,17 +51,9 @@ if [[ "${ZSH_EVAL_CONTEXT:-}" == *:file ]]; then
 
     # -------------------------------------------------------------------------
     # utm_ubuntu_start
-    # -------------------------------------------------------------------------
-    # Wrapper to run the script in a zsh subprocess.
-    #
-    # Usage:
-    #   utm_ubuntu_start [--no-login]
-    #
-    # Returns:
-    #   0 - Success
-    #
-    # Side Effects:
-    #   - Invokes the main script logic in a zsh subprocess.
+    # @description Starts the configured UTM Ubuntu VM and mounts its share.
+    # @option --no-login Skip SSH login after setup.
+    # @exitcode 1 If VM startup, SSH readiness, or mounting fails.
     # -------------------------------------------------------------------------
     utm_ubuntu_start() {
         zsh "${UTM_UBUNTU_SCRIPT_PATH}" "$@"
@@ -69,14 +61,9 @@ if [[ "${ZSH_EVAL_CONTEXT:-}" == *:file ]]; then
 
     # -------------------------------------------------------------------------
     # utm_ubuntu_login
-    # -------------------------------------------------------------------------
-    # Opens an SSH session to the configured UTM guest.
-    #
-    # Usage:
-    #   utm_ubuntu_login
-    #
-    # Returns:
-    #   0 - Success if ssh command exits cleanly.
+    # @description Opens an SSH session to the configured UTM guest.
+    # @noargs
+    # @exitcode 1 If SSH cannot connect or exits unsuccessfully.
     # -------------------------------------------------------------------------
     utm_ubuntu_login() {
         local ssh_host="${UTM_SSH_HOST:-Ubuntu.UTM}"
@@ -90,11 +77,11 @@ set -euo pipefail
 # ++++++++++++++++++++++++++ SHARED HELPERS LOADER +++++++++++++++++++++++++++ #
 
 _utm_helpers_dir="${ZSH_CONFIG_DIR:-$HOME/.config/zsh}/scripts"
-if [[ -r "${_utm_helpers_dir}/_shared_helpers.sh" ]]; then
+if [[ -r "${_utm_helpers_dir}/_shared-helpers.zsh" ]]; then
     # shellcheck disable=SC1091
-    source "${_utm_helpers_dir}/_shared_helpers.sh"
+    source "${_utm_helpers_dir}/_shared-helpers.zsh"
 else
-    printf "[ERROR] Shared helpers not found: %s/_shared_helpers.sh\n" "$_utm_helpers_dir" >&2
+    printf "[ERROR] Shared helpers not found: %s/_shared-helpers.zsh\n" "$_utm_helpers_dir" >&2
     return 1 2>/dev/null || exit 1
 fi
 unset _utm_helpers_dir
@@ -140,65 +127,39 @@ START_CMD=("${UTMCTL_CMD}" start "${VM_NAME}")
 
 # -----------------------------------------------------------------------------
 # log
-# -----------------------------------------------------------------------------
-# Prints informational message to stdout.
-#
-# Usage:
-#   log "message"
-#
-# Returns:
-#   0 - Always succeeds.
+# @internal
+# @description Prints an informational message to stdout.
+# @arg $@ string Message text.
 # -----------------------------------------------------------------------------
 log() { echo "$@"; }
 
 # -----------------------------------------------------------------------------
 # fail
-# -----------------------------------------------------------------------------
-# Prints error message to stderr and exits with status 1 (or provided code).
-#
-# Usage:
-#   fail "error message"
-#   fail "error message" 2  # Optional exit code
-#
-# Returns:
-#   Exits with provided status (default: 1)
+# @internal
+# @description Prints an error message to stderr and exits the script.
+# @arg $1 string Error message.
+# @exitcode 1 Always; this function does not return.
 # -----------------------------------------------------------------------------
 fail() { echo "$@" >&2; exit 1; }
 
 # -----------------------------------------------------------------------------
 # require_command
-# -----------------------------------------------------------------------------
-# Ensures a required binary is available in PATH.
-#
-# Usage:
-#   require_command <command>
-#
-# Arguments:
-#   command - Command name to verify (required)
-#
-# Returns:
-#   0 - Command found.
-#   1 - Command missing (exits script via fail).
+# @internal
+# @description Ensures a required binary is available in PATH; exits via fail
+# when missing.
+# @arg $1 string Command name.
 # -----------------------------------------------------------------------------
 require_command() { _shared_has_command "$1" || fail "Required command not found: $1"; }
 
 # -----------------------------------------------------------------------------
 # describe_ssh_target
-# -----------------------------------------------------------------------------
-# Displays resolved SSH target details (host/port/user) for debugging.
-#
-# Usage:
-#   describe_ssh_target
-#
-# Returns:
-#   0 - On success or if ssh -G is unavailable.
-#
-# Side Effects:
-#   - Creates temporary file for ssh -G output.
-#   - Prints target info to stdout.
+# @internal
+# @description Prints the resolved SSH target (host/port/user) via `ssh -G`,
+# for debugging; a no-op if `ssh -G` is unavailable.
+# @noargs
 # -----------------------------------------------------------------------------
 describe_ssh_target() {
-    # Show the resolved ssh config (host, port, user) to help debugging connectivity.
+    # Show resolved SSH config to help debug connectivity.
     local ssh_info_file
     ssh_info_file=$(mktemp) || return
     if ssh -G "${SSH_HOST}" >"${ssh_info_file}" 2>/dev/null; then
@@ -216,19 +177,11 @@ LAST_SSH_ERROR=""
 
 # -----------------------------------------------------------------------------
 # is_vm_reachable
-# -----------------------------------------------------------------------------
-# Checks SSH connectivity to the VM and captures the last error.
-#
-# Usage:
-#   if is_vm_reachable; then ...; fi
-#
-# Returns:
-#   0 - SSH reachable.
-#   1 - SSH unreachable (LAST_SSH_ERROR populated).
-#
-# Side Effects:
-#   - Updates LAST_SSH_ERROR and FIRST_SSH_FAILURE_SHOWN flags.
-#   - May terminate script on host key mismatch.
+# @internal
+# @description Checks SSH connectivity to the VM; exits via fail on a host key
+# mismatch, since waiting will not resolve that case.
+# @noargs
+# @exitcode 1 If SSH is unreachable; LAST_SSH_ERROR is set.
 # -----------------------------------------------------------------------------
 is_vm_reachable() {
     local out
@@ -252,19 +205,10 @@ is_vm_reachable() {
 
 # -----------------------------------------------------------------------------
 # start_vm_if_needed
-# -----------------------------------------------------------------------------
-# Starts the UTM VM if SSH is not yet reachable.
-#
-# Usage:
-#   start_vm_if_needed
-#
-# Returns:
-#   0 - VM already running or successfully started.
-#   1 - On start failure (script exits).
-#
-# Side Effects:
-#   - Invokes utmctl start.
-#   - Writes logs to stdout/stderr.
+# @internal
+# @description Starts the UTM VM via utmctl unless SSH is already reachable.
+# @noargs
+# @exitcode 1 If the VM fails to start; the script exits.
 # -----------------------------------------------------------------------------
 start_vm_if_needed() {
     log "Checking if the VM is already running (SSH check on ${SSH_HOST})..."
@@ -289,19 +233,10 @@ start_vm_if_needed() {
 
 # -----------------------------------------------------------------------------
 # wait_for_vm
-# -----------------------------------------------------------------------------
-# Waits until the VM accepts SSH connections or times out.
-#
-# Usage:
-#   wait_for_vm
-#
-# Returns:
-#   0 - VM reachable within timeout.
-#   1 - On timeout (script exits).
-#
-# Side Effects:
-#   - Prints progress dots.
-#   - Calls fail on timeout.
+# @internal
+# @description Polls SSH connectivity until the VM answers or MAX_WAIT_SECONDS
+# elapses, printing a progress dot per attempt; exits via fail on timeout.
+# @noargs
 # -----------------------------------------------------------------------------
 wait_for_vm() {
     log "Waiting for the VM to be available (SSH check on ${SSH_HOST})..."
@@ -320,20 +255,12 @@ wait_for_vm() {
 
 # -----------------------------------------------------------------------------
 # mount_shared_directory
+# @internal
+# @description Mounts the configured virtiofs share inside the guest over SSH
+# and sudo, skipping the mount if the mountpoint is already in use.
+# @noargs
+# @exitcode 1 If the mount fails; the script exits via fail.
 # -----------------------------------------------------------------------------
-# Mounts the configured virtiofs shared directory inside the guest.
-#
-# Usage:
-#   mount_shared_directory
-#
-# Returns:
-#   0 - Mount succeeded or already mounted.
-#   1 - On mount failure (script exits).
-#
-# Side Effects:
-#   - Executes remote mkdir/mount via SSH and sudo.
-#   - Emits log output and failure messages.
-# ----------------------------------------------------------------------------
 mount_shared_directory() {
     log "Mounting the shared directory on the VM..."
     local mount_output
@@ -380,22 +307,10 @@ EOF
 
 # -----------------------------------------------------------------------------
 # main
-# -----------------------------------------------------------------------------
-# Orchestrates VM start/wait, shared mount, and optional login.
-#
-# Usage:
-#   main "$@"
-#
-# Arguments:
-#   $@ - Script options (currently supports --no-login).
-#
-# Returns:
-#   0 - Success.
-#   1 - On failures during checks/mounts (script exits via fail).
-#
-# Side Effects:
-#   - Validates commands, starts VM, waits for SSH, mounts share.
-#   - Executes ssh login when AUTO_LOGIN is true.
+# @internal
+# @description Orchestrates VM start/wait, shared mount, and optional login.
+# @arg $@ string Script options (currently supports --no-login).
+# @exitcode 1 If a prerequisite check, start, or mount fails.
 # -----------------------------------------------------------------------------
 main() {
     require_command "${UTMCTL_CMD}"
@@ -418,4 +333,4 @@ if [[ "${ZSH_EVAL_CONTEXT:-}" == toplevel ]]; then
 fi
 
 # ============================================================================ #
-# End of script.
+# End of utm-ubuntu.zsh

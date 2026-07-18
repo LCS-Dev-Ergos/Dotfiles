@@ -14,7 +14,7 @@
 #  - Writes logs to stderr and to a private local log file
 #
 # Usage:
-#   oci_retry.sh [--dry-run] [--op-environment <environment-id>] [--op-no-masking] [--help]
+#   oci-retry.sh [--dry-run] [--op-environment <environment-id>] [--op-no-masking] [--help]
 #
 # ============================================================================ #
 
