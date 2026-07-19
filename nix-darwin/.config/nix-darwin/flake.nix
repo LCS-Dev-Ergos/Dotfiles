@@ -5,11 +5,17 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     nix-darwin.url = "github:LnL7/nix-darwin";
     nix-darwin.inputs.nixpkgs.follows = "nixpkgs";
+    home-manager.url = "github:nix-community/home-manager";
+    home-manager.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = inputs@{ self, nix-darwin, nixpkgs }:
+  outputs = inputs@{ self, nix-darwin, nixpkgs, home-manager }:
   let
- 
+
+    # Root of the dotfiles repo, used by Home Manager modules to source
+    # config files (e.g. Kitty, Neovim) without fragile relative paths.
+    dotfilesRoot = "/Users/lcs-dev/Dotfiles";
+
     configuration = { pkgs, config, ... }: {
       # List packages installed in system profile. To search by name, run:
       # $ nix-env -qaP | grep wget
@@ -24,8 +30,9 @@
       # Necessary for using flakes on this system.
       nix.settings.experimental-features = "nix-command flakes";
 
-      # Create /etc/zshrc that loads the nix-darwin environment.
-      programs.zsh.enable = true;  # default shell on catalina
+      # Zsh is managed by the Stow configuration until its future migration to
+      # Home Manager. nix-darwin must not generate /etc/zsh* configuration.
+      programs.zsh.enable = false;
       # programs.fish.enable = true;
 
       # Set Git commit hash for darwin-version.
@@ -42,9 +49,19 @@
   in
   {
     # Build darwin flake using:
-    # $ darwin-rebuild build --flake .#LCS-Dev-Mac-Studio
+    # $ darwin-rebuild build --flake .#LCSMacBook-Pro
     darwinConfigurations."LCSMacBook-Pro" = nix-darwin.lib.darwinSystem {
-      modules = [ configuration ];
+      specialArgs = { inherit dotfilesRoot; };
+      modules = [
+        configuration
+        home-manager.darwinModules.home-manager
+        {
+          home-manager.useGlobalPkgs = true;
+          home-manager.useUserPackages = true;
+          home-manager.extraSpecialArgs = { inherit dotfilesRoot; };
+          home-manager.users."lcs-dev" = import ./home.nix;
+        }
+      ];
     };
 
     # Expose the package set, including overlays, for convenience.
