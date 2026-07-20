@@ -8,7 +8,7 @@
   home.stateVersion = "26.05";
 
   imports = [
-    ./modules/kitty.nix
-    ./modules/neovim.nix
+    ./kitty
+    ./neovim
   ];
 }
