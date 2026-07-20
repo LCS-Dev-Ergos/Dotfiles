@@ -19,6 +19,7 @@
     ./fish
     ./ghostty
     ./hypr
+    ./hyprdots
     ./kitty
     ./lazygit
     ./lldb
