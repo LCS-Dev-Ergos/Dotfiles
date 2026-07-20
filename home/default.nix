@@ -13,6 +13,7 @@
     ./lazygit
     ./neovim
     ./nushell
+    ./ranger
     ./starship
     ./tmux
     ./yazi
