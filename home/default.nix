@@ -6,6 +6,7 @@
 
   imports = [
     ./bat
+    ./btop
     ./kitty
     ./neovim
     ./starship
