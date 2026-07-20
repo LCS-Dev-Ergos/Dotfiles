@@ -5,9 +5,9 @@ alacritty/.config/alacritty/themes
 tmux/.config/tmux/plugins/
 
 # Specific Tools Configurations
-nvim/.config/nvim/lazy-lock.json
+home/neovim/nvim/lazy-lock.json
 yazi/.config/yazi/flavors/tokyo-night.yazi/
-kitty/.config/kitty/theme.conf
+home/kitty/kitty/theme.conf
 
 # Ignore Claude AI configuration files
 .claude/
