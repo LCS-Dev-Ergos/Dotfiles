@@ -12,6 +12,7 @@
     ./kitty
     ./lazygit
     ./neovim
+    ./nnn
     ./nushell
     ./ranger
     ./starship
