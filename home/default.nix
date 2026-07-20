@@ -25,6 +25,7 @@
     ./nushell
     ./oh-my-posh
     ./ranger
+    ./skhd
     ./starship
     ./tealdeer
     ./tmux
