@@ -14,6 +14,7 @@
     ./neovim
     ./nnn
     ./nushell
+    ./oh-my-posh
     ./ranger
     ./starship
     ./tmux
