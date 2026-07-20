@@ -8,6 +8,7 @@
     ./atuin
     ./bat
     ./btop
+    ./fish
     ./kitty
     ./lazygit
     ./neovim
