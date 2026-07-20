@@ -20,11 +20,13 @@
     ./btop
     ./cava
     ./clang-format
+    ./cli-tools
     ./cpp-tools
     ./doom
     ./fastfetch
     ./fish
     ./ghostty
+    ./git
     ./hypr
     ./hyprdots
     ./kitty
