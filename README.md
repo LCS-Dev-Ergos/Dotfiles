@@ -1,120 +1,127 @@
 # Dotfiles
 
-This repository contains my personal dotfiles for configuring various tools and applications on macOS and Linux systems. These dotfiles are managed using [GNU Stow](https://www.gnu.org/software/stow/), which simplifies the process of symlinking configuration files.
+Declarative workstation configuration for macOS and Linux, built as a Nix
+flake. [nix-darwin](https://github.com/nix-darwin/nix-darwin) manages the macOS
+system layer, and [Home Manager](https://github.com/nix-community/home-manager)
+manages application configuration on both platforms. Revisions before the Nix
+migration used one GNU Stow package per tool; that layout is retired.
 
-![My MacOS Rice](assets/Screenshot-LCS.Dev.webp)
+![macOS desktop with SketchyBar, kitty, tmux, Neovim, fastfetch and btop](assets/Screenshot-LCS.Dev.webp)
 
-## Table of Contents
+## Contents
 
-- [Dotfiles](#dotfiles)
-  - [Table of Contents](#table-of-contents)
-  - [Prerequisites](#prerequisites)
-  - [Installation](#installation)
-    - [Clone the Repository](#clone-the-repository)
-    - [Using Stow](#using-stow)
-  - [Directory Structure](#directory-structure)
-  - [Usage](#usage)
-    - [macOS Instructions](#macos-instructions)
-    - [Linux Instructions](#linux-instructions)
-    - [Notes](#notes)
-  - [Contributing](#contributing)
-  - [License](#license)
+- [Architecture Overview](#architecture-overview)
+- [Supported Platforms](#supported-platforms)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Module Organization](#module-organization)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Architecture Overview
+
+The flake composes four layers. Platform differences are resolved inside
+shared modules instead of being copied per configuration.
+
+| Layer | Location | Responsibility |
+| --- | --- | --- |
+| Flake | `flake.nix`, `flake.lock` | Pinned inputs and the configuration outputs |
+| System (macOS) | `darwin/` | nix-darwin policy: Homebrew inventory, Dock, Finder and trackpad defaults, Nix garbage collection and the account mapping Home Manager needs |
+| User | `home/` | Home Manager modules, one per application, shared by both platforms |
+| Entry point | `hosts/<name>/` | Module selection and the facts of one configuration, such as its state version and platform |
+
+### Ownership Model
+
+nix-darwin declares the Homebrew inventory: taps, formulae and casks. Home
+Manager owns application configuration. The zsh configuration under
+`home/zsh/` is managed by Home Manager, while the `zsh` executable comes from
+Homebrew.
+
+## Supported Platforms
+
+| Platform | Nix system | Configuration | Reference output | Entry point |
+| --- | --- | --- | --- | --- |
+| macOS on Apple Silicon | `aarch64-darwin` | nix-darwin with the Home Manager module | `darwinConfigurations."LCSMacBook-Pro"` | `hosts/LCSMacBook-Pro/` |
+| Arch Linux | `x86_64-linux` | Standalone Home Manager | `homeConfigurations."lcs-dev@lcs-legion-arch"` | `hosts/lcs-legion-arch/` |
+
+Output names are the attribute names of the reference configurations. The
+Linux configuration is experimental: it shares the application modules, but
+its build and activation are not validated.
 
 ## Prerequisites
 
-Ensure that you have the following installed on your system:
-
-- [GNU Stow](https://www.gnu.org/software/stow/): Use your system's package manager to install it.
-  - **macOS**: `brew install stow`
-  - **Linux**: Use your distribution's package manager, e.g., `sudo apt install stow` or `sudo pacman -S stow`.
+| Requirement | macOS | Linux |
+| --- | --- | --- |
+| Nix | Flakes enabled: `experimental-features = nix-command flakes` | Same |
+| Package manager | Homebrew; nix-darwin manages its inventory but does not install it | The distribution's package manager, which remains responsible for the operating system |
+| Configuration tool | [nix-darwin](https://github.com/nix-darwin/nix-darwin) | [Home Manager](https://github.com/nix-community/home-manager) in standalone mode; NixOS is not required |
 
 ## Installation
 
-### Clone the Repository
-
-First, clone this repository into your home directory or a directory of your choice:
+### Clone
 
 ```bash
-cd ~
-git clone https://github.com/XtremeXSPC/Dotfiles.git
-cd Dotfiles
+git clone https://github.com/XtremeXSPC/Dotfiles.git ~/Dotfiles
+cd ~/Dotfiles
 ```
 
-### Using Stow
+### macOS Activation
 
-GNU Stow is used to create symlinks from this repository to your home directory, ensuring that configurations are applied correctly.
+Build before switching. `darwin-rebuild build` evaluates and builds the
+configuration without changing the running system:
 
-## Directory Structure
+```bash
+darwin-rebuild build --flake .#LCSMacBook-Pro --impure
+sudo darwin-rebuild switch --flake .#LCSMacBook-Pro --impure
+```
 
-Each subdirectory in this repository corresponds to a specific tool or application. For example:
+`--impure` is required: nix-darwin reads the macOS account state
+(`system.primaryUser` and the account's home directory), which a pure
+evaluation cannot see. A switch applies the Home Manager configuration, the
+declared Homebrew inventory and the Dock, Finder and trackpad defaults.
+
+### Linux Activation
+
+```bash
+home-manager switch --flake '.#lcs-dev@lcs-legion-arch'
+```
+
+## Module Organization
 
 ```dir
 Dotfiles/
-├── kitty/      # Kitty configuration file
-├── nvim/       # Neovim configuration files
-├── tmux/       # Tmux configuration files
-└── zsh/        # Zsh configuration files
+├── flake.nix                  # Inputs and the darwin and Home Manager outputs
+├── flake.lock
+├── hosts/
+│   ├── LCSMacBook-Pro/
+│   │   ├── darwin.nix         # stateVersion, hostPlatform
+│   │   └── home.nix           # username, homeDirectory, imports
+│   └── lcs-legion-arch/
+│       └── home.nix           # The same shape for the Linux configuration
+├── darwin/
+│   ├── default.nix            # Shared nix-darwin policy: nix.gc, system.defaults, users
+│   └── homebrew.nix           # Declared taps, formulae and casks
+└── home/
+    ├── default.nix            # stateVersion and the imports of every application
+    ├── git/                   # One directory per application, each with its own default.nix
+    ├── zsh/
+    └── ...                    # kitty, neovim, tmux, starship, fish, nushell and others
 ```
 
-## Usage
+Module conventions:
 
-### macOS Instructions
-
-1. Open a terminal and navigate to the `Dotfiles` directory:
-
-   ```bash
-   cd ~/Dotfiles
-   ```
-
-2. Use Stow to apply configurations for a specific tool. For example, to apply the Neovim configuration:
-
-   ```bash
-   stow -v nvim
-   ```
-
-   This will create symlinks for the Neovim configuration files in your home directory.
-
-3. Repeat the `stow` command for other tools as needed:
-
-   ```bash
-   stow -v tmux
-   stow -v zsh
-   ```
-
-### Linux Instructions
-
-1. Open a terminal and navigate to the `Dotfiles` directory:
-
-   ```bash
-   cd ~/Dotfiles
-   ```
-
-2. Use Stow to apply configurations for a specific tool. For example, to apply the Bash configuration:
-
-   ```bash
-   stow -v bash
-   ```
-
-3. Repeat the `stow` command for other tools as needed:
-
-   ```bash
-   stow -v nvim
-   stow -v zsh
-   ```
-
-### Notes
-
-- If you encounter conflicts with existing files, consider backing them up or removing them before running Stow.
-- To remove symlinks created by Stow, use the `-D` option:
-
-  ```bash
-  stow -D nvim
-  ```
+- One directory per application, with its own `default.nix`. Nix glue and the
+  application's configuration files live together instead of mirroring the
+  layout of `$HOME`.
+- Platform differences are gated inside the shared module with
+  `lib.mkIf pkgs.stdenv.isDarwin` or `pkgs.stdenv.isLinux`, never duplicated
+  per configuration.
 
 ## Contributing
 
-Contributions are welcome! Feel free to open an issue or submit a pull request if you have suggestions for improving this repository.
+Issues and pull requests are accepted on GitHub. A change follows the module
+conventions above.
 
 ## License
 
-This repository is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+Released under the MIT License. See [LICENSE](LICENSE).
