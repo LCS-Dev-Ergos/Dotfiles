@@ -28,6 +28,7 @@
     ./tmux
     ./ueberzugpp
     ./vscode
+    ./zed
     ./yazi
     ./zellij
   ];
