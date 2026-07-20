@@ -15,6 +15,7 @@
     ./doom
     ./fastfetch
     ./fish
+    ./ghostty
     ./kitty
     ./lazygit
     ./lldb
