@@ -27,6 +27,7 @@
     ./tealdeer
     ./tmux
     ./ueberzugpp
+    ./vscode
     ./yazi
     ./zellij
   ];
