@@ -22,7 +22,7 @@
         {
           home-manager.useGlobalPkgs = true;
           home-manager.useUserPackages = true;
-          home-manager.users."lcs-dev" = import ./home;
+          home-manager.users."lcs-dev" = import ./hosts/LCSMacBook-Pro/home.nix;
         }
       ];
     };

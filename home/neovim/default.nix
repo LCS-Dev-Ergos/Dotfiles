@@ -5,7 +5,9 @@ let
   # evaluation, so a relative literal like `./nvim` here would resolve
   # inside that read-only copy instead of this repo checkout, silently
   # breaking the "stays writable" guarantee this symlink exists for.
-  nvimSource = "/Users/lcs-dev/Dotfiles/home/neovim/nvim";
+  # Derived from home.homeDirectory (set per-host) rather than hardcoded,
+  # since this module is shared across the macOS and Linux hosts.
+  nvimSource = "${config.home.homeDirectory}/Dotfiles/home/neovim/nvim";
 in
 {
   # LazyVim writes lazy-lock.json back into ~/.config/nvim whenever plugins
