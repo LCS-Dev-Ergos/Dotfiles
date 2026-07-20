@@ -1,5 +1,5 @@
 {
-  description = "LCS-Dev macOS system flake";
+  description = "LCS-Dev dotfiles flake (macOS + Linux)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
@@ -29,5 +29,18 @@
 
     # Expose the package set, including overlays, for convenience.
     darwinPackages = self.darwinConfigurations."LCSMacBook-Pro".pkgs;
+
+    # Standalone Home Manager, no nix-darwin equivalent: Arch Linux keeps
+    # its own package manager responsible for the OS. Hostname taken from
+    # the Tailscale MagicDNS entry in known_hosts (lcs-legion-arch...ts.net);
+    # x86_64-linux is a provisional guess — neither is confirmed until
+    # there's access to the actual machine again. Written but unverified:
+    # cannot build or switch this from the Mac without a configured Linux
+    # remote builder.
+    # $ nix build --impure '.#homeConfigurations."lcs-dev@lcs-legion-arch".activationPackage'
+    homeConfigurations."lcs-dev@lcs-legion-arch" = home-manager.lib.homeManagerConfiguration {
+      pkgs = import nixpkgs { system = "x86_64-linux"; };
+      modules = [ ./hosts/lcs-legion-arch/home.nix ];
+    };
   };
 }
