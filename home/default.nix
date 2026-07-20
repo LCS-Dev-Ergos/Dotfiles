@@ -10,5 +10,6 @@
     ./kitty
     ./neovim
     ./starship
+    ./zellij
   ];
 }
