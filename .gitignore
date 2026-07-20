@@ -2,7 +2,7 @@
 
 # Git Submodules
 alacritty/.config/alacritty/themes
-tmux/.config/tmux/plugins/
+home/tmux/plugins/
 home/bat/syntaxes/cmd-help-sublime-syntax
 
 # Specific Tools Configurations
