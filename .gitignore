@@ -65,13 +65,13 @@ home/kitty/kitty/theme.conf
 
 # Zsh specific ignores
 *.zwc
-zsh/.zshrc.zwc
-zsh/.zshenv.zwc
-zsh/.zprofile.zwc
-zsh/.config/zsh/**/*.zwc
-zsh/.config/zsh/.zsh_history
-zsh/.config/zsh/.zcompdump*
-zsh/.config/zsh/.zcompdump-*
+home/zsh/zshrc.zwc
+home/zsh/zshenv-bootstrap.zwc
+home/zsh/zprofile.zwc
+home/zsh/config/**/*.zwc
+home/zsh/config/.zsh_history
+home/zsh/config/.zcompdump*
+home/zsh/config/.zcompdump-*
 
 # Temporary files
 .tmp.driveupload
@@ -95,8 +95,8 @@ downloads/
 eggs/
 .eggs/
 lib/
-!zsh/.config/zsh/lib/
-!zsh/.config/zsh/lib/00-initialization.zsh
+!home/zsh/config/lib/
+!home/zsh/config/lib/00-initialization.zsh
 lib64/
 parts/
 sdist/
