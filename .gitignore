@@ -3,6 +3,7 @@
 # Git Submodules
 alacritty/.config/alacritty/themes
 tmux/.config/tmux/plugins/
+home/bat/syntaxes/cmd-help-sublime-syntax
 
 # Specific Tools Configurations
 home/neovim/nvim/lazy-lock.json
