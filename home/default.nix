@@ -12,6 +12,7 @@
     ./kitty
     ./lazygit
     ./neovim
+    ./nushell
     ./starship
     ./tmux
     ./zellij

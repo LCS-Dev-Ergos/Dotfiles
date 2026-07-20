@@ -13,6 +13,11 @@ in
     # the still-Stow-managed zsh startup owns starship init, and enabling
     # this now would risk a double-init once both sides are active.
     enableZshIntegration = false;
+    # nushell's config.nu already has its own manual starship-init logic
+    # (writing vendor/autoload/starship.nu); leaving this on would run a
+    # second, independent init path (a `use ...` injected straight into
+    # config.nu) alongside it.
+    enableNushellIntegration = false;
   };
 
   # [custom.git_status] in starship.toml sources this by absolute runtime
