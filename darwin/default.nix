@@ -21,6 +21,34 @@
   # Home Manager. nix-darwin must not generate /etc/zsh* configuration.
   programs.zsh.enable = false;
 
+  # Captured from `defaults read` against the live system, then confirmed
+  # with the user as deliberate customizations (not stock macOS defaults):
+  # Dock, Finder, and trackpad. Other non-default values found during that
+  # same audit (dark mode, auto-hidden menu bar) were left out since they
+  # weren't confirmed as intentional.
+  system.defaults.dock = {
+    autohide = true;
+    orientation = "left";
+    tilesize = 76;
+    magnification = false;
+    show-recents = false;
+    expose-group-apps = true;
+    minimize-to-application = true;
+    mru-spaces = true;
+  };
+
+  system.defaults.finder = {
+    ShowPathbar = true;
+    ShowStatusBar = false;
+    FXPreferredViewStyle = "Nlsv";
+  };
+
+  system.defaults.trackpad = {
+    Clicking = true;
+    TrackpadRightClick = true;
+    TrackpadThreeFingerDrag = false;
+  };
+
   # Required since we never declared users.users.lcs-dev ourselves:
   # the Home Manager darwin integration reads this to resolve
   # home.homeDirectory / home.username. Without it those default to
