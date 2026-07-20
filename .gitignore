@@ -253,3 +253,4 @@ pyrightconfig.json
 
 # Nix build output symlink
 nix-darwin/.config/nix-darwin/result
+/result
