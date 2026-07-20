@@ -12,6 +12,7 @@
     ./clang-format
     ./cpp-tools
     ./doom
+    ./fastfetch
     ./fish
     ./kitty
     ./lazygit
