@@ -47,7 +47,6 @@ in
   home.file.".zprofile".source = outOfStore "zprofile";
   home.file.".zshrc".source = outOfStore "zshrc";
   home.file.".p10k.zsh".source = outOfStore "p10k.zsh";
-  home.file.".local/bin/oci-retry.sh".source = outOfStore "oci-retry.sh";
 
   # The whole ${XDG_CONFIG_HOME}/zsh tree (lib/, conf.d/, functions/,
   # tests/, etc.) as one live, writable unit.
