@@ -16,6 +16,7 @@
     ./fish
     ./kitty
     ./lazygit
+    ./lldb
     ./neofetch
     ./neovim
     ./nnn
