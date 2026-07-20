@@ -1,7 +1,7 @@
 # Personal Dotfiles Git Ignore
 
 # Git Submodules
-alacritty/.config/alacritty/themes
+home/alacritty/themes
 home/tmux/plugins/
 home/bat/syntaxes/cmd-help-sublime-syntax
 
