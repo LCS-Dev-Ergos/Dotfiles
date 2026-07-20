@@ -29,10 +29,11 @@
     ./tealdeer
     ./tmux
     ./ueberzugpp
-    ./wezterm
     ./vscode
-    ./zed
+    ./wezterm
+    ./yabai
     ./yazi
+    ./zed
     ./zellij
   ];
 }
