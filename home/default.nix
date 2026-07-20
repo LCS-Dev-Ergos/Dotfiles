@@ -9,6 +9,7 @@
     ./bat
     ./btop
     ./kitty
+    ./lazygit
     ./neovim
     ./starship
     ./tmux
