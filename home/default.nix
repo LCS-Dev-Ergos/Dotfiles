@@ -11,6 +11,7 @@
     ./cava
     ./clang-format
     ./cpp-tools
+    ./doom
     ./fish
     ./kitty
     ./lazygit
