@@ -36,8 +36,9 @@ OP_NO_MASKING=false
 
 # -----------------------------------------------------------------------------
 # default_ssh_key_file
-# -----------------------------------------------------------------------------
-# Picks a sensible default public key, preferring Ed25519 when present.
+# @internal
+# @description Picks a sensible default public key, preferring Ed25519 when
+# present.
 # -----------------------------------------------------------------------------
 
 default_ssh_key_file() {
@@ -233,9 +234,13 @@ cleanup() {
 
 # -----------------------------------------------------------------------------
 # capture_cmd
-# -----------------------------------------------------------------------------
-# Runs a command with `set -e` temporarily relaxed so callers can inspect both
-# combined output and exit status without aborting the whole script.
+# @internal
+# @description Runs a command with `set -e` temporarily relaxed so callers can
+# inspect both combined output and exit status without aborting the whole
+# script.
+# @arg $1 string Variable name to receive the captured combined output.
+# @arg $2 string Variable name to receive the captured exit status.
+# @arg $@ string Command and arguments to run.
 # -----------------------------------------------------------------------------
 capture_cmd() {
     local output_var="$1"
@@ -256,10 +261,14 @@ capture_cmd() {
 
 # -----------------------------------------------------------------------------
 # capture_cmd_streams
-# -----------------------------------------------------------------------------
-# Runs a command while keeping stdout and stderr separated. This is used for
-# OCI calls that return JSON or raw values on stdout but may emit warnings on
-# stderr that would otherwise corrupt parsing.
+# @internal
+# @description Runs a command while keeping stdout and stderr separated. Used
+# for OCI calls that return JSON or raw values on stdout but may emit warnings
+# on stderr that would otherwise corrupt parsing.
+# @arg $1 string Variable name to receive captured stdout.
+# @arg $2 string Variable name to receive captured stderr.
+# @arg $3 string Variable name to receive the captured exit status.
+# @arg $@ string Command and arguments to run.
 # -----------------------------------------------------------------------------
 capture_cmd_streams() {
     local stdout_var="$1"
@@ -329,8 +338,12 @@ require_command() {
 
 # -----------------------------------------------------------------------------
 # resolve_secret_ref
-# -----------------------------------------------------------------------------
-# Resolves either a plain value or a 1Password `op://` secret reference.
+# @internal
+# @description Resolves either a plain value or a 1Password op:// secret
+# reference.
+# @arg $1 string Label used in error messages.
+# @arg $2 string Plain value or an op:// reference.
+# @exitcode 1 If the op:// reference cannot be resolved or resolves empty.
 # -----------------------------------------------------------------------------
 resolve_secret_ref() {
     local label="$1"
@@ -395,9 +408,12 @@ parse_args() {
 
 # -----------------------------------------------------------------------------
 # bootstrap_from_1password_environment
-# -----------------------------------------------------------------------------
-# Re-executes the script through `op run --environment` so configuration comes
-# from a 1Password Environment without shell exports or .env files.
+# @internal
+# @description Re-executes the script through op run --environment so
+# configuration comes from a 1Password Environment without shell exports or
+# .env files.
+# @arg $@ string The original command-line arguments to re-exec with.
+# @exitcode 1 If op is unavailable or its CLI build lacks --environment.
 # -----------------------------------------------------------------------------
 bootstrap_from_1password_environment() {
     local op_version=""
@@ -478,8 +494,11 @@ validate_positive_number() {
 
 # -----------------------------------------------------------------------------
 # parse_availability_domains
-# -----------------------------------------------------------------------------
-# Normalizes a space/comma/newline separated list into a Bash array.
+# @internal
+# @description Normalizes a space/comma/newline separated list into a Bash
+# array, populating AVAILABILITY_DOMAINS.
+# @arg $1 string Raw availability-domain list.
+# @exitcode 1 If the parsed list is empty.
 # -----------------------------------------------------------------------------
 parse_availability_domains() {
     local raw="$1"
@@ -587,9 +606,10 @@ validate_config() {
 
 # -----------------------------------------------------------------------------
 # resolve_ads
-# -----------------------------------------------------------------------------
-# Resolves shorthand availability domains such as AD-1 to the full tenancy
-# names returned by OCI. Full names are preserved as-is.
+# @internal
+# @description Resolves shorthand availability domains such as AD-1 to the
+# full tenancy names returned by OCI. Full names are preserved as-is.
+# @exitcode 1 If resolution fails or none of the configured domains match.
 # -----------------------------------------------------------------------------
 resolve_ads() {
     local needs_resolution=0
@@ -701,9 +721,11 @@ EOF
 
 # -----------------------------------------------------------------------------
 # fetch_image_id
-# -----------------------------------------------------------------------------
-# Retrieves the newest Ubuntu 22.04 image compatible with the requested shape.
-# Uses `--all` to avoid depending on partial paginated results.
+# @internal
+# @description Retrieves the newest Ubuntu 22.04 image compatible with the
+# requested shape. Uses --all to avoid depending on partial paginated results.
+# @stdout The resolved image OCID.
+# @exitcode 1 If the OCI query fails or returns no compatible image.
 # -----------------------------------------------------------------------------
 fetch_image_id() {
     local output=""
@@ -754,13 +776,14 @@ is_retryable_launch_error() {
 
 # -----------------------------------------------------------------------------
 # launch_instance
-# -----------------------------------------------------------------------------
-# Attempts a single launch in one availability domain.
-# Returns:
-#   0 - Launch succeeded, stdout contains the instance OCID
-#   1 - Retryable capacity or throttling failure
-#   2 - Wait-for-state timeout
-#   3 - Fatal OCI error
+# @internal
+# @description Attempts a single launch in one availability domain.
+# @arg $1 string Availability domain to launch into.
+# @arg $2 string Image OCID to launch.
+# @stdout The instance OCID, on success.
+# @exitcode 1 Retryable capacity or throttling failure.
+# @exitcode 2 Wait-for-state timeout.
+# @exitcode 3 Fatal OCI error.
 # -----------------------------------------------------------------------------
 launch_instance() {
     local ad="$1"
@@ -867,8 +890,11 @@ get_public_ip() {
 
 # -----------------------------------------------------------------------------
 # compute_retry_delay
-# -----------------------------------------------------------------------------
-# Builds a simple linear backoff with optional jitter and a configurable cap.
+# @internal
+# @description Builds a simple linear backoff with optional jitter and a
+# configurable cap.
+# @arg $1 string Current attempt number, starting at 1.
+# @stdout The delay in seconds to wait before the next attempt.
 # -----------------------------------------------------------------------------
 compute_retry_delay() {
     local attempt="$1"
