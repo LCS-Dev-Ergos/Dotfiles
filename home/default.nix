@@ -48,5 +48,6 @@
     ./yazi
     ./zed
     ./zellij
+    ./zsh
   ];
 }
