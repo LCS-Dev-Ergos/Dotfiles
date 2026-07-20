@@ -25,6 +25,7 @@
     ./starship
     ./tealdeer
     ./tmux
+    ./ueberzugpp
     ./yazi
     ./zellij
   ];
