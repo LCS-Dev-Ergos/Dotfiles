@@ -5,6 +5,7 @@
   home.stateVersion = "26.05";
 
   imports = [
+    ./atuin
     ./bat
     ./btop
     ./kitty
