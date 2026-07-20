@@ -7,9 +7,9 @@
   imports = [
     ./aerospace
     ./alacritty
-    ./borders
     ./atuin
     ./bat
+    ./borders
     ./btop
     ./cava
     ./clang-format
@@ -18,6 +18,7 @@
     ./fastfetch
     ./fish
     ./ghostty
+    ./hypr
     ./kitty
     ./lazygit
     ./lldb
