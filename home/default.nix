@@ -15,6 +15,7 @@
     ./nushell
     ./starship
     ./tmux
+    ./yazi
     ./zellij
   ];
 }

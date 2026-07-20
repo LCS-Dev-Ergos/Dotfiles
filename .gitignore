@@ -7,7 +7,7 @@ home/bat/syntaxes/cmd-help-sublime-syntax
 
 # Specific Tools Configurations
 home/neovim/nvim/lazy-lock.json
-yazi/.config/yazi/flavors/tokyo-night.yazi/
+home/yazi/flavors/tokyo-night.yazi/
 home/kitty/kitty/theme.conf
 
 # Ignore Claude AI configuration files
