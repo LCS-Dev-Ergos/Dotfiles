@@ -1,6 +1,6 @@
 # Dotfiles
 
-This repository contains my personal dotfiles for configuring various tools and applications on macOS and Linux systems. These dotfiles are managed using [GNU Stow](https://www.gnu.org/software/stow/), which simplifies the process of symlinking configuration files.
+Personal dotfiles for macOS and Linux, managed declaratively with [Nix](https://nixos.org/) — [nix-darwin](https://github.com/LnL7/nix-darwin) for system-level macOS configuration and [Home Manager](https://github.com/nix-community/home-manager) for per-application configuration on both platforms. This repo previously used [GNU Stow](https://www.gnu.org/software/stow/) to symlink one package per tool; that workflow has been fully replaced (see [Migrating from GNU Stow](#migrating-from-gnu-stow)).
 
 ![My MacOS Rice](assets/Screenshot-LCS.Dev.webp)
 
@@ -11,105 +11,86 @@ This repository contains my personal dotfiles for configuring various tools and 
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
     - [Clone the Repository](#clone-the-repository)
-    - [Using Stow](#using-stow)
+    - [macOS (nix-darwin + Home Manager)](#macos-nix-darwin--home-manager)
+    - [Linux (standalone Home Manager)](#linux-standalone-home-manager)
   - [Directory Structure](#directory-structure)
-  - [Usage](#usage)
-    - [macOS Instructions](#macos-instructions)
-    - [Linux Instructions](#linux-instructions)
-    - [Notes](#notes)
+  - [What's Managed Where](#whats-managed-where)
+  - [Migrating from GNU Stow](#migrating-from-gnu-stow)
   - [Contributing](#contributing)
   - [License](#license)
 
 ## Prerequisites
 
-Ensure that you have the following installed on your system:
-
-- [GNU Stow](https://www.gnu.org/software/stow/): Use your system's package manager to install it.
-  - **macOS**: `brew install stow`
-  - **Linux**: Use your distribution's package manager, e.g., `sudo apt install stow` or `sudo pacman -S stow`.
+- [Nix](https://nixos.org/download) with flakes enabled (`experimental-features = nix-command flakes`).
+- **macOS**: [nix-darwin](https://github.com/LnL7/nix-darwin) installed.
+- **Linux**: [Home Manager](https://github.com/nix-community/home-manager) installed standalone — no NixOS required, the host's own package manager stays responsible for the OS itself.
 
 ## Installation
 
 ### Clone the Repository
 
-First, clone this repository into your home directory or a directory of your choice:
-
 ```bash
-cd ~
-git clone https://github.com/XtremeXSPC/Dotfiles.git
-cd Dotfiles
+git clone https://github.com/XtremeXSPC/Dotfiles.git ~/Dotfiles
+cd ~/Dotfiles
 ```
 
-### Using Stow
+### macOS (nix-darwin + Home Manager)
 
-GNU Stow is used to create symlinks from this repository to your home directory, ensuring that configurations are applied correctly.
+Validate first — this only evaluates and builds, it never touches the live system:
+
+```bash
+darwin-rebuild build --flake .#LCSMacBook-Pro --impure
+```
+
+`--impure` is required: nix-darwin reads real macOS account state (`system.primaryUser`, the account's home directory) that a pure evaluation can't see. Once the build is clean, activate it:
+
+```bash
+sudo darwin-rebuild switch --flake .#LCSMacBook-Pro --impure
+```
+
+This applies every Home Manager-managed dotfile, the declared Homebrew inventory (taps/casks/formulae), and the Dock/Finder/trackpad system defaults, and reruns on every subsequent switch.
+
+### Linux (standalone Home Manager)
+
+```bash
+home-manager switch --flake '.#lcs-dev@lcs-legion-arch'
+```
+
+Only one Linux host is currently defined (`lcs-legion-arch`, Arch Linux, `x86_64-linux`), and it is **written but unverified** — there is no physical or remote access to actually build or switch it yet. Treat it as a structural reference, not a confirmed-working config.
 
 ## Directory Structure
 
-Each subdirectory in this repository corresponds to a specific tool or application. For example:
-
 ```dir
 Dotfiles/
-├── kitty/      # Kitty configuration file
-├── nvim/       # Neovim configuration files
-├── tmux/       # Tmux configuration files
-└── zsh/        # Zsh configuration files
+├── flake.nix              # Flake entry point: darwin + home-manager outputs
+├── flake.lock
+├── hosts/
+│   ├── LCSMacBook-Pro/
+│   │   ├── darwin.nix     # Host-specific: stateVersion, hostPlatform
+│   │   └── home.nix       # Host-specific: username, homeDirectory, imports
+│   └── lcs-legion-arch/
+│       └── home.nix       # Same shape, for the Linux host
+├── darwin/
+│   ├── default.nix        # Shared nix-darwin config: nix.gc, system.defaults, users
+│   └── homebrew.nix       # Declarative Homebrew: taps, casks, formulae
+└── home/
+    ├── default.nix        # Aggregator: stateVersion + imports for every app below
+    ├── git/                # One folder per tool, each with its own default.nix
+    ├── zsh/
+    └── ...                 # kitty, neovim, tmux, starship, fish, nushell, etc.
 ```
 
-## Usage
+Each application's Nix glue and its actual config content live together in the same folder, rather than mirroring `$HOME`'s layout the way the old Stow packages did.
 
-### macOS Instructions
+## What's Managed Where
 
-1. Open a terminal and navigate to the `Dotfiles` directory:
+- **`darwin/`** — system-level, macOS only: Homebrew inventory, Dock/Finder/trackpad defaults, Nix garbage collection, and the account mapping Home Manager needs.
+- **`home/`** — per-application Home Manager modules, shared across both hosts where a tool exists on both platforms. Platform-specific behavior is gated with `lib.mkIf pkgs.stdenv.isDarwin` / `pkgs.stdenv.isLinux` inside the shared module rather than duplicated per host.
+- **zsh is config-only**: everything under `home/zsh/` is Nix/Home Manager-managed, but the `zsh` binary itself is still Homebrew-managed for now — a deliberate, staged decision.
 
-   ```bash
-   cd ~/Dotfiles
-   ```
+## Migrating from GNU Stow
 
-2. Use Stow to apply configurations for a specific tool. For example, to apply the Neovim configuration:
-
-   ```bash
-   stow -v nvim
-   ```
-
-   This will create symlinks for the Neovim configuration files in your home directory.
-
-3. Repeat the `stow` command for other tools as needed:
-
-   ```bash
-   stow -v tmux
-   stow -v zsh
-   ```
-
-### Linux Instructions
-
-1. Open a terminal and navigate to the `Dotfiles` directory:
-
-   ```bash
-   cd ~/Dotfiles
-   ```
-
-2. Use Stow to apply configurations for a specific tool. For example, to apply the Bash configuration:
-
-   ```bash
-   stow -v bash
-   ```
-
-3. Repeat the `stow` command for other tools as needed:
-
-   ```bash
-   stow -v nvim
-   stow -v zsh
-   ```
-
-### Notes
-
-- If you encounter conflicts with existing files, consider backing them up or removing them before running Stow.
-- To remove symlinks created by Stow, use the `-D` option:
-
-  ```bash
-  stow -D nvim
-  ```
+This repo used to be one GNU Stow package per tool (`zsh/`, `kitty/`, `nvim/`, ...), each mirroring `$HOME`'s layout so `stow <package>` could symlink it in. That workflow, including the old Stow scaffolding scripts, has been fully retired in favor of the Nix/Home Manager structure above. If you're looking at an older clone or fork that still uses Stow, it predates this migration.
 
 ## Contributing
 
