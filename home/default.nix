@@ -6,6 +6,7 @@
 
   imports = [
     ./alacritty
+    ./borders
     ./atuin
     ./bat
     ./btop
