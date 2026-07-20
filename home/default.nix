@@ -10,6 +10,7 @@
     ./kitty
     ./neovim
     ./starship
+    ./tmux
     ./zellij
   ];
 }
