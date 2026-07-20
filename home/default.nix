@@ -16,6 +16,7 @@
     ./fish
     ./kitty
     ./lazygit
+    ./neofetch
     ./neovim
     ./nnn
     ./nushell
