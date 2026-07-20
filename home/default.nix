@@ -9,6 +9,7 @@
     ./bat
     ./btop
     ./cava
+    ./clang-format
     ./fish
     ./kitty
     ./lazygit
