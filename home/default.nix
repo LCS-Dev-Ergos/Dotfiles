@@ -10,6 +10,7 @@
     ./btop
     ./cava
     ./clang-format
+    ./cpp-tools
     ./fish
     ./kitty
     ./lazygit
