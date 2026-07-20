@@ -1,0 +1,16 @@
+{ config, ... }:
+{
+  programs.tealdeer = {
+    enable = true;
+    settings = builtins.fromTOML (builtins.readFile ./config.toml);
+  };
+
+  # Same issue as nushell: Home Manager's tealdeer module places config at
+  # the macOS-native ~/Library/Application Support/tealdeer/, but this
+  # system exports XDG_CONFIG_HOME=~/.config (zsh's lib/75-variables.zsh),
+  # which tealdeer (a Rust/directories-rs tool) honours -- it was reading
+  # from ~/.config/tealdeer/ before migration. Mirroring the exact
+  # composed output at the XDG path keeps it working.
+  xdg.configFile."tealdeer/config.toml".source =
+    config.home.file."Library/Application Support/tealdeer/config.toml".source;
+}

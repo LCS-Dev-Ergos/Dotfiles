@@ -17,6 +17,7 @@
     ./oh-my-posh
     ./ranger
     ./starship
+    ./tealdeer
     ./tmux
     ./yazi
     ./zellij
