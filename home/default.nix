@@ -25,6 +25,7 @@
     ./nushell
     ./oh-my-posh
     ./ranger
+    ./sketchybar
     ./skhd
     ./starship
     ./tealdeer
