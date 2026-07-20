@@ -29,6 +29,7 @@
     ./tealdeer
     ./tmux
     ./ueberzugpp
+    ./wezterm
     ./vscode
     ./zed
     ./yazi
