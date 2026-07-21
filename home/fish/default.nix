@@ -1,4 +1,12 @@
-{ config, dotfilesRoot, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+let
+  fishVariablesState = "${config.xdg.stateHome}/fish/fish_variables";
+in
 {
   programs.fish = {
     enable = true;
@@ -9,12 +17,21 @@
   # are auto-sourced by fish on startup, so this just needs to land there.
   xdg.configFile."fish/conf.d/rustup.fish".source = ./rustup.fish;
 
-  # fish_variables holds fish's own universal-variable state (color theme,
-  # etc.) that fish itself rewrites via `set -U`. Kept writable via
-  # mkOutOfStoreSymlink, seeded with the existing values, rather than
-  # folded into the read-only Nix store.
+  # fish_variables is application-owned universal-variable state. Seed the
+  # current color and key-binding defaults once, then let Fish mutate a private
+  # state file instead of the repository. entryBefore guarantees that the
+  # out-of-store link has a target when Home Manager installs the generation;
+  # the existence check makes later activations non-destructive.
+  home.activation.seedFishVariables = lib.hm.dag.entryBefore [ "linkGeneration" ] ''
+    if [[ ! -e ${lib.escapeShellArg fishVariablesState} ]]; then
+      $DRY_RUN_CMD ${pkgs.coreutils}/bin/install -D -m 0600 \
+        ${lib.escapeShellArg (toString ./fish_variables)} \
+        ${lib.escapeShellArg fishVariablesState}
+    fi
+  '';
+
   xdg.configFile."fish/fish_variables".source =
-    config.lib.file.mkOutOfStoreSymlink "${dotfilesRoot}/home/fish/fish_variables";
+    config.lib.file.mkOutOfStoreSymlink fishVariablesState;
 
   # completions/docker.fish, kubectl.fish, orbctl.fish were symlinks
   # OrbStack itself installed, pointing into /Applications/OrbStack.app/.
