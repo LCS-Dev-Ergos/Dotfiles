@@ -1,9 +1,4 @@
-{
-  config,
-  dotfilesRoot,
-  pkgs,
-  ...
-}:
+{ pkgs, ... }:
 {
   # Not using programs.btop.settings: Home Manager's generator writes
   # booleans as Python-style True/False, but btop's own parser expects
@@ -12,16 +7,14 @@
   # comments and the exact casing btop actually parses.
   programs.btop.enable = true;
 
-  # Out-of-store (live, writable) rather than a store-backed copy: btop.conf
-  # has save_config_on_exit = true, so btop rewrites this file itself on
-  # every exit. A read-only Nix store symlink made that write fail silently
-  # every time, discarding whatever was changed in-session (e.g. picking a
-  # different theme) as soon as btop was reopened -- the reported bug. Same
-  # writable-symlink treatment as zsh/doom/sketchybar/cpp-tools; btop's own
-  # writes now land directly in this tracked file, so `git status` will show
-  # a diff after a session where something changed, to review/commit at will.
+  # Store-backed (read-only) deployment, the first migration of the
+  # practical-immutability plan. btop.conf sets save_config_on_exit = false,
+  # so btop no longer rewrites its own config on exit; the earlier
+  # out-of-store symlink existed only to absorb that autosave. Durable
+  # changes are made by editing this file and switching; in-app tweaks
+  # (theme picker, layout toggles) last for the session only.
   xdg.configFile = {
-    "btop/btop.conf".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesRoot}/home/btop/btop.conf";
+    "btop/btop.conf".source = ./btop.conf;
 
     # btop discovers bundled themes relative to the invoked executable path.
     # Home Manager exposes btop through a profile symlink, so that lookup does
