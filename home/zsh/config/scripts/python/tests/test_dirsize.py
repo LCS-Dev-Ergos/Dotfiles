@@ -80,7 +80,7 @@ class SizeCollectionTests(unittest.TestCase):
         self.assertEqual(run.call_args.args[0], ["du", "-sk", path])
 
     def test_directory_symlinks_are_included_and_annotated(self) -> None:
-        with tempfile.TemporaryDirectory(dir=MODULE_ROOT / "tests") as root:
+        with tempfile.TemporaryDirectory() as root:
             root_path = Path(root)
             target = root_path / "target"
             target.mkdir()

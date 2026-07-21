@@ -12,14 +12,11 @@ setopt err_return pipefail
 umask 077
 
 typeset test_root="${0:A:h:h}"
-typeset fixture_parent="$test_root/tests/.tmp"
-command mkdir -p "$fixture_parent"
+source "$test_root/tests/helpers.zsh" || return 1
 typeset fixture_root
-fixture_root="$(mktemp -d "$fixture_parent/toolchain-test.XXXXXX")" ||
-  return 1
+fixture_root="$(_zsh_test_temp_dir toolchain)" || return 1
 trap '
   command rm -rf -- "$fixture_root"
-  command rmdir -- "$fixture_parent" 2>/dev/null
 ' EXIT
 trap 'exit 130' INT TERM HUP
 

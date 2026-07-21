@@ -196,19 +196,20 @@ if [[ $- == *i* ]]; then
   # ---------------------------------------------------------------------------
   # _zsh_cache_auto_check
   # @internal
-  # @description Rebuilds completion/lazy-loader caches and recompiles .zwc
-  # bytecode once, deferred to after the first prompt, when any startup
-  # config file changed since the last stamp. Disable with ZSH_CACHE_AUTO=0.
+  # @description Rebuilds completion and lazy-loader caches once, deferred to
+  # after the first prompt, when startup configuration changed since the last
+  # stamp. Source bytecode is deliberately not generated. Disable with
+  # ZSH_CACHE_AUTO=0.
   # @noargs
   # ---------------------------------------------------------------------------
   _zsh_cache_auto_check() {
     [[ "${ZSH_CACHE_AUTO:-1}" == "1" ]] || return 0
 
     emulate -L zsh
-  # The fallback removes only files rooted in the resolved Zsh cache paths.
-  # Keep that maintenance non-interactive: RM_STAR_SILENT otherwise makes Zsh
-  # ask for confirmation before expanding the cache-directory wildcard.
-  setopt noxtrace noverbose nullglob rmstarsilent
+    # The fallback removes only files rooted in the resolved Zsh cache paths.
+    # Keep that maintenance non-interactive: RM_STAR_SILENT otherwise makes Zsh
+    # ask for confirmation before expanding the cache-directory wildcard.
+    setopt noxtrace noverbose nullglob rmstarsilent
 
     local cfg_root="${ZSH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zsh}"
     [[ -d "$cfg_root" ]] || return 0
@@ -253,20 +254,6 @@ if [[ $- == *i* ]]; then
         compinit -C
       fi
 
-      # Keep bytecode synchronized automatically instead of silently falling
-      # back to stale source files until a manual `zshcache --compile` run.
-      local -a compile_files
-      compile_files=(
-        "$cfg_root"/runtime-helpers.zsh(N.)
-        "$cfg_root"/lib/*.zsh(N.)
-        "$cfg_root"/functions/*.zsh(N.)
-        "$cfg_root"/conf.d/**/*.zsh(N.)
-      )
-      local compile_file
-      for compile_file in "${compile_files[@]}"; do
-        zcompile -U "$compile_file" 2>/dev/null ||
-          print -u2 "Warning: zcompile failed for $compile_file"
-      done
       command mkdir -p "$cache_dir" 2>/dev/null
       : >| "$stamp_file"
     fi

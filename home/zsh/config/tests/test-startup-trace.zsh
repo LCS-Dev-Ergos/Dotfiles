@@ -15,15 +15,13 @@ umask 077
 
 typeset test_root="${0:A:h:h}"
 typeset zsh_root="${test_root:h}"
-typeset fixture_parent="$test_root/tests/.tmp"
-mkdir -p "$fixture_parent"
-export TMPDIR="$fixture_parent"
-export TMPPREFIX="$fixture_parent/zsh"
+source "$test_root/tests/helpers.zsh" || return 1
 typeset fixture_root
-fixture_root="$(mktemp -d "$fixture_parent/trace-test.XXXXXX")" || return 1
+fixture_root="$(_zsh_test_temp_dir startup-trace)" || return 1
+export TMPDIR="$fixture_root/tmp"
+export TMPPREFIX="$TMPDIR/zsh"
 trap '
   command rm -rf -- "$fixture_root"
-  command rmdir -- "$fixture_parent" 2>/dev/null
 ' EXIT
 trap 'exit 130' INT TERM HUP
 

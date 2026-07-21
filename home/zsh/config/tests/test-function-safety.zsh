@@ -13,19 +13,12 @@ setopt err_return pipefail extendedglob
 umask 077
 
 typeset test_root="${0:A:h:h}"
-typeset fixture_parent="$test_root/tests/.tmp"
-command mkdir -p -- "$fixture_parent"
+source "$test_root/tests/helpers.zsh" || return 1
 typeset fixture_root
-fixture_root="$(command mktemp -d \
-  "$fixture_parent/function-safety.XXXXXX")" || return 1
+fixture_root="$(_zsh_test_temp_dir function-safety)" || return 1
 
 _function_safety_cleanup() {
-  case "${fixture_root:-}" in
-    "$fixture_parent"/function-safety.*)
-      command rm -rf -- "$fixture_root"
-      ;;
-  esac
-  command rmdir -- "$fixture_parent" 2>/dev/null || :
+  [[ -n "${fixture_root:-}" ]] && command rm -rf -- "$fixture_root"
 }
 trap _function_safety_cleanup EXIT
 trap 'exit 130' INT TERM HUP
@@ -45,9 +38,11 @@ bm add 'team\docs' >/dev/null || {
   print -u2 "FAIL: bm rejected a safe bookmark name"
   return 1
 }
-command grep -Fqx -- "team\docs=$fixture_root/work" \
-  "$HOME/.directory_bookmarks" || {
+typeset bookmark_contents="$(<"$HOME/.directory_bookmarks")"
+typeset expected_bookmark='team\docs='"$fixture_root/work"
+[[ "$bookmark_contents" == "$expected_bookmark" ]] || {
   print -u2 "FAIL: bm did not preserve a literal backslash in the name"
+  print -u2 "Expected ${(qqq)expected_bookmark}; got ${(qqq)bookmark_contents}"
   return 1
 }
 

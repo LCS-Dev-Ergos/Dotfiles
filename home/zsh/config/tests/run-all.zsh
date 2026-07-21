@@ -42,24 +42,25 @@ typeset verify_config_dir="${0:A:h:h}"
 typeset verify_zsh_root="${verify_config_dir:h}"
 typeset verify_helpers="$verify_config_dir/scripts/_shared-helpers.zsh"
 typeset verify_dependencies="$verify_config_dir/scripts/check-zsh-dependencies.zsh"
-typeset verify_tmp_parent="$verify_config_dir/tests/.tmp"
 typeset verify_tmp_root=""
+typeset verify_test_helpers="$verify_config_dir/tests/helpers.zsh"
 
 [[ -r "$verify_helpers" ]] || {
   print -u2 "run-all: shared helpers not found: $verify_helpers"
   exit 1
 }
 source "$verify_helpers" || exit 1
+source "$verify_test_helpers" || exit 1
 
 typeset ZSH_UI_STYLE="${ZSH_UI_STYLE:-auto}"
 typeset -gi verify_passed=0
 typeset -gi verify_failed=0
 
-mkdir -p "$verify_tmp_parent" || exit 1
-verify_tmp_root="$(mktemp -d "$verify_tmp_parent/run-all.XXXXXX")" || exit 1
+verify_tmp_root="$(_zsh_test_temp_dir run-all)" || exit 1
+export TMPDIR="$verify_tmp_root/tmp"
+export TMPPREFIX="$TMPDIR/zsh"
 trap '
   command rm -rf -- "$verify_tmp_root"
-  command rmdir -- "$verify_tmp_parent" 2>/dev/null
 ' EXIT
 trap 'exit 130' INT TERM HUP
 
@@ -117,7 +118,7 @@ _verify_step() {
 _verify_shell_syntax() {
   emulate -L zsh
   setopt extendedglob
-  local -a files filtered
+  local -a files
   local file
   files=(
     "$verify_config_dir"/**/*.zsh(N.)
@@ -128,18 +129,15 @@ _verify_shell_syntax() {
     "$verify_zsh_root"/zshenv-bootstrap(N.)
     "$verify_config_dir"/.zshenv(N.)
   )
-  for file in "${(ou)files[@]}"; do
-    [[ "$file" == */tests/.tmp/* ]] || filtered+=("$file")
-  done
-  (( ${#filtered[@]} )) || return 1
+  (( ${#files[@]} )) || return 1
 
-  for file in "${filtered[@]}"; do
+  for file in "${(ou)files[@]}"; do
     command zsh -n -- "$file" || {
       print -u2 "Syntax check failed: $file"
       return 1
     }
   done
-  print -r -- "Checked ${#filtered[@]} shell files."
+  print -r -- "Checked ${#files[@]} shell files."
 }
 
 # -----------------------------------------------------------------------------
@@ -225,7 +223,7 @@ _verify_python_tests() {
   )
   local suite
   for suite in "${suites[@]}"; do
-    command python3 -m unittest discover \
+    command env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
       -s "$suite" -p 'test_*.py' -q || return 1
   done
 }
@@ -244,6 +242,8 @@ _verify_fast_start() {
     DOTFILES_ZSH_ROOT="$verify_zsh_root" \
     zsh -dfi -c \
     'source "$DOTFILES_ZSH_ROOT/zshrc" || exit 1
+     SAVEHIST=0
+     HISTFILE="$TMPDIR/history"
      type h >/dev/null
      type zsh_rebuild_path >/dev/null
      if [[ -x /run/current-system/sw/bin/darwin-rebuild ]]; then

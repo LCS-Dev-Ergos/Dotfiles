@@ -67,7 +67,8 @@ home/kitty/kitty/theme.conf
 *.dll
 *.so
 
-# Zsh specific ignores
+# Zsh-specific runtime artifacts. Source-adjacent bytecode is no longer
+# generated, but these patterns keep legacy or manual zcompile output out of Git.
 *.zwc
 home/zsh/zshrc.zwc
 home/zsh/zshenv-bootstrap.zwc
