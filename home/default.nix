@@ -1,55 +1,18 @@
-{ ... }:
+{ lib, pkgs, ... }:
 {
+  # Host entrypoints import this shared layer plus exactly one platform layer.
+  # Selecting platform imports there avoids consulting `pkgs` while the module
+  # system is still resolving imports (which would create infinite recursion).
+  imports = [ ./common.nix ];
+
   # Do not change after the first successful switch: it only pins which
   # Home Manager defaults apply, not the actual Home Manager/nixpkgs version.
   home.stateVersion = "26.05";
 
-  # fish's own module sets this to true (mkDefault) since it uses man
-  # pages to build completions, but programs.man.package defaults to
-  # null on Darwin (stateVersion >= 26.05) since macOS's own /usr/bin/man
-  # already works without Nix managing it -- generateCaches has no
-  # effect without a package, which is exactly the warning this avoids.
-  programs.man.generateCaches = false;
-
-  imports = [
-    ./aerospace
-    ./alacritty
-    ./atuin
-    ./bat
-    ./borders
-    ./btop
-    ./cava
-    ./clang-format
-    ./cli-tools
-    ./cpp-tools
-    ./doom
-    ./fastfetch
-    ./fish
-    ./ghostty
-    ./git
-    ./hypr
-    ./hyprdots
-    ./kitty
-    ./lazygit
-    ./lldb
-    ./neofetch
-    ./neovim
-    ./nnn
-    ./nushell
-    ./oh-my-posh
-    ./ranger
-    ./sketchybar
-    ./skhd
-    ./starship
-    ./tealdeer
-    ./tmux
-    ./ueberzugpp
-    ./vscode
-    ./wezterm
-    ./yabai
-    ./yazi
-    ./zed
-    ./zellij
-    ./zsh
-  ];
+  # Fish sets this to true with mkDefault because it builds completions from man
+  # pages. On Darwin with stateVersion >= 26.05, programs.man.package defaults
+  # to null because macOS's /usr/bin/man already works without Nix managing it;
+  # cache generation then has no effect and only emits a warning. Linux keeps
+  # Home Manager's default and builds the caches normally.
+  programs.man.generateCaches = lib.mkIf pkgs.stdenv.isDarwin false;
 }

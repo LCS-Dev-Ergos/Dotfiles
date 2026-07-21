@@ -1,5 +1,39 @@
 {
   "nodes": {
+    "alacritty-theme": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1714732884,
+        "narHash": "sha256-bPup3AKFGVuUC8CzVhWJPKphHdx0GAc62GxWsUWQ7Xk=",
+        "owner": "alacritty",
+        "repo": "alacritty-theme",
+        "rev": "94e1dc0b9511969a426208fbba24bd7448493785",
+        "type": "github"
+      },
+      "original": {
+        "owner": "alacritty",
+        "repo": "alacritty-theme",
+        "rev": "94e1dc0b9511969a426208fbba24bd7448493785",
+        "type": "github"
+      }
+    },
+    "cmd-help-syntax": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1749388503,
+        "narHash": "sha256-Lhnn8IiENh5w6Lge9ezbf2yMnSdH22PWvPsi7CwfyGY=",
+        "owner": "victor-gp",
+        "repo": "cmd-help-sublime-syntax",
+        "rev": "273cb988177e96f4187e06008b13fa72ad22ae4d",
+        "type": "github"
+      },
+      "original": {
+        "owner": "victor-gp",
+        "repo": "cmd-help-sublime-syntax",
+        "rev": "273cb988177e96f4187e06008b13fa72ad22ae4d",
+        "type": "github"
+      }
+    },
     "home-manager": {
       "inputs": {
         "nixpkgs": [
@@ -58,9 +92,155 @@
     },
     "root": {
       "inputs": {
+        "alacritty-theme": "alacritty-theme",
+        "cmd-help-syntax": "cmd-help-syntax",
         "home-manager": "home-manager",
         "nix-darwin": "nix-darwin",
-        "nixpkgs": "nixpkgs"
+        "nixpkgs": "nixpkgs",
+        "smart-tmux-session-manager": "smart-tmux-session-manager",
+        "tmux-continuum": "tmux-continuum",
+        "tmux-resurrect": "tmux-resurrect",
+        "tmux-yank": "tmux-yank",
+        "tokyo-night-tmux": "tokyo-night-tmux",
+        "tokyo-night-yazi": "tokyo-night-yazi",
+        "tpm": "tpm",
+        "vim-tmux-navigator": "vim-tmux-navigator"
+      }
+    },
+    "smart-tmux-session-manager": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1705612422,
+        "narHash": "sha256-AMeYo3HVtRP1w8gQpok+/9fvNCXiMEzZ9ct+gUoL2V4=",
+        "owner": "joshmedeski",
+        "repo": "t-smart-tmux-session-manager",
+        "rev": "3726950525ac9966412ea3f2093bf2ffe06aa023",
+        "type": "github"
+      },
+      "original": {
+        "owner": "joshmedeski",
+        "repo": "t-smart-tmux-session-manager",
+        "rev": "3726950525ac9966412ea3f2093bf2ffe06aa023",
+        "type": "github"
+      }
+    },
+    "tmux-continuum": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1705754277,
+        "narHash": "sha256-W71QyLwC/MXz3bcLR2aJeWcoXFI/A3itjpcWKAdVFJY=",
+        "owner": "tmux-plugins",
+        "repo": "tmux-continuum",
+        "rev": "0698e8f4b17d6454c71bf5212895ec055c578da0",
+        "type": "github"
+      },
+      "original": {
+        "owner": "tmux-plugins",
+        "repo": "tmux-continuum",
+        "rev": "0698e8f4b17d6454c71bf5212895ec055c578da0",
+        "type": "github"
+      }
+    },
+    "tmux-resurrect": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1678098022,
+        "narHash": "sha256-FcSjYyWjXM1B+WmiK2bqUNJYtH7sJBUsY2IjSur5TjY=",
+        "owner": "tmux-plugins",
+        "repo": "tmux-resurrect",
+        "rev": "cff343cf9e81983d3da0c8562b01616f12e8d548",
+        "type": "github"
+      },
+      "original": {
+        "owner": "tmux-plugins",
+        "repo": "tmux-resurrect",
+        "rev": "cff343cf9e81983d3da0c8562b01616f12e8d548",
+        "type": "github"
+      }
+    },
+    "tmux-yank": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1689770565,
+        "narHash": "sha256-/5HPaoOx2U2d8lZZJo5dKmemu6hKgHJYq23hxkddXpA=",
+        "owner": "tmux-plugins",
+        "repo": "tmux-yank",
+        "rev": "acfd36e4fcba99f8310a7dfb432111c242fe7392",
+        "type": "github"
+      },
+      "original": {
+        "owner": "tmux-plugins",
+        "repo": "tmux-yank",
+        "rev": "acfd36e4fcba99f8310a7dfb432111c242fe7392",
+        "type": "github"
+      }
+    },
+    "tokyo-night-tmux": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1740531099,
+        "narHash": "sha256-TOS9+eOEMInAgosB3D9KhahudW2i1ZEH+IXEc0RCpU0=",
+        "owner": "janoamaral",
+        "repo": "tokyo-night-tmux",
+        "rev": "caf6cbb4c3a32d716dfedc02bc63ec8cf238f632",
+        "type": "github"
+      },
+      "original": {
+        "owner": "janoamaral",
+        "repo": "tokyo-night-tmux",
+        "rev": "caf6cbb4c3a32d716dfedc02bc63ec8cf238f632",
+        "type": "github"
+      }
+    },
+    "tokyo-night-yazi": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1751200639,
+        "narHash": "sha256-4aNPlO5aXP8c7vks6bTlLCuyUQZ4Hx3GWtGlRmbhdto=",
+        "owner": "BennyOe",
+        "repo": "tokyo-night.yazi",
+        "rev": "5f5636427f9bb16cc3f7c5e5693c60914c73f036",
+        "type": "github"
+      },
+      "original": {
+        "owner": "BennyOe",
+        "repo": "tokyo-night.yazi",
+        "rev": "5f5636427f9bb16cc3f7c5e5693c60914c73f036",
+        "type": "github"
+      }
+    },
+    "tpm": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1677502767,
+        "narHash": "sha256-hW8mfwB8F9ZkTQ72WQp/1fy8KL1IIYMZBtZYIwZdMQc=",
+        "owner": "tmux-plugins",
+        "repo": "tpm",
+        "rev": "99469c4a9b1ccf77fade25842dc7bafbc8ce9946",
+        "type": "github"
+      },
+      "original": {
+        "owner": "tmux-plugins",
+        "repo": "tpm",
+        "rev": "99469c4a9b1ccf77fade25842dc7bafbc8ce9946",
+        "type": "github"
+      }
+    },
+    "vim-tmux-navigator": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1749413770,
+        "narHash": "sha256-czhzY1bauNd472osfUZSzsOEoGv9QhQBriF3ULkKNpY=",
+        "owner": "christoomey",
+        "repo": "vim-tmux-navigator",
+        "rev": "412c474e97468e7934b9c217064025ea7a69e05e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "christoomey",
+        "repo": "vim-tmux-navigator",
+        "rev": "412c474e97468e7934b9c217064025ea7a69e05e",
+        "type": "github"
       }
     }
   },

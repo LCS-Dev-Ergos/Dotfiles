@@ -1,4 +1,4 @@
-{ pkgs, lib, ... }:
+{ pkgs, ... }:
 {
   imports = [ ./homebrew.nix ];
 
@@ -6,73 +6,32 @@
   # $ nix-env -qaP | grep wget
   environment.systemPackages = [ pkgs.vim ];
 
-  # Auto upgrade nix package and the daemon service.
-  nix.enable = true;
+  nix = {
+    # Keep the Nix package and daemon service managed by nix-darwin. Flakes
+    # require both experimental features until they become universally stable.
+    enable = true;
+    settings.experimental-features = [
+      "nix-command"
+      "flakes"
+    ];
 
-  # Necessary for using flakes on this system.
-  nix.settings.experimental-features = "nix-command flakes";
+    # Declarative equivalent of routine `nix-collect-garbage`/store optimisation:
+    # prune old generations automatically and hardlink duplicate store files.
+    # Fourteen days preserves a useful rollback margin while the migration
+    # settles instead of requiring either manual cleanup or aggressive pruning.
+    gc = {
+      automatic = true;
+      options = "--delete-older-than 14d";
+    };
+    optimise.automatic = true;
+  };
 
-  # Declarative equivalent of `brew cleanup`: prune old generations and
-  # hardlink duplicate store files automatically instead of doing it by
-  # hand. 14 days keeps a rollback margin while the migration settles.
-  nix.gc.automatic = true;
-  nix.gc.options = "--delete-older-than 14d";
-  nix.optimise.automatic = true;
+  # All Nix-installed packages must be explicitly free-licensed. Homebrew
+  # remains the owner for proprietary GUI applications.
+  nixpkgs.config.allowUnfree = false;
 
-  # Zsh is managed by the Stow configuration until its future migration to
-  # Home Manager. nix-darwin must not generate /etc/zsh* configuration.
+  # Home Manager deploys the user's Zsh files. Homebrew still owns the Darwin
+  # shell binary (standalone Home Manager installs it on Linux), so nix-darwin
+  # must not generate a competing /etc/zsh* configuration or integration path.
   programs.zsh.enable = false;
-
-  # Captured from `defaults read` against the live system, then confirmed
-  # with the user as deliberate customizations (not stock macOS defaults):
-  # Dock, Finder, and trackpad. Other non-default values found during that
-  # same audit (dark mode, auto-hidden menu bar) were left out since they
-  # weren't confirmed as intentional.
-  #
-  # Temporarily disabled (2026-07-21): these values are already applied and
-  # saved on the live system, so re-declaring them just makes nix-darwin
-  # replay the same `defaults write` calls (and the Dock/Finder restarts
-  # that go with them) on every switch for no actual effect. Flip back to
-  # `true` once a value here needs to change again.
-  system.defaults = lib.mkIf false {
-    dock = {
-      autohide = true;
-      orientation = "left";
-      tilesize = 76;
-      magnification = false;
-      show-recents = false;
-      expose-group-apps = true;
-      minimize-to-application = true;
-      mru-spaces = true;
-    };
-
-    finder = {
-      ShowPathbar = true;
-      ShowStatusBar = false;
-      FXPreferredViewStyle = "Nlsv";
-    };
-
-    trackpad = {
-      Clicking = true;
-      TrackpadRightClick = true;
-      TrackpadThreeFingerDrag = false;
-    };
-  };
-
-  # Required since we never declared users.users.lcs-dev ourselves:
-  # the Home Manager darwin integration reads this to resolve
-  # home.homeDirectory / home.username. Without it those default to
-  # null, which is exactly the error we just hit.
-  system.primaryUser = "lcs-dev";
-
-  # nix-darwin doesn't manage real macOS accounts (they already exist),
-  # so it has no way to know this user's home directory unless we
-  # state it here. Home Manager's darwin integration derives
-  # home.homeDirectory from this value, overriding whatever we set
-  # directly in home/default.nix — so this is the actual source of
-  # truth, not an optional extra.
-  users.users.lcs-dev = {
-    name = "lcs-dev";
-    home = "/Users/lcs-dev";
-  };
 }
