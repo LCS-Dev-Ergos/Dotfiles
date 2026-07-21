@@ -15,6 +15,7 @@ home/kitty/kitty/theme.conf
 
 # Local migration notes (operational details, not repository documentation)
 /HOMEBREW_NIX_CLEANUP.md
+/PRACTICAL_IMMUTABILITY_PLAN.md
 
 # macOS system files
 .DS_Store

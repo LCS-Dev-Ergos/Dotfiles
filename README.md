@@ -15,6 +15,8 @@ Personal dotfiles for macOS and Linux, managed declaratively with [Nix](https://
     - [Linux (standalone Home Manager)](#linux-standalone-home-manager)
   - [Directory Structure](#directory-structure)
   - [What's Managed Where](#whats-managed-where)
+  - [State Boundaries](#state-boundaries)
+  - [Verification](#verification)
   - [Migrating from GNU Stow](#migrating-from-gnu-stow)
   - [Contributing](#contributing)
   - [License](#license)
@@ -39,13 +41,15 @@ cd ~/Dotfiles
 Validate first — this only evaluates and builds, it never touches the live system:
 
 ```bash
-darwin-rebuild build --flake .#LCSMacBook-Pro --impure
+darwin-rebuild build --flake .#LCSMacBook-Pro
 ```
 
-`--impure` is required: nix-darwin reads real macOS account state (`system.primaryUser`, the account's home directory) that a pure evaluation can't see. Once the build is clean, activate it:
+The account name and home directory are explicit host facts in `flake.nix`, so
+evaluation remains pure and does not require `--impure`. Once the build is
+clean, activate it:
 
 ```bash
-sudo darwin-rebuild switch --flake .#LCSMacBook-Pro --impure
+sudo darwin-rebuild switch --flake .#LCSMacBook-Pro
 ```
 
 This applies every Home Manager-managed dotfile, the declared Homebrew inventory (taps/casks/formulae), and the Dock/Finder/trackpad system defaults, and reruns on every subsequent switch.
@@ -65,7 +69,7 @@ Dotfiles/
 ├── flake.nix              # Flake entry point: darwin + home-manager outputs
 ├── flake.lock
 ├── hosts/
-│   ├── LCSMacBook-Pro/
+│   ├── lcs-macbook-pro/
 │   │   ├── darwin.nix     # Host-specific: stateVersion, hostPlatform
 │   │   └── home.nix       # Host-specific: username, homeDirectory, imports
 │   └── lcs-legion-arch/
@@ -74,7 +78,11 @@ Dotfiles/
 │   ├── default.nix        # Shared nix-darwin config: nix.gc, system.defaults, users
 │   └── homebrew.nix       # Declarative Homebrew: taps, casks, formulae
 └── home/
-    ├── default.nix        # Aggregator: stateVersion + imports for every app below
+    ├── default.nix        # Shared Home Manager policy and stateVersion
+    ├── common.nix         # Platform-neutral application imports
+    ├── darwin.nix         # macOS-only application imports
+    ├── linux.nix          # Linux/Wayland-only application imports
+    ├── out-of-store-allowlist.tsv
     ├── git/                # One folder per tool, each with its own default.nix
     ├── zsh/
     └── ...                 # kitty, neovim, tmux, starship, fish, nushell, etc.
@@ -87,6 +95,66 @@ Each application's Nix glue and its actual config content live together in the s
 - **`darwin/`** — system-level, macOS only: Homebrew inventory, Dock/Finder/trackpad defaults, Nix garbage collection, and the account mapping Home Manager needs.
 - **`home/`** — per-application Home Manager modules, shared across both hosts where a tool exists on both platforms. Platform-specific behavior is gated with `lib.mkIf pkgs.stdenv.isDarwin` / `pkgs.stdenv.isLinux` inside the shared module rather than duplicated per host.
 - **zsh is config-only**: everything under `home/zsh/` is Nix/Home Manager-managed, but the `zsh` binary itself is still Homebrew-managed for now — a deliberate, staged decision.
+
+## State Boundaries
+
+Static configuration is deployed from the Nix store wherever the application
+can consume read-only files. Legitimate writable state belongs outside Git and
+the store: persistent state under `XDG_STATE_HOME`, disposable data under
+`XDG_CACHE_HOME`, and application data under `XDG_DATA_HOME`.
+
+The remaining applications that must write through a Home Manager-managed
+configuration path are listed in `home/out-of-store-allowlist.tsv`, including
+the writer, sensitivity, rollback behavior, and the condition for retiring the
+exception. `scripts/check-out-of-store-allowlist.sh` rejects an unregistered
+`mkOutOfStoreSymlink` or a stale registry entry. Fish is one example of an
+explicit boundary: its tracked `fish_variables` snapshot is only a first-run
+seed, while the live file is private state under `XDG_STATE_HOME` and is never
+overwritten by activation.
+
+Back up `XDG_STATE_HOME` and `XDG_DATA_HOME` as user data; a Nix generation
+rollback intentionally does not erase or rewind them. `XDG_CACHE_HOME` is
+disposable and should be reproducible from declared configuration plus normal
+application startup.
+
+The rationale and phased migration work are documented in
+`PRACTICAL_IMMUTABILITY_PLAN.md`.
+
+After activation, `scripts/audit-live-config.sh` performs a read-only audit of
+the live home directory. It reports broken configuration links, links into the
+checkout that lack a registered exception, and changes beneath a registered
+repository-backed target. A newly implemented migration can therefore remain
+visible as pending until its replacement generation has actually been
+activated.
+
+## Verification
+
+The flake exposes a lockfile-pinned `ci` development shell for Nix formatting
+and policy checks. Run the same core checks used by CI with:
+
+```bash
+nix develop .#ci --command bash -euo pipefail -c '
+  mapfile -t nix_files < <(find flake.nix darwin home hosts -type f -name "*.nix" | sort)
+  nixfmt --check "${nix_files[@]}"
+  statix check .
+  deadnix --fail flake.nix darwin home hosts
+  bash scripts/check-out-of-store-allowlist.sh
+  bash scripts/check-declared-secrets.sh
+  shellcheck scripts/*.sh
+'
+nix flake check --no-build --all-systems --show-trace
+home/zsh/config/tests/run-all.zsh --full
+git diff --check
+```
+
+On macOS, finish with a complete non-activating build before switching:
+
+```bash
+nix build .#darwinConfigurations.LCSMacBook-Pro.system --no-link
+```
+
+The Linux output is evaluated on CI, but it remains structurally verified only
+until it can be built, activated, exercised, and rolled back on the real host.
 
 ## Migrating from GNU Stow
 
