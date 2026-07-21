@@ -8,8 +8,9 @@
     home-manager.url = "github:nix-community/home-manager";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
 
-    # Immutable application assets. Runtime-mutable state stays in the
-    # checkout via mkOutOfStoreSymlink; third-party code is pinned here.
+    # Immutable application assets. Third-party code is pinned here; the few
+    # runtime-mutable paths that cannot yet be store-backed are documented in
+    # home/out-of-store-allowlist.tsv.
     alacritty-theme = {
       url = "github:alacritty/alacritty-theme/94e1dc0b9511969a426208fbba24bd7448493785";
       flake = false;
@@ -91,6 +92,11 @@
           yank = inputs.tmux-yank;
         };
       };
+      supportedSystems = [
+        "aarch64-darwin"
+        "x86_64-linux"
+      ];
+      forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
       homeArgs = host: {
         inherit externalSources;
         inherit (host) dotfilesRoot homeDirectory username;
@@ -142,9 +148,28 @@
           self.homeConfigurations."lcs-dev@lcs-legion-arch".activationPackage;
       };
 
-      formatter = {
-        aarch64-darwin = nixpkgs.legacyPackages.aarch64-darwin.nixfmt;
-        x86_64-linux = nixpkgs.legacyPackages.x86_64-linux.nixfmt;
-      };
+      formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.nixfmt);
+
+      # A small, lockfile-pinned tool environment shared by local verification
+      # and CI. Keeping these tools on the flake input avoids silently linting
+      # with whatever revision the runner's global nixpkgs registry provides.
+      devShells = forAllSystems (
+        system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+        in
+        {
+          ci = pkgs.mkShellNoCC {
+            packages = [
+              pkgs.bash
+              pkgs.deadnix
+              pkgs.nixfmt
+              pkgs.ripgrep
+              pkgs.shellcheck
+              pkgs.statix
+            ];
+          };
+        }
+      );
     };
 }
