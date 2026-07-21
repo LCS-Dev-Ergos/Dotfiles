@@ -1,5 +1,15 @@
-{ ... }:
+{ pkgs, ... }:
 {
+  # Nix language tooling, available in every shell regardless of which
+  # project is open -- no per-project devShell needed just to get an LSP,
+  # a formatter, and basic lint/dead-code checks while editing .nix files.
+  home.packages = [
+    pkgs.nixd    # Language server (completion, goto-def, diagnostics).
+    pkgs.nixfmt  # Canonical formatter (RFC 166 style).
+    pkgs.statix  # Lints anti-patterns (e.g. `with` scope footguns).
+    pkgs.deadnix # Flags dead/unused bindings.
+  ];
+
   # fzf, zoxide, eza, and direnv already have full shell integration and
   # aliases hand-written and lazy-loaded in the (config-only) zsh setup --
   # functions/fzf.zsh, functions/cli-tools.zsh, lib/50-tools.zsh. zsh here
