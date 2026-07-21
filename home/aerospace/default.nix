@@ -1,4 +1,9 @@
-{ pkgs, lib, config, ... }:
+{
+  pkgs,
+  lib,
+  config,
+  ...
+}:
 {
   # The user isn't using aerospace daily -- yabai is the actual window
   # manager in use. start-at-login = true in the source file was
@@ -13,6 +18,8 @@
   # unverified extra-settings injection found with tmux's typed options.
   programs.aerospace = lib.mkIf pkgs.stdenv.isDarwin {
     enable = true;
+    # Homebrew owns the signed application bundle; Home Manager owns config.
+    package = null;
     settings = (builtins.fromTOML (builtins.readFile ./aerospace.toml)) // {
       start-at-login = false;
     };
