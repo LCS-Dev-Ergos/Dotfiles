@@ -1,4 +1,4 @@
-{ config, ... }:
+{ config, dotfilesRoot, ... }:
 {
   # Not using programs.btop.settings: Home Manager's generator writes
   # booleans as Python-style True/False, but btop's own parser expects
@@ -22,5 +22,5 @@
   # writes now land directly in this tracked file, so `git status` will show
   # a diff after a session where something changed, to review/commit at will.
   xdg.configFile."btop/btop.conf".source =
-    config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/Dotfiles/home/btop/btop.conf";
+    config.lib.file.mkOutOfStoreSymlink "${dotfilesRoot}/home/btop/btop.conf";
 }

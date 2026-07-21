@@ -1,12 +1,12 @@
 # Personal Dotfiles Git Ignore
 
-# Git Submodules
+# Optional local mirrors. Nix uses pinned flake inputs for these assets, so
+# activation never depends on the ignored directories being present.
 home/alacritty/themes
 home/tmux/plugins/
 home/bat/syntaxes/cmd-help-sublime-syntax
 
 # Specific Tools Configurations
-home/neovim/nvim/lazy-lock.json
 home/yazi/flavors/tokyo-night.yazi/
 home/kitty/kitty/theme.conf
 
@@ -251,6 +251,6 @@ poetry.toml
 # LSP config files
 pyrightconfig.json
 
-# Nix build output symlink
-nix-darwin/.config/nix-darwin/result
+# Nix build output symlinks
 /result
+/result-*

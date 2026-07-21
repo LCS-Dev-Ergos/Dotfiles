@@ -1,4 +1,10 @@
-{ config, pkgs, lib, ... }:
+{
+  config,
+  dotfilesRoot,
+  pkgs,
+  lib,
+  ...
+}:
 {
   # Not using programs.sketchybar.config/service: helpers/menus contains a
   # C source file built via `make` into helpers/menus/bin/menus (gitignored,
@@ -8,6 +14,6 @@
   # for the same reason as skhd (avoid a second, conflicting launchd agent).
   # macOS-only, so gated behind lib.mkIf pkgs.stdenv.isDarwin.
   xdg.configFile."sketchybar" = lib.mkIf pkgs.stdenv.isDarwin {
-    source = config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/Dotfiles/home/sketchybar/sketchybar";
+    source = config.lib.file.mkOutOfStoreSymlink "${dotfilesRoot}/home/sketchybar/sketchybar";
   };
 }
