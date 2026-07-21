@@ -1,5 +1,4 @@
-{ ... }:
-{
+_: {
   programs.wezterm = {
     enable = true;
     # Embedded verbatim (no re-serialization) -- the config is a full Lua

@@ -9,9 +9,8 @@ in
   programs.starship = {
     enable = true;
     settings = starshipSettings;
-    # Flip on once zsh itself moves to Home Manager (Step 5): until then
-    # the still-Stow-managed zsh startup owns starship init, and enabling
-    # this now would risk a double-init once both sides are active.
+    # The custom Zsh startup now deployed by Home Manager still owns Starship
+    # initialization. Enabling this integration would create a second init path.
     enableZshIntegration = false;
     # nushell's config.nu already has its own manual starship-init logic
     # (writing vendor/autoload/starship.nu); leaving this on would run a
@@ -25,13 +24,14 @@ in
   # placed there directly rather than folded into the generated TOML.
   xdg.configFile."starship/scripts/git_status.sh".source = ./scripts/git_status.sh;
 
-  # The still-Stow-managed zsh config's STARSHIP_CONFIG env var points at
-  # this legacy nested path (an artifact of the old Stow package layout,
-  # where the repo mirrored $HOME under starship/.config/starship/).
+  # The custom Zsh config's STARSHIP_CONFIG still points at this legacy nested
+  # path, an artifact of the old Stow package layout where the repository
+  # mirrored $HOME below starship/.config/starship/.
   # programs.starship places its own output at the XDG-standard
   # ~/.config/starship.toml instead. Mirroring the same generated file
-  # here, from the same settings, keeps the prompt working regardless of
-  # which path a given shell resolves, without touching zsh itself.
+  # here from the same settings keeps both resolution paths consistent while
+  # retaining compatibility with that carefully migrated shell configuration.
   xdg.configFile."starship/starship.toml".source =
-    (pkgs.formats.toml { }).generate "starship.toml" starshipSettings;
+    (pkgs.formats.toml { }).generate "starship.toml"
+      starshipSettings;
 }

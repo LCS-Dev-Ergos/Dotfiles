@@ -1,5 +1,4 @@
-{ ... }:
-{
+_: {
   programs.oh-my-posh = {
     enable = true;
     # Not using settings = builtins.fromJSON ...: one theme segment has a

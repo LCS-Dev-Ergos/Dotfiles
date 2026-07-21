@@ -1,7 +1,6 @@
-{ ... }:
-{
-  # config.yml has always been empty (0 bytes) -- lazygit already runs on
-  # its own built-in defaults, so there's no settings to carry over. The
-  # empty file is kept for history/consistency but isn't wired in.
+_: {
+  # config.yml has always been empty (0 bytes), so LazyGit uses its built-in
+  # defaults. The file remains in the repository for history/consistency but is
+  # deliberately not wired into Home Manager as a fake source of configuration.
   programs.lazygit.enable = true;
 }
