@@ -1,17 +1,13 @@
-{ config, dotfilesRoot, ... }:
-{
+_: {
   programs.atuin = {
     enable = true;
   };
 
-  # `atuin config set` and Atuin's shell-initialization path both write
-  # config.toml (the latter can recreate stock defaults repeatedly, not only on
-  # first run). Keep the existing TOML authoritative, live, and writable; this
-  # also avoids risky transcription into a Nix attrset. A generated
-  # programs.atuin.settings file would be read-only, and force-overwriting it on
-  # activation would discard legitimate runtime edits instead of managing them.
-  xdg.configFile."atuin/config.toml".source =
-    config.lib.file.mkOutOfStoreSymlink "${dotfilesRoot}/home/atuin/config.toml";
+  # Atuin's startup, shell initialization, and ordinary read paths leave this
+  # file unchanged. Deploy the reviewed TOML directly from the store so a Nix
+  # generation owns configuration changes and rollback. `atuin config set` is
+  # intentionally not the durable update path; edit this source and switch.
+  xdg.configFile."atuin/config.toml".source = ./config.toml;
 
   # config.toml's [theme] name = "tokyonight" references this file; atuin
   # doesn't have a dedicated Home Manager option for it, so it's placed
