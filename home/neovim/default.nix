@@ -1,13 +1,13 @@
-{ config, ... }:
+{ config, dotfilesRoot, ... }:
 let
   # mkOutOfStoreSymlink needs a real, non-store-copied absolute path.
   # Flakes copy their own source tree into /nix/store as part of
   # evaluation, so a relative literal like `./nvim` here would resolve
   # inside that read-only copy instead of this repo checkout, silently
   # breaking the "stays writable" guarantee this symlink exists for.
-  # Derived from home.homeDirectory (set per-host) rather than hardcoded,
-  # since this module is shared across the macOS and Linux hosts.
-  nvimSource = "${config.home.homeDirectory}/Dotfiles/home/neovim/nvim";
+  # dotfilesRoot is explicit host metadata supplied through extraSpecialArgs;
+  # evaluation never guesses where the live checkout is located.
+  nvimSource = "${dotfilesRoot}/home/neovim/nvim";
 in
 {
   # LazyVim writes lazy-lock.json back into ~/.config/nvim whenever plugins

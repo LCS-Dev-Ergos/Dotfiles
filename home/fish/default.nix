@@ -1,4 +1,4 @@
-{ config, ... }:
+{ config, dotfilesRoot, ... }:
 {
   programs.fish = {
     enable = true;
@@ -14,7 +14,7 @@
   # mkOutOfStoreSymlink, seeded with the existing values, rather than
   # folded into the read-only Nix store.
   xdg.configFile."fish/fish_variables".source =
-    config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/Dotfiles/home/fish/fish_variables";
+    config.lib.file.mkOutOfStoreSymlink "${dotfilesRoot}/home/fish/fish_variables";
 
   # completions/docker.fish, kubectl.fish, orbctl.fish were symlinks
   # OrbStack itself installed, pointing into /Applications/OrbStack.app/.

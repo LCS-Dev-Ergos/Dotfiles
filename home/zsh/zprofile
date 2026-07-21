@@ -41,5 +41,14 @@ export PATH="$HOME/.local/bin:$PATH"
 # ------------- GNU Global (gtags) ------------- #
 # native-pygments: uses the built-in parser for C/C++/Java and Pygments as
 # fallback for everything else (Pascal, OCaml, Haskell, etc.).
-export GTAGSCONF="/opt/homebrew/share/gtags/gtags.conf"
-export GTAGSLABEL="native-pygments"
+for _gtags_conf in \
+    /opt/homebrew/share/gtags/gtags.conf \
+    /usr/local/share/gtags/gtags.conf \
+    /usr/share/gtags/gtags.conf; do
+    if [[ -r "$_gtags_conf" ]]; then
+        export GTAGSCONF="$_gtags_conf"
+        export GTAGSLABEL="native-pygments"
+        break
+    fi
+done
+unset _gtags_conf

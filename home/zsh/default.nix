@@ -1,19 +1,23 @@
-{ config, lib, ... }:
+{
+  config,
+  dotfilesRoot,
+  lib,
+  pkgs,
+  ...
+}:
 let
-  repoZsh = "${config.home.homeDirectory}/Dotfiles/home/zsh";
+  repoZsh = "${dotfilesRoot}/home/zsh";
   outOfStore = path: config.lib.file.mkOutOfStoreSymlink "${repoZsh}/${path}";
 in
 {
-  # Config-only: zsh itself stays Homebrew-managed for now (not
-  # programs.zsh.enable). Deliberately kept separate from placing these
-  # files so a config-relocation mistake and a shell-binary swap can never
-  # land in the same change -- if something breaks after switching, it's
-  # unambiguous which half caused it. Package ownership is a natural,
-  # low-risk follow-up once this has proven stable across real sessions.
+  # Keep file placement independent from programs.zsh. Homebrew still owns the
+  # Darwin shell binary, while standalone Home Manager installs it on Linux.
+  # Separating config relocation from the Darwin binary swap keeps failures
+  # attributable to one change; binary ownership remains an intentionally
+  # small follow-up after the configuration survives real sessions.
   #
-  # The double-compinit bug this migration has been warned about is
-  # already self-guarded inside the existing config (20-zinit.zsh runs
-  # it, 85-completions.zsh explicitly checks "avoid double compinit").
+  # The custom config guards against double compinit (20-zinit.zsh runs it;
+  # 85-completions.zsh checks whether initialization already happened).
   # Not using programs.zsh's own options at all means Home Manager never
   # generates a second compinit call to conflict with that.
   #
@@ -32,29 +36,33 @@ in
   # transient git state, at the cost of needing a switch to pick up
   # future edits (same as any other store-copied file in this repo).
   #
-  # Content is the improved template (static Homebrew env vars, no
-  # `eval "$(brew shellenv)"` fork on every shell) that was already
-  # written into the repo but never actually deployed to the live
-  # ~/.zshenv -- this migration is what finally applies it.
-  # force = true: the live ~/.zshenv today is a real, non-symlink file
-  # (by design, per the comment above) that Home Manager has never
-  # managed before, so it would otherwise collide on first switch.
-  home.file.".zshenv" = {
-    source = ./zshenv-bootstrap;
-    force = true;
-  };
+  # This is the improved bootstrap that was already written in the repo but had
+  # never actually reached the live ~/.zshenv: it uses static environment
+  # values rather than forking `eval "$(brew shellenv)"` for every shell, and
+  # guards Homebrew paths so the same bootstrap remains portable to Linux.
+  # force is needed because the current ~/.zshenv is intentionally a real,
+  # pre-Home-Manager file; otherwise the first activation would collide with it.
+  home = {
+    packages = lib.optionals pkgs.stdenv.isLinux [ pkgs.zsh ];
 
-  home.file.".zprofile".source = outOfStore "zprofile";
-  home.file.".zshrc".source = outOfStore "zshrc";
-  home.file.".p10k.zsh".source = outOfStore "p10k.zsh";
+    file = {
+      ".zshenv" = {
+        source = ./zshenv-bootstrap;
+        force = true;
+      };
+
+      ".zprofile".source = outOfStore "zprofile";
+      ".zshrc".source = outOfStore "zshrc";
+      ".p10k.zsh".source = outOfStore "p10k.zsh";
+    };
+  };
 
   # The whole ${XDG_CONFIG_HOME}/zsh tree (lib/, conf.d/, functions/,
   # tests/, etc.) as one live, writable unit.
-  # force = true: unlike the other entries above (which were live Stow
-  # symlinks stow -D cleanly removed), ~/.config/zsh was a real directory
-  # under per-file Stow management. Removing its individual file symlinks
-  # left the (now-empty) directory itself behind, which Home Manager
-  # won't silently replace with its own symlink.
+  # force replaces the empty real directory left by the old per-file Stow
+  # layout: `stow -D` removed its child symlinks but correctly left the parent
+  # directory itself, which Home Manager will not silently replace. The result
+  # is one authoritative live link for the complete tree.
   xdg.configFile."zsh" = {
     source = outOfStore "config";
     force = true;

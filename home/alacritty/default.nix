@@ -1,4 +1,4 @@
-{ config, ... }:
+{ externalSources, ... }:
 {
   programs.alacritty = {
     enable = true;
@@ -9,15 +9,11 @@
     settings = builtins.fromTOML (builtins.readFile ./alacritty.toml);
   };
 
-  # colors/current.yml isn't referenced anywhere in alacritty.toml (which
-  # uses the vendored theme import instead) -- looks like leftover
-  # content from before the TOML/theme-import setup was adopted, but
-  # preserved as-is rather than assumed dead.
-  xdg.configFile."alacritty/colors/current.yml".source = ./colors/current.yml;
-
-  # The vendored alacritty-theme checkout (referenced by alacritty.toml's
-  # `import`) is a live git checkout, same treatment as bat's vendored
-  # syntax and tmux's plugins: kept writable via mkOutOfStoreSymlink.
-  xdg.configFile."alacritty/themes".source =
-    config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/Dotfiles/home/alacritty/themes";
+  # The theme import used to target a live vendored checkout. Alacritty does not
+  # mutate theme code, so the checkout is now an immutable flake input and
+  # flake.lock makes fresh machines reproducible without an in-place `git pull`
+  # side channel. The older colors/current.yml from the pre-TOML setup remains
+  # tracked for its history, but is deliberately unmanaged because nothing in
+  # alacritty.toml references it.
+  xdg.configFile."alacritty/themes".source = externalSources.alacrittyTheme;
 }
