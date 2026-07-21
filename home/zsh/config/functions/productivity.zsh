@@ -390,10 +390,9 @@ function cleanup() {
 # -----------------------------------------------------------------------------
 # zshcache
 # @description Removes Zsh completion and related caches with optional
-# dry-run, rebuild, compile, and quiet modes.
+# dry-run, rebuild, and quiet modes.
 # @option --dry-run | --dryrun Preview removals without changing files.
-# @option --rebuild Rebuild compinit; compile when configured.
-# @option --compile Compile the configured Zsh files to `.zwc` bytecode.
+# @option --rebuild Rebuild compinit after cleanup.
 # @option --quiet Suppress informational output.
 # @option --help Show usage information.
 # @exitcode 1 If an unknown option is supplied.
@@ -404,22 +403,19 @@ function zshcache() {
 
   local dry_run=false
   local rebuild=false
-  local compile=false
   local quiet=false
 
   for arg in "$@"; do
     case "$arg" in
       --dry-run|--dryrun) dry_run=true ;;
       --rebuild)          rebuild=true ;;
-      --compile)          compile=true ;;
       --quiet)            quiet=true ;;
       --help)
-        echo "Usage: zshcache [--dry-run] [--rebuild] [--compile] [--quiet] [--help]"
+        echo "Usage: zshcache [--dry-run] [--rebuild] [--quiet] [--help]"
         echo "  Cleans stale entries and rebuilds the zsh completion cache."
         echo ""
         echo "  --dry-run  Preview what would be removed without making changes"
         echo "  --rebuild  Run compinit after cleanup to rebuild the cache"
-        echo "  --compile  Compile zsh files to .zwc bytecode"
         echo "  --quiet    Suppress informational output"
         return 0 ;;
       *) echo "zshcache: unknown option: $arg" >&2; return 1 ;;
@@ -427,10 +423,6 @@ function zshcache() {
   done
 
   [[ "$quiet" == true ]] || _zsh_ui_load || return 1
-
-  if [[ "$rebuild" == true && "${ZSH_CACHE_COMPILE:-1}" == "1" ]]; then
-    compile=true
-  fi
 
   local zdot="${ZDOTDIR:-$HOME}"
   local xdg_cache="${XDG_CACHE_HOME:-$HOME/.cache}"
@@ -474,8 +466,6 @@ function zshcache() {
       fi
       [[ "$rebuild" == true ]] &&
         _zsh_ui_log info "Dry run: compinit rebuild skipped."
-      [[ "$compile" == true ]] &&
-        _zsh_ui_log info "Dry run: bytecode compilation skipped."
     fi
     return 0
   else
@@ -489,43 +479,6 @@ function zshcache() {
     done
     [[ "$quiet" == true ]] || _zsh_ui_log ok "Zsh cache cleanup completed."
   fi
-
-  _zshcache_compile() {
-    emulate -L zsh
-    setopt noxtrace noverbose nullglob
-
-    local cfg_root="${ZSH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zsh}"
-    local zdot="${ZDOTDIR:-$HOME}"
-    local -a compile_files
-
-    compile_files=(
-      "$cfg_root"/*.zsh(N.)
-      "$cfg_root"/lib/**/*.zsh(N.)
-      "$cfg_root"/functions/**/*.zsh(N.)
-      "$cfg_root"/conf.d/**/*.zsh(N.)
-      "$cfg_root"/others/**/*.zsh(N.)
-      "$zdot"/.zshrc(N)
-      "$zdot"/.zshenv(N)
-      "$zdot"/.zprofile(N)
-    )
-    typeset -U compile_files
-
-    (( ${#compile_files[@]} )) || return 0
-
-    local file
-    local failed=0
-    for file in "${compile_files[@]}"; do
-      if ! zcompile -U "$file" 2>/dev/null; then
-        failed=1
-        [[ "$quiet" == true ]] ||
-          _zsh_ui_log warn "zcompile failed for $file."
-      fi
-    done
-
-    if (( failed == 0 )); then
-      [[ "$quiet" == true ]] || _zsh_ui_log ok "Zsh bytecode compiled."
-    fi
-  }
 
   if [[ "$rebuild" == true ]]; then
     autoload -Uz compinit
@@ -546,12 +499,6 @@ function zshcache() {
       fi
     fi
   fi
-
-  if [[ "$compile" == true ]]; then
-    _zshcache_compile
-  fi
-
-  unfunction _zshcache_compile 2>/dev/null
 }
 
 # -----------------------------------------------------------------------------

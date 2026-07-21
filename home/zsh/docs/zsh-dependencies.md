@@ -35,6 +35,11 @@ After changing the TSV registry, regenerate both manifests with:
 zshdeps --sync-manifests
 ```
 
+The deployed checker is store-backed and read-only. For this explicitly
+mutating command it writes to `~/Dotfiles/home/zsh` by default; set
+`ZSH_DOTFILES_ROOT` when the checkout lives elsewhere. Ordinary checks always
+read the manifests from the active generation.
+
 ## macOS
 
 Homebrew Bundle installs the declared formulae:

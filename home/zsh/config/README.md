@@ -53,11 +53,11 @@ For the standalone Linux Home Manager output, use:
 home-manager switch --flake '.#lcs-dev@lcs-legion-arch'
 ```
 
-Home Manager installs `~/.zshenv` from `zshenv-bootstrap`, links `zprofile`,
-`zshrc`, and `p10k.zsh` to their writable repository sources, and deploys the
-complete `config/` tree at `~/.config/zsh`. The bootstrap loads Cargo, sets the
-static Homebrew environment without running `brew shellenv` in every process,
-and then sources `~/.config/zsh/.zshenv`.
+Home Manager deploys `~/.zshenv`, `~/.zprofile`, `~/.zshrc`, `~/.p10k.zsh`, and
+the complete `~/.config/zsh` tree from the Nix store. The bootstrap loads Cargo,
+sets the static Homebrew environment without running `brew shellenv` in every
+process, and then sources `~/.config/zsh/.zshenv`. Durable configuration edits
+require a switch and therefore follow generation rollback.
 
 On macOS, nix-darwin deliberately leaves `programs.zsh.enable` disabled while
 Homebrew owns the login-shell binary and Home Manager owns its configuration.
@@ -120,7 +120,7 @@ take precedence over the generated baseline.
 | `dirsize`             | `functions/files.zsh`        | inspect directory sizes with the Python backend      |
 | `mkcd`, `bak`, `up`   | `functions/core.zsh`         | navigation and safe file backup helpers              |
 | `note`, `bm`          | `functions/productivity.zsh` | private notes and directory bookmarks                |
-| `cleanup`, `zshcache` | `functions/productivity.zsh` | cache cleanup/rebuild and bytecode compilation       |
+| `cleanup`, `zshcache` | `functions/productivity.zsh` | cache cleanup and compinit rebuild                    |
 | `fabric-pattern`      | `lib/70-ai-tools.zsh`        | run Fabric patterns without global wrapper functions |
 | `zfuncs`              | `functions/zfuncs.zsh`       | list and validate documented public functions        |
 | `h`                   | `functions/cli-tools.zsh`    | colorized command help through bat                   |

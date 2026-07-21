@@ -16,15 +16,12 @@ umask 077
 typeset test_dir="${0:A:h}"
 typeset config_dir="${test_dir:h}"
 typeset checker="$config_dir/scripts/check-zsh-dependencies.zsh"
-typeset fixture_parent="$test_dir/.tmp"
 typeset fixture_root=""
 
-mkdir -p "$fixture_parent"
-fixture_root="$(mktemp -d "$fixture_parent/dependencies.XXXXXX")" ||
-  return 1
+source "$test_dir/helpers.zsh" || return 1
+fixture_root="$(_zsh_test_temp_dir dependencies)" || return 1
 trap '
   command rm -rf -- "$fixture_root"
-  command rmdir -- "$fixture_parent" 2>/dev/null
 ' EXIT
 trap 'exit 130' INT TERM HUP
 
@@ -43,6 +40,7 @@ typeset -a fixture_env=(
   "ZSH_DEPENDENCY_REGISTRY=$registry"
   "ZSH_DEPENDENCY_BREWFILE=$brewfile"
   "ZSH_DEPENDENCY_ARCHFILE=$archfile"
+  "ZSH_DEPENDENCY_TMPDIR=$fixture_root/tmp"
   "ZSH_UI_STYLE=plain"
 )
 

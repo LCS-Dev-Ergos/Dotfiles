@@ -8,9 +8,11 @@
 # `zshdeps` via functions/development-tools.zsh; run with --help for options.
 #
 # Environment:
+#   ZSH_DOTFILES_ROOT         Checkout root for an explicit manifest update.
 #   ZSH_DEPENDENCY_REGISTRY  TSV registry path override.
 #   ZSH_DEPENDENCY_BREWFILE  Generated Brewfile path override.
 #   ZSH_DEPENDENCY_ARCHFILE  Generated Arch package list path override.
+#   ZSH_DEPENDENCY_TMPDIR    Parent for private temporary validation data.
 # ============================================================================ #
 
 emulate -L zsh
@@ -91,6 +93,30 @@ while (( $# )); do
   shift
 done
 
+# A deployed generation is read-only. Keep ordinary checks generation-local,
+# but route the explicitly mutating sync workflow to the checkout. Tests and
+# callers with exact path overrides retain full control of their fixture paths.
+if (( dependency_sync_manifests )) &&
+    [[ "$dependency_zsh_root" == /nix/store/* ]] &&
+    [[ -z "${ZSH_DEPENDENCY_REGISTRY:-}" &&
+       -z "${ZSH_DEPENDENCY_BREWFILE:-}" &&
+       -z "${ZSH_DEPENDENCY_ARCHFILE:-}" ]]; then
+  typeset dependency_checkout_root="${ZSH_DOTFILES_ROOT:-$HOME/Dotfiles}"
+  typeset dependency_checkout_zsh="$dependency_checkout_root/home/zsh"
+  if [[ ! -d "$dependency_checkout_zsh" ||
+        ! -w "$dependency_checkout_zsh" ]]; then
+    print -u2 \
+      "zshdeps: writable checkout not found: $dependency_checkout_zsh"
+    print -u2 \
+      "zshdeps: set ZSH_DOTFILES_ROOT or run the repository script directly"
+    exit 1
+  fi
+  dependency_zsh_root="$dependency_checkout_zsh"
+  dependency_registry="$dependency_zsh_root/packages/zsh-dependencies.tsv"
+  dependency_brewfile="$dependency_zsh_root/Brewfile"
+  dependency_archfile="$dependency_zsh_root/packages/arch-zsh.txt"
+fi
+
 [[ -r "$dependency_registry" ]] || {
   _zsh_ui_log error "Dependency registry not found: $dependency_registry"
   exit 1
@@ -161,13 +187,15 @@ _dependency_render_archfile() {
 }
 
 typeset dependency_tmp_root=""
-typeset dependency_tmp_parent="$dependency_config_dir/tests/.tmp"
-command mkdir -p -- "$dependency_tmp_parent" || exit 1
+typeset dependency_tmp_parent="${ZSH_DEPENDENCY_TMPDIR:-${TMPDIR:-/tmp}}"
+[[ -d "$dependency_tmp_parent" && -w "$dependency_tmp_parent" ]] || {
+  print -u2 "zshdeps: temporary directory is not writable: $dependency_tmp_parent"
+  exit 1
+}
 dependency_tmp_root="$(mktemp -d "$dependency_tmp_parent/zshdeps.XXXXXX")" ||
   exit 1
 trap '
   command rm -rf -- "$dependency_tmp_root"
-  command rmdir -- "$dependency_tmp_parent" 2>/dev/null
   command true
 ' EXIT INT TERM
 

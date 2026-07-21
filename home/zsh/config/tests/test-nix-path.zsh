@@ -55,13 +55,11 @@ fi
   return 1
 }
 
-typeset fixture_parent="$test_root/tests/.tmp"
 typeset fixture_root=""
-mkdir -p "$fixture_parent" || return 1
-fixture_root="$(mktemp -d "$fixture_parent/nix-path.XXXXXX")" || return 1
+source "$test_root/tests/helpers.zsh" || return 1
+fixture_root="$(_zsh_test_temp_dir nix-path)" || return 1
 trap '
   command rm -rf -- "$fixture_root"
-  command rmdir -- "$fixture_parent" 2>/dev/null
 ' EXIT
 trap 'return 130' INT TERM HUP
 

@@ -70,8 +70,9 @@ if [[ -f /etc/os-release ]]; then
   fi
 fi
 
-# Force ZDOTDIR to $HOME so history/dump files live in the home directory
-# while the actual configs remain under ${XDG_CONFIG_HOME:-$HOME/.config}/zsh.
+# Keep Zsh's root control files and history in $HOME. Completion dumps and
+# generated runtime data are configured separately below XDG cache/state paths,
+# while application configuration remains under XDG_CONFIG_HOME.
 export ZDOTDIR="$HOME"
 
 # Expose keg-only Homebrew LLVM (lldb/clang) in ALL shell types, not just
