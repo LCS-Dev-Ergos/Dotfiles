@@ -2,8 +2,8 @@
 
 The dependency model has three levels:
 
-- **required** supports installation, documentation generation, and the full
-  verification suite;
+- **required** supports the shell runtime, documentation generation, and the
+  full verification suite;
 - **recommended** enables the intended interactive experience;
 - **optional** activates a specific command family and may be absent safely.
 

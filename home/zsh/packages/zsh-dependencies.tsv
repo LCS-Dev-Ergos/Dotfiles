@@ -2,7 +2,6 @@
 required	core	zsh	zsh	zsh	Shell runtime used by every configuration profile.
 required	core	git	git	git	Repository operations, plugins, and update workflows.
 required	core	python3	python	python	Python backends and the complete regression suite.
-required	bootstrap	stow	stow	stow	Installs the dotfiles package into the home directory.
 required	documentation	gawk	gawk	gawk	Runtime required by shdoc.
 required	documentation	shdoc	-	aur:shdoc-git	Validates metadata and generates the command catalog.
 recommended	ui	gum	gum	gum	Rich one-shot headings, cards, tables, prompts, and spinners.

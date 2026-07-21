@@ -8,11 +8,6 @@
     pkgs.nixfmt # Canonical formatter (RFC 166 style).
     pkgs.statix # Lints anti-patterns (e.g. `with` scope footguns).
     pkgs.deadnix # Flags dead/unused bindings.
-
-    # Keep remaining legacy packages operable during the gradual Stow-to-Home
-    # Manager transition. Nix owns the binary on both platforms; no Homebrew
-    # declaration or platform-specific path is needed.
-    pkgs.stow
   ];
 
   # fzf, zoxide, eza, and direnv already have full shell integration and
