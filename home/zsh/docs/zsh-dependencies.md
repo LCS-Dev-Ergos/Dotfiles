@@ -7,7 +7,7 @@ The dependency model has three levels:
 - **recommended** enables the intended interactive experience;
 - **optional** activates a specific command family and may be absent safely.
 
-`zsh/packages/zsh-dependencies.tsv` is the single source of truth. The
+`home/zsh/packages/zsh-dependencies.tsv` is the single source of truth. The
 `Brewfile` and Arch package list are generated views; do not edit them by hand.
 
 ## Inspect the current machine
@@ -40,7 +40,7 @@ zshdeps --sync-manifests
 Homebrew Bundle installs the declared formulae:
 
 ```zsh
-brew bundle --file ~/Dotfiles/zsh/Brewfile
+brew bundle --file ~/Dotfiles/home/zsh/Brewfile
 ```
 
 The Brewfile captures the desired package set, not exact formula versions.
@@ -62,7 +62,7 @@ portable wrapper below `~/.local/bin`, and refuses a checksum mismatch.
 Install packages from official repositories with:
 
 ```zsh
-sudo pacman -S --needed - < ~/Dotfiles/zsh/packages/arch-zsh.txt
+sudo pacman -S --needed - < ~/Dotfiles/home/zsh/packages/arch-zsh.txt
 ```
 
 The registry marks packages outside the official repositories with an `aur:`

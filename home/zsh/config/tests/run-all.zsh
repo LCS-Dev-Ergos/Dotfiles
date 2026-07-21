@@ -39,7 +39,7 @@ esac
 }
 
 typeset verify_config_dir="${0:A:h:h}"
-typeset verify_zsh_root="${verify_config_dir:h:h}"
+typeset verify_zsh_root="${verify_config_dir:h}"
 typeset verify_helpers="$verify_config_dir/scripts/_shared-helpers.zsh"
 typeset verify_dependencies="$verify_config_dir/scripts/check-zsh-dependencies.zsh"
 typeset verify_tmp_parent="$verify_config_dir/tests/.tmp"
@@ -124,8 +124,8 @@ _verify_shell_syntax() {
     "$verify_config_dir"/**/*.sh(N.)
     "$verify_config_dir"/completions/_*(N.)
     "$verify_config_dir"/others/*.zshrc(N.)
-    "$verify_zsh_root"/.zshrc(N.)
-    "$verify_zsh_root"/.zshenv.bootstrap(N.)
+    "$verify_zsh_root"/zshrc(N.)
+    "$verify_zsh_root"/zshenv-bootstrap(N.)
     "$verify_config_dir"/.zshenv(N.)
   )
   for file in "${(ou)files[@]}"; do
@@ -243,7 +243,7 @@ _verify_fast_start() {
     ZDOTDIR="$verify_config_dir" \
     DOTFILES_ZSH_ROOT="$verify_zsh_root" \
     zsh -dfi -c \
-    'source "$DOTFILES_ZSH_ROOT/.zshrc" || exit 1
+    'source "$DOTFILES_ZSH_ROOT/zshrc" || exit 1
      type h >/dev/null
      type zsh_rebuild_path >/dev/null
      if [[ -x /run/current-system/sw/bin/darwin-rebuild ]]; then
