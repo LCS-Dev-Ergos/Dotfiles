@@ -13,6 +13,9 @@ home/kitty/kitty/theme.conf
 # Ignore Claude AI configuration files
 .claude/
 
+# Local migration notes (operational details, not repository documentation)
+/HOMEBREW_NIX_CLEANUP.md
+
 # macOS system files
 .DS_Store
 .AppleDouble
