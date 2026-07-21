@@ -15,6 +15,7 @@ migration used one GNU Stow package per tool; that layout is retired.
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
 - [Module Organization](#module-organization)
+- [Validation and CI](#validation-and-ci)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -37,16 +38,41 @@ Manager owns application configuration. The zsh configuration under
 `home/zsh/` is managed by Home Manager, while the `zsh` executable comes from
 Homebrew.
 
+### State Boundaries
+
+Static configuration is deployed from the Nix store wherever the application
+accepts read-only files. Writable state stays outside Git and the store:
+
+| Location | Content | Generation rollback |
+| --- | --- | --- |
+| `XDG_STATE_HOME` | Persistent application state | Not rewound; back up as user data |
+| `XDG_DATA_HOME` | Application data | Not rewound; back up as user data |
+| `XDG_CACHE_HOME` | Disposable data | Reproducible from configuration and normal startup |
+
+Applications that must write through a managed configuration path are
+registered in `home/out-of-store-allowlist.tsv`, with the writer, sensitivity,
+rollback behavior and retirement condition of each exception.
+`scripts/check-out-of-store-allowlist.sh` rejects an unregistered
+`mkOutOfStoreSymlink` and stale entries. Fish shows the boundary: its tracked
+`fish_variables` file is only a first-run seed, while the live file is private
+state under `XDG_STATE_HOME` that activation never overwrites.
+
+After activation, `scripts/audit-live-config.sh` audits the live home directory
+read-only for broken links, unregistered links into the checkout and changes
+beneath registered targets. A migration therefore stays visible as pending
+until the generation that implements it is active.
+
 ## Supported Platforms
 
 | Platform | Nix system | Configuration | Reference output | Entry point |
 | --- | --- | --- | --- | --- |
-| macOS on Apple Silicon | `aarch64-darwin` | nix-darwin with the Home Manager module | `darwinConfigurations."LCSMacBook-Pro"` | `hosts/LCSMacBook-Pro/` |
+| macOS on Apple Silicon | `aarch64-darwin` | nix-darwin with the Home Manager module | `darwinConfigurations."LCSMacBook-Pro"` | `hosts/lcs-macbook-pro/` |
 | Arch Linux | `x86_64-linux` | Standalone Home Manager | `homeConfigurations."lcs-dev@lcs-legion-arch"` | `hosts/lcs-legion-arch/` |
 
 Output names are the attribute names of the reference configurations. The
-Linux configuration is experimental: it shares the application modules, but
-its build and activation are not validated.
+account name and home directory are declared in `flake.nix` and reach modules
+as arguments; shared modules never hard-code them. The Linux configuration is
+experimental: CI evaluates it, but its build and activation are not validated.
 
 ## Prerequisites
 
@@ -71,14 +97,14 @@ Build before switching. `darwin-rebuild build` evaluates and builds the
 configuration without changing the running system:
 
 ```bash
-darwin-rebuild build --flake .#LCSMacBook-Pro --impure
-sudo darwin-rebuild switch --flake .#LCSMacBook-Pro --impure
+darwin-rebuild build --flake .#LCSMacBook-Pro
+sudo darwin-rebuild switch --flake .#LCSMacBook-Pro
 ```
 
-`--impure` is required: nix-darwin reads the macOS account state
-(`system.primaryUser` and the account's home directory), which a pure
-evaluation cannot see. A switch applies the Home Manager configuration, the
-declared Homebrew inventory and the Dock, Finder and trackpad defaults.
+The account name and home directory are declared in `flake.nix`, so evaluation
+is pure and needs no `--impure`. A switch applies the Home Manager
+configuration, the declared Homebrew inventory and the Dock, Finder and
+trackpad defaults.
 
 ### Linux Activation
 
@@ -93,7 +119,7 @@ Dotfiles/
 ├── flake.nix                  # Inputs and the darwin and Home Manager outputs
 ├── flake.lock
 ├── hosts/
-│   ├── LCSMacBook-Pro/
+│   ├── lcs-macbook-pro/
 │   │   ├── darwin.nix         # stateVersion, hostPlatform
 │   │   └── home.nix           # username, homeDirectory, imports
 │   └── lcs-legion-arch/
@@ -102,7 +128,11 @@ Dotfiles/
 │   ├── default.nix            # Shared nix-darwin policy: nix.gc, system.defaults, users
 │   └── homebrew.nix           # Declared taps, formulae and casks
 └── home/
-    ├── default.nix            # stateVersion and the imports of every application
+    ├── default.nix            # Shared Home Manager policy and stateVersion
+    ├── common.nix             # Platform-neutral application imports
+    ├── darwin.nix             # macOS-only application imports
+    ├── linux.nix              # Linux and Wayland application imports
+    ├── out-of-store-allowlist.tsv
     ├── git/                   # One directory per application, each with its own default.nix
     ├── zsh/
     └── ...                    # kitty, neovim, tmux, starship, fish, nushell and others
@@ -117,10 +147,38 @@ Module conventions:
   `lib.mkIf pkgs.stdenv.isDarwin` or `pkgs.stdenv.isLinux`, never duplicated
   per configuration.
 
+## Validation and CI
+
+### Local Checks
+
+The flake exposes a lockfile-pinned `ci` development shell for Nix formatting
+and policy checks. The core checks that CI runs:
+
+```bash
+nix develop .#ci --command bash -euo pipefail -c '
+  mapfile -t nix_files < <(find flake.nix darwin home hosts -type f -name "*.nix" | sort)
+  nixfmt --check "${nix_files[@]}"
+  statix check .
+  deadnix --fail flake.nix darwin home hosts
+  bash scripts/check-out-of-store-allowlist.sh
+  bash scripts/check-declared-secrets.sh
+  shellcheck scripts/*.sh
+'
+nix flake check --no-build --all-systems --show-trace
+home/zsh/config/tests/run-all.zsh --full
+git diff --check
+```
+
+On macOS, finish with a complete build that does not activate anything:
+
+```bash
+nix build .#darwinConfigurations.LCSMacBook-Pro.system --no-link
+```
+
 ## Contributing
 
 Issues and pull requests are accepted on GitHub. A change follows the module
-conventions above.
+conventions above and passes the [local checks](#local-checks).
 
 ## License
 

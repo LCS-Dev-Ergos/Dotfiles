@@ -44,7 +44,7 @@ keep the names imposed by their respective tools.
 Provision the macOS host from the repository root with:
 
 ```zsh
-sudo darwin-rebuild switch --flake .#LCSMacBook-Pro --impure
+sudo darwin-rebuild switch --flake .#LCSMacBook-Pro
 ```
 
 For the standalone Linux Home Manager output, use:
