@@ -55,7 +55,37 @@ fi
   return 1
 }
 
-print -r -- "PASS: non-interactive nix-darwin PATH and CLI precedence"
+typeset fixture_parent="$test_root/tests/.tmp"
+typeset fixture_root=""
+mkdir -p "$fixture_parent" || return 1
+fixture_root="$(mktemp -d "$fixture_parent/nix-path.XXXXXX")" || return 1
+trap '
+  command rm -rf -- "$fixture_root"
+  command rmdir -- "$fixture_parent" 2>/dev/null
+' EXIT
+trap 'return 130' INT TERM HUP
+
+command env -i \
+  HOME="$HOME" \
+  USER="$USER" \
+  PATH="/opt/homebrew/bin:/usr/bin:/bin:/etc/profiles/per-user/$USER/bin" \
+  PLATFORM=macOS \
+  XDG_CACHE_HOME="$fixture_root/cache" \
+  ZSH_CONFIG_DIR="$test_root" \
+  zsh -dfc '
+    source "$ZSH_CONFIG_DIR/lib/90-path.zsh" || exit 1
+    typeset nix_bin="/etc/profiles/per-user/$USER/bin"
+    typeset brew_bin="/opt/homebrew/bin"
+    typeset -i nix_index=${path[(Ie)$nix_bin]}
+    typeset -i brew_index=${path[(Ie)$brew_bin]}
+    (( nix_index > 0 && brew_index > 0 && nix_index < brew_index ))
+  ' || {
+  print -u2 "FAIL: interactive PATH does not prefer Nix over Homebrew"
+  return 1
+}
+
+print -r -- \
+  "PASS: non-interactive Nix availability and interactive Nix precedence"
 
 # ============================================================================ #
 # End of test-nix-path.zsh

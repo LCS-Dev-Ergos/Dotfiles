@@ -18,9 +18,10 @@
 #   1. Dynamic shims (pyenv, rbenv, etc.).
 #   2. Static language bins (SDKMAN, opam, etc.).
 #   3. FNM current session.
-#   4. Homebrew/system tools.
-#   5. User and app-specific paths.
-#   6. Leftover paths from original PATH.
+#   4. Nix user and system profiles.
+#   5. Homebrew/Linuxbrew and system tools.
+#   6. User and app-specific paths.
+#   7. Leftover paths from original PATH.
 #
 # Behavior:
 #   - Filters non-existent directories.
@@ -71,7 +72,9 @@ zsh_rebuild_path() {
 
   local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
   local cache_file="$cache_dir/path.cache"
-  local cache_version="4"
+  # Bump whenever priority semantics change so live shells cannot reuse a
+  # structurally valid cache containing the previous order.
+  local cache_version="5"
   local cache_signature="${cache_version}|${stable_original_path}|${PLATFORM}"
   cache_signature+="|${PYENV_ROOT}|${SDKMAN_DIR}"
   cache_signature+="|${GEM_HOME}|${GOPATH}|${ANDROID_HOME}"
@@ -133,6 +136,14 @@ zsh_rebuild_path() {
       # ------ FNM (Current session only) ------- #
       "$FNM_MULTISHELL_PATH/bin"
 
+      # ------------------ Nix ------------------ #
+      # Declaratively managed tools win over duplicate Homebrew formulae.
+      # Language-version shims remain above Nix by deliberate user choice.
+      "/etc/profiles/per-user/$USER/bin"
+      "$HOME/.nix-profile/bin"
+      "/nix/var/nix/profiles/default/bin"
+      "/run/current-system/sw/bin"
+
       # --------------- Homebrew ---------------- #
       "/opt/homebrew/bin"
       "/opt/homebrew/sbin"
@@ -149,10 +160,6 @@ zsh_rebuild_path() {
       "/usr/sbin" "/sbin"
 
       # --------- Functional Languages ---------- #
-      "/etc/profiles/per-user/$USER/bin"
-      "$HOME/.nix-profile/bin"
-      "/nix/var/nix/profiles/default/bin"
-      "/run/current-system/sw/bin"
       "$HOME/Library/Application Support/Coursier/bin"
       "$HOME/.ghcup/bin" "$HOME/.cabal/bin"
       "$HOME/.cargo/bin"
@@ -206,6 +213,14 @@ zsh_rebuild_path() {
       # ------ FNM (Current session only) ------- #
       "$FNM_MULTISHELL_PATH/bin"
 
+      # ------------------ Nix ------------------ #
+      # Declaratively managed tools win over system and Linuxbrew copies.
+      # Language-version shims remain above Nix by deliberate user choice.
+      "/etc/profiles/per-user/$USER/bin"
+      "$HOME/.nix-profile/bin"
+      "/nix/var/nix/profiles/default/bin"
+      "/run/current-system/sw/bin"
+
       # ------------- System Tools -------------- #
       "/usr/local/bin" "/usr/bin" "/bin"
       "/usr/local/sbin" "/usr/sbin" "/sbin"
@@ -214,10 +229,6 @@ zsh_rebuild_path() {
       "/home/linuxbrew/.linuxbrew/bin" "/home/linuxbrew/.linuxbrew/sbin"
 
       # --------- Functional Languages ---------- #
-      "/etc/profiles/per-user/$USER/bin"
-      "$HOME/.nix-profile/bin"
-      "/nix/var/nix/profiles/default/bin"
-      "/run/current-system/sw/bin"
       "$HOME/.ghcup/bin" "$HOME/.cabal/bin"
       "$HOME/.cargo/bin"
       "$HOME/.elan/bin"
