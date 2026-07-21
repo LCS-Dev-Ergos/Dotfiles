@@ -21,15 +21,40 @@
     enable = true;
 
     onActivation.cleanup = "none";
+    # Suppresses the "Using <formula>" line brew bundle otherwise prints for
+    # every already-installed dependency on every switch -- pure noise here
+    # since cleanup = "none" means nothing gets removed either way. Actual
+    # errors/installs still print.
+    onActivation.extraFlags = [ "--quiet" ];
 
     taps = [
-      { name = "alexsjones/llmfit"; clone_target = "https://github.com/AlexsJones/homebrew-llmfit"; trusted = true; }
-      { name = "anomalyco/tap"; trusted = true; }
-      { name = "asmvik/formulae"; clone_target = "https://github.com/asmvik/homebrew-formulae.git"; trusted = true; }
-      { name = "d12frosted/emacs-plus"; trusted = true; }
-      { name = "felixkratz/formulae"; clone_target = "https://github.com/FelixKratz/homebrew-formulae"; }
+      {
+        name = "alexsjones/llmfit";
+        clone_target = "https://github.com/AlexsJones/homebrew-llmfit";
+        trusted = true;
+      }
+      {
+        name = "anomalyco/tap";
+        trusted = true;
+      }
+      {
+        name = "asmvik/formulae";
+        clone_target = "https://github.com/asmvik/homebrew-formulae.git";
+        trusted = true;
+      }
+      {
+        name = "d12frosted/emacs-plus";
+        trusted = true;
+      }
+      {
+        name = "felixkratz/formulae";
+        clone_target = "https://github.com/FelixKratz/homebrew-formulae";
+      }
       "graelo/tap"
-      { name = "gromgit/brewtils"; trusted = true; }
+      {
+        name = "gromgit/brewtils";
+        trusted = true;
+      }
       "hako/tap"
       "homebrew/cask"
       "homebrew/core"
@@ -37,11 +62,25 @@
       "jordond/tap"
       "jstkdng/programs"
       "julien-cpsn/atac"
-      { name = "kilo-org/tap"; clone_target = "https://github.com/Kilo-Org/homebrew-tap"; trusted = true; }
-      { name = "nikitabobko/tap"; trusted = true; }
+      {
+        name = "kilo-org/tap";
+        clone_target = "https://github.com/Kilo-Org/homebrew-tap";
+        trusted = true;
+      }
+      {
+        name = "nikitabobko/tap";
+        trusted = true;
+      }
       "oven-sh/bun"
-      { name = "reyamira/tap"; clone_target = "https://github.com/reyamira/homebrew-tap.git"; trusted = true; }
-      { name = "romkatv/powerlevel10k"; trusted = true; }
+      {
+        name = "reyamira/tap";
+        clone_target = "https://github.com/reyamira/homebrew-tap.git";
+        trusted = true;
+      }
+      {
+        name = "romkatv/powerlevel10k";
+        trusted = true;
+      }
       "serkanyersen/dotstate"
       "teamookla/speedtest"
       "terror/tap"
@@ -50,9 +89,10 @@
     ];
 
     brews = [
-      "tree"
       "ansible"
       "ansible-lint"
+      "asmvik/formulae/skhd"
+      "asmvik/formulae/yabai"
       "aspell"
       "atuin"
       "autoconf"
@@ -60,7 +100,10 @@
       "bandwhich"
       "bash"
       "bat"
-      { name = "bc"; link = true; }
+      {
+        name = "bc";
+        link = true;
+      }
       "bear"
       "beautysh"
       "bottom"
@@ -68,14 +111,12 @@
       "cava"
       "cbonsai"
       "ccache"
-      "icu4c@78"
       "clamav"
       "clang-format"
       "cmake"
       "cmake-docs"
       "cmatrix"
       "coreutils"
-      "icu4c@77"
       "coursier"
       "cpanminus"
       "cppman"
@@ -84,8 +125,8 @@
       "cunit"
       "direnv"
       "discount"
-      "djvulibre"
       "djvu2pdf"
+      "djvulibre"
       "dolphie"
       "doxygen"
       "duf"
@@ -95,6 +136,8 @@
       "fabric-ai"
       "fastfetch"
       "fd"
+      "felixkratz/formulae/borders"
+      "felixkratz/formulae/sketchybar"
       "findutils"
       "fish"
       "fnm"
@@ -110,7 +153,6 @@
       "git-filter-repo"
       "glab"
       "gleam"
-      "universal-ctags"
       "global"
       "glow"
       "gnu-sed"
@@ -118,24 +160,31 @@
       "go"
       "googletest"
       "gpatch"
+      "graelo/tap/pumas"
       "graphviz"
+      "gromgit/brewtils/taproom"
       "gum"
+      "hako/tap/oeis-tui"
       "hashcat"
       "hcxtools"
-      "pkgconf"
       "hugo"
+      "icu4c@77"
+      "icu4c@78"
       "imagemagick"
-      "qpdf"
+      "jbreckmckye/formulae/daylight"
+      "jordond/tap/jolt"
       "jq"
+      "jstkdng/programs/ueberzugpp"
+      "julien-cpsn/atac/atac"
       "just"
       "lazydocker"
       "lazygit"
       "libgccjit"
       "libsixel"
       "libvterm"
-      "llvm"
       "lld"
       "llmfit"
+      "llvm"
       "lua"
       "make"
       "man-db"
@@ -154,26 +203,33 @@
       "ocrmypdf"
       "oh-my-posh"
       "opam"
-      "ripgrep"
       "opencode"
-      { name = "openjdk@21"; link = true; }
+      {
+        name = "openjdk@21";
+        link = true;
+      }
+      "oven-sh/bun/bun"
       "pandoc"
       "pdfcpu"
       "perl"
       "php"
       "pipes-sh"
+      "pkgconf"
       "plantuml"
       "powerlevel10k"
       "procs"
       "pstree"
       "pyenv"
+      "qpdf"
       "qrencode"
       "raylib"
       "rbenv"
       "reaver"
       "redis"
+      "ripgrep"
       "ruby"
       "ruff"
+      "serkanyersen/dotstate/dotstate"
       "sesh"
       "sevenzip"
       "shellcheck"
@@ -183,47 +239,35 @@
       "swi-prolog"
       "switchaudio-osx"
       "tealdeer"
+      "teamookla/speedtest/speedtest"
       "television"
+      "terror/tap/just-lsp"
       "tesseract-lang"
       "tex-fmt"
       "thefuck"
       "tmux"
+      "tree"
       "unar"
+      "universal-ctags"
       "uv"
+      "veeso/termscp/termscp"
       "w3m"
       "wget"
       "yazi"
+      "zackelia/formulae/bclm"
       "zoxide"
       "zsh"
-      "asmvik/formulae/skhd"
-      "asmvik/formulae/yabai"
-      "felixkratz/formulae/borders"
-      "felixkratz/formulae/sketchybar"
-      "graelo/tap/pumas"
-      "gromgit/brewtils/taproom"
-      "hako/tap/oeis-tui"
-      "jbreckmckye/formulae/daylight"
-      "jordond/tap/jolt"
-      "jstkdng/programs/ueberzugpp"
-      "julien-cpsn/atac/atac"
-      "oven-sh/bun/bun"
-      "serkanyersen/dotstate/dotstate"
-      "teamookla/speedtest/speedtest"
-      "terror/tap/just-lsp"
-      "veeso/termscp/termscp"
-      "zackelia/formulae/bclm"
     ];
 
     casks = [
       "1password-cli@beta"
-      "nikitabobko/tap/aerospace"
       "battery"
       "calibre"
       "codex"
       "copilot-cli"
+      "d12frosted/emacs-plus/emacs-plus-app"
       "dotnet-sdk"
       "droid"
-      "d12frosted/emacs-plus/emacs-plus-app"
       "font-caskaydia-cove-nerd-font"
       "font-computer-modern"
       "font-fira-code"
@@ -243,6 +287,7 @@
       "localsend"
       "neovide-app"
       "ngrok"
+      "nikitabobko/tap/aerospace"
       "prince"
       "racket"
       "raycast"
@@ -252,5 +297,6 @@
       "warp"
       "wireshark-app"
       "xquartz"
-    ];  };
+    ];
+  };
 }
