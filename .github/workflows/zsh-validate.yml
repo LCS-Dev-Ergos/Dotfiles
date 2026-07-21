@@ -1,15 +1,27 @@
-name: Validate Zsh configuration
+name: Validate Nix and Zsh configuration
 
 on:
   push:
     paths:
-      - "zsh/**"
-      - "docs/zsh-dependencies.md"
+      - "flake.nix"
+      - "flake.lock"
+      - "darwin/**/*.nix"
+      - "home/**/*.nix"
+      - "home/zsh/**"
+      - "hosts/**/*.nix"
+      - "scripts/**"
+      - "home/out-of-store-allowlist.tsv"
       - ".github/workflows/zsh-validate.yml"
   pull_request:
     paths:
-      - "zsh/**"
-      - "docs/zsh-dependencies.md"
+      - "flake.nix"
+      - "flake.lock"
+      - "darwin/**/*.nix"
+      - "home/**/*.nix"
+      - "home/zsh/**"
+      - "hosts/**/*.nix"
+      - "scripts/**"
+      - "home/out-of-store-allowlist.tsv"
       - ".github/workflows/zsh-validate.yml"
   workflow_dispatch:
 
@@ -17,7 +29,33 @@ permissions:
   contents: read
 
 jobs:
-  validate:
+  nix:
+    name: Nix policy and evaluation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+
+      - name: Check formatting, lint, and state boundaries
+        run: |
+          nix develop .#ci --command bash -euo pipefail -c '
+            mapfile -t nix_files < <(find flake.nix darwin home hosts -type f -name "*.nix" | sort)
+            nixfmt --check "${nix_files[@]}"
+            statix check .
+            deadnix --fail flake.nix darwin home hosts
+            bash scripts/check-out-of-store-allowlist.sh
+            bash scripts/check-declared-secrets.sh
+            shellcheck scripts/*.sh
+          '
+
+      - name: Evaluate every flake output
+        run: nix flake check --no-build --all-systems --show-trace
+
+  zsh:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -40,22 +78,22 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install --yes zsh gawk stow
+          sudo apt-get install --yes zsh gawk
 
       - name: Install macOS validation dependencies
         if: runner.os == 'macOS'
-        run: brew install gawk stow
+        run: brew install gawk
 
       - name: Install pinned shdoc
         run: |
-          zsh zsh/.config/zsh/scripts/install-shdoc.zsh
+          zsh home/zsh/config/scripts/install-shdoc.zsh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           "$HOME/.local/bin/shdoc" --version
 
       - name: Check dependency contract
         run: |
-          zsh/.config/zsh/scripts/check-zsh-dependencies.zsh \
+          home/zsh/config/scripts/check-zsh-dependencies.zsh \
             --required --check-manifests
 
       - name: Run complete verification suite
-        run: zsh/.config/zsh/tests/run-all.zsh --full
+        run: home/zsh/config/tests/run-all.zsh --full
