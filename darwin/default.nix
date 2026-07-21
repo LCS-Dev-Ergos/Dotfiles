@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ pkgs, lib, ... }:
 {
   imports = [ ./homebrew.nix ];
 
@@ -28,27 +28,35 @@
   # Dock, Finder, and trackpad. Other non-default values found during that
   # same audit (dark mode, auto-hidden menu bar) were left out since they
   # weren't confirmed as intentional.
-  system.defaults.dock = {
-    autohide = true;
-    orientation = "left";
-    tilesize = 76;
-    magnification = false;
-    show-recents = false;
-    expose-group-apps = true;
-    minimize-to-application = true;
-    mru-spaces = true;
-  };
+  #
+  # Temporarily disabled (2026-07-21): these values are already applied and
+  # saved on the live system, so re-declaring them just makes nix-darwin
+  # replay the same `defaults write` calls (and the Dock/Finder restarts
+  # that go with them) on every switch for no actual effect. Flip back to
+  # `true` once a value here needs to change again.
+  system.defaults = lib.mkIf false {
+    dock = {
+      autohide = true;
+      orientation = "left";
+      tilesize = 76;
+      magnification = false;
+      show-recents = false;
+      expose-group-apps = true;
+      minimize-to-application = true;
+      mru-spaces = true;
+    };
 
-  system.defaults.finder = {
-    ShowPathbar = true;
-    ShowStatusBar = false;
-    FXPreferredViewStyle = "Nlsv";
-  };
+    finder = {
+      ShowPathbar = true;
+      ShowStatusBar = false;
+      FXPreferredViewStyle = "Nlsv";
+    };
 
-  system.defaults.trackpad = {
-    Clicking = true;
-    TrackpadRightClick = true;
-    TrackpadThreeFingerDrag = false;
+    trackpad = {
+      Clicking = true;
+      TrackpadRightClick = true;
+      TrackpadThreeFingerDrag = false;
+    };
   };
 
   # Required since we never declared users.users.lcs-dev ourselves:
