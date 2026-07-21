@@ -1,5 +1,4 @@
-{ ... }:
-{
+_: {
   # Captured via `brew bundle dump` against the live system (2026-07-20):
   # taps/brews/casks only -- Homebrew Bundle's vscode/go/cargo/uv stanzas
   # have no nix-darwin equivalent and aren't tracked here.
@@ -10,13 +9,20 @@
   # those modes remove whatever's installed but undeclared, which would
   # delete real applications if this audit missed something.
   #
-  # Some of these formulae (git, stow, atuin, bat, direnv, eza, fd, fzf,
-  # ripgrep, starship, tealdeer, zoxide, tmux, neovim, fish, nushell) are
-  # now also declared via Nix/Home Manager modules elsewhere in this repo.
-  # Both sources installing the same tool is harmless (the Nix copy already
-  # wins on PATH) and is left as-is here; deciding whether to eventually
-  # drop the Homebrew copies is separate follow-up work, same as the
-  # broader "retire Stow" step.
+  # Command-line tools now owned by Nix/Home Manager are intentionally absent:
+  # git, stow, atuin, bat, btop, cava, direnv, eza, fastfetch, fd, fish, fzf,
+  # git-delta, lazygit, nnn, nushell, oh-my-posh, ripgrep, starship, tealdeer,
+  # tmux, yazi, zoxide, and the formerly jstkdng-owned ueberzugpp formula/tap.
+  # The Nix profile already wins on PATH, so these declarations had duplicate
+  # ownership without changing the executable actually used. Neovim and Zsh
+  # remain explicit Homebrew owners on Darwin: Home Manager manages Neovim's
+  # writable config only, and Zsh's binary migration remains intentionally
+  # separate from its configuration. GUI applications remain Homebrew-owned.
+  #
+  # cleanup stays "none", so any live pre-migration Homebrew copies are not
+  # silently removed by a switch. Remove them manually only after validating
+  # their Nix replacements in real sessions; this is the safe continuation of
+  # the earlier broader "retire Stow/duplicate Homebrew ownership" follow-up.
   homebrew = {
     enable = true;
 
@@ -60,7 +66,6 @@
       "homebrew/core"
       "jbreckmckye/formulae"
       "jordond/tap"
-      "jstkdng/programs"
       "julien-cpsn/atac"
       {
         name = "kilo-org/tap";
@@ -94,12 +99,10 @@
       "asmvik/formulae/skhd"
       "asmvik/formulae/yabai"
       "aspell"
-      "atuin"
       "autoconf"
       "automake"
       "bandwhich"
       "bash"
-      "bat"
       {
         name = "bc";
         link = true;
@@ -107,8 +110,6 @@
       "bear"
       "beautysh"
       "bottom"
-      "btop"
-      "cava"
       "cbonsai"
       "ccache"
       "clamav"
@@ -123,7 +124,6 @@
       "cronboard"
       "csvlens"
       "cunit"
-      "direnv"
       "discount"
       "djvu2pdf"
       "djvulibre"
@@ -132,24 +132,17 @@
       "duf"
       "erlang"
       "exiftool"
-      "eza"
       "fabric-ai"
-      "fastfetch"
-      "fd"
       "felixkratz/formulae/borders"
       "felixkratz/formulae/sketchybar"
       "findutils"
-      "fish"
       "fnm"
       "fswatch"
-      "fzf"
       "fzf-make"
       "gawk"
       "gcc"
       "gdb"
       "gh"
-      "git"
-      "git-delta"
       "git-filter-repo"
       "glab"
       "gleam"
@@ -174,11 +167,9 @@
       "jbreckmckye/formulae/daylight"
       "jordond/tap/jolt"
       "jq"
-      "jstkdng/programs/ueberzugpp"
       "julien-cpsn/atac/atac"
       "just"
       "lazydocker"
-      "lazygit"
       "libgccjit"
       "libsixel"
       "libvterm"
@@ -195,13 +186,10 @@
       "neovim"
       "ninja"
       "nmap"
-      "nnn"
       "node"
       "nowplaying-cli"
-      "nushell"
       "oci-cli"
       "ocrmypdf"
-      "oh-my-posh"
       "opam"
       "opencode"
       {
@@ -226,7 +214,6 @@
       "rbenv"
       "reaver"
       "redis"
-      "ripgrep"
       "ruby"
       "ruff"
       "serkanyersen/dotstate/dotstate"
@@ -234,18 +221,14 @@
       "sevenzip"
       "shellcheck"
       "smartmontools"
-      "starship"
-      "stow"
       "swi-prolog"
       "switchaudio-osx"
-      "tealdeer"
       "teamookla/speedtest/speedtest"
       "television"
       "terror/tap/just-lsp"
       "tesseract-lang"
       "tex-fmt"
       "thefuck"
-      "tmux"
       "tree"
       "unar"
       "universal-ctags"
@@ -253,9 +236,7 @@
       "veeso/termscp/termscp"
       "w3m"
       "wget"
-      "yazi"
       "zackelia/formulae/bclm"
-      "zoxide"
       "zsh"
     ];
 
