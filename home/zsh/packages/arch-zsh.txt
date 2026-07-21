@@ -47,7 +47,6 @@ ripgrep
 rpm-tools
 rsync
 starship
-stow
 tealdeer
 time
 tree
