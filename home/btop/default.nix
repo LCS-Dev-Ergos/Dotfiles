@@ -1,4 +1,9 @@
-{ config, dotfilesRoot, ... }:
+{
+  config,
+  dotfilesRoot,
+  pkgs,
+  ...
+}:
 {
   # Not using programs.btop.settings: Home Manager's generator writes
   # booleans as Python-style True/False, but btop's own parser expects
@@ -6,12 +11,6 @@
   # wrong, not just uncommented. Linking the raw file preserves both the
   # comments and the exact casing btop actually parses.
   programs.btop.enable = true;
-
-  # color_theme is the bare name "tokyo-night", not an absolute path: btop
-  # resolves it itself from "../share/btop/themes" relative to its own
-  # binary, and pkgs.btop already ships that file there (verified against
-  # the Nix store output) — no Homebrew Cellar path to hardcode or
-  # substitute at build time.
 
   # Out-of-store (live, writable) rather than a store-backed copy: btop.conf
   # has save_config_on_exit = true, so btop rewrites this file itself on
@@ -21,6 +20,19 @@
   # writable-symlink treatment as zsh/doom/sketchybar/cpp-tools; btop's own
   # writes now land directly in this tracked file, so `git status` will show
   # a diff after a session where something changed, to review/commit at will.
-  xdg.configFile."btop/btop.conf".source =
-    config.lib.file.mkOutOfStoreSymlink "${dotfilesRoot}/home/btop/btop.conf";
+  xdg.configFile = {
+    "btop/btop.conf".source = config.lib.file.mkOutOfStoreSymlink "${dotfilesRoot}/home/btop/btop.conf";
+
+    # btop discovers bundled themes relative to the invoked executable path.
+    # Home Manager exposes btop through a profile symlink, so that lookup does
+    # not reach pkgs.btop's share directory and the selector otherwise shows
+    # only the built-in Default and TTY themes. Recursively linking the
+    # immutable packaged themes into btop's documented user theme directory
+    # makes the full collection (including tokyo-night) discoverable without
+    # making the writable btop.conf store-backed.
+    "btop/themes" = {
+      source = "${pkgs.btop}/share/btop/themes";
+      recursive = true;
+    };
+  };
 }

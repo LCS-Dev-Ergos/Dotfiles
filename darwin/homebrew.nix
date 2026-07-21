@@ -11,13 +11,15 @@ _: {
   #
   # Command-line tools now owned by Nix/Home Manager are intentionally absent:
   # git, stow, atuin, bat, btop, cava, direnv, eza, fastfetch, fd, fish, fzf,
-  # git-delta, lazygit, nnn, nushell, oh-my-posh, ripgrep, starship, tealdeer,
-  # tmux, yazi, zoxide, and the formerly jstkdng-owned ueberzugpp formula/tap.
-  # The Nix profile already wins on PATH, so these declarations had duplicate
-  # ownership without changing the executable actually used. Neovim and Zsh
-  # remain explicit Homebrew owners on Darwin: Home Manager manages Neovim's
-  # writable config only, and Zsh's binary migration remains intentionally
-  # separate from its configuration. GUI applications remain Homebrew-owned.
+  # git-delta, lazygit, nnn, nushell, oh-my-posh, starship, tealdeer, tmux,
+  # yazi, zoxide, and the formerly jstkdng-owned ueberzugpp formula/tap. The
+  # Nix profile wins on PATH, so Nix supplies the executable actually used.
+  # ripgrep is the deliberate exception: Nix owns the interactive `rg`, while
+  # Homebrew retains its copy because installed codex, droid, and opencode
+  # packages declare it as a dependency. Neovim and Zsh remain explicit
+  # Homebrew owners on Darwin: Home Manager manages Neovim's writable config
+  # only, and Zsh's binary migration remains intentionally separate from its
+  # configuration. GUI applications remain Homebrew-owned.
   #
   # cleanup stays "none", so any live pre-migration Homebrew copies are not
   # silently removed by a switch. Remove them manually only after validating
@@ -214,6 +216,7 @@ _: {
       "rbenv"
       "reaver"
       "redis"
+      "ripgrep"
       "ruby"
       "ruff"
       "serkanyersen/dotstate/dotstate"
