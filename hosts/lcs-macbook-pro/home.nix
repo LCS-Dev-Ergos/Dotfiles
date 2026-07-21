@@ -6,6 +6,6 @@
 
   imports = [
     ../../home
-    ../../home/linux.nix
+    ../../home/darwin.nix
   ];
 }
