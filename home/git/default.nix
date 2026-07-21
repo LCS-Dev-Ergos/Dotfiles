@@ -146,7 +146,16 @@
     };
   };
 
-  home.file.".gitignore".source = ./gitignore-global;
+  # force = true: a real, plain ~/.gitignore (dated April 2024, pre-dating
+  # this migration) already sits here with byte-identical content. Without
+  # force, Home Manager leaves that pre-existing file alone and reprints
+  # "is in the way ... will be skipped since they are the same" on every
+  # single switch, forever, since it's never actually replaced by the
+  # managed symlink.
+  home.file.".gitignore" = {
+    source = ./gitignore-global;
+    force = true;
+  };
 
   # programs.git only ever writes ${XDG_CONFIG_HOME}/git/config -- git itself
   # ignores that file entirely as long as ~/.gitconfig exists (its own
