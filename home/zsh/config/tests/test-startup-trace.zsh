@@ -14,7 +14,7 @@ setopt err_return pipefail
 umask 077
 
 typeset test_root="${0:A:h:h}"
-typeset zsh_root="${test_root:h:h}"
+typeset zsh_root="${test_root:h}"
 typeset fixture_parent="$test_root/tests/.tmp"
 mkdir -p "$fixture_parent"
 export TMPDIR="$fixture_parent"
@@ -59,7 +59,7 @@ typeset unit_report="$(<"$trace_file")"
 }
 
 mkdir -p "$fixture_root/home" "$fixture_root/cache"
-ln -s "$zsh_root/.zshrc" "$fixture_root/home/.zshrc"
+ln -s "$zsh_root/zshrc" "$fixture_root/home/.zshrc"
 typeset child_trace="$fixture_root/child.tsv"
 typeset child_stdout="$fixture_root/child.stdout"
 typeset child_stderr="$fixture_root/child.stderr"

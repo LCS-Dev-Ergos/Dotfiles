@@ -1,20 +1,25 @@
-# ZSH Configuration
+# Zsh configuration
 
-Modular Zsh configuration for macOS and Linux/Arch, installed with GNU Stow.
-The default interactive startup defers expensive integrations and activates
-the prompt only after deterministic PATH assembly. Filesystem and cache
-operations are validated before executable shell code is sourced.
+Modular Zsh configuration for macOS and Linux/Arch, deployed by Home Manager.
+The default interactive startup defers expensive integrations and activates the
+prompt only after deterministic PATH assembly. Filesystem and cache operations
+are validated before executable shell code is sourced.
 
 ## Bootstrap and installation
 
 The repository uses this layout:
 
 ```text
-Dotfiles/zsh/
-├── .zshenv.bootstrap       reproducible ~/.zshenv template
-├── .zprofile               login-shell environment
-├── .zshrc                  interactive loader
-└── .config/zsh/
+Dotfiles/home/zsh/
+├── default.nix             Home Manager ownership and platform policy
+├── zshenv-bootstrap        reproducible ~/.zshenv bootstrap
+├── zprofile                login-shell environment
+├── zshrc                   interactive loader
+├── p10k.zsh                Powerlevel10k configuration
+├── Brewfile                generated macOS dependency view
+├── packages/               canonical dependency registry and Arch view
+├── docs/                   focused operational documentation
+└── config/                 deployed as ~/.config/zsh
     ├── .zshenv             environment shared by all shell types
     ├── lib/                ordered startup modules
     ├── functions/          interactive command bundles
@@ -36,27 +41,34 @@ contract. Python modules and `test_*.py` files use `snake_case`, as required by
 Python imports and test discovery. Standard dotfiles and generated artifacts
 keep the names imposed by their respective tools.
 
-Provision a new machine with:
+Provision the macOS host from the repository root with:
 
 ```zsh
-cd ~/Dotfiles
-stow zsh
-ln -s ~/Dotfiles/zsh/.zshenv.bootstrap ~/.zshenv
+sudo darwin-rebuild switch --flake .#LCSMacBook-Pro --impure
 ```
 
-If `~/.zshenv` already exists, compare it before replacing it. The bootstrap
-loads Cargo, sets the static Homebrew environment without running `brew
-shellenv` in every subprocess, and then sources the repository `.zshenv`.
+For the standalone Linux Home Manager output, use:
+
+```zsh
+home-manager switch --flake '.#lcs-dev@lcs-legion-arch'
+```
+
+Home Manager installs `~/.zshenv` from `zshenv-bootstrap`, links `zprofile`,
+`zshrc`, and `p10k.zsh` to their writable repository sources, and deploys the
+complete `config/` tree at `~/.config/zsh`. The bootstrap loads Cargo, sets the
+static Homebrew environment without running `brew shellenv` in every process,
+and then sources `~/.config/zsh/.zshenv`.
 
 On macOS, nix-darwin deliberately leaves `programs.zsh.enable` disabled while
-Stow owns the shell configuration. The repository `.zshenv` loads the standard
-multi-user Nix environment only when no system initializer has already done so.
-This boundary can later move to Home Manager without overlapping ownership.
+Homebrew owns the login-shell binary and Home Manager owns its configuration.
+The repository `.zshenv` loads the standard multi-user Nix environment only
+when no system initializer has already done so. On Linux, Home Manager installs
+the Zsh binary as well as managing the same shared configuration.
 
 Supported dependencies are declared once in
-`packages/zsh-dependencies.tsv`. The generated `Brewfile` and Arch package
-list provide reproducible platform inventories; installation and trust details
-live in `docs/zsh-dependencies.md` at the repository root.
+`packages/zsh-dependencies.tsv`. The generated `Brewfile` and Arch package list
+provide reproducible platform inventories; installation and trust details live
+in `docs/zsh-dependencies.md` beside this configuration.
 
 ## Startup architecture
 

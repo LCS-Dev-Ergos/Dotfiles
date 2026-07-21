@@ -18,7 +18,7 @@ setopt localoptions no_aliases pipefail
 
 typeset dependency_script_dir="${0:A:h}"
 typeset dependency_config_dir="${dependency_script_dir:h}"
-typeset dependency_zsh_root="${dependency_config_dir:h:h}"
+typeset dependency_zsh_root="${dependency_config_dir:h}"
 typeset dependency_registry="${ZSH_DEPENDENCY_REGISTRY:-\
 $dependency_zsh_root/packages/zsh-dependencies.tsv}"
 typeset dependency_brewfile="${ZSH_DEPENDENCY_BREWFILE:-\

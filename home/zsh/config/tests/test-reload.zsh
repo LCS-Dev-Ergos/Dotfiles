@@ -34,11 +34,11 @@ reload unexpected >/dev/null 2>&1 || reload_rc=$?
 
 typeset source_status
 source_status="$(
-  ZSH_FAST_START=1 \
+    ZSH_FAST_START=1 \
     ZSH_CONFIG_DIR="$test_root" \
-    DOTFILES_ZSH_ROOT="${test_root:h:h}" \
+    DOTFILES_ZSH_ROOT="${test_root:h}" \
     zsh -dfi -c \
-    'source "$DOTFILES_ZSH_ROOT/.zshrc"; print -r -- "$?"' \
+    'source "$DOTFILES_ZSH_ROOT/zshrc"; print -r -- "$?"' \
     </dev/null
 )" || {
   print -u2 "FAIL: fast-start reload smoke test could not run"
