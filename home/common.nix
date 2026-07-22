@@ -13,11 +13,13 @@ _: {
     ./doom
     ./fastfetch
     ./fish
+    ./gcc
     ./ghostty
     ./git
     ./kitty
     ./lazygit
     ./lldb
+    ./llvm
     ./neofetch
     ./neovim
     ./nnn
