@@ -1,4 +1,3 @@
--- Add the sketchybar module to the package cpath
-package.cpath = package.cpath .. ";/Users/" .. os.getenv("USER") .. "/.local/share/sketchybar_lua/?.so"
-
--- os.execute("(cd helpers && make)")
+-- Home Manager substitutes the pinned, Nix-built SbarLua directory while
+-- assembling the immutable SketchyBar configuration.
+package.cpath = package.cpath .. ";@sbarlua@/?.so"
