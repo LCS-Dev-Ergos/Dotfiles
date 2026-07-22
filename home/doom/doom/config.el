@@ -262,32 +262,51 @@
   :mode "\\.gleam\\'"
   :hook (gleam-ts-mode . lsp!)
   :config
-  (after! lsp-mode
-    (add-to-list 'lsp-language-id-configuration '(gleam-ts-mode . "gleam"))
-    (lsp-register-client
-     (make-lsp-client
-      :new-connection (lsp-stdio-connection '("gleam" "lsp"))
-      :major-modes '(gleam-ts-mode)
-      :server-id 'gleam-lsp))))
+  ;; eglot has no built-in entry for gleam-ts-mode (unlike haskell-mode/
+  ;; python-mode/csharp-mode below); register it explicitly.
+  (with-eval-after-load 'eglot
+    (add-to-list 'eglot-server-programs '(gleam-ts-mode . ("gleam" "lsp")))))
+
+;; ================================== ADA =================================== ;;
+;;
+;; No core Doom module for Ada; ada-mode (GNU ELPA) provides its own
+;; auto-mode-alist entries for .ads/.adb. We're managing the toolchain (gnat,
+;; gprbuild, ada_language_server) with Alire, external to Nix -- same pattern
+;; as Haskell/ghcup, Lean/elan, Rocq/opam. We already have a toolchain
+;; selected (gnat_native + gprbuild), but Alire only exposes it inside a
+;; project via `alr printenv`, so eglot won't find it without a direnv hookup
+;; like we set up for the rocq opam switch -- ask before doing that here too.
+(use-package! ada-mode
+  :hook (ada-mode . eglot-ensure))
+
+;; ================================ GDSCRIPT ================================= ;;
+;;
+;; No core Doom module for GDScript. No separate LSP package or Nix binary
+;; needed: the Godot editor itself serves the language server (requires the
+;; project's Godot editor instance to be running).
+(use-package! gdscript-mode
+  :hook (gdscript-mode . eglot-ensure))
 
 ;; ================================ HASKELL ================================= ;;
 ;;
 ;; Fourmolu is installed by home/doom/default.nix. GHC, Cabal/Stack, and HLS
 ;; remain a ghcup-owned versioned toolchain because HLS must match project GHC.
+;; eglot's built-in default (haskell-mode . ("haskell-language-server-wrapper"
+;; "--lsp")) resolves fine as-is: ~/.ghcup/bin is already on PATH.
 (after! haskell-mode
   (setq haskell-process-type 'cabal-repl
         haskell-process-suggest-remove-import-lines t
         haskell-process-auto-import-loaded-modules t
         haskell-tags-on-save nil))   ; use LSP xref instead of tags
 
-(after! lsp-haskell
-  (let ((ghcup-hls
-         (expand-file-name ".ghcup/bin/haskell-language-server-wrapper" "~")))
-    (setq lsp-haskell-server-path
-          (or (executable-find "haskell-language-server-wrapper")
-              (and (file-executable-p ghcup-hls) ghcup-hls)
-              "haskell-language-server-wrapper")
-          lsp-haskell-formatting-provider "fourmolu")))
+;; Requests fourmolu as HLS's formatter, mirroring the old
+;; lsp-haskell-formatting-provider setting. Best-effort mapping to eglot's
+;; workspace/configuration plist (per `eglot-workspace-configuration''s
+;; docstring); not verified live against HLS's actual section name.
+(with-eval-after-load 'eglot
+  (setq-default eglot-workspace-configuration
+                (append '(:haskell (:formattingProvider "fourmolu"))
+                        eglot-workspace-configuration)))
 
 ;; ================================= RUST ================================== ;;
 ;;
@@ -300,27 +319,26 @@
 
 ;; ================================== C# =================================== ;;
 ;;
-;; Requires one of:
+;; eglot's built-in default tries "omnisharp -lsp" then "csharp-ls" via PATH --
+;; no auto-install like lsp-mode had, so we need one of these on PATH first:
 ;;   - OmniSharp: dotnet tool install --global OmniSharp  (full .NET support)
 ;;   - csharp-ls: dotnet tool install --global csharp-ls  (lightweight)
-;; Doom auto-detects via lsp-mode; run M-x lsp-install-server if needed.
+;; We haven't installed either yet -- ask before picking one.
 (after! csharp-mode
-  (setq lsp-csharp-server-install-dir
-        (expand-file-name "~/.dotnet/tools/"))
   (add-hook 'csharp-mode-hook #'rainbow-delimiters-mode))
 
 ;; ================================= PYTHON ================================= ;;
 ;;
-;; Requires: pyright (npm install -g pyright) or via venv
+;; eglot's built-in default tries pylsp/pyls, then basedpyright-langserver,
+;; then pyright-langserver, via PATH. We don't have any of the four yet --
+;; ask before installing one (npm install -g pyright, for the last one).
+;; Per-project settings (venv path, stub path, etc.) that lsp-pyright used to
+;; carry as Emacs variables now belong in that project's pyrightconfig.json
+;; or pyproject.toml `[tool.pyright]` table -- the portable, editor-agnostic
+;; way to configure pyright, and the only way eglot reads them.
 ;; Virtual env auto-detection via direnv or python-dotenv.
 (after! python
   (setq python-shell-interpreter "python3"))
-
-(after! lsp-pyright
-  (setq lsp-pyright-venv-path ".venv"
-        lsp-pyright-auto-import-completions t
-        lsp-pyright-use-library-code-for-types t
-        lsp-pyright-stub-path (expand-file-name "~/.local/share/python-type-stubs")))
 
 ;; ================================ KOTLIN ================================= ;;
 ;;
@@ -334,7 +352,7 @@
 ;;
 ;; Requires: (debugger +lsp) in init.el
 ;; Install debug adapters:
-;;   C/C++/Rust: brew install llvm  (provides lldb-vscode / lldb-dap)
+;;   C/C++/Rust: lldb-dap comes from our own LLVM 22 now (home/llvm), not brew
 ;;   Python:     pip install debugpy
 ;;   Java:       jdtls bundles java-debug automatically
 (after! dap-mode
@@ -368,32 +386,17 @@
         :desc "DAP disconnect"     "d q" #'dap-disconnect
         :desc "DAP ui"             "d u" #'dap-ui-show-many-windows))
 
-;; ================================= LSP UI ================================= ;;
+;; ========================= CONSULT-EGLOT (VERTICO) ========================= ;;
 ;;
-;; lsp-ui adds hover docs, sideline diagnostics, and peek windows.
-;; Requires: (lsp +peek) in init.el
-(after! lsp-ui
-  (setq lsp-ui-doc-enable t
-        lsp-ui-doc-show-with-cursor t
-        lsp-ui-doc-show-with-mouse nil
-        lsp-ui-doc-delay 0.4
-        lsp-ui-doc-position 'at-point
-        lsp-ui-sideline-enable t
-        lsp-ui-sideline-show-diagnostics t
-        lsp-ui-sideline-show-hover nil
-        lsp-ui-sideline-show-code-actions t
-        lsp-ui-peek-enable t
-        lsp-ui-peek-always-show t))
-
-;; ========================= CONSULT-LSP (VERTICO) ========================== ;;
-;;
-;; Workspace-wide symbol/diagnostic search via consult.
-;; Requires: (package! consult-lsp) in packages.el
-(after! consult-lsp
+;; Workspace-wide symbol search via consult; diagnostics go through flycheck
+;; (this config runs :checkers syntax without +flymake, so flycheck-eglot
+;; bridges eglot's diagnostics into flycheck, not eglot's own listing) and
+;; file-local symbols through the backend-agnostic imenu.
+(after! consult-eglot
   (map! :leader
-        :desc "LSP workspace symbols"  "c S" #'consult-lsp-symbols
-        :desc "LSP diagnostics"        "c X" #'consult-lsp-diagnostics
-        :desc "LSP file symbols"       "c ." #'consult-lsp-file-symbols))
+        :desc "LSP workspace symbols"  "c S" #'consult-eglot-symbols
+        :desc "LSP diagnostics"        "c X" #'consult-flycheck
+        :desc "LSP file symbols"       "c ." #'consult-imenu))
 
 ;; Proof modes can start or query subprocesses while visiting a file. Consult
 ;; previews files inside its own temporary process call, so previewing Rocq/Coq
@@ -412,17 +415,6 @@
   (setq company-idle-delay 0.3
         company-minimum-prefix-length 2
         company-show-quick-access t))
-
-;; LSP Mode - Language Server Protocol for IDE features
-(after! lsp-mode
-  (setq lsp-idle-delay 0.5
-        lsp-log-io nil
-        lsp-headerline-breadcrumb-enable t
-        lsp-lens-enable t
-        lsp-signature-auto-activate t
-        lsp-signature-render-documentation t
-        lsp-file-watch-threshold 10000
-        lsp-enable-file-watchers t))
 
 ;; Treemacs - File explorer sidebar
 (after! treemacs
