@@ -5,7 +5,7 @@
 # ============================================================================ #
 # Focused regression tests for UI modes, command contracts, exit statuses,
 # workspace boundaries, and filesystem safety. All writes stay in a validated
-# temporary directory below this test folder.
+# external temporary directory so this suite can test a read-only Nix source.
 # ============================================================================ #
 
 emulate -L zsh
@@ -13,14 +13,15 @@ setopt pipefail
 
 typeset test_dir="${0:A:h}"
 typeset project_root="${test_dir:h}"
+typeset test_tmp_parent="${TMPDIR:-/tmp}"
 typeset test_tmp
-test_tmp=$(mktemp -d "$test_dir/.tmp.XXXXXX") || {
+test_tmp=$(mktemp -d "$test_tmp_parent/cpp-tools-tests.XXXXXX") || {
   print -u2 -r -- "FAIL: unable to create the test directory"
   exit 1
 }
 
 _cleanup_cpp_tools_tests() {
-  [[ "$test_tmp" == "$test_dir"/.tmp.* ]] || return 1
+  [[ "$test_tmp" == "$test_tmp_parent"/cpp-tools-tests.* ]] || return 1
   rm -rf -- "$test_tmp"
 }
 trap _cleanup_cpp_tools_tests EXIT INT TERM HUP
@@ -303,7 +304,9 @@ _assert_eq "64" "$?" "cppstress argument validation"
   cd "$workspace" || exit 1
   touch CMakeLists.txt
   tar() { return 1; }
-  cpparchive >/dev/null 2>&1
+  # A developer may invoke the suite from a terminal. Make this confirmation
+  # deterministic instead of inheriting the caller's interactive stdin.
+  cpparchive </dev/null >/dev/null 2>&1
 )
 _assert_eq "1" "$?" "archive failure propagation"
 
