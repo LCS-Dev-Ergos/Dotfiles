@@ -1,40 +1,35 @@
 _: {
-  # Captured via `brew bundle dump` against the live system (2026-07-20):
-  # taps/brews/casks only -- Homebrew Bundle's vscode/go/cargo/uv stanzas
-  # have no nix-darwin equivalent and aren't tracked here.
+  # Captured via `brew bundle dump` against the live system (2026-07-20).
+  # The vscode/go/cargo/uv stanzas that command also emits have no
+  # nix-darwin equivalent and aren't tracked here.
   #
   # cleanup = "none" is deliberate: it declares this inventory without
-  # touching anything not yet listed. Do not change to "uninstall"/"zap"
-  # until every current cask/tap/formula is confirmed captured here --
-  # those modes remove whatever's installed but undeclared, which would
-  # delete real applications if this audit missed something.
+  # touching anything not yet listed. Switch to "uninstall"/"zap" only once
+  # every live cask/tap/formula is confirmed present below -- those modes
+  # remove whatever's installed but undeclared.
   #
-  # Command-line tools now owned by Nix/Home Manager are intentionally absent:
-  # aspell, atuin, bandwhich, bat, bc, bottom, btop, cava, cbonsai, cmatrix,
-  # csvlens, direnv, duf, eza, fastfetch, fd, fish, fswatch, fzf, gh, git,
-  # git-delta, glab, glow, gum, jq, just, lazydocker, lazygit, nnn, nushell,
-  # oh-my-posh, procs, pstree, shellcheck, starship, tealdeer, television,
-  # tmux, tree, w3m, wget, yazi, zoxide, and the formerly jstkdng-owned
-  # ueberzugpp formula/tap. Two more formulae are gone from this file for a
-  # different reason, not a like-for-like Nix takeover: `coreutils` is pulled
-  # in only as an internal build input for activation scripts (Fish, Doom,
-  # Neovim) and for Doom's separately g-prefixed `coreutils-prefixed`
-  # package, never as a plain interactive command; `stow` has no Nix
-  # replacement at all, because Home Manager's own declarative file
-  # placement retired the symlink-farm workflow Stow used to perform.
+  # Absent on purpose, now Nix/Home Manager-owned: aspell, atuin, bandwhich,
+  # bat, bc, bottom, btop, cava, cbonsai, cmatrix, csvlens, direnv, duf, eza,
+  # fastfetch, fd, fish, fswatch, fzf, gh, git, git-delta, glab, glow, gum,
+  # jq, just, lazydocker, lazygit, lld, llvm, nnn, nushell, oh-my-posh, procs,
+  # pstree, shellcheck, starship, tealdeer, television, tmux, tree, w3m,
+  # wget, yazi, zoxide, ueberzugpp. llvm/lld left for a real bug, not just
+  # ownership -- see home/llvm. `rust` was never declared here to begin with
+  # (a pre-migration leftover). `brew uninstall llvm lld rust` is still a
+  # manual follow-up; cleanup = "none" won't do it for us.
   #
-  # The Nix profile wins on PATH, so Nix supplies the executable actually used.
-  # ripgrep is the deliberate exception: Nix owns the interactive `rg`, while
-  # Homebrew retains its copy because installed codex, droid, and opencode
-  # packages declare it as a dependency. Neovim and Zsh remain explicit
-  # Homebrew binary owners on Darwin: Home Manager deploys Neovim's immutable
-  # configuration and writable lock state, while each binary migration remains
-  # a separate decision. GUI applications remain Homebrew-owned.
+  # Also absent, but not Nix takeovers: `coreutils` is only a build input for
+  # activation scripts and Doom's separate `coreutils-prefixed` package,
+  # never used interactively; `stow` has no Nix equivalent -- Home Manager's
+  # declarative file placement replaced it.
   #
-  # cleanup stays "none", so any live pre-migration Homebrew copies are not
-  # silently removed by a switch. Remove them manually only after validating
-  # their Nix replacements in real sessions; this is the safe continuation of
-  # the earlier broader "retire Stow/duplicate Homebrew ownership" follow-up.
+  # Deliberate Homebrew holdouts: `ripgrep` (codex/droid/opencode depend on
+  # it; Nix still owns the interactive `rg` on PATH), `gcc` (hdf5, open-mpi,
+  # libmatio, vips and ueberzugpp need its gfortran at runtime, and
+  # emacs-plus's native-comp links against its libgccjit -- Nix's gcc15 still
+  # wins on PATH for interactive/project use, see home/gcc), `neovim`/`zsh`
+  # (binary ownership is a separate decision from Home Manager deploying
+  # their configs), and GUI apps in general.
   homebrew = {
     enable = true;
 
@@ -165,9 +160,7 @@ _: {
       "libgccjit"
       "libsixel"
       "libvterm"
-      "lld"
       "llmfit"
-      "llvm"
       "lua"
       "make"
       "man-db"
