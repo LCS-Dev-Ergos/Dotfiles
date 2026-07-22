@@ -165,6 +165,7 @@ _dependency_render_brewfile() {
   {
     print -r -- "# Generated from packages/zsh-dependencies.tsv."
     print -r -- "# Regenerate with: zshdeps --sync-manifests"
+    print -r -- "# Standalone Homebrew bootstrap; nix-darwin uses darwin/homebrew.nix."
     print -r -- "# Do not edit manually."
     print -r -- ""
     for package in "${(ou)dependency_brew_packages[@]}"; do
