@@ -7,6 +7,11 @@
 let
   doomCustomDirectory = "${config.xdg.stateHome}/doom";
   doomCustomState = "${doomCustomDirectory}/custom.el";
+  aspell = pkgs.aspellWithDicts (dicts: [
+    dicts.en
+    dicts.en-computers
+    dicts.it
+  ]);
 
   # Doom still integrates the retired Nose 1 runner, but current nixpkgs
   # removed it after years without upstream maintenance. Keep those commands
@@ -55,9 +60,12 @@ in
   # the module declaration keeps the editor feature set reproducible on both
   # hosts and prevents ambient Homebrew/host packages from masking omissions.
   home.packages = [
+    aspell
     pkgs.black
+    pkgs.coreutils-prefixed
     pkgs.csharpier
     pkgs.dockfmt
+    pkgs.fourmolu
     pkgs.glslang
     pkgs.gomodifytags
     pkgs.gore

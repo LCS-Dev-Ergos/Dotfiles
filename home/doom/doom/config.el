@@ -57,10 +57,20 @@
 ;; Make sure ligatures module is enabled in init.el: (ligatures +extra)
 
 (after! ligature
-  ;; Disable ligatures in comments and strings
-  (setq-default ligature-ignored-contexts '())
+  ;; `ligature-mode' (below, per-buffer) skips entirely any major mode listed
+  ;; here -- ligature.el composes purely by major mode via `derived-mode-p',
+  ;; with no notion of comments/strings. Coq/Rocq and Lean already get real
+  ;; Unicode math notation from company-coq's `prettify-symbols' integration
+  ;; and lean4-mode's Quail input method respectively, both independent of
+  ;; `composition-function-table' (what ligature-mode manipulates). Excluding
+  ;; them here lets C-like/Java/Python/OCaml keep the full ligature set below
+  ;; with no risk of proof/logic notation bleeding into them.
+  (setq ligature-ignored-major-modes
+        (append '(coq-mode lean4-mode) ligature-ignored-major-modes))
 
-  ;; Enable comprehensive set of ligatures in programming modes
+  ;; Enable comprehensive set of ligatures in programming modes. "==>" and
+  ;; "<->" are left out: they have no meaning in C-like/Java/Python, and Coq
+  ;; no longer consults this table at all (see exclusion above).
   (ligature-set-ligatures 'prog-mode
                           '("www" "**" "***" "**/" "*>" "*/" "\\\\" "\\\\\\"
                             "{-" "[]" "::" ":::" ":=" "!!" "!=" "!==" "-}"
@@ -69,9 +79,9 @@
                             ".-" ".=" ".." "..<" "..." "?=" "??" ";;" "/*"
                             "/**" "/=" "/==" "/>" "//" "///" "&&" "||" "||="
                             "|=" "|>" "^=" "$>" "++" "+++" "+>" "=:=" "=="
-                            "===" "==>" "=>" "=>>" "<=" "=<<" "=/=" ">-" ">="
+                            "===" "=>" "=>>" "<=" "=<<" "=/=" ">-" ">="
                             ">=>" ">>" ">>-" ">>=" ">>>" "<*" "<*>" "<|" "<|>"
-                            "<$" "<$>" "<!--" "<-" "<--" "<->" "<+" "<+>" "<="
+                            "<$" "<$>" "<!--" "<-" "<--" "<+" "<+>" "<="
                             "<==" "<=>" "<=<" "<>" "<<" "<<-" "<<=" "<<<" "<~"
                             "<~~" "</" "</>" "~@" "~-" "~=" "~>" "~~" "~~>" "%%"))
 
@@ -80,12 +90,6 @@
                           '("->" "=>" "<-" "::" ":::" "|>" "<|"
                             ">=" "<=" ">>" "<<" ">>=" "<<="
                             ":=" "!=" "<>" "@@"))
-
-  ;; Coq-specific ligatures
-  (ligature-set-ligatures 'coq-mode
-                          '("->" "=>" "<-" "::" "|-" "<>" ">=" "<="
-                            "==>" "<=>" "<->" "/\\" "\\/"
-                            ":=" "forall" "exists"))
 
   ;; LaTeX ligatures (for mathematical symbols)
   (ligature-set-ligatures 'latex-mode
@@ -226,6 +230,14 @@
   ;; Show proof state in mode line
   (setq proof-shell-show-proof-state-in-mode-line t))
 
+;; Proof General disables its Yasnippet integration when company-coq appears
+;; in coq-mode-hook, even though Doom's company-coq setup enables Yasnippet.
+;; Load it explicitly before Coq initializes so templates do not fall back to
+;; the misleading "yasnippet not found" compatibility path.
+(after! coq
+  (require 'yasnippet)
+  (setq coq-use-yasnippet t))
+
 ;; ================================= LEAN ================================== ;;
 ;;
 ;; Requires: elan (Lean version manager) + Lean 4
@@ -260,8 +272,8 @@
 
 ;; ================================ HASKELL ================================= ;;
 ;;
-;; Requires: ghcup, cabal/stack, haskell-language-server (via ghcup)
-;; Install HLS: ghcup install hls
+;; Fourmolu is installed by home/doom/default.nix. GHC, Cabal/Stack, and HLS
+;; remain a ghcup-owned versioned toolchain because HLS must match project GHC.
 (after! haskell-mode
   (setq haskell-process-type 'cabal-repl
         haskell-process-suggest-remove-import-lines t
@@ -269,8 +281,13 @@
         haskell-tags-on-save nil))   ; use LSP xref instead of tags
 
 (after! lsp-haskell
-  (setq lsp-haskell-server-path "haskell-language-server-wrapper"
-        lsp-haskell-formatting-provider "fourmolu"))  ; alternatives: ormolu, stylish-haskell
+  (let ((ghcup-hls
+         (expand-file-name ".ghcup/bin/haskell-language-server-wrapper" "~")))
+    (setq lsp-haskell-server-path
+          (or (executable-find "haskell-language-server-wrapper")
+              (and (file-executable-p ghcup-hls) ghcup-hls)
+              "haskell-language-server-wrapper")
+          lsp-haskell-formatting-provider "fourmolu")))
 
 ;; ================================= RUST ================================== ;;
 ;;
@@ -378,6 +395,13 @@
         :desc "LSP diagnostics"        "c X" #'consult-lsp-diagnostics
         :desc "LSP file symbols"       "c ." #'consult-lsp-file-symbols))
 
+;; Proof modes can start or query subprocesses while visiting a file. Consult
+;; previews files inside its own temporary process call, so previewing Rocq/Coq
+;; sources can otherwise recurse through call-process. Opened files retain all
+;; normal Proof General behavior; only speculative .v previews are skipped.
+(after! consult
+  (add-to-list 'consult-preview-excluded-files "\\.v\\'"))
+
 ;; ===================== ADDITIONAL USEFUL INTEGRATIONS ===================== ;;
 ;;
 ;; Company mode (auto-completion) - adjust delay for faster/slower completion
@@ -447,11 +471,9 @@
 
 ;; ============================= SPELL CHECKING ============================= ;;
 ;;
-;; Requires: aspell or hunspell installed on your system
-;; Install: brew install aspell (on macOS)
-
-;; (setq ispell-program-name "aspell")
-;; (setq ispell-extra-args '("--sug-mode=ultra" "--lang=en"))
+;; Aspell and the English, computing, and Italian dictionaries are
+;; installed by home/doom/default.nix. Doom auto-selects Aspell when this module
+;; loads; language selection remains buffer- or project-specific.
 
 ;; Enable spell checking in text modes
 ;; (add-hook 'text-mode-hook 'flyspell-mode)
