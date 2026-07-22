@@ -28,8 +28,12 @@ in
     # Set Git commit hash for darwin-version.
     configurationRevision = self.rev or self.dirtyRev or null;
 
-    # Used for backwards compatibility. Read `darwin-rebuild changelog`
-    # before changing this value.
+    # Pins which nix-darwin module defaults apply, mirroring what
+    # home.stateVersion (home/default.nix) does for Home Manager: it is not
+    # a macOS version, a nix-darwin release number, or a rollback boundary,
+    # only a compatibility marker so upgrading nix-darwin cannot silently
+    # change already-deployed system behavior. Read `darwin-rebuild
+    # changelog` before changing this value.
     stateVersion = 4;
 
     # Also tells nix-darwin which existing account should receive per-user

@@ -102,6 +102,12 @@
         "x86_64-linux"
       ];
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
+
+      # Argument set threaded into every Home Manager module as
+      # extraSpecialArgs, both under nix-darwin and standalone. Distinct from
+      # nix-darwin's own specialArgs below: only Home Manager modules receive
+      # dotfilesRoot and externalSources, since only they need the real
+      # checkout path or the vendored flake inputs.
       homeArgs = host: {
         inherit externalSources;
         inherit (host) dotfilesRoot homeDirectory username;
@@ -111,6 +117,10 @@
       # Build darwin flake using:
       # $ darwin-rebuild build --flake .#LCSMacBook-Pro
       darwinConfigurations."LCSMacBook-Pro" = nix-darwin.lib.darwinSystem {
+        # specialArgs reaches nix-darwin modules (./darwin,
+        # ./hosts/lcs-macbook-pro/darwin.nix) only. The nested home-manager
+        # module below gets its own, larger argument set through
+        # extraSpecialArgs (homeArgs), not this one.
         specialArgs = {
           inherit self;
           inherit (darwinHost) homeDirectory username;
@@ -141,6 +151,9 @@
       homeConfigurations."lcs-dev@lcs-legion-arch" = home-manager.lib.homeManagerConfiguration {
         pkgs = import nixpkgs {
           inherit (linuxHost) system;
+          # No package in this host's module set is unfree, unlike Darwin's
+          # single narrow Symbola exception (darwin/default.nix), so unfree
+          # access is denied outright rather than opened per-package.
           config.allowUnfree = false;
         };
         extraSpecialArgs = homeArgs linuxHost;
@@ -160,6 +173,10 @@
         }
       );
 
+      # `nix flake check` only evaluates/builds what is listed here -- it does
+      # not discover darwinConfigurations or homeConfigurations on its own.
+      # Re-exposing each host's top-level derivation is what lets a full
+      # system build (not just individual module evaluation) fail CI.
       checks = {
         aarch64-darwin.darwin-configuration = self.darwinConfigurations."LCSMacBook-Pro".system;
         aarch64-darwin.cpp-tools = self.packages.aarch64-darwin.cpp-tools;

@@ -7,6 +7,9 @@
 
   # Do not change after the first successful switch: it only pins which
   # Home Manager defaults apply, not the actual Home Manager/nixpkgs version.
+  # system.stateVersion (hosts/lcs-macbook-pro/darwin.nix) plays the same
+  # role for nix-darwin's own module defaults; the two are independent and
+  # need not match.
   home.stateVersion = "26.05";
 
   # Fish sets this to true with mkDefault because it builds completions from man
