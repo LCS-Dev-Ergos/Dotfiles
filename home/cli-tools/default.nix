@@ -1,13 +1,35 @@
 { pkgs, ... }:
 {
-  # Nix language tooling, available in every shell regardless of which
-  # project is open -- no per-project devShell needed just to get an LSP,
-  # a formatter, and basic lint/dead-code checks while editing .nix files.
+  # Portable, version-independent command-line tools used across projects.
+  # Keeping this baseline in the shared Home Manager configuration gives both
+  # hosts the same commands without making project toolchains global.
   home.packages = [
+    pkgs.bandwhich
+    pkgs.bc
+    pkgs.bottom
+    pkgs.cbonsai
+    pkgs.cmatrix
+    pkgs.csvlens
+    pkgs.deadnix # Flags dead/unused bindings.
+    pkgs.duf
+    pkgs.fswatch
+    pkgs.gh
+    pkgs.glab
+    pkgs.glow
+    pkgs.gum
+    pkgs.jq
+    pkgs.just
+    pkgs.lazydocker
     pkgs.nixd # Language server (completion, goto-def, diagnostics).
     pkgs.nixfmt # Canonical formatter (RFC 166 style).
+    pkgs.procs
+    pkgs.pstree
+    pkgs.shellcheck
     pkgs.statix # Lints anti-patterns (e.g. `with` scope footguns).
-    pkgs.deadnix # Flags dead/unused bindings.
+    pkgs.television
+    pkgs.tree
+    pkgs.w3m
+    pkgs.wget
   ];
 
   # fzf, zoxide, eza, and direnv already have full shell integration and

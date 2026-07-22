@@ -159,7 +159,7 @@ function cppwatch() {
   fi
 
   if ! command -v fswatch &> /dev/null; then
-    echo "${C_RED}Error: 'fswatch' is not installed. Please run 'brew install fswatch'.${C_RESET}" >&2
+    echo "${C_RED}Error: 'fswatch' is not installed. Add it to the system package configuration.${C_RESET}" >&2
     return 1
   fi
 

@@ -1,5 +1,6 @@
 # Generated from packages/zsh-dependencies.tsv.
 # Regenerate with: zshdeps --sync-manifests
+# Standalone Homebrew bootstrap; nix-darwin uses darwin/homebrew.nix.
 # Do not edit manually.
 
 brew "atuin"

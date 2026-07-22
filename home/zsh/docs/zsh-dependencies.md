@@ -42,7 +42,12 @@ read the manifests from the active generation.
 
 ## macOS
 
-Homebrew Bundle installs the declared formulae:
+The generated Brewfile is a standalone compatibility bootstrap for a macOS
+machine that is not yet managed by this flake. The active nix-darwin host uses
+`darwin/homebrew.nix` plus shared Home Manager packages instead; do not run the
+standalone Brewfile there unless duplicate Homebrew ownership is intentional.
+
+On an unmanaged macOS host, Homebrew Bundle installs the declared formulae:
 
 ```zsh
 brew bundle --file ~/Dotfiles/home/zsh/Brewfile

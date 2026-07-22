@@ -10,16 +10,26 @@ _: {
   # delete real applications if this audit missed something.
   #
   # Command-line tools now owned by Nix/Home Manager are intentionally absent:
-  # git, stow, atuin, bat, btop, cava, direnv, eza, fastfetch, fd, fish, fzf,
-  # git-delta, lazygit, nnn, nushell, oh-my-posh, starship, tealdeer, tmux,
-  # yazi, zoxide, and the formerly jstkdng-owned ueberzugpp formula/tap. The
-  # Nix profile wins on PATH, so Nix supplies the executable actually used.
+  # aspell, atuin, bandwhich, bat, bc, bottom, btop, cava, cbonsai, cmatrix,
+  # csvlens, direnv, duf, eza, fastfetch, fd, fish, fswatch, fzf, gh, git,
+  # git-delta, glab, glow, gum, jq, just, lazydocker, lazygit, nnn, nushell,
+  # oh-my-posh, procs, pstree, shellcheck, starship, tealdeer, television,
+  # tmux, tree, w3m, wget, yazi, zoxide, and the formerly jstkdng-owned
+  # ueberzugpp formula/tap. Two more formulae are gone from this file for a
+  # different reason, not a like-for-like Nix takeover: `coreutils` is pulled
+  # in only as an internal build input for activation scripts (Fish, Doom,
+  # Neovim) and for Doom's separately g-prefixed `coreutils-prefixed`
+  # package, never as a plain interactive command; `stow` has no Nix
+  # replacement at all, because Home Manager's own declarative file
+  # placement retired the symlink-farm workflow Stow used to perform.
+  #
+  # The Nix profile wins on PATH, so Nix supplies the executable actually used.
   # ripgrep is the deliberate exception: Nix owns the interactive `rg`, while
   # Homebrew retains its copy because installed codex, droid, and opencode
   # packages declare it as a dependency. Neovim and Zsh remain explicit
-  # Homebrew owners on Darwin: Home Manager manages Neovim's writable config
-  # only, and Zsh's binary migration remains intentionally separate from its
-  # configuration. GUI applications remain Homebrew-owned.
+  # Homebrew binary owners on Darwin: Home Manager deploys Neovim's immutable
+  # configuration and writable lock state, while each binary migration remains
+  # a separate decision. GUI applications remain Homebrew-owned.
   #
   # cleanup stays "none", so any live pre-migration Homebrew copies are not
   # silently removed by a switch. Remove them manually only after validating
@@ -100,38 +110,26 @@ _: {
       "ansible-lint"
       "asmvik/formulae/skhd"
       "asmvik/formulae/yabai"
-      "aspell"
       "autoconf"
       "automake"
-      "bandwhich"
       "bash"
-      {
-        name = "bc";
-        link = true;
-      }
       "bear"
       "beautysh"
-      "bottom"
-      "cbonsai"
       "ccache"
       "clamav"
       "clang-format"
       "cmake"
       "cmake-docs"
-      "cmatrix"
-      "coreutils"
       "coursier"
       "cpanminus"
       "cppman"
       "cronboard"
-      "csvlens"
       "cunit"
       "discount"
       "djvu2pdf"
       "djvulibre"
       "dolphie"
       "doxygen"
-      "duf"
       "erlang"
       "exiftool"
       "fabric-ai"
@@ -139,17 +137,13 @@ _: {
       "felixkratz/formulae/sketchybar"
       "findutils"
       "fnm"
-      "fswatch"
       "fzf-make"
       "gawk"
       "gcc"
       "gdb"
-      "gh"
       "git-filter-repo"
-      "glab"
       "gleam"
       "global"
-      "glow"
       "gnu-sed"
       "gnu-time"
       "go"
@@ -158,7 +152,6 @@ _: {
       "graelo/tap/pumas"
       "graphviz"
       "gromgit/brewtils/taproom"
-      "gum"
       "hako/tap/oeis-tui"
       "hashcat"
       "hcxtools"
@@ -168,10 +161,7 @@ _: {
       "imagemagick"
       "jbreckmckye/formulae/daylight"
       "jordond/tap/jolt"
-      "jq"
       "julien-cpsn/atac/atac"
-      "just"
-      "lazydocker"
       "libgccjit"
       "libsixel"
       "libvterm"
@@ -207,8 +197,6 @@ _: {
       "pkgconf"
       "plantuml"
       "powerlevel10k"
-      "procs"
-      "pstree"
       "pyenv"
       "qpdf"
       "qrencode"
@@ -222,23 +210,18 @@ _: {
       "serkanyersen/dotstate/dotstate"
       "sesh"
       "sevenzip"
-      "shellcheck"
       "smartmontools"
       "swi-prolog"
       "switchaudio-osx"
       "teamookla/speedtest/speedtest"
-      "television"
       "terror/tap/just-lsp"
       "tesseract-lang"
       "tex-fmt"
       "thefuck"
-      "tree"
       "unar"
       "universal-ctags"
       "uv"
       "veeso/termscp/termscp"
-      "w3m"
-      "wget"
       "zackelia/formulae/bclm"
       "zsh"
     ];
