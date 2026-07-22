@@ -40,16 +40,39 @@ selects plain output. The older `CP_NO_GUM=1` override remains supported.
 
 ## Installation
 
-1. **Clone or Download the Tools Directory:**
-    Place the directory containing `competitive.sh` and the `templates/` folder in a safe, persistent location. The recommended location is `~/.config/cpp-tools`.
+### This Dotfiles Flake
+
+Home Manager builds cpp-tools as a tested Nix package, installs the `cpptools`
+command, and exposes its immutable runtime modules at `~/.config/cpp-tools` for
+the custom Zsh lazy loader. Edit the repository source under
+`home/cpp-tools/cpp-tools`, then build or switch the flake; do not edit the live
+store-backed path.
+
+The package can also be built directly, including its regression suite:
+
+```bash
+nix build .#cpp-tools
+```
+
+GCC, CMake, and the optional runtime tools remain environment prerequisites by
+design. This keeps compiler selection consistent between the standalone
+command and functions sourced into an interactive shell instead of hiding a
+second toolchain inside a wrapper.
+
+### Manual Installation Outside This Flake
+
+1. **Clone or download the tools directory:**
+    Place the directory containing `competitive.sh`, `cpptools`, and `modules/`
+    in a safe, persistent location. The recommended location is
+    `~/.config/cpp-tools`.
 
     ```bash
     # Example:
     mkdir -p ~/.config/cpp-tools
-    # ...and move the script and templates folder there.
+    # ...and copy the runtime files there.
     ```
 
-2. **Source the Script in Your Zsh Configuration:**
+2. **Source the script in your Zsh configuration:**
     Add the following block to `~/.zshrc` to load the utilities automatically.
 
     ```bash

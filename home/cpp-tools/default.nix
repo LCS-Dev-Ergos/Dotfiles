@@ -1,10 +1,11 @@
-{ config, dotfilesRoot, ... }:
+{ pkgs, ... }:
+let
+  cppTools = pkgs.callPackage ./package.nix { };
+in
 {
-  # A personal, actively-developed toolchain project (cpptools + modules/
-  # + tests), not passive config -- kept as a live, writable checkout via
-  # mkOutOfStoreSymlink rather than a frozen read-only store copy, same
-  # treatment as neovim's LazyVim tree.
-  xdg.configFile."cpp-tools" = {
-    source = config.lib.file.mkOutOfStoreSymlink "${dotfilesRoot}/home/cpp-tools/cpp-tools";
-  };
+  # Package the stable runtime while keeping the repository as its development
+  # source. The compatibility path lets the custom Zsh lazy loader source the
+  # same immutable modules as the standalone command.
+  home.packages = [ cppTools ];
+  xdg.configFile."cpp-tools".source = "${cppTools}/share/cpp-tools";
 }

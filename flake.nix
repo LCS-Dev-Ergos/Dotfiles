@@ -147,10 +147,25 @@
         modules = [ ./hosts/lcs-legion-arch/home.nix ];
       };
 
+      # Personal tools are first-class outputs as well as Home Manager inputs:
+      # `nix build .#cpp-tools` runs their checks and builds the deployable CLI.
+      packages = forAllSystems (
+        system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+        in
+        {
+          cpp-tools = pkgs.callPackage ./home/cpp-tools/package.nix { };
+          default = self.packages.${system}.cpp-tools;
+        }
+      );
+
       checks = {
         aarch64-darwin.darwin-configuration = self.darwinConfigurations."LCSMacBook-Pro".system;
+        aarch64-darwin.cpp-tools = self.packages.aarch64-darwin.cpp-tools;
         x86_64-linux.home-configuration =
           self.homeConfigurations."lcs-dev@lcs-legion-arch".activationPackage;
+        x86_64-linux.cpp-tools = self.packages.x86_64-linux.cpp-tools;
       };
 
       formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.nixfmt);
