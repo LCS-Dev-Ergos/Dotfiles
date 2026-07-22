@@ -1,10 +1,15 @@
-{ pkgs, ... }:
+{ lib, pkgs, ... }:
 {
   imports = [ ./homebrew.nix ];
 
   # List packages installed in system profile. To search by name, run:
   # $ nix-env -qaP | grep wget
   environment.systemPackages = [ pkgs.vim ];
+
+  # Doom uses Symbola as its final fallback for uncommon glyphs. Homebrew no
+  # longer distributes the font, so nix-darwin installs the pinned package in
+  # the system font directory where GUI Emacs and fontconfig can both find it.
+  fonts.packages = [ pkgs.symbola ];
 
   nix = {
     # Keep the Nix package and daemon service managed by nix-darwin. Flakes
@@ -26,9 +31,10 @@
     optimise.automatic = true;
   };
 
-  # All Nix-installed packages must be explicitly free-licensed. Homebrew
-  # remains the owner for proprietary GUI applications.
-  nixpkgs.config.allowUnfree = false;
+  # Keep unfree Nix packages denied by default. Symbola is the sole reviewed
+  # exception: nixpkgs marks its font license non-free, and Homebrew no longer
+  # ships it. Proprietary GUI applications remain Homebrew-owned.
+  nixpkgs.config.allowUnfreePredicate = package: lib.getName package == "symbola";
 
   # Home Manager deploys the user's Zsh files. Homebrew still owns the Darwin
   # shell binary (standalone Home Manager installs it on Linux), so nix-darwin
