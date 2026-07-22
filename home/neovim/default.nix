@@ -1,4 +1,5 @@
 {
+  config,
   dotfilesRoot,
   lib,
   pkgs,
@@ -7,10 +8,12 @@
 let
   lockSource = ./nvim/lazy-lock.json;
   lockTarget = "${dotfilesRoot}/home/neovim/nvim/lazy-lock.json";
+  runtimeLockDirectory = "${config.xdg.stateHome}/nvim";
+  runtimeLock = "${runtimeLockDirectory}/lazy-lock.json";
 
-  # Lazy normally rewrites lazy-lock.json inside stdpath("config"). Runtime
-  # config is immutable, so updates use a temporary lockfile and promote it to
-  # the checkout only after Lazy exits successfully and the JSON validates.
+  # Lazy's operational lock lives in writable state. Deliberate repository
+  # updates still use an isolated temporary lock and promote it only after Lazy
+  # exits successfully and the JSON validates.
   nvimUpdateLock = pkgs.writeShellApplication {
     name = "nvim-update-lock";
     runtimeInputs = [
@@ -21,7 +24,9 @@ let
     text = ''
       lock_source=${lib.escapeShellArg (toString lockSource)}
       lock_target=${lib.escapeShellArg lockTarget}
-      candidate=""
+      runtime_lock=${lib.escapeShellArg runtimeLock}
+      checkout_candidate=""
+      runtime_candidate=""
       check_only=0
 
       if (( $# > 1 )); then
@@ -34,7 +39,7 @@ let
         --help|-h)
           printf '%s\n' \
             'usage: nvim-update-lock [--check]' \
-            '  --check  Verify that the checkout matches the active generation.'
+            '  --check  Verify checkout and runtime state against the active generation.'
           exit 0
           ;;
         *)
@@ -58,16 +63,33 @@ let
           >&2
         exit 65
       fi
+      if [[ ! -f "$runtime_lock" ]]; then
+        printf '%s\n' \
+          'nvim-update-lock: the runtime lock is missing; switch the Nix generation first.' \
+          >&2
+        exit 66
+      fi
+      if ! cmp -s "$lock_source" "$runtime_lock"; then
+        printf '%s\n' \
+          'nvim-update-lock: Lazy runtime state differs from the active generation.' \
+          'Switch to reset it before performing a deliberate repository update.' \
+          >&2
+        exit 65
+      fi
       if (( check_only )); then
-        printf '%s\n' 'nvim-update-lock: checkout matches the active generation.'
+        printf '%s\n' \
+          'nvim-update-lock: checkout and runtime state match the active generation.'
         exit 0
       fi
 
       temporary_directory="$(mktemp -d "''${TMPDIR:-/tmp}/nvim-lock-update.XXXXXX")"
       cleanup() {
         rm -rf "$temporary_directory"
-        if [[ -n "$candidate" ]]; then
-          rm -f "$candidate"
+        if [[ -n "$checkout_candidate" ]]; then
+          rm -f "$checkout_candidate"
+        fi
+        if [[ -n "$runtime_candidate" ]]; then
+          rm -f "$runtime_candidate"
         fi
       }
       trap cleanup EXIT HUP INT TERM
@@ -100,10 +122,14 @@ let
         exit 0
       fi
 
-      candidate="$(mktemp "''${lock_target%/*}/.lazy-lock.json.XXXXXX")"
-      install -m 0644 "$working_lock" "$candidate"
-      mv -f "$candidate" "$lock_target"
-      candidate=""
+      checkout_candidate="$(mktemp "''${lock_target%/*}/.lazy-lock.json.XXXXXX")"
+      runtime_candidate="$(mktemp "''${runtime_lock%/*}/.lazy-lock.json.XXXXXX")"
+      install -m 0644 "$working_lock" "$checkout_candidate"
+      install -m 0600 "$working_lock" "$runtime_candidate"
+      mv -f "$checkout_candidate" "$lock_target"
+      checkout_candidate=""
+      mv -f "$runtime_candidate" "$runtime_lock"
+      runtime_candidate=""
       printf 'Updated %s; review and commit the lockfile, then switch.\n' "$lock_target"
     '';
   };
@@ -111,8 +137,24 @@ in
 {
   home.packages = [ nvimUpdateLock ];
 
-  # Plugins, Mason tools, caches, ShaDa, and sessions already use Neovim's
-  # XDG data/state/cache roots. The only configuration-tree writer was Lazy's
-  # lockfile updater, which is redirected explicitly by nvim-update-lock.
+  # Lazy rewrites its lock after installing missing plugins as well as during
+  # explicit updates. Synchronize an operational state copy from the declared
+  # lock on every activation, then let normal sessions write only that copy.
+  # A direct :Lazy update can no longer hit the Nix store, but the updater's
+  # baseline guard detects that drift and requires a switch before promotion.
+  home.activation.syncNeovimRuntimeLock = lib.hm.dag.entryBefore [ "linkGeneration" ] ''
+    $DRY_RUN_CMD ${pkgs.coreutils}/bin/install -d -m 0700 \
+      ${lib.escapeShellArg runtimeLockDirectory}
+    $DRY_RUN_CMD ${pkgs.coreutils}/bin/install -m 0600 \
+      ${lib.escapeShellArg (toString lockSource)} \
+      ${lib.escapeShellArg "${runtimeLock}.new"}
+    $DRY_RUN_CMD ${pkgs.coreutils}/bin/mv -f \
+      ${lib.escapeShellArg "${runtimeLock}.new"} \
+      ${lib.escapeShellArg runtimeLock}
+  '';
+
+  # Plugins, Mason tools, caches, ShaDa, sessions, and the operational Lazy
+  # lock use Neovim's XDG data/state/cache roots. Configuration remains
+  # immutable, while nvim-update-lock is the deliberate repository workflow.
   xdg.configFile."nvim".source = ./nvim;
 }

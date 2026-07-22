@@ -1,4 +1,5 @@
 local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
+local runtime_lockfile = vim.fn.stdpath("state") .. "/lazy-lock.json"
 
 if not (vim.uv or vim.loop).fs_stat(lazypath) then
   -- bootstrap lazy.nvim
@@ -8,10 +9,10 @@ end
 vim.opt.rtp:prepend(vim.env.LAZY or lazypath)
 
 require("lazy").setup({
-    -- Runtime configuration is Nix-store-backed. The supported update command
-    -- redirects only this file to a temporary writable staging path, then
-    -- atomically promotes a successful result to the repository checkout.
-    lockfile = vim.env.NVIM_LAZY_LOCKFILE or (vim.fn.stdpath("config") .. "/lazy-lock.json"),
+    -- Home Manager synchronizes the reviewed lock into writable runtime state
+    -- on activation. The supported update command overrides this with a
+    -- temporary staging path and promotes a successful result deliberately.
+    lockfile = vim.env.NVIM_LAZY_LOCKFILE or runtime_lockfile,
     spec = {
         -- add LazyVim and import its plugins
         { "LazyVim/LazyVim", import = "lazyvim.plugins" },
