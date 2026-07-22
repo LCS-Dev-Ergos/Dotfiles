@@ -117,9 +117,6 @@ rollback intentionally does not erase or rewind them. `XDG_CACHE_HOME` is
 disposable and should be reproducible from declared configuration plus normal
 application startup.
 
-The rationale and phased migration work are documented in
-`PRACTICAL_IMMUTABILITY_PLAN.md`.
-
 After activation, `scripts/audit-live-config.sh` performs a read-only audit of
 the live home directory. It reports broken configuration links, links into the
 checkout that lack a registered exception, and changes beneath a registered
