@@ -97,6 +97,7 @@
         "home-manager": "home-manager",
         "nix-darwin": "nix-darwin",
         "nixpkgs": "nixpkgs",
+        "sbarlua": "sbarlua",
         "smart-tmux-session-manager": "smart-tmux-session-manager",
         "tmux-continuum": "tmux-continuum",
         "tmux-resurrect": "tmux-resurrect",
@@ -105,6 +106,23 @@
         "tokyo-night-yazi": "tokyo-night-yazi",
         "tpm": "tpm",
         "vim-tmux-navigator": "vim-tmux-navigator"
+      }
+    },
+    "sbarlua": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1772774660,
+        "narHash": "sha256-lhLTrdufA3ALJ2S5HLdgNOr5seWIWEHkVhZNPObzbvI=",
+        "owner": "FelixKratz",
+        "repo": "SbarLua",
+        "rev": "dba9cc421b868c918d5c23c408544a28aadf2f2f",
+        "type": "github"
+      },
+      "original": {
+        "owner": "FelixKratz",
+        "repo": "SbarLua",
+        "rev": "dba9cc421b868c918d5c23c408544a28aadf2f2f",
+        "type": "github"
       }
     },
     "smart-tmux-session-manager": {

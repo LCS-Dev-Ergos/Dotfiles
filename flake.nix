@@ -19,6 +19,10 @@
       url = "github:victor-gp/cmd-help-sublime-syntax/273cb988177e96f4187e06008b13fa72ad22ae4d";
       flake = false;
     };
+    sbarlua = {
+      url = "github:FelixKratz/SbarLua/dba9cc421b868c918d5c23c408544a28aadf2f2f";
+      flake = false;
+    };
     tokyo-night-yazi = {
       url = "github:BennyOe/tokyo-night.yazi/5f5636427f9bb16cc3f7c5e5693c60914c73f036";
       flake = false;
@@ -81,6 +85,7 @@
       externalSources = {
         alacrittyTheme = inputs.alacritty-theme;
         cmdHelpSyntax = inputs.cmd-help-syntax;
+        sbarLua = inputs.sbarlua;
         tokyoNightYazi = inputs.tokyo-night-yazi;
         tmuxPlugins = {
           inherit (inputs) tpm;
