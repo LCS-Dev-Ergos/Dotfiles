@@ -65,6 +65,7 @@ in
     pkgs.coreutils-prefixed
     pkgs.csharpier
     pkgs.dockfmt
+    pkgs.emacs-lsp-booster
     pkgs.fourmolu
     pkgs.glslang
     pkgs.gomodifytags
@@ -76,6 +77,7 @@ in
     pkgs.ocamlPackages.merlin
     pkgs.ocamlPackages.utop
     pkgs.pipenv
+    pkgs.pyright
     pkgs.sbcl
     pkgs.shfmt
     pkgs.zig

@@ -60,10 +60,6 @@
   :recipe (:host github :repo "gleam-lang/gleam-mode"
            :branch "main" :files ("gleam-ts-*.el")))
 
-;; LSP + Consult/Vertico integration
-;; Provides: consult-lsp-symbols, consult-lsp-diagnostics, consult-lsp-file-symbols
-(package! consult-lsp)
-
 ;; Haskell yasnippet templates
 (package! haskell-snippets)
 
@@ -79,3 +75,12 @@
 
 ;; Better on-save formatting (more robust than format-all for multi-language setups)
 (package! apheleia)
+
+;; Ada: no core Doom module exists for it. Toolchain (gnat, gprbuild,
+;; ada_language_server) is Alire-managed, external to Nix -- same pattern as
+;; Haskell/ghcup, Lean/elan, Rocq/opam.
+(package! ada-mode)
+
+;; GDScript (Godot): no core Doom module exists for it. No LSP package needed
+;; either -- the Godot editor itself serves the language server.
+(package! gdscript-mode)

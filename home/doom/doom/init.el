@@ -105,7 +105,7 @@
        ;;ein               ; tame Jupyter notebooks with emacs
        (eval +overlay)     ; run code, run (also, repls)
        lookup              ; navigate your code and its documentation
-       (lsp +peek)         ; M-x vscode (peek: inline xref with lsp-ui)
+       (lsp +eglot +booster) ; M-x vscode, via Emacs's native client + emacs-lsp-booster (no lsp-ui peek)
        magit               ; a git porcelain for Emacs
        make                ; run make tasks from Emacs
        ;;pass              ; password manager for nerds
@@ -176,7 +176,7 @@
        ;;(ruby +rails)     ; 1.step {|i| p "Ruby is #{i.even? ? 'love' : 'life'}"}
        (rust +lsp)         ; Fe2O3.unwrap().unwrap().unwrap().unwrap()
        scala               ; java, but good
-       (scheme +guile)     ; a fully conniving family of lisps
+       (scheme +guile +racket) ; a fully conniving family of lisps
        sh                  ; she sells {ba,z,fi}sh shells on the C xor
        ;;sml
        ;;solidity          ; do you need a blockchain? No.
