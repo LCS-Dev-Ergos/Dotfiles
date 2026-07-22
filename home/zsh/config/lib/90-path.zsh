@@ -72,6 +72,7 @@ zsh_rebuild_path() {
 
   local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
   local cache_file="$cache_dir/path.cache"
+
   # Bump whenever priority semantics change so live shells cannot reuse a
   # structurally valid cache containing the previous order.
   local cache_version="5"
@@ -128,6 +129,7 @@ zsh_rebuild_path() {
       # ----- STATIC SHIMS & LANGUAGE BINS ------ #
       "$PYENV_ROOT/bin"
       "$HOME/.opam/ocaml-compiler/bin"
+      "$HOME/.cargo/bin" # rustup; must win over Homebrew's rust if it lingers.
       "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/java/current/bin"
       "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/maven/current/bin"
       "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/kotlin/current/bin"
@@ -138,7 +140,6 @@ zsh_rebuild_path() {
 
       # ------------------ Nix ------------------ #
       # Declaratively managed tools win over duplicate Homebrew formulae.
-      # Language-version shims remain above Nix by deliberate user choice.
       "/etc/profiles/per-user/$USER/bin"
       "$HOME/.nix-profile/bin"
       "/nix/var/nix/profiles/default/bin"
@@ -147,7 +148,6 @@ zsh_rebuild_path() {
       # --------------- Homebrew ---------------- #
       "/opt/homebrew/bin"
       "/opt/homebrew/sbin"
-      "/opt/homebrew/opt/llvm/bin"
       "/opt/homebrew/opt/ccache/libexec"
 
       # ------------- Container VM -------------- #
@@ -162,8 +162,8 @@ zsh_rebuild_path() {
       # --------- Functional Languages ---------- #
       "$HOME/Library/Application Support/Coursier/bin"
       "$HOME/.ghcup/bin" "$HOME/.cabal/bin"
-      "$HOME/.cargo/bin"
       "$HOME/.elan/bin"
+      "$HOME/.dotnet/tools" # dotnet global tools (csharp-ls, etc.)
 
       # ------ User and App-Specific Paths ------ #
       "$HOME/.ada/bin"
@@ -209,6 +209,7 @@ zsh_rebuild_path() {
       "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/kotlin/current/bin"
       "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/gradle/current/bin"
       "$HOME/.opam/ocaml-compiler/bin"
+      "$HOME/.cargo/bin" # rustup; must win over any competing rust package.
 
       # ------ FNM (Current session only) ------- #
       "$FNM_MULTISHELL_PATH/bin"
@@ -230,9 +231,9 @@ zsh_rebuild_path() {
 
       # --------- Functional Languages ---------- #
       "$HOME/.ghcup/bin" "$HOME/.cabal/bin"
-      "$HOME/.cargo/bin"
       "$HOME/.elan/bin"
       "$HOME/.local/share/coursier/bin"
+      "$HOME/.dotnet/tools" # dotnet global tools (csharp-ls, etc.)
 
       # ------ User and App-Specific Paths ------ #
       "$GEM_HOME/bin" "$ruby_user_bin"
