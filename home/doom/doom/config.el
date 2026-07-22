@@ -1,5 +1,25 @@
 ;;; $DOOMDIR/config.el -*- lexical-binding: t; -*-
 
+;; Keep Emacs Customize output separate from the declarative Doom source.
+;; Home Manager seeds this private state file once from home/doom/custom.el;
+;; subsequent Customize writes survive Nix generation changes without touching
+;; the repository or the read-only store.
+(defconst lcs-doom-state-directory
+  (file-name-as-directory
+   (expand-file-name "doom"
+                     (or (getenv "XDG_STATE_HOME")
+                         (expand-file-name ".local/state" (getenv "HOME")))))
+  "Private state directory for mutable Doom configuration.")
+(setq custom-file (expand-file-name "custom.el" lcs-doom-state-directory))
+(make-directory lcs-doom-state-directory t)
+(unless (= (logand (file-modes lcs-doom-state-directory) #o777) #o700)
+  (set-file-modes lcs-doom-state-directory #o700))
+(unless (file-exists-p custom-file)
+  (with-temp-file custom-file
+    (insert ";;; Mutable Emacs Customize state; managed outside $DOOMDIR.\n")))
+(unless (= (logand (file-modes custom-file) #o777) #o600)
+  (set-file-modes custom-file #o600))
+
 ;; ========================== PERSONAL INFORMATION ========================== ;;
 ;;
 ;; Some functionality uses this to identify you (GPG, email clients, templates)
@@ -471,3 +491,7 @@
 ;;    - Works with Iosevka, JetBrains Mono, Fira Code
 ;;
 ;; ========================================================================== ;;
+
+;; Load mutable Customize values after the declarative configuration so an
+;; explicit interactive choice retains Emacs's normal override semantics.
+(load custom-file 'noerror 'nomessage)
