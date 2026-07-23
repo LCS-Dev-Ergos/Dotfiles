@@ -107,7 +107,6 @@ _init_starship_prompt() {
     return 1
   fi
 
-  # ------------------------- Configuration Variables -------------------------
   # File descriptor for async callback (0 = not active).
   typeset -gi _tp_fd=0
 
@@ -126,18 +125,27 @@ _init_starship_prompt() {
   typeset -g _tp_prompt_orig="$PROMPT"
   typeset -g _tp_rprompt_orig="$RPROMPT"
 
-  # --------------------------- Build Final Prompt ----------------------------
-  # Wrap original prompt with dynamic newline prefix.
-  # The $_tp_newline variable controls spacing between prompts.
+  # ---------------------------------------------------------------------------
+  # _tp_set_prompt
+  # @internal
+  # @description Rebuilds PROMPT/RPROMPT from the saved Starship prompt plus
+  # the dynamic newline prefix in $_tp_newline.
+  # @noargs
+  # ---------------------------------------------------------------------------
   _tp_set_prompt() {
     PROMPT='${_tp_newline}'"${_tp_prompt_orig}"
     RPROMPT="${_tp_rprompt_orig}"
   }
   _tp_set_prompt
 
-  # ------------------------- Widget: zle-line-finish -------------------------
-  # Called when user presses Enter. Applies transient prompt and schedules
-  # restoration via file descriptor callback.
+  # ---------------------------------------------------------------------------
+  # _tp_zle_line_finish
+  # @internal
+  # @description Switches to the transient prompt when a command line is
+  # accepted, then schedules _tp_restore_prompt via a one-shot file
+  # descriptor callback so the full prompt returns before the next command.
+  # @noargs
+  # ---------------------------------------------------------------------------
   zle -N zle-line-finish _tp_zle_line_finish
   _tp_zle_line_finish() {
     # Skip if transient prompt is disabled.
@@ -161,25 +169,38 @@ _init_starship_prompt() {
     fi
   }
 
-  # --------------------------- Widget: send-break ----------------------------
-  # Called on Ctrl+C. Apply transient prompt before breaking.
+  # ---------------------------------------------------------------------------
+  # _tp_send_break
+  # @internal
+  # @description Applies the transient prompt before handling Ctrl+C.
+  # @noargs
+  # ---------------------------------------------------------------------------
   zle -N send-break _tp_send_break
   _tp_send_break() {
     _tp_zle_line_finish
     zle .send-break
   }
 
-  # -------------------------- Widget: clear-screen ---------------------------
-  # Called on Ctrl+L. Reset newline state so next prompt has no leading space.
+  # ---------------------------------------------------------------------------
+  # _tp_clear_screen
+  # @internal
+  # @description Resets the newline-prefix state on Ctrl+L so the next prompt
+  # starts without a leading blank line.
+  # @noargs
+  # ---------------------------------------------------------------------------
   zle -N clear-screen _tp_clear_screen
   _tp_clear_screen() {
     _tp_newline=
     zle .clear-screen
   }
 
-  # ------------------------ Callback: Restore Prompt -------------------------
-  # Called via zle -F when fd becomes readable (after command execution).
-  # Restores the full Starship prompt.
+  # ---------------------------------------------------------------------------
+  # _tp_restore_prompt
+  # @internal
+  # @description Closes the one-shot file descriptor and restores the full
+  # Starship prompt after a command finishes.
+  # @arg $1 integer File descriptor passed by the zle -F callback.
+  # ---------------------------------------------------------------------------
   _tp_restore_prompt() {
     # Close and unregister fd.
     local fd=$1
@@ -197,7 +218,7 @@ _init_starship_prompt() {
     fi
   }
 
-  # ------------------------------ Preexec Hook -------------------------------
+  # ------------------------------ PREEXEC HOOK -------------------------------
   # Detects screen-clearing commands and sets flag to skip newline.
   (( ${+preexec_functions} )) || typeset -ga preexec_functions
   # Avoid duplicate registrations when re-sourcing.
@@ -207,6 +228,13 @@ _init_starship_prompt() {
   # Flag: 1 = skip newline on next precmd
   typeset -gi _tp_skip_newline=0
 
+  # ---------------------------------------------------------------------------
+  # _tp_preexec
+  # @internal
+  # @description Flags screen-clearing commands (clear/cls/reset/c) so the
+  # next precmd skips the newline prefix.
+  # @arg $1 string Command line about to execute.
+  # ---------------------------------------------------------------------------
   _tp_preexec() {
     # Extract first word of command
     local cmd="${1%% *}"
@@ -215,7 +243,7 @@ _init_starship_prompt() {
     esac
   }
 
-  # ------------------------------- Precmd Hook -------------------------------
+  # ------------------------------- PRECMD HOOK -------------------------------
   # Sets _tp_newline after first prompt, respecting clear commands.
   (( ${+precmd_functions} )) || typeset -ga precmd_functions
   (( ${#precmd_functions} )) || precmd_functions=(true)
@@ -223,7 +251,14 @@ _init_starship_prompt() {
   precmd_functions=(${(@)precmd_functions:#_tp_precmd})
   precmd_functions+=(_tp_precmd)
 
-  # First precmd: don't set newline yet.
+  # ---------------------------------------------------------------------------
+  # _tp_precmd
+  # @internal
+  # @description Sets _tp_newline before each prompt. On its first call it
+  # redefines itself (and TRAPINT) so the very first prompt skips the leading
+  # newline, while later calls apply the normal skip-on-clear newline logic.
+  # @noargs
+  # ---------------------------------------------------------------------------
   _tp_precmd() {
     TRAPINT() {
       zle && _tp_zle_line_finish
@@ -246,8 +281,12 @@ _init_starship_prompt() {
     }
   }
 
-  # ----------------------------- Toggle Function -----------------------------
-  # Widget to toggle transient prompt on/off.
+  # ---------------------------------------------------------------------------
+  # _tp_toggle
+  # @internal
+  # @description Widget that toggles the transient prompt on/off.
+  # @noargs
+  # ---------------------------------------------------------------------------
   zle -N toggle-transient-prompt _tp_toggle
   _tp_toggle() {
     if (( _tp_enabled )); then
@@ -266,10 +305,11 @@ _init_starship_prompt() {
 
 # -----------------------------------------------------------------------------
 # _init_ohmyposh_prompt
-# -----------------------------------------------------------------------------
-# Initialize Oh-My-Posh prompt as fallback for macOS/Windows.
-#
-# Expects config file at: $XDG_CONFIG_HOME/oh-my-posh/lcs-dev.omp.json
+# @internal
+# @description Initializes Oh-My-Posh as a fallback prompt using the config at
+# $XDG_CONFIG_HOME/oh-my-posh/lcs-dev.omp.json.
+# @noargs
+# @exitcode 1 If the config file is missing or initialization fails.
 # -----------------------------------------------------------------------------
 _init_ohmyposh_prompt() {
   local omp_config="${XDG_CONFIG_HOME:-$HOME/.config}/oh-my-posh/lcs-dev.omp.json"
@@ -291,13 +331,11 @@ _init_ohmyposh_prompt() {
 
 # -----------------------------------------------------------------------------
 # _init_p10k_prompt
-# -----------------------------------------------------------------------------
-# Initialize PowerLevel10k prompt as Linux fallback.
-#
-# Searches for theme in common locations:
-#   - /usr/share/zsh-theme-powerlevel10k/
-#   - ~/.oh-my-zsh/custom/themes/powerlevel10k/
-#   - $ZDOTDIR/.oh-my-zsh/custom/themes/powerlevel10k/
+# @internal
+# @description Initializes Powerlevel10k as a Linux fallback prompt, searching
+# common theme install locations and sourcing ~/.p10k.zsh when present.
+# @noargs
+# @exitcode 1 If no Powerlevel10k theme file is found or loadable.
 # -----------------------------------------------------------------------------
 _init_p10k_prompt() {
   local p10k_theme
@@ -326,12 +364,10 @@ _init_p10k_prompt() {
 
 # -----------------------------------------------------------------------------
 # _init_minimal_prompt
-# -----------------------------------------------------------------------------
-# Initialize basic fallback prompt when no other prompt system is available.
-#
-# Format:
-#   Left:  user@host:path #/$
-#   Right: HH:MM:SS (dimmed)
+# @internal
+# @description Sets a minimal fallback PROMPT/RPROMPT (user@host:path, dimmed
+# clock) when no other prompt system is available.
+# @noargs
 # -----------------------------------------------------------------------------
 _init_minimal_prompt() {
   setopt PROMPT_SUBST
@@ -339,9 +375,7 @@ _init_minimal_prompt() {
   RPROMPT='%F{240}%D{%H:%M:%S}%f'
 }
 
-# ============================================================================ #
 # ++++++++++++++++++++++++++ PROMPT INITIALIZATION +++++++++++++++++++++++++++ #
-# ============================================================================ #
 
 # -----------------------------------------------------------------------------
 # _zsh_init_prompt_system

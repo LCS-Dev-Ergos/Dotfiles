@@ -90,10 +90,7 @@ export DUNE_CACHE_TRANSPORT=direct  # Faster cache access.
 
 [[ ! -r "$HOME/.opam/opam-init/init.zsh" ]] || source "$HOME/.opam/opam-init/init.zsh" >/dev/null 2>/dev/null
 
-# ---------------------------------------------------------------------------- #
-# ++++++++++++++++++++++ DYNAMIC ENVIRONMENT MANAGERS  +++++++++++++++++++++++ #
-
-# ===================== LANGUAGES AND DEVELOPMENT TOOLS ====================== #
+# +++++++++++++++++++++ LANGUAGES AND DEVELOPMENT TOOLS ++++++++++++++++++++++ #
 
 # -------------------- Java - Smart JAVA_HOME Management --------------------- #
 # First, prioritize SDKMAN! if it is installed.
@@ -106,17 +103,24 @@ if [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]]; then
     export JAVA_HOME="$SDKMAN_DIR/candidates/java/current"
   fi
 
+  # ---------------------------------------------------------------------------
+  # _sdkman_lazy_init
+  # @internal
+  # @description Sources SDKMAN's init script once, guarded against
+  # re-running.
+  # @noargs
+  # ---------------------------------------------------------------------------
   _sdkman_lazy_init() {
     [[ -n "${_SDKMAN_LAZY_INIT:-}" ]] && return 0
     _SDKMAN_LAZY_INIT=1
     source "$SDKMAN_DIR/bin/sdkman-init.sh"
   }
 
-  # -------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
   # sdk
   # @description Lazily initializes SDKMAN, then runs its sdk command.
   # @arg $@ string Arguments forwarded to SDKMAN.
-  # -------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
   sdk() {
     unfunction sdk 2>/dev/null
     _sdkman_lazy_init
@@ -125,7 +129,6 @@ if [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]]; then
 else
   # ---------------------------------------------------------------------------
   # _setup_java_home_fallback
-  # ---------------------------------------------------------------------------
   # @internal
   # @description Detects JAVA_HOME when SDKMAN is unavailable.
   # Uses platform tools and caches a secure result for later shells.
@@ -204,6 +207,13 @@ if [[ -d "$HOME/.pyenv" ]]; then
   [[ -d "$PYENV_ROOT/bin" ]] && export PATH="$PYENV_ROOT/bin:$PATH"
 
   if command -v pyenv >/dev/null 2>&1; then
+    # -------------------------------------------------------------------------
+    # _pyenv_lazy_init
+    # @internal
+    # @description Evaluates pyenv init and virtualenv-init once, guarded
+    # against re-running.
+    # @noargs
+    # -------------------------------------------------------------------------
     _pyenv_lazy_init() {
       [[ -n "${_PYENV_LAZY_INIT:-}" ]] && return 0
       _PYENV_LAZY_INIT=1
@@ -256,17 +266,12 @@ export CMAKE_EXPORT_COMPILE_COMMANDS
 # -------------- CONDA --------------- #
 # >>> Conda initialize >>>
 # -----------------------------------------------------------------------------
-# __conda_init
-# -----------------------------------------------------------------------------
-# Initialize Conda/Miniforge with platform-aware path detection.
-# Supports both Arch Linux system installation and user installation.
-#
-# Paths checked:
-#   Linux (Arch): /opt/miniconda3/bin/conda
-#   User:         ~/.miniforge3/bin/conda
-#
-# Configuration:
-#   - Disables conda's prompt modification (changeps1 false).
+# _conda_lazy_init
+# @internal
+# @description Initializes Conda/Miniforge once, guarded against re-running,
+# checking the Arch system path and the user Miniforge install in turn, and
+# disabling conda's own prompt modification.
+# @noargs
 # -----------------------------------------------------------------------------
 _conda_lazy_init() {
   [[ -n "${_CONDA_LAZY_INIT:-}" ]] && return 0
@@ -302,11 +307,11 @@ _conda_lazy_init() {
 }
 
 if [[ -f "/opt/miniconda3/bin/conda" || -f "$HOME/.miniforge3/bin/conda" ]]; then
-  # -------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
   # conda
   # @description Lazily initializes Conda, then runs its command.
   # @arg $@ string Arguments forwarded to conda.
-  # -------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
   conda() {
     unfunction conda 2>/dev/null
     _conda_lazy_init
@@ -354,6 +359,12 @@ if [[ -d "$HOME/.rbenv" ]]; then
   [[ -d "$RBENV_ROOT/bin" ]] && export PATH="$RBENV_ROOT/bin:$PATH"
 
   if command -v rbenv >/dev/null 2>&1; then
+    # -------------------------------------------------------------------------
+    # _rbenv_lazy_init
+    # @internal
+    # @description Evaluates rbenv init once, guarded against re-running.
+    # @noargs
+    # -------------------------------------------------------------------------
     _rbenv_lazy_init() {
       [[ -n "${_RBENV_LAZY_INIT:-}" ]] && return 0
       _RBENV_LAZY_INIT=1
@@ -375,6 +386,15 @@ fi
 
 # ----- FNM (Fast Node Manager) ------ #
 if command -v fnm &>/dev/null; then
+  # ---------------------------------------------------------------------------
+  # _fnm_lazy_init
+  # @internal
+  # @description Initializes the fnm multishell environment once per active
+  # symlink, sets a default Node version when none is aliased, and rebuilds
+  # PATH afterward.
+  # @noargs
+  # @exitcode 1 If `fnm env` fails.
+  # ---------------------------------------------------------------------------
   _fnm_lazy_init() {
     if [[ -n "${_FNM_LAZY_INIT:-}" ]]; then
       if [[ -n "${FNM_MULTISHELL_PATH:-}" && -d "$FNM_MULTISHELL_PATH/bin" ]] \
@@ -429,10 +449,11 @@ if command -v fnm &>/dev/null; then
   }
 
   # ---------------------------------------------------------------------------
-  # _fnm_setup_heartbeat (lazy)
-  # ---------------------------------------------------------------------------
-  # Lazy-load the timestamp update mechanism on first node-related command.
-  # Keeps fnm multishell session alive by updating symlink timestamp.
+  # _fnm_setup_heartbeat
+  # @internal
+  # @description Registers a precmd hook that periodically touches the fnm
+  # multishell symlink so it is not reaped as stale; runs once per session.
+  # @noargs
   # ---------------------------------------------------------------------------
   _fnm_setup_heartbeat() {
     [[ -n "${_FNM_HEARTBEAT_SETUP:-}" ]] && return 0
@@ -441,7 +462,13 @@ if command -v fnm &>/dev/null; then
     # Declare a command counter (of integer type) specific to this session.
     typeset -gi FNM_CMD_COUNTER=0
 
-    # Heartbeat function to keep fnm multishell session alive.
+    # -------------------------------------------------------------------------
+    # _fnm_update_timestamp
+    # @internal
+    # @description Touches the fnm multishell symlink every 50 precmd calls to
+    # keep the session alive.
+    # @noargs
+    # -------------------------------------------------------------------------
     _fnm_update_timestamp() {
       ((FNM_CMD_COUNTER++))
       if ((FNM_CMD_COUNTER >= 50)); then
@@ -457,6 +484,13 @@ if command -v fnm &>/dev/null; then
     add-zsh-hook precmd _fnm_update_timestamp
   }
 
+  # ---------------------------------------------------------------------------
+  # _fnm_ensure_ready
+  # @internal
+  # @description Ensures fnm is initialized and its heartbeat hook is armed.
+  # @noargs
+  # @exitcode 1 If fnm initialization fails.
+  # ---------------------------------------------------------------------------
   _fnm_ensure_ready() {
     _fnm_lazy_init || return 1
     _fnm_setup_heartbeat
@@ -470,11 +504,11 @@ if command -v fnm &>/dev/null; then
     add-zsh-hook precmd _fnm_lazy_init
   fi
 
-  # -------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
   # fnm
   # @description Initializes fnm on demand, then runs its command.
   # @arg $@ string Arguments forwarded to fnm.
-  # -------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
   fnm() {
     if ! _fnm_ensure_ready; then
       command fnm "$@"
@@ -485,57 +519,57 @@ if command -v fnm &>/dev/null; then
   }
 
   # Ensure fnm and its heartbeat before each Node-related command.
-  # -------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
   # node
   # @description Ensures fnm is ready, then runs Node.js.
   # @arg $@ string Arguments forwarded to node.
   # @exitcode 1 If fnm initialization fails.
-  # -------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
   node() {
     _fnm_ensure_ready || return 1
     command node "$@"
   }
 
-  # -------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
   # npm
   # @description Ensures fnm is ready, then runs npm.
   # @arg $@ string Arguments forwarded to npm.
   # @exitcode 1 If fnm initialization fails.
-  # -------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
   npm() {
     _fnm_ensure_ready || return 1
     command npm "$@"
   }
 
-  # -------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
   # npx
   # @description Ensures fnm is ready, then runs npx.
   # @arg $@ string Arguments forwarded to npx.
   # @exitcode 1 If fnm initialization fails.
-  # -------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
   npx() {
     _fnm_ensure_ready || return 1
     command npx "$@"
   }
 
-  # -------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
   # corepack
   # @description Ensures fnm is ready, then runs Corepack.
   # @arg $@ string Arguments forwarded to corepack.
   # @exitcode 1 If fnm initialization fails.
-  # -------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
   corepack() {
     _fnm_ensure_ready || return 1
     command corepack "$@"
   }
 
-  # -------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
   # pi
   # @description Initializes the default fnm Node environment, then launches
   # the Pi coding agent installed in that environment.
   # @arg $@ string Arguments forwarded to Pi.
   # @exitcode 1 If fnm initialization fails; 127 if Pi is not installed.
-  # -------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
   pi() {
     _fnm_ensure_ready || return 1
 

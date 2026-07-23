@@ -29,11 +29,24 @@ typeset -f _zsh_is_secure_file >/dev/null 2>&1 ||
 
 [[ $- == *i* ]] || return 0
 
+# -----------------------------------------------------------------------------
+# _lazy_loader_core
+# @internal
+# @description Builds and validates a lazy-stub cache from scanned function
+# and alias names, then defines self-replacing stub functions for each;
+# shared by 95-lazy-scripts.zsh and 96-lazy-cpp-tools.zsh. See the module
+# header above for the full parameter contract.
+# @arg $1 string Loader id (e.g. "scripts", "cpp-tools").
+# @arg $2 integer Cache version; bump to force regeneration.
+# @arg $3 string "auto" to map each name to its source file, or an explicit
+# script path for every discovered name.
+# @arg $@ path Files to scan for function/alias definitions.
+# -----------------------------------------------------------------------------
 _lazy_loader_core() {
   emulate -L zsh
   setopt noxtrace noverbose
 
-  # ----- Parameter unpacking ------------------------------------------------ #
+  # ----- Parameter unpacking -------------------------------------------------
   local loader_id="$1"
   local cache_version="$2"
   local stub_target="$3"
@@ -46,13 +59,20 @@ _lazy_loader_core() {
   local safe_id="${loader_id//-/_}"
   local safe_id_upper="${(U)safe_id}"
 
-  # ----- Cache paths -------------------------------------------------------- #
+  # ----- Cache paths ---------------------------------------------------------
   local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
   local cache_file="$cache_dir/lazy-${loader_id}.zsh"
   local cache_header="# lazy-${loader_id}-version: ${cache_version}"
   local msg_prefix="lazy-${loader_id}"
 
-  # ----- Build cache -------------------------------------------------------- #
+  # ---------------------------------------------------------------------------
+  # _lazy_core_build_cache
+  # @internal
+  # @description Scans files for function/alias names via awk and writes a
+  # versioned lazy-stub cache atomically to a temp file.
+  # @arg $1 path Destination cache file.
+  # @arg $@ path Files to scan for function/alias definitions.
+  # ---------------------------------------------------------------------------
   _lazy_core_build_cache() {
     local out_file="$1"
     shift
@@ -150,7 +170,7 @@ _lazy_loader_core() {
     trap - EXIT INT TERM
   }
 
-  # ----- Cache invalidation ------------------------------------------------- #
+  # ----- Cache invalidation --------------------------------------------------
   local regen=0
   if [[ ! -f "$cache_file" ]]; then
     regen=1
@@ -180,7 +200,7 @@ _lazy_loader_core() {
     fi
   fi
 
-  # ----- Regenerate if needed ----------------------------------------------- #
+  # ----- Regenerate if needed ------------------------------------------------
   if (( regen )); then
     if ! mkdir -p "$cache_dir" 2>/dev/null; then
       print -u2 "${msg_prefix}: warning: cannot create cache directory: $cache_dir"
@@ -189,7 +209,7 @@ _lazy_loader_core() {
     _lazy_core_build_cache "$cache_file" "${scan_files[@]}"
   fi
 
-  # ----- Source cache with security check ----------------------------------- #
+  # ----- Source cache with security check ------------------------------------
   if [[ -r "$cache_file" ]]; then
     if _zsh_is_secure_file "$cache_file"; then
       source "$cache_file"
