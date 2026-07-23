@@ -33,13 +33,12 @@
 
 ;; ================================= FONTS ================================== ;;
 ;;
-;; Using Iosevka Nerd Font - clean, mathematical aesthetic with full glyph support
-;; Install with: brew install font-iosevka-nerd-font
+;; Using Iosevka Nerd Font - clean, mathematical aesthetic with full glyph support.
 ;;
 ;; Alternatives:
-;;   - "JetBrainsMono Nerd Font" - clear ligatures, excellent readability
-;;   - "FiraCode Nerd Font" - classic choice with great ligatures
-;;   - "CaskaydiaCove Nerd Font" - (Cascadia Code) Microsoft's font
+;;   - "JetBrainsMono Nerd Font"  - clear ligatures, excellent readability.
+;;   - "FiraCode Nerd Font"       - classic choice with great ligatures.
+;;   - "CaskaydiaCove Nerd Font"  - (Cascadia Code) Microsoft's font.
 
 (setq doom-font (font-spec :family "FiraCode Nerd Font" :size 15 :weight 'regular)
       doom-variable-pitch-font (font-spec :family "FiraCode Nerd Font" :size 15)
