@@ -66,7 +66,7 @@ trap 'return 130' INT TERM HUP
 command env -i \
   HOME="$HOME" \
   USER="$USER" \
-  PATH="/opt/homebrew/bin:/usr/bin:/bin:/etc/profiles/per-user/$USER/bin" \
+  PATH="/opt/homebrew/opt/llvm/bin:/opt/homebrew/opt/ccache/libexec:/opt/homebrew/bin:/usr/bin:/bin:/etc/profiles/per-user/$USER/bin" \
   PLATFORM=macOS \
   XDG_CACHE_HOME="$fixture_root/cache" \
   ZSH_CONFIG_DIR="$test_root" \
@@ -74,11 +74,17 @@ command env -i \
     source "$ZSH_CONFIG_DIR/lib/90-path.zsh" || exit 1
     typeset nix_bin="/etc/profiles/per-user/$USER/bin"
     typeset brew_bin="/opt/homebrew/bin"
+    typeset system_bin="/bin"
     typeset -i nix_index=${path[(Ie)$nix_bin]}
     typeset -i brew_index=${path[(Ie)$brew_bin]}
-    (( nix_index > 0 && brew_index > 0 && nix_index < brew_index ))
+    typeset -i system_index=${path[(Ie)$system_bin]}
+    (( nix_index > 0 && brew_index > 0 && system_index > 0 ))
+    (( nix_index < brew_index && nix_index < system_index ))
+    (( ${path[(Ie)/opt/homebrew/opt/llvm/bin]} == 0 ))
+    (( ${path[(Ie)/opt/homebrew/opt/ccache/libexec]} == 0 ))
   ' || {
-  print -u2 "FAIL: interactive PATH does not prefer Nix over Homebrew"
+  print -u2 \
+    "FAIL: interactive PATH precedence or retired-toolchain filtering failed"
   return 1
 }
 

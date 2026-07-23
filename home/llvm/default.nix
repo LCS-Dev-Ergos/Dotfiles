@@ -7,8 +7,12 @@
   # Nix's clang wrapper bakes in the right -isysroot itself, verified
   # empirically: it compiled the same failing file with zero env vars via a
   # throwaway `nix shell`.
-  # PATH priority over Homebrew is handled in home/zsh (Nix already wins there).
+  # Home Manager exposes these wrapped tools through the user profile; Zsh does
+  # not inject any competing package-manager-specific toolchain directory.
   home.packages = [
+    # CMake consumes ccache through its explicit compiler-launcher variables;
+    # no compiler-name masquerade directory belongs in the global PATH.
+    pkgs.ccache
     pkgs.llvmPackages_22.clang
     pkgs.llvmPackages_22.clang-tools
     pkgs.llvmPackages_22.lld

@@ -75,7 +75,7 @@ zsh_rebuild_path() {
 
   # Bump whenever priority semantics change so live shells cannot reuse a
   # structurally valid cache containing the previous order.
-  local cache_version="5"
+  local cache_version="7"
   local cache_signature="${cache_version}|${stable_original_path}|${PLATFORM}"
   cache_signature+="|${PYENV_ROOT}|${SDKMAN_DIR}"
   cache_signature+="|${GEM_HOME}|${GOPATH}|${ANDROID_HOME}"
@@ -136,7 +136,7 @@ zsh_rebuild_path() {
       "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/gradle/current/bin"
 
       # ------ FNM (Current session only) ------- #
-      "$FNM_MULTISHELL_PATH/bin"
+      "${FNM_MULTISHELL_PATH:+$FNM_MULTISHELL_PATH/bin}"
 
       # ------------------ Nix ------------------ #
       # Declaratively managed tools win over duplicate Homebrew formulae.
@@ -148,7 +148,6 @@ zsh_rebuild_path() {
       # --------------- Homebrew ---------------- #
       "/opt/homebrew/bin"
       "/opt/homebrew/sbin"
-      "/opt/homebrew/opt/ccache/libexec"
 
       # ------------- Container VM -------------- #
       "/opt/podman/bin"
@@ -212,7 +211,7 @@ zsh_rebuild_path() {
       "$HOME/.cargo/bin" # rustup; must win over any competing rust package.
 
       # ------ FNM (Current session only) ------- #
-      "$FNM_MULTISHELL_PATH/bin"
+      "${FNM_MULTISHELL_PATH:+$FNM_MULTISHELL_PATH/bin}"
 
       # ------------------ Nix ------------------ #
       # Declaratively managed tools win over system and Linuxbrew copies.
@@ -281,6 +280,18 @@ zsh_rebuild_path() {
     if [[ -d "$dir" ]] && [[ -z "${seen[$dir]}" ]]; then
       # Filter out unwanted paths (e.g., Ghostty injection).
       if [[ "$dir" == *"/Ghostty.app/"* ]]; then
+        return
+      fi
+
+      # Do not re-admit retired Homebrew toolchain shims through an inherited
+      # PATH. Nix owns LLVM and ccache; retaining either directory here would
+      # make an `exec zsh -l` keep stale ownership until the parent process or
+      # machine restarted.
+      if [[ "$PLATFORM" == 'macOS' &&
+        ( "$dir" == "/opt/homebrew/opt/llvm/bin" ||
+          "$dir" == "/usr/local/opt/llvm/bin" ||
+          "$dir" == "/opt/homebrew/opt/ccache/libexec" ||
+          "$dir" == "/usr/local/opt/ccache/libexec" ) ]]; then
         return
       fi
 

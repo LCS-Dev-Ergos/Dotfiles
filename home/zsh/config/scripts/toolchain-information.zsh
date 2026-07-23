@@ -245,7 +245,7 @@ _toolchain_vendor_for_gcc() {
 # @description Identifies the Clang/LLVM vendor from version output and path.
 # @arg $1 string Output of `compiler --version`.
 # @arg $2 path Compiler binary path.
-# @stdout The vendor label (e.g. "Apple", "Homebrew LLVM").
+# @stdout The vendor label (e.g. "Apple", "Nix LLVM", "Homebrew LLVM").
 # -----------------------------------------------------------------------------
 _toolchain_vendor_for_clang() {
   # Preserve xtrace state.
@@ -255,6 +255,10 @@ _toolchain_vendor_for_clang() {
   local version_info="$1" compiler_path="$2"
   if [[ "$version_info" == *"Apple clang"* ]]; then
     echo "Apple"
+  elif [[ "$compiler_path" == /nix/store/* \
+    || "$compiler_path" == /etc/profiles/per-user/* \
+    || "$compiler_path" == /run/current-system/sw/* ]]; then
+    echo "Nix LLVM"
   elif [[ "$version_info" == *"Homebrew"* ]]; then
     echo "Homebrew LLVM"
   elif [[ "$version_info" == *"Ubuntu"* ]]; then
