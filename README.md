@@ -33,10 +33,28 @@ shared modules instead of being copied per configuration.
 
 ### Ownership Model
 
-nix-darwin declares the Homebrew inventory: taps, formulae and casks. Home
-Manager owns application configuration. The zsh configuration under
-`home/zsh/` is managed by Home Manager, while the `zsh` executable comes from
-Homebrew.
+Homebrew owns macOS applications and the packages that need its ecosystem;
+nix-darwin declares that inventory of taps, formulae and casks. Nix owns the
+portable command-line baseline and the development toolchains that benefit
+from reproducibility, and Home Manager owns application configuration. The zsh
+configuration under `home/zsh/` is managed by Home Manager, while the `zsh`
+executable comes from Homebrew.
+
+Activation sets `homebrew.onActivation.cleanup = "none"`: a switch installs
+missing declarations and never uninstalls an undeclared package.
+
+`scripts/audit-package-ownership.sh`, run from an interactive login shell,
+compares the evaluated `homebrew.brews`, `homebrew.casks` and `homebrew.taps`
+with the live installation and checks command precedence across `PATH`:
+
+- Only formulae that Homebrew records as explicitly requested can be reported
+  as undeclared. Transitive dependencies are counted, and each potential
+  removal lists its installed reverse dependencies.
+- A Homebrew command that precedes an available Nix command is a failure unless
+  `home/package-ownership-allowlist.tsv` records the overlap, its expected
+  winner and the reason. `--verbose` also lists the overlaps that Nix wins.
+- The audit never installs, upgrades, removes, taps or untaps anything. A
+  nonzero exit status means the report contains drift or a precedence problem.
 
 ### State Boundaries
 
@@ -133,6 +151,7 @@ Dotfiles/
     ├── darwin.nix             # macOS-only application imports
     ├── linux.nix              # Linux and Wayland application imports
     ├── out-of-store-allowlist.tsv
+    ├── package-ownership-allowlist.tsv
     ├── git/                   # One directory per application, each with its own default.nix
     ├── zsh/
     └── ...                    # kitty, neovim, tmux, starship, fish, nushell and others
@@ -161,8 +180,10 @@ nix develop .#ci --command bash -euo pipefail -c '
   statix check .
   deadnix --fail flake.nix darwin home hosts
   bash scripts/check-out-of-store-allowlist.sh
+  bash scripts/check-package-ownership-policy.sh
   bash scripts/check-declared-secrets.sh
-  shellcheck scripts/*.sh
+  bash scripts/tests/run.sh
+  shellcheck scripts/*.sh scripts/tests/*.sh
 '
 nix flake check --no-build --all-systems --show-trace
 home/zsh/config/tests/run-all.zsh --full
