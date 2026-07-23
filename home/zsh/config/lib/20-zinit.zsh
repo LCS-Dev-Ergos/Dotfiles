@@ -278,8 +278,12 @@ if [[ "$PLATFORM" == "macOS" ]] || [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" ==
   zinit ice lucid atload"_zinit_bind_history_substring_keys"
   zinit light zsh-users/zsh-history-substring-search
 
-  # Must stay last among interactive plugins.
-  zinit ice lucid atload"_zinit_replay_compdefs"
+  # Must stay last among interactive plugins. Turbo-deferred: widget binding
+  # measured ~70-90ms, the largest single startup cost, and wait"0" attaches
+  # highlighting right after the first prompt paints. Text typed before that
+  # colors on the next keystroke; other turbo plugins load in later slots, so
+  # this remains last among the interactive set.
+  zinit ice wait"0" lucid atload"_zinit_replay_compdefs"
   zinit light zdharma-continuum/fast-syntax-highlighting
 fi
 
