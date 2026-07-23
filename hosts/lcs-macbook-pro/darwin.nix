@@ -1,6 +1,7 @@
 {
   self,
   lib,
+  pkgs,
   homeDirectory,
   username,
   ...
@@ -12,9 +13,32 @@ in
   # The platform this nix-darwin configuration is built for.
   nixpkgs.hostPlatform = "aarch64-darwin";
 
+  # Register the Nix Zsh as a permissible login shell. The module maps the
+  # package to /run/current-system/sw/bin/zsh -- a generation-stable path that
+  # survives rollbacks and garbage collection -- and keeps every stock macOS
+  # shell (including /bin/zsh) in the generated /etc/shells for recovery.
+  environment.shells = [ pkgs.zsh ];
+
+  # users.users.<name>.shell is only enforced for accounts listed in
+  # users.knownUsers whose declared uid matches the live account; without
+  # both, the dscl UserShell write is silently skipped. Listing the account
+  # here hands nix-darwin user management for it, so keep this entry and the
+  # users.users record together permanently.
+  users.knownUsers = [ username ];
+
   users.users.${username} = {
     name = username;
     home = homeDirectory;
+    # Captured from `id -u` on the live system; the activation script skips
+    # the shell update if this ever disagrees with the actual account.
+    uid = 501;
+    shell = pkgs.zsh;
+    # programs.zsh stays disabled (darwin/default.nix): it would generate
+    # /etc/zshenv, /etc/zprofile, and /etc/zshrc with a competing global
+    # compinit. The repository .zshenv already initializes the Nix daemon
+    # environment for every shell type, which is what the assertion behind
+    # this flag exists to guarantee.
+    ignoreShellProgramCheck = true;
   };
 
   # nix-darwin does not manage the existing macOS account, so it cannot

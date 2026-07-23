@@ -60,8 +60,10 @@ in
   # proprietary applications and Apple fonts remain Homebrew-owned.
   nixpkgs.config.allowUnfreePredicate = package: lib.getName package == "symbola";
 
-  # Home Manager deploys the user's Zsh files. Homebrew still owns the Darwin
-  # shell binary (standalone Home Manager installs it on Linux), so nix-darwin
-  # must not generate a competing /etc/zsh* configuration or integration path.
+  # Home Manager deploys the user's Zsh files, and the login shell is the Nix
+  # zsh package via users.users.<name>.shell (hosts/lcs-macbook-pro/darwin.nix).
+  # Keep this module disabled regardless: it would generate /etc/zshenv,
+  # /etc/zprofile, and /etc/zshrc with a competing global compinit, while the
+  # repository .zshenv already provides the Nix environment for all shell types.
   programs.zsh.enable = false;
 }
