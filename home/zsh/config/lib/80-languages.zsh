@@ -248,6 +248,16 @@ export CARGO_INCREMENTAL=1
 # -------------- C/C++ --------------- #
 # Conservative C/C++ defaults: keep them tool-friendly and non-invasive.
 # Avoid global optimization flags here; project build files should own those.
+
+# Baseline CC/CXX for opam, cargo, and anything else reading $CC/$CXX.
+# home/llvm still wins bare `cc`/`clang` on PATH for our own C/C++ work, but
+# its wrapped clang pins an old deployment target and a narrower SDK -- the
+# wrong fit for tools building against the running system. Absolute path so
+# PATH order can't reintroduce the ambiguity; `use_llvm`/`use_gnu` still
+# override this per-shell on request.
+export CC=/usr/bin/cc
+export CXX=/usr/bin/c++
+
 if command -v ccache >/dev/null 2>&1; then
   export CCACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/ccache"
   export CCACHE_COMPRESS=1
