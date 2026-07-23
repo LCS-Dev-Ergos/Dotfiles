@@ -1,35 +1,69 @@
-{ pkgs, ... }:
+{ lib, pkgs, ... }:
 {
   # Portable, version-independent command-line tools used across projects.
   # Keeping this baseline in the shared Home Manager configuration gives both
   # hosts the same commands without making project toolchains global.
   home.packages = [
+    pkgs._7zz
+    pkgs.ansible
+    pkgs.ansible-lint
+    pkgs.atac
     pkgs.bandwhich
     pkgs.bc
+    pkgs.bear
+    pkgs.beautysh
     pkgs.bottom
+    pkgs.bun
     pkgs.cbonsai
     pkgs.cmatrix
+    pkgs.codex
+    pkgs.cppman
     pkgs.csvlens
     pkgs.deadnix # Flags dead/unused bindings.
     pkgs.duf
+    pkgs.exiftool
+    pkgs.findutils
     pkgs.fswatch
     pkgs.gh
+    pkgs.git-filter-repo
     pkgs.glab
     pkgs.glow
+    pkgs.gnused
     pkgs.gum
+    pkgs.jolt-tui
     pkgs.jq
     pkgs.just
+    pkgs.just-lsp
     pkgs.lazydocker
+    pkgs.llmfit
     pkgs.nixd # Language server (completion, goto-def, diagnostics).
     pkgs.nixfmt # Canonical formatter (RFC 166 style).
+    # Stable non-interactive fallback; an active FNM multishell remains
+    # higher-priority for projects that deliberately select another Node.
+    pkgs.nodejs_24
+    pkgs.opencode
+    pkgs.patch
+    pkgs.pipes
     pkgs.procs
     pkgs.pstree
+    pkgs.qpdf
+    pkgs.ruff
+    pkgs.sesh
     pkgs.shellcheck
     pkgs.statix # Lints anti-patterns (e.g. `with` scope footguns).
     pkgs.television
+    pkgs.tex-fmt
+    pkgs.time
     pkgs.tree
+    pkgs.universal-ctags
+    pkgs.uv
     pkgs.w3m
     pkgs.wget
+  ]
+  ++ lib.optionals pkgs.stdenv.isDarwin [
+    # These commands use Darwin frameworks or macOS-only APIs.
+    pkgs.nowplaying-cli
+    pkgs.switchaudio-osx
   ];
 
   # fzf, zoxide, eza, and direnv already have full shell integration and

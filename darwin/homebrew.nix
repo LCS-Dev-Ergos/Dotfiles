@@ -8,28 +8,39 @@ _: {
   # every live cask/tap/formula is confirmed present below -- those modes
   # remove whatever's installed but undeclared.
   #
-  # Absent on purpose, now Nix/Home Manager-owned: aspell, atuin, bandwhich,
-  # bat, bc, bottom, btop, cava, cbonsai, cmatrix, csvlens, direnv, duf, eza,
-  # fastfetch, fd, fish, fswatch, fzf, gh, git, git-delta, glab, glow, gum,
-  # jq, just, lazydocker, lazygit, lld, llvm, nnn, nushell, oh-my-posh, procs,
-  # pstree, shellcheck, starship, tealdeer, television, tmux, tree, w3m,
-  # wget, yazi, zoxide, ueberzugpp. llvm/lld left for a real bug, not just
-  # ownership -- see home/llvm. `rust` was never declared here to begin with
-  # (a pre-migration leftover). `brew uninstall llvm lld rust` is still a
-  # manual follow-up; cleanup = "none" won't do it for us.
+  # Absent on purpose, now Nix/Home Manager-owned: ansible, ansible-lint,
+  # aspell, atac, atuin, bandwhich, bash, bat, bc, bear, beautysh, bottom,
+  # btop, bun, cava, cbonsai, ccache, clang-format, cmatrix, codex, cppman,
+  # csvlens, direnv, duf, eza, exiftool, fastfetch, fd, findutils, fish,
+  # fswatch, fzf,
+  # gh, git, git-delta, git-filter-repo, glab, glow, gnu-sed, gnu-time, gpatch,
+  # gum, jolt, jq, just, just-lsp, lazydocker, lazygit, lld, llmfit, llvm, nnn,
+  # node, nowplaying-cli, nushell, oh-my-posh, opencode, pipes-sh, procs,
+  # pstree, qpdf, ripgrep, ruff, sesh, sevenzip, shellcheck, starship,
+  # switchaudio-osx, tealdeer, television, tex-fmt, tmux, tree,
+  # universal-ctags, uv, w3m, wget, yazi, zoxide.
+  # llvm/lld left for a real bug, not just ownership -- see home/llvm. `rust`
+  # was never declared here to begin with (a pre-migration leftover).
+  # cleanup = "none" leaves all retired formulae installed until the Nix
+  # replacements have been activated and a dependency-aware manual cleanup is
+  # confirmed. The unused Darwin ueberzugpp installation is retired rather
+  # than replaced; its Nix package and configuration remain Linux-only.
   #
   # Also absent, but not Nix takeovers: `coreutils` is only a build input for
   # activation scripts and Doom's separate `coreutils-prefixed` package,
   # never used interactively; `stow` has no Nix equivalent -- Home Manager's
   # declarative file placement replaced it.
   #
-  # Deliberate Homebrew holdouts: `ripgrep` (codex/droid/opencode depend on
-  # it; Nix still owns the interactive `rg` on PATH), `gcc` (hdf5, open-mpi,
-  # libmatio, vips and ueberzugpp need its gfortran at runtime, and
-  # emacs-plus's native-comp links against its libgccjit -- Nix's gcc15 still
-  # wins on PATH for interactive/project use, see home/gcc), `neovim`/`zsh`
-  # (binary ownership is a separate decision from Home Manager deploying
-  # their configs), and GUI apps in general.
+  # Open font casks are also absent: nix-darwin installs CM Unicode, Fira Code,
+  # the selected Nerd Font families, and Noto Sans Symbols 2. Apple SF fonts
+  # remain Homebrew-owned because their licenses are proprietary.
+  #
+  # Deliberate Homebrew holdouts: `gcc` (hdf5, open-mpi, libmatio and vips
+  # need its gfortran at runtime, and emacs-plus's native-comp links against
+  # its libgccjit -- Nix's gcc15 still wins on PATH for interactive/project
+  # use, see home/gcc), `neovim`/`zsh` (binary ownership is a separate
+  # decision from Home Manager deploying their configs), and GUI apps in
+  # general.
   homebrew = {
     enable = true;
 
@@ -41,15 +52,6 @@ _: {
     onActivation.extraFlags = [ "--quiet" ];
 
     taps = [
-      {
-        name = "alexsjones/llmfit";
-        clone_target = "https://github.com/AlexsJones/homebrew-llmfit";
-        trusted = true;
-      }
-      {
-        name = "anomalyco/tap";
-        trusted = true;
-      }
       {
         name = "asmvik/formulae";
         clone_target = "https://github.com/asmvik/homebrew-formulae.git";
@@ -72,52 +74,26 @@ _: {
       "homebrew/cask"
       "homebrew/core"
       "jbreckmckye/formulae"
-      "jordond/tap"
-      "julien-cpsn/atac"
-      {
-        name = "kilo-org/tap";
-        clone_target = "https://github.com/Kilo-Org/homebrew-tap";
-        trusted = true;
-      }
       {
         name = "nikitabobko/tap";
         trusted = true;
       }
-      "oven-sh/bun"
-      {
-        name = "reyamira/tap";
-        clone_target = "https://github.com/reyamira/homebrew-tap.git";
-        trusted = true;
-      }
-      {
-        name = "romkatv/powerlevel10k";
-        trusted = true;
-      }
       "serkanyersen/dotstate"
       "teamookla/speedtest"
-      "terror/tap"
       "veeso/termscp"
       "zackelia/formulae"
     ];
 
     brews = [
-      "ansible"
-      "ansible-lint"
       "asmvik/formulae/skhd"
       "asmvik/formulae/yabai"
       "autoconf"
       "automake"
-      "bash"
-      "bear"
-      "beautysh"
-      "ccache"
       "clamav"
-      "clang-format"
       "cmake"
       "cmake-docs"
       "coursier"
       "cpanminus"
-      "cppman"
       "cronboard"
       "cunit"
       "discount"
@@ -126,24 +102,18 @@ _: {
       "dolphie"
       "doxygen"
       "erlang"
-      "exiftool"
       "fabric-ai"
       "felixkratz/formulae/borders"
       "felixkratz/formulae/sketchybar"
-      "findutils"
       "fnm"
       "fzf-make"
       "gawk"
       "gcc"
       "gdb"
-      "git-filter-repo"
       "gleam"
       "global"
-      "gnu-sed"
-      "gnu-time"
       "go"
       "googletest"
-      "gpatch"
       "graelo/tap/pumas"
       "graphviz"
       "gromgit/brewtils/taproom"
@@ -155,12 +125,9 @@ _: {
       "icu4c@78"
       "imagemagick"
       "jbreckmckye/formulae/daylight"
-      "jordond/tap/jolt"
-      "julien-cpsn/atac/atac"
       "libgccjit"
       "libsixel"
       "libvterm"
-      "llmfit"
       "lua"
       "make"
       "man-db"
@@ -171,49 +138,38 @@ _: {
       "neovim"
       "ninja"
       "nmap"
-      "node"
-      "nowplaying-cli"
       "oci-cli"
       "ocrmypdf"
       "opam"
-      "opencode"
       {
         name = "openjdk@21";
         link = true;
       }
-      "oven-sh/bun/bun"
       "pandoc"
       "pdfcpu"
       "perl"
       "php"
-      "pipes-sh"
       "pkgconf"
       "plantuml"
       "powerlevel10k"
       "pyenv"
-      "qpdf"
       "qrencode"
       "raylib"
       "rbenv"
       "reaver"
       "redis"
-      "ripgrep"
       "ruby"
-      "ruff"
       "serkanyersen/dotstate/dotstate"
-      "sesh"
-      "sevenzip"
       "smartmontools"
       "swi-prolog"
-      "switchaudio-osx"
       "teamookla/speedtest/speedtest"
-      "terror/tap/just-lsp"
       "tesseract-lang"
-      "tex-fmt"
       "thefuck"
+      # Locked nixpkgs marks unar available on Darwin, but its Objective-C
+      # linker currently crashes when building the aarch64-darwin package.
       "unar"
-      "universal-ctags"
-      "uv"
+      # The locked Darwin build fails at link time and also injects a
+      # Homebrew Samba library path, so this is not a clean Nix owner yet.
       "veeso/termscp/termscp"
       "zackelia/formulae/bclm"
       "zsh"
@@ -223,23 +179,11 @@ _: {
       "1password-cli@beta"
       "battery"
       "calibre"
-      "codex"
       "copilot-cli"
       "d12frosted/emacs-plus/emacs-plus-app"
       "dotnet-sdk"
-      "droid"
-      "font-caskaydia-cove-nerd-font"
-      "font-computer-modern"
-      "font-fira-code"
-      "font-fira-code-nerd-font"
-      "font-hack-nerd-font"
-      "font-iosevka-nerd-font"
-      "font-jetbrains-mono-nerd-font"
-      "font-monaspice-nerd-font"
-      "font-noto-sans-symbols-2"
       "font-sf-mono"
       "font-sf-pro"
-      "font-symbols-only-nerd-font"
       "ghostty"
       "git-credential-manager"
       "iterm2"

@@ -221,14 +221,17 @@ function extract() {
         fi
         ;;
       *.7z | *.7z.[0-9]* | *.pk7)
-        if command -v 7z >/dev/null 2>&1; then
+        if command -v 7zz >/dev/null 2>&1; then
+          7zz x "$full_path"
+          rc=$?
+        elif command -v 7z >/dev/null 2>&1; then
           7z x "$full_path"
           rc=$?
         elif command -v 7za >/dev/null 2>&1; then
           7za x "$full_path"
           rc=$?
         else
-          echo "${C_RED}Error: Install '7z' or '7za' to extract '$archive'.${C_RESET}" >&2
+          echo "${C_RED}Error: Install '7zz', '7z', or '7za' to extract '$archive'.${C_RESET}" >&2
           rc=1
         fi
         ;;

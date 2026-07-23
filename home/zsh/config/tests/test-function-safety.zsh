@@ -34,6 +34,29 @@ source "$test_root/functions/files.zsh"
 source "$test_root/functions/network.zsh"
 
 builtin cd -- "$fixture_root/work" || return 1
+
+typeset archive_mock_bin="$fixture_root/archive-bin"
+typeset sevenzip_log="$fixture_root/sevenzip.log"
+command mkdir -p -- "$archive_mock_bin"
+{
+  print -r -- '#!/bin/sh'
+  print -r -- 'printf "%s\n" "$@" > "$SEVENZIP_LOG"'
+} >| "$archive_mock_bin/7zz"
+command chmod 700 "$archive_mock_bin/7zz"
+export SEVENZIP_LOG="$sevenzip_log"
+path=("$archive_mock_bin" $path)
+print -rn -- "" >| sample.7z
+extract sample.7z >/dev/null 2>&1 || {
+  print -u2 "FAIL: extract rejected the Nix 7zz command"
+  return 1
+}
+typeset sevenzip_args="$(<"$sevenzip_log")"
+typeset expected_sevenzip_args=$'x\n'"$fixture_root/work/sample.7z"
+[[ "$sevenzip_args" == "$expected_sevenzip_args" ]] || {
+  print -u2 "FAIL: extract did not invoke 7zz with the expected arguments"
+  return 1
+}
+
 bm add 'team\docs' >/dev/null || {
   print -u2 "FAIL: bm rejected a safe bookmark name"
   return 1

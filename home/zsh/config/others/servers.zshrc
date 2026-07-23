@@ -675,7 +675,13 @@ if ! typeset -f extract >/dev/null 2>&1; then
                 *.bz2)      bunzip2 "$f"             ;;
                 *.gz)       gunzip  "$f"             ;;
                 *.zip)      unzip   "$f"             ;;
-                *.7z)       7z x    "$f"             ;;
+                *.7z)
+                    if command -v 7zz >/dev/null 2>&1; then
+                        7zz x "$f"
+                    else
+                        7z x "$f"
+                    fi
+                    ;;
                 *.rar)      unrar x "$f"             ;;
                 *.xz)       unxz    "$f"             ;;
                 *.zst)      zstd -d "$f"             ;;
