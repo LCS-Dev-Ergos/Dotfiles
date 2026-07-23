@@ -321,13 +321,18 @@
         rustic-lsp-server 'rust-analyzer
         rustic-analyzer-command '("rust-analyzer")))
 
+;; ================================== GO ===================================== ;;
+;;
+;; eglot's built-in default for go-mode is ("gopls"), found via PATH.
+;; gopls, goimports, and gofumpt come from `go install ...@latest`, on PATH
+;; via ~/.go/bin. gore, gotests, and gomodifytags come from
+;; home/doom/default.nix (Nix).
+
 ;; ================================== C# =================================== ;;
 ;;
-;; eglot's built-in default tries "omnisharp -lsp" then "csharp-ls" via PATH --
-;; no auto-install like lsp-mode had, so we need one of these on PATH first:
-;;   - OmniSharp: dotnet tool install --global OmniSharp  (full .NET support)
-;;   - csharp-ls: dotnet tool install --global csharp-ls  (lightweight)
-;; We haven't installed either yet -- ask before picking one.
+;; eglot's built-in default tries "omnisharp -lsp" then "csharp-ls" via PATH.
+;; csharp-ls comes from `dotnet tool install --global csharp-ls`, on PATH
+;; via ~/.dotnet/tools.
 (after! csharp-mode
   (add-hook 'csharp-mode-hook #'rainbow-delimiters-mode))
 
