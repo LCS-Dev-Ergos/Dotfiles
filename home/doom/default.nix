@@ -74,8 +74,6 @@ in
     pkgs.isync
     pkgs.ktlint
     pkgs.mu
-    pkgs.ocamlPackages.merlin
-    pkgs.ocamlPackages.utop
     pkgs.pipenv
     pkgs.pyright
     pkgs.sbcl

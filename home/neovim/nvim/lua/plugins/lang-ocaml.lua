@@ -1,16 +1,10 @@
 -- File: lua/plugins/lang-ocaml.lua
+--
+-- ocamllsp and ocamlformat come from opam (`opam install ocaml-lsp-server
+-- ocamlformat`), on PATH via ~/.opam/default/bin -- the same toolchain
+-- Doom's merlin/utop use.
 return {
-  -- 1. MASON: Installs ocaml-lsp (LSP) and ocamlformat (formatter).
-  {
-    "mason-org/mason.nvim",
-    ft = { "ocaml" },
-    opts = function(_, opts)
-      opts.ensure_installed = opts.ensure_installed or {}
-      vim.list_extend(opts.ensure_installed, { "ocaml-lsp", "ocamlformat" })
-    end,
-  },
-
-  -- 2. CONFORM.NVIM (Formatter): Uses ocamlformat.
+  -- 1. CONFORM.NVIM (Formatter): Uses ocamlformat.
   {
     "stevearc/conform.nvim",
     ft = { "ocaml" },
@@ -19,18 +13,20 @@ return {
     },
   },
 
-  -- 3. NVIM-LSPCONFIG: Configures ocaml-lsp.
+  -- 2. NVIM-LSPCONFIG: Configures ocaml-lsp.
   {
     "neovim/nvim-lspconfig",
     ft = { "ocaml" },
     opts = {
       servers = {
-        ocaml_lsp = {},
+        ocaml_lsp = {
+          mason = false,
+        },
       },
     },
   },
 
-  -- 4. TREESITTER: Installs the parser.
+  -- 3. TREESITTER: Installs the parser.
   {
     "nvim-treesitter/nvim-treesitter",
     ft = { "ocaml" },
