@@ -1,13 +1,14 @@
 -- File: lua/plugins/lang-kotlin.lua
 
 return {
-  -- 1. MASON: Ensure LSP and formatter are installed.
+  -- 1. MASON: Installs the LSP. ktlint comes from home/doom/default.nix
+  -- (Nix) and is already on PATH.
   {
     "mason-org/mason.nvim",
     ft = { "kotlin" },
     opts = function(_, opts)
       opts.ensure_installed = opts.ensure_installed or {}
-      vim.list_extend(opts.ensure_installed, { "kotlin-language-server", "ktlint" })
+      vim.list_extend(opts.ensure_installed, { "kotlin-language-server" })
     end,
   },
 
