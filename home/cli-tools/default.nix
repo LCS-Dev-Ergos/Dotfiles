@@ -105,6 +105,17 @@
     direnv = {
       enable = true;
       enableZshIntegration = false;
+
+      # Alire (Ada's toolchain manager) exposes gnat/gprbuild only inside a
+      # project, via `alr printenv` -- not globally on PATH like ghcup, opam,
+      # or elan. An Ada project's .envrc should contain a single line:
+      # `use alr`. The `-n -q` flags follow Alire's own documented
+      # recommendation (`alr printenv --help`) for scripted use.
+      stdlib = ''
+        use_alr() {
+          eval "$(alr -n -q printenv --unix)"
+        }
+      '';
     };
 
     # These modules have no enableZshIntegration option and generate no dormant

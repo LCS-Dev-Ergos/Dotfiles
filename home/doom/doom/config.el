@@ -273,12 +273,15 @@
 ;; ================================== ADA =================================== ;;
 ;;
 ;; No core Doom module for Ada; ada-mode (GNU ELPA) provides its own
-;; auto-mode-alist entries for .ads/.adb. We're managing the toolchain (gnat,
-;; gprbuild, ada_language_server) with Alire, external to Nix -- same pattern
-;; as Haskell/ghcup, Lean/elan, Rocq/opam. We already have a toolchain
-;; selected (gnat_native + gprbuild), but Alire only exposes it inside a
-;; project via `alr printenv`, so eglot won't find it without a direnv hookup
-;; like we set up for the rocq opam switch -- ask before doing that here too.
+;; auto-mode-alist entries for .ads/.adb. The toolchain (gnat, gprbuild,
+;; ada_language_server) is Alire-managed, external to Nix -- same pattern as
+;; Haskell/ghcup, Lean/elan, OCaml/opam. Alire scopes its selected toolchain
+;; to a project (via `alr printenv`), so it's exposed through direnv instead
+;; of a global PATH entry: home/cli-tools/default.nix defines a `use_alr`
+;; stdlib function, and each Ada project's .envrc contains one line:
+;; `use alr`. Direnv and Doom's `direnv` module export
+;; gnat/gprbuild/GPR_PROJECT_PATH into Emacs's buffer-local environment for
+;; that project, and eglot picks them up from there.
 (use-package! ada-mode
   :hook (ada-mode . eglot-ensure))
 
