@@ -357,6 +357,13 @@
 (after! kotlin-mode
   (setq kotlin-tab-width 4))
 
+;; ================================= SCALA ================================== ;;
+;;
+;; eglot's built-in default for scala-mode is ("metals"), found via PATH.
+;; Metals and scalafmt (formatter) both come from Coursier: `cs install
+;; metals`. Coursier's bin dir is already on PATH, same pattern as
+;; Haskell/ghcup, OCaml/opam, and Lean/elan.
+
 ;; ============================== DEBUGGER (DAP) ============================ ;;
 ;;
 ;; Requires: (debugger +lsp) in init.el
