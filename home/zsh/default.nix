@@ -6,11 +6,10 @@ let
   zshSource = ./.;
 in
 {
-  # Keep file placement independent from programs.zsh. Homebrew still owns the
-  # Darwin shell binary, while standalone Home Manager installs it on Linux.
-  # Separating config relocation from the Darwin binary swap keeps failures
-  # attributable to one change; binary ownership remains an intentionally
-  # small follow-up after the configuration survives real sessions.
+  # Keep file placement independent from programs.zsh. On Darwin, nix-darwin
+  # owns the login-shell binary through users.users.<name>.shell
+  # (hosts/lcs-macbook-pro/darwin.nix); standalone Home Manager installs the
+  # package on Linux. This module only relocates configuration files.
   #
   # The custom config guards against double compinit (20-zinit.zsh runs it;
   # 85-completions.zsh checks whether initialization already happened).

@@ -38,9 +38,11 @@ _: {
   # Deliberate Homebrew holdouts: `gcc` (hdf5, open-mpi, libmatio and vips
   # need its gfortran at runtime, and emacs-plus's native-comp links against
   # its libgccjit -- Nix's gcc15 still wins on PATH for interactive/project
-  # use, see home/gcc), `neovim`/`zsh` (binary ownership is a separate
-  # decision from Home Manager deploying their configs), and GUI apps in
-  # general.
+  # use, see home/gcc), `neovim` (binary ownership is a separate decision
+  # from Home Manager deploying its config), and GUI apps in general. `zsh`
+  # stays declared only until the Nix login shell (users.users.<name>.shell)
+  # has soaked through real sessions; remove it here and uninstall manually
+  # afterwards.
   homebrew = {
     enable = true;
 
