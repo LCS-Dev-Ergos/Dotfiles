@@ -292,8 +292,9 @@
 
 ;; ================================ HASKELL ================================= ;;
 ;;
-;; Fourmolu is installed by home/doom/default.nix. GHC, Cabal/Stack, and HLS
-;; remain a ghcup-owned versioned toolchain because HLS must match project GHC.
+;; Fourmolu is installed via `cabal install fourmolu` (GHCup's cabal). GHC,
+;; Cabal/Stack, HLS, and Fourmolu form one ghcup-owned, versioned toolchain,
+;; since HLS must match the project's GHC.
 ;; eglot's built-in default (haskell-mode . ("haskell-language-server-wrapper"
 ;; "--lsp")) resolves fine as-is: ~/.ghcup/bin is already on PATH.
 (after! haskell-mode

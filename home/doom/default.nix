@@ -66,7 +66,6 @@ in
     pkgs.csharpier
     pkgs.dockfmt
     pkgs.emacs-lsp-booster
-    pkgs.fourmolu
     pkgs.glslang
     pkgs.gomodifytags
     pkgs.gore
