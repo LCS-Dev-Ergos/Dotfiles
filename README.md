@@ -16,6 +16,7 @@ Personal dotfiles for macOS and Linux, managed declaratively with [Nix](https://
   - [Directory Structure](#directory-structure)
   - [What's Managed Where](#whats-managed-where)
   - [State Boundaries](#state-boundaries)
+  - [Package Ownership and Homebrew Drift](#package-ownership-and-homebrew-drift)
   - [Verification](#verification)
   - [Migrating from GNU Stow](#migrating-from-gnu-stow)
   - [Contributing](#contributing)
@@ -83,6 +84,7 @@ Dotfiles/
     ├── darwin.nix         # macOS-only application imports
     ├── linux.nix          # Linux/Wayland-only application imports
     ├── out-of-store-allowlist.tsv
+    ├── package-ownership-allowlist.tsv
     ├── git/                # One folder per tool, each with its own default.nix
     ├── zsh/
     └── ...                 # kitty, neovim, tmux, starship, fish, nushell, etc.
@@ -124,6 +126,37 @@ repository-backed target. A newly implemented migration can therefore remain
 visible as pending until its replacement generation has actually been
 activated.
 
+## Package Ownership and Homebrew Drift
+
+Homebrew remains responsible for macOS applications and packages that need its
+ecosystem, while Nix owns the portable command-line baseline and development
+toolchains that benefit from reproducibility. Activation deliberately uses
+`homebrew.onActivation.cleanup = "none"`: a switch may install a missing
+declaration, but it never uninstalls an undeclared package.
+
+Run the read-only ownership audit from an interactive login shell:
+
+```bash
+scripts/audit-package-ownership.sh
+```
+
+The audit evaluates the actual `homebrew.brews`, `homebrew.casks`, and
+`homebrew.taps` options from the Darwin flake, then compares them with the live
+installation. Homebrew's transitive formula dependencies are counted but are
+not mislabeled as top-level drift; only formulae recorded by Homebrew as
+explicitly requested are candidates for an `UNDECLARED FORMULA` finding.
+Potential removals include their installed reverse dependencies, so a
+`BLOCKED` result can be investigated without attempting an uninstall.
+
+The same command examines executable precedence across the active `PATH`.
+Unexpected cases where a Homebrew command precedes an available Nix command
+are failures. Deliberate dual ownership belongs in
+`home/package-ownership-allowlist.tsv`, with the expected winner and the
+operational reason. Use `--verbose` to list every benign overlap where Nix
+already wins. The audit never installs, upgrades, removes, taps, or untaps
+anything; a nonzero result means the report contains drift or a precedence
+problem to review.
+
 ## Verification
 
 The flake exposes a lockfile-pinned `ci` development shell for Nix formatting
@@ -136,8 +169,10 @@ nix develop .#ci --command bash -euo pipefail -c '
   statix check .
   deadnix --fail flake.nix darwin home hosts
   bash scripts/check-out-of-store-allowlist.sh
+  bash scripts/check-package-ownership-policy.sh
   bash scripts/check-declared-secrets.sh
-  shellcheck scripts/*.sh
+  bash scripts/tests/run.sh
+  shellcheck scripts/*.sh scripts/tests/*.sh
 '
 nix flake check --no-build --all-systems --show-trace
 home/zsh/config/tests/run-all.zsh --full

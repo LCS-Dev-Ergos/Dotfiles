@@ -11,6 +11,7 @@ on:
       - "hosts/**/*.nix"
       - "scripts/**"
       - "home/out-of-store-allowlist.tsv"
+      - "home/package-ownership-allowlist.tsv"
       - ".github/workflows/zsh-validate.yml"
   pull_request:
     paths:
@@ -22,6 +23,7 @@ on:
       - "hosts/**/*.nix"
       - "scripts/**"
       - "home/out-of-store-allowlist.tsv"
+      - "home/package-ownership-allowlist.tsv"
       - ".github/workflows/zsh-validate.yml"
   workflow_dispatch:
 
@@ -48,8 +50,10 @@ jobs:
             statix check .
             deadnix --fail flake.nix darwin home hosts
             bash scripts/check-out-of-store-allowlist.sh
+            bash scripts/check-package-ownership-policy.sh
             bash scripts/check-declared-secrets.sh
-            shellcheck scripts/*.sh
+            bash scripts/tests/run.sh
+            shellcheck scripts/*.sh scripts/tests/*.sh
           '
 
       - name: Evaluate every flake output
