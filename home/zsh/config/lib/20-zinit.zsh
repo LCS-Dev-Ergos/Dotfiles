@@ -122,6 +122,14 @@ _zinit_compinit_periodic() {
   if (( rc == 0 )); then
     touch "$stamp_file" 2>/dev/null || :
     print -r -- "$current_sig" >| "$sig_file" 2>/dev/null || :
+    # Compile the fresh dump so later -C shells load wordcode instead of
+    # reparsing ~60KB of text. Zsh ignores a .zwc older than its source, so
+    # a failed or skipped compile can never serve stale completions.
+    if [[ -f "$ZSH_COMPDUMP" ]] && zcompile "$ZSH_COMPDUMP" 2>/dev/null; then
+      command chmod 600 "$ZSH_COMPDUMP.zwc" 2>/dev/null || :
+    else
+      command rm -f -- "$ZSH_COMPDUMP.zwc" 2>/dev/null
+    fi
   fi
   return $rc
 }
