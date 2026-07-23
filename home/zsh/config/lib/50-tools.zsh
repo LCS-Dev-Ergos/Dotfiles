@@ -29,6 +29,13 @@
 
 # Initialize Atuin (Magical Shell History).
 if command -v atuin >/dev/null 2>&1; then
+  # ---------------------------------------------------------------------------
+  # _atuin_lazy_init
+  # @internal
+  # @description Initializes Atuin shell history on first use; self-guards
+  # against re-running and unregisters itself after the first call.
+  # @noargs
+  # ---------------------------------------------------------------------------
   _atuin_lazy_init() {
     [[ -n "${_ATUIN_INIT_DONE:-}" ]] && return 0
     _ATUIN_INIT_DONE=1
@@ -106,9 +113,10 @@ fi
 
 # -----------------------------------------------------------------------------
 # _gen_fzf_default_opts
-# -----------------------------------------------------------------------------
-# Configure fzf color scheme (Tokyo Night theme).
-# Sets FZF_DEFAULT_OPTS with consistent color palette for all fzf invocations.
+# @internal
+# @description Sets FZF_DEFAULT_OPTS to a Tokyo Night color scheme, stripping
+# any previous color options so re-sourcing does not accumulate flags.
+# @noargs
 # -----------------------------------------------------------------------------
 _gen_fzf_default_opts() {
   # ---------- Setup FZF theme ---------- #
@@ -149,17 +157,36 @@ if command -v fd >/dev/null 2>&1; then
   export FZF_ALT_C_COMMAND="fd --type=d --hidden --strip-cwd-prefix --exclude .git"
 
   # Use fd (https://github.com/sharkdp/fd) for listing path candidates.
+  # ---------------------------------------------------------------------------
+  # _fzf_compgen_path
+  # @internal
+  # @description Lists path candidates for fzf's CTRL-T using fd.
+  # @arg $1 path Directory to search from.
+  # ---------------------------------------------------------------------------
   _fzf_compgen_path() {
     fd --hidden --exclude .git . "$1"
   }
 
   # Use fd to generate the list for directory completion.
+  # ---------------------------------------------------------------------------
+  # _fzf_compgen_dir
+  # @internal
+  # @description Lists directory candidates for fzf's ALT-C using fd.
+  # @arg $1 path Directory to search from.
+  # ---------------------------------------------------------------------------
   _fzf_compgen_dir() {
     fd --type=d --hidden --exclude .git . "$1"
   }
 fi
 
 # Source fzf-git.sh (deferred by default to improve startup time).
+# -----------------------------------------------------------------------------
+# _fzf_git_source
+# @internal
+# @description Sources fzf-git.sh from the user config or system package
+# path, then unregisters itself once loaded.
+# @noargs
+# -----------------------------------------------------------------------------
 _fzf_git_source() {
   if [[ -f "$HOME/.config/fzf-git/fzf-git.sh" ]]; then
     source "$HOME/.config/fzf-git/fzf-git.sh"
@@ -191,6 +218,14 @@ fi
 
 # Advanced customization of fzf options via _fzf_comprun function.
 if command -v fzf >/dev/null 2>&1; then
+  # ---------------------------------------------------------------------------
+  # _fzf_comprun
+  # @internal
+  # @description Picks a preview command for fzf-tab completion based on the
+  # invoking command (cd, export/unset, ssh, or a file default).
+  # @arg $1 string Invoking command name.
+  # @arg $@ string Remaining fzf arguments.
+  # ---------------------------------------------------------------------------
   _fzf_comprun() {
     local cmd="$1"
     shift
@@ -271,14 +306,13 @@ hlp() {
 
 # +++++++++++++++++++++++++++++++ YABAI TOOLS ++++++++++++++++++++++++++++++++ #
 
-# -----------------------------------------------------------------------------#
+# -----------------------------------------------------------------------------
 # yabai_windows_table
-# -----------------------------------------------------------------------------#
 # @description Prints yabai windows across spaces and displays.
 # Uses jq for structured extraction and the shared Gum/native table renderer.
 # @noargs
 # @exitcode 1 If yabai is unavailable or its query fails.
-# -----------------------------------------------------------------------------#
+# -----------------------------------------------------------------------------
 yabai_windows_table() {
   emulate -L zsh
   setopt localoptions pipefail
@@ -339,14 +373,11 @@ fi
 
 # -----------------------------------------------------------------------------
 # _init_ghostty
-# -----------------------------------------------------------------------------
-# Initialize Ghostty shell integration (cross-platform).
-# Only runs when TERM indicates Ghostty (xterm-ghostty or ghostty).
-# Uses GHOSTTY_RESOURCES_DIR to source integration script if available.
-#
-# Platforms:
-#   - macOS: GHOSTTY_RESOURCES_DIR set by Ghostty.app.
-#   - Linux: GHOSTTY_RESOURCES_DIR typically /usr/share/ghostty or similar.
+# @internal
+# @description Sources the Ghostty shell-integration script when TERM
+# indicates Ghostty, resolving it via GHOSTTY_RESOURCES_DIR or common Linux
+# install paths.
+# @noargs
 # -----------------------------------------------------------------------------
 if [[ "$TERM" == *ghostty* ]]; then
   _init_ghostty() {
@@ -370,12 +401,13 @@ fi
 
 # +++++++++++++++++++++++++++++++++ ORBSTACK +++++++++++++++++++++++++++++++++ #
 
-# -----------------------------------------------------------------------------#
+# -----------------------------------------------------------------------------
 # _orbstack_init
-# -----------------------------------------------------------------------------#
-# Initialize OrbStack shell integration (deferred by default).
-# This keeps startup fast while still enabling features when idle.
-# -----------------------------------------------------------------------------#
+# @internal
+# @description Sources OrbStack's shell integration once, guarded against
+# re-running; deferred by default to keep startup fast.
+# @noargs
+# -----------------------------------------------------------------------------
 _orbstack_init() {
   [[ -n "${_ORBSTACK_INIT_DONE:-}" ]] && return 0
   _ORBSTACK_INIT_DONE=1
@@ -397,7 +429,6 @@ fi
 
 # -----------------------------------------------------------------------------
 # kitty_save_session
-# -----------------------------------------------------------------------------
 # @description Saves the current Kitty windows and tabs as a session file.
 # @arg $1 string Optional session name; defaults to a timestamp.
 # KITTY_SAVE_DIR and KITTY_LISTEN_ON override the save directory and socket.
@@ -438,7 +469,6 @@ alias ksave='kitty_save_session'
 
 # -----------------------------------------------------------------------------
 # kitty_restore_session
-# -----------------------------------------------------------------------------
 # @description Restores a saved Kitty session in the current or a new instance.
 # @arg $1 string Optional session name; otherwise selects with fzf or newest.
 # @exitcode 1 If the session directory, file, or Kitty control is unavailable.
@@ -498,7 +528,6 @@ alias krest='kitty_restore_session'
 
 # -----------------------------------------------------------------------------
 # kget
-# -----------------------------------------------------------------------------
 # @description Downloads files through Kitty's compressed transfer protocol.
 # @arg $@ path Remote files and optional local destination.
 # Requires an SSH session on the remote host.
@@ -532,7 +561,6 @@ kget() {
 
 # -----------------------------------------------------------------------------
 # kput
-# -----------------------------------------------------------------------------
 # @description Uploads files through Kitty's compressed transfer protocol.
 # With no arguments, uses fzf to select files when available.
 # @arg $@ path Local files and optional remote destination.

@@ -92,9 +92,7 @@ if [[ "$TERM_PROGRAM" == "vscode" ]]; then
   }
 fi
 
-# ============================================================================ #
 # ++++++++++++++++++++++++ EXECUTION AND OS DETECTION ++++++++++++++++++++++++ #
-# ============================================================================ #
 
 # ---- ANSI Color Definitions ---- #
 _zsh_init_colors
@@ -110,7 +108,7 @@ _zsh_detect_platform
 typeset -gi _ZSH_NCPUS
 (( _ZSH_NCPUS = $(sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo 4) ))
 
-# ----------------------------- Startup Commands ----------------------------- #
+# ----------------------------- STARTUP COMMANDS ----------------------------- #
 # Conditional startup commands based on platform.
 if [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" == true ]]; then
   # Arch Linux specific startup commands.
@@ -124,7 +122,7 @@ fi
 # Disable auto-setting of terminal title to prevent flickering in Kitty.
 DISABLE_AUTO_TITLE="true"
 
-# ---------------------------- Terminal Variables ---------------------------- #
+# ---------------------------- TERMINAL VARIABLES ---------------------------- #
 # Keep terminal-provided TERM whenever available. Only set a default when TERM
 # is missing or set to "dumb" (common in limited/non-interactive contexts).
 case "${TERM:-}" in
@@ -150,7 +148,12 @@ if [[ $- == *i* ]]; then
   typeset -ga _ZSH_DEFER_TASKS=()
   typeset -gi _ZSH_DEFER_ARMED=0
 
-  # Run deferred tasks.
+  # ---------------------------------------------------------------------------
+  # _zsh_defer_run
+  # @internal
+  # @description Runs and clears every queued deferred task.
+  # @noargs
+  # ---------------------------------------------------------------------------
   _zsh_defer_run() {
     local task
     for task in "${_ZSH_DEFER_TASKS[@]}"; do
@@ -161,7 +164,13 @@ if [[ $- == *i* ]]; then
     _ZSH_DEFER_TASKS=()
   }
 
-  # File descriptor handler to run deferred tasks.
+  # ---------------------------------------------------------------------------
+  # _zsh_defer_fdrun
+  # @internal
+  # @description Closes the one-shot file descriptor and runs deferred tasks;
+  # registered as the zle -F callback for that descriptor.
+  # @arg $1 integer File descriptor passed by the zle -F callback.
+  # ---------------------------------------------------------------------------
   _zsh_defer_fdrun() {
     local fd=$1
     exec {fd}>&-
@@ -169,7 +178,14 @@ if [[ $- == *i* ]]; then
     _zsh_defer_run
   }
 
-  # Precmd hook to set up ZLE file descriptor.
+  # ---------------------------------------------------------------------------
+  # _zsh_defer_precmd
+  # @internal
+  # @description One-shot precmd hook that opens a /dev/null file descriptor
+  # and arms _zsh_defer_fdrun on it so deferred tasks run once ZLE is idle;
+  # runs them immediately if zle or zsh/system is unavailable.
+  # @noargs
+  # ---------------------------------------------------------------------------
   _zsh_defer_precmd() {
     add-zsh-hook -d precmd _zsh_defer_precmd
     if ! zle; then

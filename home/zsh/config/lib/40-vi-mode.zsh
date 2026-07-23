@@ -40,7 +40,7 @@
 bindkey -v
 export KEYTIMEOUT=1
 
-# +++++++++++++++++++++++++++++++ Cursor Shape +++++++++++++++++++++++++++++++ #
+# +++++++++++++++++++++++++++++++ CURSOR SHAPE +++++++++++++++++++++++++++++++ #
 
 # -----------------------------------------------------------------------------
 # _vi_set_cursor
@@ -59,14 +59,11 @@ fi
 
 # -----------------------------------------------------------------------------
 # _vi_cursor_for_keymap
-# -----------------------------------------------------------------------------
-# Update cursor shape based on current vi keymap.
-#
-# Shapes:
-#   vicmd (normal mode)      -> steady block (2).
-#   viins (insert mode)      -> blinking block (1).
-#   visual (visual mode)     -> steady underline (4).
-#   viopp (operator pending) -> blinking underline (3).
+# @internal
+# @description Sets the terminal cursor shape for the current vi keymap:
+# steady block (vicmd), blinking block (viins), steady underline (visual), or
+# blinking underline (viopp).
+# @noargs
 # -----------------------------------------------------------------------------
 _vi_cursor_for_keymap() {
   case "${KEYMAP:-viins}" in
@@ -77,29 +74,22 @@ _vi_cursor_for_keymap() {
   esac
 }
 
-# +++++++++++++++++++++++++++++++ ZLE Widgets ++++++++++++++++++++++++++++++++ #
+# +++++++++++++++++++++++++++++++ ZLE WIDGETS ++++++++++++++++++++++++++++++++ #
 
 # -----------------------------------------------------------------------------
 # _vi_line_init
-# -----------------------------------------------------------------------------
-# Initialize command line in insert mode with correct cursor.
-# Called by zle-line-init widget when a new command line starts.
+# @internal
+# @description Resets to insert mode and syncs the cursor shape; bound to the
+# zle-line-init widget when a new command line starts.
+# @noargs
 # -----------------------------------------------------------------------------
 _vi_line_init() {
   zle -K viins
   _vi_cursor_for_keymap
 }
 
-# -----------------------------------------------------------------------------
-# _vi_keymap_select
-# -----------------------------------------------------------------------------
-# Update cursor shape when vi mode changes (insert <-> normal).
-# Called by zle-keymap-select widget on mode transitions.
-#
-# Chains to previous widget (e.g., Starship's) to preserve functionality.
-# -----------------------------------------------------------------------------
-
-# Capture the existing widget before overwriting it on reload.
+# Capture the existing zle-keymap-select widget (e.g., Starship's) before
+# overwriting it on reload, so _vi_keymap_select can chain to it below.
 typeset -g _VI_PREV_KEYMAP_SELECT=
 typeset -gi _VI_IN_KEYMAP=0
 
@@ -113,6 +103,14 @@ typeset -gi _VI_IN_KEYMAP=0
   fi
 }
 
+# -----------------------------------------------------------------------------
+# _vi_keymap_select
+# @internal
+# @description Updates the cursor shape on vi keymap transitions and chains to
+# whatever zle-keymap-select widget (e.g. Starship's) was previously bound,
+# guarding against self-reentrant recursion.
+# @noargs
+# -----------------------------------------------------------------------------
 _vi_keymap_select() {
   # Prevent recursion when prev chains back into us.
   if ((_VI_IN_KEYMAP)); then
@@ -132,13 +130,15 @@ _vi_keymap_select() {
 zle -N zle-line-init _vi_line_init
 zle -N zle-keymap-select _vi_keymap_select
 
-# +++++++++++++++++++++++++++++++ Keybindings ++++++++++++++++++++++++++++++++ #
+# +++++++++++++++++++++++++++++++ KEYBINDINGS ++++++++++++++++++++++++++++++++ #
 
 # -----------------------------------------------------------------------------
 # _vi_copy_cwd
-# -----------------------------------------------------------------------------
-# Copy current working directory to system clipboard.
-# Bound to Ctrl+O. Only available on macOS (requires pbcopy).
+# @internal
+# @description Copies $PWD to the system clipboard via pbcopy and shows a ZLE
+# status message; bound to Ctrl+O. Only defined when pbcopy is available
+# (macOS).
+# @noargs
 # -----------------------------------------------------------------------------
 if command -v pbcopy >/dev/null 2>&1; then
   _vi_copy_cwd() {

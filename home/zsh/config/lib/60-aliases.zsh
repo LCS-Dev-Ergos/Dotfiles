@@ -38,7 +38,6 @@ alias mv="mv -i"
 
 # -----------------------------------------------------------------------------
 # cdf
-# -----------------------------------------------------------------------------
 # @description Selects a file with fzf and enters its containing directory.
 # @noargs
 # @exitcode 1 If fzf is unavailable or selection is cancelled.
@@ -174,7 +173,6 @@ alias fastfetch='~/.config/fastfetch/scripts/fastfetch-dynamic.sh'
 
 # -----------------------------------------------------------------------------
 # kreload
-# -----------------------------------------------------------------------------
 # @description Reloads Kitty configuration without restarting the terminal.
 # @noargs
 # @exitcode 1 If not running in Kitty or reload fails.
@@ -198,7 +196,6 @@ alias kedit='$EDITOR ~/.config/kitty/kitty.conf'
 
 # -----------------------------------------------------------------------------
 # stitle
-# -----------------------------------------------------------------------------
 # @description Sets the terminal window or tab title.
 # @arg $@ string Title text.
 # -----------------------------------------------------------------------------
@@ -208,16 +205,15 @@ function stitle() {
 
 # +++++++++++++++++++++++++++ THEFUCK INTEGRATION ++++++++++++++++++++++++++++ #
 
-# -----------------------------------------------------------------------------
-# fuck
-# -----------------------------------------------------------------------------
-# @description Lazily initializes thefuck and retries the current correction.
-# @arg $@ string Arguments forwarded to the thefuck alias.
-# Available only when thefuck is installed.
-# @exitcode 1 If the alias cannot be initialized.
-# -----------------------------------------------------------------------------
 if command -v thefuck >/dev/null 2>&1; then
   # Lazy load thefuck to save startup time.
+  # ---------------------------------------------------------------------------
+  # fuck
+  # @description Lazily initializes thefuck and retries the current
+  # correction; only defined when thefuck is installed.
+  # @arg $@ string Arguments forwarded to the thefuck alias.
+  # @exitcode 1 If the alias cannot be initialized.
+  # ---------------------------------------------------------------------------
   fuck() {
     unfunction fuck 2>/dev/null
     eval "$(thefuck --alias 2>/dev/null)"

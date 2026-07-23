@@ -75,20 +75,20 @@ export JAVA_HOME_17
 
 # Wrapper function for scala commands to use Java 17.
 if [[ -n "$JAVA_HOME_17" ]]; then
-  # -------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
   # scala
   # @description Runs Scala with the configured Java 17 installation.
   # @arg $@ string Arguments forwarded to scala.
-  # -------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
   scala() {
     JAVA_HOME="$JAVA_HOME_17" command scala "$@"
   }
 
-  # -------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
   # scalac
   # @description Runs the Scala compiler with Java 17.
   # @arg $@ string Arguments forwarded to scalac.
-  # -------------------------------------------------------------------------
+  # ---------------------------------------------------------------------------
   scalac() {
     JAVA_HOME="$JAVA_HOME_17" command scalac "$@"
   }

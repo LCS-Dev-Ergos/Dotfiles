@@ -38,7 +38,6 @@ typeset -f _zsh_cache_is_fresh >/dev/null 2>&1 ||
 
 # -----------------------------------------------------------------------------
 # zsh_rebuild_path
-# -----------------------------------------------------------------------------
 # @description Rebuilds PATH deterministically with version-manager shims first.
 # Removes duplicates and caches the result for up to 24 hours.
 # @noargs
@@ -49,11 +48,16 @@ zsh_rebuild_path() {
   export PATH_BEFORE_BUILD="$PATH"
   local original_path="$PATH"
 
-  # Helper: strip any fnm_multishells/<pid>_<ts>/bin entries from a PATH-like
-  # string. FNM mints a fresh per-session symlink, so leaving those entries in
-  # the cache key (or in the cached value) would either invalidate the cache
-  # for every new shell, or pollute the new shell with the previous shell's
-  # stale FNM directory.
+  # ---------------------------------------------------------------------------
+  # _path_strip_fnm
+  # @internal
+  # @description Strips fnm_multishells/<pid>_<ts>/bin entries from a
+  # PATH-like string. fnm mints a fresh per-session symlink, so leaving those
+  # entries in the cache key or value would either invalidate the cache for
+  # every new shell, or pollute a new shell with a stale fnm directory.
+  # @arg $1 string Colon-separated PATH-like string.
+  # @stdout The filtered, colon-separated string.
+  # ---------------------------------------------------------------------------
   _path_strip_fnm() {
     local input="$1"
     local -a parts kept
@@ -273,7 +277,13 @@ zsh_rebuild_path() {
   local -a new_path_array=()
   local -A seen
 
-  # Helper to add a directory to the new path if valid and not seen.
+  # ---------------------------------------------------------------------------
+  # _add_to_path
+  # @internal
+  # @description Appends a directory to new_path_array if it exists, has not
+  # already been added, and is not an unwanted injected path (e.g. Ghostty's).
+  # @arg $1 path Directory to add.
+  # ---------------------------------------------------------------------------
   _add_to_path() {
     local dir="$1"
     # Check if directory exists and hasn't been added yet.

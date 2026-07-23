@@ -199,7 +199,14 @@ ${ZSH_CONFIG_DIR:-$default_config_dir}}"
   _zsh_register_custom_completions
 }
 
-# ------- Deferred completions ------- #
+# -----------------------------------------------------------------------------
+# _late_completions
+# @internal
+# @description Loads generated shdoc completions, sources bun's completion
+# script, and caches ngrok/ng completions, all after startup; unregisters
+# itself once done.
+# @noargs
+# -----------------------------------------------------------------------------
 _late_completions() {
   _zsh_load_custom_completions ||
     print -u2 "Custom shdoc completions could not be loaded."
