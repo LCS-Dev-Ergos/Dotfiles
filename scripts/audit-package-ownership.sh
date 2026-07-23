@@ -449,6 +449,16 @@ fi
 
 printf '\nNix/Homebrew command ownership\n'
 
+# Raw store paths on PATH almost always mean the audit is running inside a
+# nix develop/nix-shell environment. Their tool closures overlap Homebrew
+# commands the user's real shell never sees, producing false PATH winners.
+raw_store_entries="$(printf '%s' "$PATH" | tr ':' '\n' |
+  grep -c '^/nix/store/' || true)"
+if ((raw_store_entries > 0)); then
+  printf '%-20s %s\n' 'ADVISORY' \
+    "PATH contains $raw_store_entries raw /nix/store entries; results likely reflect a dev shell, not the login environment. Re-run from a regular shell."
+fi
+
 # Consider commands visible through PATH rather than every file in every keg.
 # This catches opt-prefix entries such as Homebrew LLVM as well as the standard
 # Homebrew bin directory. Build the candidate index once: rescanning every PATH
