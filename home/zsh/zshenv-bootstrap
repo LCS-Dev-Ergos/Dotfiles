@@ -13,7 +13,8 @@ fi
   _zsh_startup_trace_mark "bootstrap:cargo"
 
 # Static equivalent of `brew shellenv`; avoids a fork in every shell, including
-# non-interactive subprocesses. The repo .zshenv adds keg-only LLVM when present.
+# non-interactive subprocesses. The repository .zshenv separately exposes the
+# active Nix user and system profiles.
 if [[ -d /opt/homebrew ]]; then
   export HOMEBREW_PREFIX="/opt/homebrew"
   export HOMEBREW_CELLAR="/opt/homebrew/Cellar"

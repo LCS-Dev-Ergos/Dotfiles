@@ -108,21 +108,9 @@ alias qc-compile="clang -std=c23 -O2 $_CC_INCLUDE_FLAG"
 alias qc-debug="clang -std=c23 -g -O0 -Wall $_CC_INCLUDE_FLAG"
 
 # --------- C++ Compilation ---------- #
-# Determine LLVM library path dynamically.
-if [[ "$PLATFORM" == 'macOS' ]]; then
-  if [[ -d "/opt/homebrew/opt/llvm/lib/c++" ]]; then
-    _LLVM_PREFIX="/opt/homebrew/opt/llvm"
-  elif [[ -d "/usr/local/opt/llvm/lib/c++" ]]; then
-    _LLVM_PREFIX="/usr/local/opt/llvm"
-  fi
-  if [[ -n "${_LLVM_PREFIX:-}" && -d "$_LLVM_PREFIX/lib/c++" ]]; then
-    _CPP_LIB_FLAGS="-L$_LLVM_PREFIX/lib/c++ -lc++"
-  else
-    _CPP_LIB_FLAGS="-lc++"
-  fi
-else
-  _CPP_LIB_FLAGS="-lc++"
-fi
+# Nix's wrapped Clang already carries the correct SDK and libc++ search paths.
+# Keep the link request portable without reaching into a package-manager prefix.
+_CPP_LIB_FLAGS="-lc++"
 
 # Default C++ Compilation Alias.
 alias compile="clang++ -std=c++23 -stdlib=libc++ $_CPP_LIB_FLAGS \

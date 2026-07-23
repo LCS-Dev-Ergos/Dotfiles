@@ -75,14 +75,6 @@ fi
 # while application configuration remains under XDG_CONFIG_HOME.
 export ZDOTDIR="$HOME"
 
-# Expose keg-only Homebrew LLVM (lldb/clang) in ALL shell types, not just
-# interactive ones. "brew shellenv" only adds bin/sbin, so without this a
-# non-interactive shell (subprocess, IDE build task, debugger) falls back to
-# Apple's "/usr/bin/lldb".
-if [[ -d "/opt/homebrew/opt/llvm/bin" ]]; then
-  export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
-fi
-
 # NOTE: .zshrc is loaded automatically by Zsh for interactive shells.
 # No explicit sourcing needed here.
 

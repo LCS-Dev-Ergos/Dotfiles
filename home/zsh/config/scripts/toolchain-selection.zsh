@@ -226,7 +226,8 @@ _toolchain_find_best_binary() {
   done
 
   # Explicitly selected installations are a higher-priority tier than PATH.
-  # This prevents Apple Clang from winning after Homebrew LLVM was selected.
+  # This prevents a lower-priority compiler from winning after a toolchain was
+  # selected explicitly.
   for group in preferred path; do
     if [[ "$group" == preferred ]]; then
       dirs=("${preferred_dirs[@]}")
@@ -274,8 +275,8 @@ _toolchain_find_best_binary() {
 # -----------------------------------------------------------------------------
 # _toolchain_select_llvm_bin_dir
 # @internal
-# @description Locates the highest-versioned LLVM/Clang bin directory: Homebrew
-# on macOS, or /usr/lib/llvm*, /opt/llvm* and similar on Linux.
+# @description Locates the active Nix LLVM/Clang directory from PATH on macOS,
+# or the highest-versioned conventional LLVM directory on Linux.
 # @noargs
 # @stdout The LLVM bin directory path, on success.
 # -----------------------------------------------------------------------------
@@ -283,13 +284,10 @@ _toolchain_select_llvm_bin_dir() {
   local -a candidates=()
 
   if [[ "$TOOLCHAIN_OS" == "macOS" ]]; then
-    local brew_prefix
-    brew_prefix=$(_toolchain_get_homebrew_prefix 2>/dev/null) || true
-    if [[ -n "$brew_prefix" && -d "$brew_prefix/opt/llvm/bin" ]]; then
-      candidates+=("$brew_prefix/opt/llvm/bin")
-    fi
-    [[ -d "/usr/local/opt/llvm/bin" ]] && candidates+=("/usr/local/opt/llvm/bin")
-    [[ -d "/opt/homebrew/opt/llvm/bin" ]] && candidates+=("/opt/homebrew/opt/llvm/bin")
+    local clang_bin
+    clang_bin=$(_toolchain_find_best_binary clang) || return 1
+    dirname "$clang_bin"
+    return
   else
     candidates+=(
       /usr/lib/llvm*/bin
@@ -463,7 +461,7 @@ _toolchain_restore_state() {
 # -----------------------------------------------------------------------------
 # use_llvm
 # @description Activates the best available LLVM/Clang toolchain.
-# Updates compiler variables and PATH, with Homebrew flags on macOS.
+# Updates compiler variables and PATH.
 # @noargs
 # @exitcode 1 If an LLVM toolchain is unavailable.
 # -----------------------------------------------------------------------------
@@ -472,7 +470,7 @@ use_llvm() {
   _toolchain_detect_platform
   _zsh_ui_heading "LLVM/Clang toolchain" "Activating for the current shell"
 
-  local llvm_bin_dir clang_bin cxx_bin prefix_for_flags
+  local llvm_bin_dir clang_bin cxx_bin
   llvm_bin_dir=$(_toolchain_select_llvm_bin_dir) || true
 
   clang_bin=$(_toolchain_find_best_binary "clang" "$llvm_bin_dir") || true
@@ -491,18 +489,6 @@ use_llvm() {
   local bin_dir_for_path
   bin_dir_for_path="$(dirname "$clang_bin")"
   _toolchain_set_path "$bin_dir_for_path"
-
-  prefix_for_flags="${bin_dir_for_path%/bin}"
-  if [[ "$TOOLCHAIN_OS" == "macOS" && -d "$prefix_for_flags/lib" ]]; then
-    local base_ldflags base_cppflags base_cpath
-    [[ "$TOOLCHAIN_ORIGINAL_LDFLAGS" == "__TOOLCHAIN_UNSET__" ]] && base_ldflags="" || base_ldflags="$TOOLCHAIN_ORIGINAL_LDFLAGS"
-    [[ "$TOOLCHAIN_ORIGINAL_CPPFLAGS" == "__TOOLCHAIN_UNSET__" ]] && base_cppflags="" || base_cppflags="$TOOLCHAIN_ORIGINAL_CPPFLAGS"
-    [[ "$TOOLCHAIN_ORIGINAL_CPATH" == "__TOOLCHAIN_UNSET__" ]] && base_cpath="" || base_cpath="$TOOLCHAIN_ORIGINAL_CPATH"
-
-    export LDFLAGS="-L${prefix_for_flags}/lib${base_ldflags:+ ${base_ldflags}}"
-    export CPPFLAGS="-I${prefix_for_flags}/include${base_cppflags:+ ${base_cppflags}}"
-    export CPATH="${prefix_for_flags}/include${base_cpath:+:${base_cpath}}"
-  fi
 
   export CC
   export CXX
