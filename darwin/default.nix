@@ -1,4 +1,14 @@
 { lib, pkgs, ... }:
+let
+  # The retired Homebrew cask supplied only this face. Copying it into a small
+  # output keeps the active system closure from retaining every Noto family;
+  # pkgs.noto-fonts remains the lockfile-pinned build source.
+  notoSansSymbols2 = pkgs.runCommand "noto-sans-symbols-2-${pkgs.noto-fonts.version}" { } ''
+    install -Dm444 \
+      ${pkgs.noto-fonts}/share/fonts/noto/NotoSansSymbols2-Regular.otf \
+      "$out/share/fonts/opentype/NotoSansSymbols2-Regular.otf"
+  '';
+in
 {
   imports = [ ./homebrew.nix ];
 
@@ -6,10 +16,23 @@
   # $ nix-env -qaP | grep wget
   environment.systemPackages = [ pkgs.vim ];
 
-  # Doom uses Symbola as its final fallback for uncommon glyphs. Homebrew no
-  # longer distributes the font, so nix-darwin installs the pinned package in
-  # the system font directory where GUI Emacs and fontconfig can both find it.
-  fonts.packages = [ pkgs.symbola ];
+  # Install open fonts through nix-darwin so GUI applications and fontconfig
+  # see the same pinned families. Apple-proprietary SF fonts remain casks.
+  # Symbola is Doom's final fallback for uncommon glyphs; CM Unicode is the
+  # exact family previously supplied by Homebrew's font-computer-modern cask.
+  fonts.packages = [
+    pkgs.cm_unicode
+    pkgs.fira-code
+    pkgs.nerd-fonts.caskaydia-cove
+    pkgs.nerd-fonts.fira-code
+    pkgs.nerd-fonts.hack
+    pkgs.nerd-fonts.iosevka
+    pkgs.nerd-fonts.jetbrains-mono
+    pkgs.nerd-fonts.monaspace
+    pkgs.nerd-fonts.symbols-only
+    notoSansSymbols2
+    pkgs.symbola
+  ];
 
   nix = {
     # Keep the Nix package and daemon service managed by nix-darwin. Flakes
@@ -33,7 +56,8 @@
 
   # Keep unfree Nix packages denied by default. Symbola is the sole reviewed
   # exception: nixpkgs marks its font license non-free, and Homebrew no longer
-  # ships it. Proprietary GUI applications remain Homebrew-owned.
+  # ships it. The other Nix-managed fonts above are freely licensed;
+  # proprietary applications and Apple fonts remain Homebrew-owned.
   nixpkgs.config.allowUnfreePredicate = package: lib.getName package == "symbola";
 
   # Home Manager deploys the user's Zsh files. Homebrew still owns the Darwin

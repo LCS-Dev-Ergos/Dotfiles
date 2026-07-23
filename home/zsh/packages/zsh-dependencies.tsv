@@ -23,7 +23,7 @@ recommended	documentation	tldr	tealdeer	tealdeer	Concise command examples used b
 optional	prompt	oh-my-posh	oh-my-posh	-	Secondary prompt engine before the minimal fallback.
 optional	diagnostics	fastfetch	fastfetch	fastfetch	Interactive system summary.
 optional	diagnostics	duf	duf	duf	Human-friendly disk usage display.
-optional	archive	7z|7za	sevenzip	7zip	7-Zip archive extraction.
+optional	archive	7zz|7z|7za	sevenzip	7zip	7-Zip archive extraction.
 optional	archive	pigz	pigz	pigz	Parallel gzip decompression.
 optional	archive	pbzip2	pbzip2	pbzip2	Parallel bzip2 decompression.
 optional	archive	pixz	pixz	pixz	Parallel xz decompression.
