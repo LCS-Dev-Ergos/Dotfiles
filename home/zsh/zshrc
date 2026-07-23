@@ -255,6 +255,14 @@ else
         _zsh_startup_trace_mark "functions:ready"
 fi
 
+# Queue the cache freshness check only after the function bundles above, so
+# the deferred queue defines zshcache before the check runs. Deferring it from
+# 00-initialization.zsh made the check always fall back to a bare compinit
+# that wrote a stray dump and wiped caches built earlier in the same startup.
+if (( $+functions[_zsh_cache_auto_check] && $+functions[_zsh_defer] )); then
+    _zsh_defer _zsh_cache_auto_check
+fi
+
 # Activate the prompt only after 90-path.zsh has selected the definitive tool
 # locations. This prevents cached init code from pinning a shadowed executable.
 if (( $+functions[_zsh_init_prompt_system] )); then
