@@ -14,6 +14,8 @@ _zsh_test_temp_dir() {
 
   local label="${1:-fixture}"
   local parent="${ZSH_TEST_TMPDIR:-${TMPDIR:-/tmp}}"
+  parent="${parent%/}"
+  [[ -n "$parent" ]] || parent="/"
   [[ "$label" == [A-Za-z0-9_-]## ]] || return 2
   [[ -d "$parent" && -w "$parent" ]] || return 1
 
