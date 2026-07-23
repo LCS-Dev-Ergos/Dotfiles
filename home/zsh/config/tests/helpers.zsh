@@ -6,7 +6,7 @@
 # @internal
 # @description Creates a private test root outside the deployed configuration.
 # @arg $1 string Short fixture label used only in the generated directory name.
-# @stdout Absolute fixture directory.
+# @stdout Absolute, symlink-resolved fixture directory.
 # -----------------------------------------------------------------------------
 _zsh_test_temp_dir() {
   emulate -L zsh
@@ -29,5 +29,7 @@ _zsh_test_temp_dir() {
     command rm -rf -- "$fixture_root"
     return 1
   }
-  print -r -- "$fixture_root"
+  # Resolve symlinked parents (macOS /tmp -> /private/tmp) so path
+  # comparisons against :A-normalized values inside tests cannot diverge.
+  print -r -- "${fixture_root:A}"
 }
