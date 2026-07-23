@@ -1,16 +1,15 @@
 -- File: lua/plugins/lang-bash.lua
 
 return {
-  -- 1. MASON: Ensure LSP, formatter, and linter are installed.
+  -- 1. MASON: Installs the LSP. shfmt and shellcheck come from
+  -- home/cli-tools/default.nix (Nix) and are already on PATH.
   {
     "mason-org/mason.nvim",
     ft = { "sh", "bash", "zsh" },
     opts = function(_, opts)
       opts.ensure_installed = opts.ensure_installed or {}
       vim.list_extend(opts.ensure_installed, {
-        "bash-language-server",  -- LSP for diagnostics and completion.
-        "shfmt",                 -- Formatter.
-        "shellcheck",            -- Linter for shell scripts.
+        "bash-language-server", -- LSP for diagnostics and completion.
       })
     end,
   },
@@ -43,9 +42,7 @@ return {
     keys = {
       {
         "<leader>cs",
-        function()
-          require("lint").try_lint("shellcheck")
-        end,
+        function() require("lint").try_lint("shellcheck") end,
         desc = "Run shellcheck on current file",
         ft = { "sh", "bash", "zsh" },
       },
