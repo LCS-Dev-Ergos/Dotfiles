@@ -490,6 +490,13 @@ function zshcache() {
       # Update the stamp and signature so startup can use compinit -C.
       : >| "${xdg_cache}/zsh/compinit.last" 2>/dev/null
       print -r -- "${_compdump}|${(j.:.)fpath}" >| "${xdg_cache}/zsh/compinit.sig" 2>/dev/null
+      # Compile the dump for faster -C startup; a stale .zwc is ignored by
+      # zsh, so failure only costs the optimization.
+      if [[ -f "$_compdump" ]] && zcompile "$_compdump" 2>/dev/null; then
+        command chmod 600 "${_compdump}.zwc" 2>/dev/null || :
+      else
+        command rm -f -- "${_compdump}.zwc" 2>/dev/null
+      fi
       [[ "$quiet" == true ]] || _zsh_ui_log ok "compinit rebuilt."
     else
       if [[ "$quiet" == true ]]; then

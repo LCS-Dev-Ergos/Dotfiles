@@ -316,14 +316,36 @@ fi
 # <<< Conda initialize <<<
 
 # ------------ Perl CPAN ------------- #
-# Only run if the local::lib directory exists.
+# Only run if the local::lib directory exists. The eval output is a fixed set
+# of environment exports derived from the directory path, so cache it keyed to
+# the Perl executable instead of forking perl in every interactive shell.
 () {
   local local_perl_dir="$HOME/.perl5"
-  if [[ -d "$local_perl_dir" ]]; then
-    if command -v perl >/dev/null 2>&1; then
-      eval "$(perl -I"$local_perl_dir/lib/perl5" -Mlocal::lib="$local_perl_dir")" 2>/dev/null
+  [[ -d "$local_perl_dir" ]] || return 0
+  command -v perl >/dev/null 2>&1 || return 0
+
+  local perl_bin="${commands[perl]}"
+  local cache_file="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/perl-local-lib.zsh"
+  local cache_header="# perl-bin: $perl_bin"
+  local cached_header=""
+  if _zsh_cache_is_fresh "$cache_file"; then
+    IFS= read -r cached_header < "$cache_file"
+    if [[ "$cached_header" == "$cache_header" &&
+          "$cache_file" -nt "$perl_bin" ]]; then
+      source "$cache_file"
+      return 0
     fi
   fi
+
+  local init_code
+  init_code="$(perl -I"$local_perl_dir/lib/perl5" \
+    -Mlocal::lib="$local_perl_dir" 2>/dev/null)" || return 0
+  [[ -n "$init_code" ]] || return 0
+  eval "$init_code" 2>/dev/null
+  {
+    print -r -- "$cache_header"
+    print -r -- "$init_code"
+  } | _zsh_cache_put "$cache_file" 2>/dev/null
 }
 
 # -------------- rbenv --------------- #
