@@ -1,4 +1,4 @@
--- File: lua/plugins/haskell.lua
+-- File: lua/plugins/lang-haskell.lua
 
 return {
   -- haskell-tools manages the LSP (haskell-language-server).
@@ -8,30 +8,21 @@ return {
     dependencies = { "nvim-lua/plenary.nvim" },
     ft = { "haskell", "lhaskell", "cabal" },
     config = function()
-      require('haskell-tools').setup({
+      require("haskell-tools").setup {
         hls = {
           settings = {
             haskell = {
-              ghcupExecutablePath = vim.fn.exepath('ghcup'),
-              manageHLS = 'GHCup',
+              ghcupExecutablePath = vim.fn.exepath("ghcup"),
+              manageHLS = "GHCup",
             },
           },
         },
-      })
+      }
     end,
   },
 
-  -- 1. MASON: Ensure the formatter is installed.
-  {
-    "mason-org/mason.nvim",
-    ft = { "haskell", "lhaskell", "cabal" },
-    opts = function(_, opts)
-      opts.ensure_installed = opts.ensure_installed or {}
-      vim.list_extend(opts.ensure_installed, { "fourmolu" }) -- or "ormolu".
-    end,
-  },
-
-  -- 2. CONFORM.NVIM (Formatter): Use fourmolu.
+  -- 1. CONFORM.NVIM (Formatter): Uses fourmolu, installed via
+  -- `cabal install fourmolu` (GHCup's cabal) and already on PATH.
   {
     "stevearc/conform.nvim",
     ft = { "haskell", "lhaskell", "cabal" },
@@ -42,7 +33,7 @@ return {
     },
   },
 
-  -- 3. TREESITTER: Ensure the parser for Haskell is installed.
+  -- 2. TREESITTER: Ensure the parser for Haskell is installed.
   {
     "nvim-treesitter/nvim-treesitter",
     ft = { "haskell", "lhaskell", "cabal" },
