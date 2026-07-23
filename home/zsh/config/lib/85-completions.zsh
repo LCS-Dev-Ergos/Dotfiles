@@ -219,7 +219,9 @@ _late_completions() {
 # Add custom completions directories (unless HyDE already did it).
 typeset -i _completion_fpath_changed=0
 if [[ "${HYDE_SKIP_FPATH_COMPLETIONS:-0}" != "1" ]]; then
-  local _completions_dir="${ZDOTDIR:-$HOME/.config/zsh}/completions"
+  # ZDOTDIR points at $HOME, not the XDG config tree, so the repository
+  # completions must be resolved through the config directory instead.
+  local _completions_dir="${ZSH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zsh}/completions"
   if [[ -d "$_completions_dir" ]] && (( ${fpath[(Ie)$_completions_dir]} == 0 )); then
     fpath=("$_completions_dir" $fpath)
     _completion_fpath_changed=1

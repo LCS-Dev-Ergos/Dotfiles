@@ -166,7 +166,9 @@ _zinit_bind_history_substring_keys() {
 _zinit_add_completion_paths() {
   local dir
 
-  dir="${ZDOTDIR:-$HOME/.config/zsh}/completions"
+  # ZDOTDIR points at $HOME, not the XDG config tree, so the repository
+  # completions must be resolved through the config directory instead.
+  dir="${ZSH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zsh}/completions"
   if [[ -d "$dir" ]] && (( ${fpath[(Ie)$dir]} == 0 )); then
     fpath=("$dir" $fpath)
   fi

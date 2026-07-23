@@ -30,7 +30,8 @@ mkdir -p \
   "$fixture_root/config/functions" \
   "$fixture_root/config/scripts" \
   "$fixture_root/config/completions" \
-  "$fixture_root/cache"
+  "$fixture_root/cache" \
+  "$fixture_root/home"
 cp "$test_root/scripts/zfuncs-index.awk" "$fixture_root/config/scripts/"
 cp "$test_root/scripts/generate-zsh-completions.zsh" \
   "$fixture_root/config/scripts/"
@@ -98,7 +99,9 @@ EOF
 export ZSH_CONFIG_DIR="$fixture_root/config"
 export ZSH_CUSTOM_COMPLETION_CONFIG_DIR="$fixture_root/config"
 export XDG_CACHE_HOME="$fixture_root/cache"
-export ZDOTDIR="$fixture_root/config"
+# Deployment sets ZDOTDIR to $HOME, away from the config tree. Mirror that
+# split so fpath registration cannot silently depend on ZDOTDIR again.
+export ZDOTDIR="$fixture_root/home"
 export ZSH_COMPDUMP="$fixture_root/zcompdump"
 export ZSH_DEFER_COMPLETIONS=1
 export ZSH_DISABLE_COMPFIX=true
@@ -112,6 +115,11 @@ _zsh_defer() {
 source "$test_root/lib/85-completions.zsh"
 [[ "$deferred_completion_fn" == _late_completions ]] || {
   print -u2 "FAIL: custom completion generation was not deferred"
+  return 1
+}
+
+(( ${fpath[(Ie)$fixture_root/config/completions]} )) || {
+  print -u2 "FAIL: config completions directory was not added to fpath"
   return 1
 }
 
