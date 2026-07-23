@@ -60,6 +60,15 @@ in
   # proprietary applications and Apple fonts remain Homebrew-owned.
   nixpkgs.config.allowUnfreePredicate = package: lib.getName package == "symbola";
 
+  # macOS's stock sudoers doesn't set always_set_home, so $HOME stays the
+  # invoking user's home even when running as root. Nix >=2.19 notices that
+  # mismatch and falls back to root's real home from the passwd file -- this
+  # setting makes sudo do the reset itself, matching `sudo -H`, so root-run
+  # Nix commands (including the automatic GC above) see root's own $HOME.
+  environment.etc."sudoers.d/20-always-set-home".text = ''
+    Defaults always_set_home
+  '';
+
   # Home Manager deploys the user's Zsh files, and the login shell is the Nix
   # zsh package via users.users.<name>.shell (hosts/lcs-macbook-pro/darwin.nix).
   # Keep this module disabled regardless: it would generate /etc/zshenv,
