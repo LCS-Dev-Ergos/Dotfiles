@@ -19,7 +19,7 @@
     pkgs.codex
     pkgs.cppman
     pkgs.csvlens
-    pkgs.deadnix # Flags dead/unused bindings.
+    pkgs.deadnix
     pkgs.duf
     pkgs.exiftool
     pkgs.findutils
@@ -36,8 +36,10 @@
     pkgs.just-lsp
     pkgs.lazydocker
     pkgs.llmfit
-    pkgs.nixd # Language server (completion, goto-def, diagnostics).
-    pkgs.nixfmt # Canonical formatter (RFC 166 style).
+    pkgs.nix-du
+    pkgs.nix-tree
+    pkgs.nixd
+    pkgs.nixfmt
     # Stable non-interactive fallback; an active FNM multishell remains
     # higher-priority for projects that deliberately select another Node.
     pkgs.nodejs_24
@@ -50,7 +52,7 @@
     pkgs.ruff
     pkgs.sesh
     pkgs.shellcheck
-    pkgs.statix # Lints anti-patterns (e.g. `with` scope footguns).
+    pkgs.statix
     pkgs.television
     pkgs.tex-fmt
     pkgs.time
