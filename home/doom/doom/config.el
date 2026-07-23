@@ -183,6 +183,10 @@
 ;; Tuareg provides OCaml editing support
 ;; Make sure you have enabled (ocaml +lsp) in init.el for full IDE features
 ;; LSP provides: auto-completion, go-to-definition, documentation, refactoring
+;;
+;; merlin, utop, ocamlformat, and ocaml-lsp-server (ocamllsp) come from opam:
+;; `opam install merlin utop ocamlformat ocaml-lsp-server`. Same pattern as
+;; Haskell/ghcup, Lean/elan, and Scala/Coursier.
 
 (after! tuareg
   (setq tuareg-indent-align-with-first-arg t
