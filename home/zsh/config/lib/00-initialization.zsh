@@ -196,9 +196,10 @@ if [[ $- == *i* ]]; then
   # ---------------------------------------------------------------------------
   # _zsh_cache_auto_check
   # @internal
-  # @description Rebuilds completion and lazy-loader caches once, deferred to
-  # after the first prompt, when startup configuration changed since the last
-  # stamp. Source bytecode is deliberately not generated. Disable with
+  # @description Rebuilds completion and lazy-loader caches once when startup
+  # configuration changed since the last stamp. .zshrc defers this after the
+  # heavy function bundles so the zshcache maintenance path is available.
+  # Source bytecode is deliberately not generated. Disable with
   # ZSH_CACHE_AUTO=0.
   # @noargs
   # ---------------------------------------------------------------------------
@@ -251,16 +252,15 @@ if [[ $- == *i* ]]; then
       else
         command rm -rf -- "$cache_dir"/* "$zdot"/.zcompdump* 2>/dev/null
         autoload -Uz compinit
-        compinit -C
+        local compdump="${ZSH_COMPDUMP:-$cache_dir/.zcompdump-$HOST}"
+        command mkdir -p "${compdump:h}" 2>/dev/null
+        compinit -C -d "$compdump"
       fi
 
       command mkdir -p "$cache_dir" 2>/dev/null
       : >| "$stamp_file"
     fi
   }
-
-  # Defer cache check to run after first prompt (non-blocking startup).
-  _zsh_defer _zsh_cache_auto_check
 fi
 
 # Unset options to restore default behavior.
