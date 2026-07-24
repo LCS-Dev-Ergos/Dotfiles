@@ -28,8 +28,8 @@ if command -v eza &>/dev/null; then
   # Long format with hidden files, sorted by name, directories first.
   alias ll='eza -lha --icons=auto --sort=name --group-directories-first'
 
-  # Long format, directories only.
-  alias ld='eza -lhD --icons=auto'
+  # Long format, directories only. Keep `ld` free for the system linker.
+  alias ldirs='eza -lhD --icons=auto'
 
   # Tree view.
   alias lt='eza --icons=auto --tree'

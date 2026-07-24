@@ -390,7 +390,8 @@ if command -v eza >/dev/null 2>&1; then
     alias ls='eza --color=auto --icons=auto'
     alias l='eza -lh --icons=auto'
     alias ll='eza -lha --icons=auto --sort=name --group-directories-first'
-    alias ld='eza -lhD --icons=auto'
+    # Keep `ld` free for the system linker.
+    alias ldirs='eza -lhD --icons=auto'
     alias lt='eza --icons=auto --tree'
     alias lti='eza --icons=auto --tree --git-ignore'
 else
