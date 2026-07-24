@@ -13,8 +13,8 @@ _: {
   # btop, bun, cava, cbonsai, ccache, clang-format, cmatrix, codex, cppman,
   # csvlens, direnv, duf, eza, exiftool, fastfetch, fd, findutils, fish,
   # fswatch, fzf, gh, git, git-delta, git-filter-repo, glab, glow, gnu-sed,
-  # gnu-time, gpatch, gum, jolt, jq, just, just-lsp, lazydocker, lazygit,
-  # lld, llmfit, llvm, nnn, node, nowplaying-cli, nushell, oh-my-posh,
+  # gnu-tar, gnu-time, gpatch, gum, jolt, jq, just, just-lsp, lazydocker,
+  # lazygit, lld, llmfit, llvm, nnn, node, nowplaying-cli, nushell, oh-my-posh,
   # opencode, pipes-sh, procs, pstree, qpdf, ripgrep, ruff, sesh, sevenzip,
   # shellcheck, starship, switchaudio-osx, tealdeer, television, tex-fmt,
   # tmux, tree, universal-ctags, uv, w3m, wget, yazi, zoxide.

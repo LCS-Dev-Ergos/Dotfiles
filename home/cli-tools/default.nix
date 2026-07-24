@@ -28,6 +28,10 @@
     pkgs.git-filter-repo
     pkgs.glab
     pkgs.glow
+    # opam resolves `tar` to an absolute path before extracting sources.
+    # Darwin's bsdtar 3.5.3 rejects valid self-hardlink metadata emitted by
+    # GitHub archives, whereas this GNU implementation extracts them correctly.
+    pkgs.gnutar
     pkgs.gnused
     pkgs.gum
     pkgs.jolt-tui
