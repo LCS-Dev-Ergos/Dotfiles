@@ -51,21 +51,29 @@ in
       lib.hm.dag.entryAfter [ "linkGeneration" ] ''
         go_env=${lib.escapeShellArg goEnv}
         go_env_dir="''${go_env%/*}"
-        $DRY_RUN_CMD ${pkgs.coreutils}/bin/install -d -m 0700 "$go_env_dir"
 
-        go_env_candidate="$(${pkgs.coreutils}/bin/mktemp "$go_env_dir/.env.XXXXXX")"
-        if [[ -r "$go_env" ]]; then
-          ${pkgs.gnused}/bin/sed \
-            -e '/^CC=/d' \
-            -e '/^CXX=/d' \
-            "$go_env" > "$go_env_candidate"
+        # The candidate assembly cannot be prefixed with $DRY_RUN_CMD: mktemp
+        # and the sed redirection are real filesystem writes either way, and
+        # mktemp would fail outright while the directory only "would" exist.
+        if [[ -v DRY_RUN ]]; then
+          echo "Would reconcile CC/CXX in $go_env"
+        else
+          ${pkgs.coreutils}/bin/install -d -m 0700 "$go_env_dir"
+
+          go_env_candidate="$(${pkgs.coreutils}/bin/mktemp "$go_env_dir/.env.XXXXXX")"
+          if [[ -r "$go_env" ]]; then
+            ${pkgs.gnused}/bin/sed \
+              -e '/^CC=/d' \
+              -e '/^CXX=/d' \
+              "$go_env" > "$go_env_candidate"
+          fi
+          printf '%s\n' \
+            'CC=${darwinToolchain}/bin/clang' \
+            'CXX=${darwinToolchain}/bin/clang++' \
+            >> "$go_env_candidate"
+          ${pkgs.coreutils}/bin/chmod 0600 "$go_env_candidate"
+          ${pkgs.coreutils}/bin/mv -f "$go_env_candidate" "$go_env"
         fi
-        printf '%s\n' \
-          'CC=${darwinToolchain}/bin/clang' \
-          'CXX=${darwinToolchain}/bin/clang++' \
-          >> "$go_env_candidate"
-        ${pkgs.coreutils}/bin/chmod 0600 "$go_env_candidate"
-        $DRY_RUN_CMD ${pkgs.coreutils}/bin/mv -f "$go_env_candidate" "$go_env"
       ''
     );
   };
