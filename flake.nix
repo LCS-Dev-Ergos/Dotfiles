@@ -171,6 +171,9 @@
           cpp-tools = pkgs.callPackage ./home/cpp-tools/package.nix { };
           default = self.packages.${system}.cpp-tools;
         }
+        // nixpkgs.lib.optionalAttrs pkgs.stdenv.isDarwin {
+          llvm-darwin-toolchain = pkgs.callPackage ./home/llvm/package.nix { };
+        }
       );
 
       # `nix flake check` only evaluates/builds what is listed here -- it does
@@ -178,11 +181,15 @@
       # Re-exposing each host's top-level derivation is what lets a full
       # system build (not just individual module evaluation) fail CI.
       checks = {
-        aarch64-darwin.darwin-configuration = self.darwinConfigurations."LCSMacBook-Pro".system;
-        aarch64-darwin.cpp-tools = self.packages.aarch64-darwin.cpp-tools;
-        x86_64-linux.home-configuration =
-          self.homeConfigurations."lcs-dev@lcs-legion-arch".activationPackage;
-        x86_64-linux.cpp-tools = self.packages.x86_64-linux.cpp-tools;
+        aarch64-darwin = {
+          darwin-configuration = self.darwinConfigurations."LCSMacBook-Pro".system;
+          cpp-tools = self.packages.aarch64-darwin.cpp-tools;
+          llvm-darwin-toolchain = self.packages.aarch64-darwin.llvm-darwin-toolchain.tests.default;
+        };
+        x86_64-linux = {
+          home-configuration = self.homeConfigurations."lcs-dev@lcs-legion-arch".activationPackage;
+          cpp-tools = self.packages.x86_64-linux.cpp-tools;
+        };
       };
 
       formatter = forAllSystems (system: nixpkgs.legacyPackages.${system}.nixfmt);
