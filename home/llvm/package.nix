@@ -11,52 +11,16 @@
 let
   inherit (llvmPackages_22) clang;
   clangUnwrapped = llvmPackages_22.clang-unwrapped;
-  linker = clang.bintools.bintools;
+  cctools = clang.bintools.bintools;
   sdkRoot = apple-sdk_26.sdkroot;
   sdkVersion = apple-sdk_26.version;
   name = "llvm-${llvmPackages_22.llvm.version}-darwin-sdk-${apple-sdk_26.version}-min-${darwinMinVersion}";
 
-  mkDriver =
-    driverName: executable: extraArgs:
-    writeShellScriptBin driverName ''
-      target=
-      next_is_target=
-      for argument in "$@"; do
-        if [[ -n "$next_is_target" ]]; then
-          target="$argument"
-          break
-        fi
-        case "$argument" in
-          --target=*|-target=*)
-            target="''${argument#*=}"
-            break
-            ;;
-          --target|-target)
-            next_is_target=1
-            ;;
-        esac
-      done
-
-      case "$target" in
-        ""|*-apple-darwin*|*-apple-macos*)
-          exec ${clang}/bin/${executable} \
-            ${lib.escapeShellArgs extraArgs} \
-            -isysroot ${lib.escapeShellArg sdkRoot} \
-            -mmacosx-version-min=${lib.escapeShellArg darwinMinVersion} \
-            "$@"
-          ;;
-        *)
-          exec ${clangUnwrapped}/bin/${executable} \
-            ${lib.escapeShellArgs extraArgs} \
-            "$@"
-          ;;
-      esac
-    '';
-
-  # The stock cctools wrapper carries Nixpkgs' macOS 14 compatibility floor.
-  # Use the same unwrapped linker as Clang and supply host defaults only when
-  # the caller has not already selected a platform version or SDK.
-  mkLinker = writeShellScriptBin "ld" ''
+  # /usr/bin/ld is an xcrun shim. Nix's compiler wrapper exports DEVELOPER_DIR
+  # and SDKROOT, which would make that shim select Nix's older cctools linker
+  # again. Strip those discovery hints while retaining the explicit SDK and
+  # deployment flags passed below.
+  appleLinker = writeShellScriptBin "ld" ''
     have_platform_version=
     have_darwin_platform_version=
     have_darwin_sdk_version=
@@ -102,11 +66,58 @@ let
       sysroot_args=(-syslibroot ${lib.escapeShellArg sdkRoot})
     fi
 
-    exec ${linker}/bin/ld \
+    unset DEVELOPER_DIR SDKROOT
+    exec /usr/bin/ld \
       "''${sysroot_args[@]}" \
       "''${platform_args[@]}" \
       "$@"
   '';
+
+  mkDriver =
+    driverName: executable: extraArgs:
+    writeShellScriptBin driverName ''
+      target=
+      next_is_target=
+      will_link=${if driverName == "cpp" then "" else "1"}
+      for argument in "$@"; do
+        if [[ -n "$next_is_target" ]]; then
+          target="$argument"
+          next_is_target=
+          continue
+        fi
+        case "$argument" in
+          --target=*|-target=*)
+            target="''${argument#*=}"
+            ;;
+          --target|-target)
+            next_is_target=1
+            ;;
+          -c|-S|-E|-fsyntax-only|-M|-MM|-analyze|-cc1|-cc1as)
+            will_link=
+            ;;
+        esac
+      done
+
+      case "$target" in
+        ""|*-apple-darwin*|*-apple-macos*)
+          linker_args=()
+          if [[ -n "$will_link" ]]; then
+            linker_args=(--ld-path=${appleLinker}/bin/ld)
+          fi
+          exec ${clang}/bin/${executable} \
+            ${lib.escapeShellArgs extraArgs} \
+            "''${linker_args[@]}" \
+            -isysroot ${lib.escapeShellArg sdkRoot} \
+            -mmacosx-version-min=${lib.escapeShellArg darwinMinVersion} \
+            "$@"
+          ;;
+        *)
+          exec ${clangUnwrapped}/bin/${executable} \
+            ${lib.escapeShellArgs extraArgs} \
+            "$@"
+          ;;
+      esac
+    '';
 
   toolchain = lib.setPrio 5 (symlinkJoin {
     inherit name;
@@ -116,7 +127,7 @@ let
       (mkDriver "clang" "clang" [ ])
       (mkDriver "clang++" "clang++" [ ])
       (mkDriver "cpp" "clang" [ "-E" ])
-      mkLinker
+      appleLinker
     ];
 
     passthru = {
@@ -135,6 +146,12 @@ let
           | grep -Fq -- '-apple-macosx${darwinMinVersion}.0'
         printf '%s\n' "$diagnostics" | grep -Fq -- '${sdkRoot}'
 
+        link_diagnostics="$(
+          ${toolchain}/bin/cc -### -x c /dev/null -o /dev/null 2>&1
+        )"
+        printf '%s\n' "$link_diagnostics" \
+          | grep -Fq -- '${appleLinker}/bin/ld'
+
         ${toolchain}/bin/cc \
           -Werror=unused-command-line-argument \
           --target=wasm32 \
@@ -142,13 +159,16 @@ let
           -o smoke.wasm.o
 
         printf '%s\n' 'int main(void) { return 0; }' > smoke.c
-        ${toolchain}/bin/cc -c smoke.c -o smoke.o
+        ${toolchain}/bin/cc \
+          -Werror=unused-command-line-argument \
+          -c smoke.c \
+          -o smoke.o
         ${toolchain}/bin/ld \
           -arch ${lib.escapeShellArg stdenv.hostPlatform.darwinArch} \
           -lSystem \
           smoke.o \
           -o smoke-c
-        linker_diagnostics="$(${linker}/bin/otool -l smoke-c)"
+        linker_diagnostics="$(${cctools}/bin/otool -l smoke-c)"
         printf '%s\n' "$linker_diagnostics" \
           | grep -Eq -- 'minos[[:space:]]+${darwinMinVersion}([.]0)?$'
         printf '%s\n' "$linker_diagnostics" \
