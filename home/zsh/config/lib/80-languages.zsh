@@ -84,8 +84,8 @@ fi
 # --------------- Opam --------------- #
 # OCaml: Build and package manager optimization.
 export OPAMJOBS="${_ZSH_NCPUS:-4}"  # Parallel builds (uses cached CPU count from 00-initialization.zsh).
-export DUNE_CACHE=enabled           # Enable Dune build cache.
-export DUNE_CACHE_TRANSPORT=direct  # Faster cache access.
+export DUNE_CACHE=enabled-except-user-rules  # Avoid caching unsafe custom rules.
+export DUNE_CACHE_TRANSPORT=direct           # Faster cache access.
 # export OPAMYES=1  # Auto-confirm opam operations.
 
 [[ ! -r "$HOME/.opam/opam-init/init.zsh" ]] || source "$HOME/.opam/opam-init/init.zsh" >/dev/null 2>/dev/null
