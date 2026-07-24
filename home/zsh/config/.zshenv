@@ -45,7 +45,13 @@ unset _nix_daemon_env _nix_profile_root
 # does not unexpectedly replace the currently selected `nix` client. A future
 # Home Manager per-user profile takes precedence when it actually exists.
 typeset _nix_system_bin="/run/current-system/sw/bin"
-typeset _nix_user_bin="${USER:+/etc/profiles/per-user/$USER/bin}"
+typeset _nix_user_profile=""
+if [[ -n "${USER:-}" && -d "/etc/profiles/per-user/$USER" ]]; then
+  _nix_user_profile="/etc/profiles/per-user/$USER"
+elif [[ -n "${HOME:-}" && -d "$HOME/.nix-profile" ]]; then
+  _nix_user_profile="$HOME/.nix-profile"
+fi
+typeset _nix_user_bin="${_nix_user_profile:+$_nix_user_profile/bin}"
 if [[ -d "$_nix_system_bin" &&
       ":${PATH:-}:" != *":${_nix_system_bin}:"* ]]; then
   export PATH="${PATH:+$PATH:}${_nix_system_bin}"
@@ -54,7 +60,20 @@ if [[ -n "$_nix_user_bin" && -d "$_nix_user_bin" &&
       ":${PATH:-}:" != *":${_nix_user_bin}:"* ]]; then
   export PATH="${_nix_user_bin}${PATH:+:$PATH}"
 fi
-unset _nix_system_bin _nix_user_bin
+
+# The custom Zsh deployment deliberately leaves programs.zsh disabled, so it
+# must source Home Manager's standard session-variable file itself. This keeps
+# immutable package paths such as CC/CXX available to non-interactive shells.
+# The canonical-path check is the explicit exception to the user-owned-source
+# rule: profile links are trusted only when they resolve into the Nix store.
+typeset _hm_session_vars="${_nix_user_profile:+$_nix_user_profile/etc/profile.d/hm-session-vars.sh}"
+typeset _hm_session_vars_target="${_hm_session_vars:A}"
+if [[ -r "$_hm_session_vars_target" &&
+      "$_hm_session_vars_target" == /nix/store/* ]]; then
+  source "$_hm_session_vars_target"
+fi
+unset _hm_session_vars _hm_session_vars_target
+unset _nix_system_bin _nix_user_bin _nix_user_profile
 (( $+functions[_zsh_startup_trace_mark] )) &&
   _zsh_startup_trace_mark ".zshenv:nix"
 

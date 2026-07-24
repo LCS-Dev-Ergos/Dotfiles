@@ -1,10 +1,11 @@
 #!/usr/bin/env zsh
 # shellcheck shell=zsh
 # ============================================================================ #
-# ++++++++++++++++++++++++++++++ NIX PATH TEST +++++++++++++++++++++++++++++++ #
+# ++++++++++++++++++++++ NIX AND HOME MANAGER ENV TEST +++++++++++++++++++++++ #
 # ============================================================================ #
 # Verifies that .zshenv exposes the active nix-darwin system profile to
-# non-interactive shells without replacing the existing user-selected Nix CLI.
+# non-interactive shells without replacing the existing user-selected Nix CLI,
+# and that Home Manager session variables come from a trusted store target.
 # The host-specific assertions are skipped when nix-darwin is not installed.
 # ============================================================================ #
 
@@ -33,6 +34,7 @@ probe="$(command env -i \
     print -r -- "darwin=$(whence -p darwin-rebuild)"
     print -r -- "nix=$(whence -p nix)"
     print -r -- "count=${#system_entries[@]}"
+    print -r -- "hm=${__HM_SESS_VARS_SOURCED:-0}"
   '
 )" || {
   print -u2 "FAIL: non-interactive .zshenv probe failed"
@@ -52,6 +54,10 @@ if [[ -x "$HOME/.nix-profile/bin/nix" ]]; then
 fi
 [[ "$probe" == *'count=1'* ]] || {
   print -u2 "FAIL: the nix-darwin system profile is missing or duplicated"
+  return 1
+}
+[[ "$probe" == *'hm=1'* ]] || {
+  print -u2 "FAIL: Home Manager session variables were not sourced"
   return 1
 }
 
