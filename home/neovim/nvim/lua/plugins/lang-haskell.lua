@@ -1,7 +1,16 @@
--- File: lua/plugins/lang-haskell.lua
+-- =====-----------------------------------------------------------------=====
+-- HASKELL
+--
+-- haskell-tools.nvim manages the LSP (haskell-language-server) directly, the
+-- same way rustaceanvim and nvim-metals do for their own languages: it needs
+-- GHCup-aware version resolution that a generic lspconfig entry doesn't
+-- provide, so there is no Mason or plain NVIM-LSPCONFIG section here.
+-- fourmolu (formatter) is installed via `cabal install fourmolu` (GHCup's
+-- cabal) and is already on PATH.
+-- =====-----------------------------------------------------------------=====
 
 return {
-  -- haskell-tools manages the LSP (haskell-language-server).
+  -- 1. HASKELL-TOOLS.NVIM: LSP integration (haskell-language-server via GHCup).
   {
     "mrcjkb/haskell-tools.nvim",
     version = "^4",
@@ -21,8 +30,7 @@ return {
     end,
   },
 
-  -- 1. CONFORM.NVIM (Formatter): Uses fourmolu, installed via
-  -- `cabal install fourmolu` (GHCup's cabal) and already on PATH.
+  -- 2. CONFORM.NVIM (Formatter): Uses fourmolu.
   {
     "stevearc/conform.nvim",
     ft = { "haskell", "lhaskell", "cabal" },
@@ -33,14 +41,10 @@ return {
     },
   },
 
-  -- 2. TREESITTER: Ensure the parser for Haskell is installed.
+  -- 3. TREESITTER: Ensure the parser for Haskell is installed.
   {
     "nvim-treesitter/nvim-treesitter",
     ft = { "haskell", "lhaskell", "cabal" },
-    opts = function(_, opts)
-      if type(opts.ensure_installed) == "table" then
-        vim.list_extend(opts.ensure_installed, { "haskell" })
-      end
-    end,
+    opts = require("lang_util").treesitter_ensure({ "haskell" }),
   },
 }

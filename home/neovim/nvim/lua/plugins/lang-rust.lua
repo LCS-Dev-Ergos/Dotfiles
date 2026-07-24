@@ -1,9 +1,15 @@
--- File: lua/plugins/lang-rust.lua
--- LazyVim's lang.rust extra already enables rustaceanvim, Mason (rust-analyzer,
--- codelldb), and Treesitter. This file only overrides rustaceanvim settings
--- and removes the lspconfig rust_analyzer entry that would conflict.
+-- =====-----------------------------------------------------------------=====
+-- RUST
+--
+-- LazyVim's lang.rust extra already enables rustaceanvim, Mason
+-- (rust-analyzer, codelldb), and Treesitter. This file only overrides
+-- rustaceanvim settings and disables the plain lspconfig rust_analyzer entry
+-- that would otherwise conflict with it. rustfmt (formatter) ships with the
+-- Rust toolchain (rustup), not Mason.
+-- =====-----------------------------------------------------------------=====
+
 return {
-  -- rustaceanvim: override server settings (clippy, all features).
+  -- 1. RUSTACEANVIM: override server settings (clippy, all features).
   -- LazyVim's lang.rust extra provides the plugin and merges opts into
   -- vim.g.rustaceanvim via its config function.
   {
@@ -28,8 +34,9 @@ return {
     },
   },
 
-  -- Disable the plain rust_analyzer lspconfig entry: rustaceanvim manages
-  -- the server directly and a second lspconfig entry would start a duplicate.
+  -- 2. NVIM-LSPCONFIG: disable the plain rust_analyzer entry. rustaceanvim
+  -- manages the server directly and a second lspconfig entry would start a
+  -- duplicate.
   {
     "neovim/nvim-lspconfig",
     ft = { "rust" },
@@ -40,7 +47,7 @@ return {
     },
   },
 
-  -- conform.nvim: rustfmt ships with the Rust toolchain (rustup), not Mason.
+  -- 3. CONFORM.NVIM (Formatter): rustfmt, from rustup.
   {
     "stevearc/conform.nvim",
     ft = { "rust" },

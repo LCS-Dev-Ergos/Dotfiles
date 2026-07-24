@@ -1,7 +1,11 @@
--- File: lua/plugins/lang-lean.lua
--- Lean 4 - Functional programming language and interactive theorem prover.
--- lean.nvim manages its own LSP connection (lean-language-server via lake),
--- so no separate nvim-lspconfig or Mason entry is needed.
+-- =====-----------------------------------------------------------------=====
+-- LEAN 4
+--
+-- Functional programming language and interactive theorem prover. lean.nvim
+-- manages its own LSP connection (lean-language-server via lake), so there is
+-- no Mason, Conform, or separate NVIM-LSPCONFIG section here.
+-- =====-----------------------------------------------------------------=====
+
 return {
   -- 1. LEAN.NVIM: LSP integration, infoview (goals/messages), and unicode input.
   {
@@ -28,10 +32,6 @@ return {
   {
     "nvim-treesitter/nvim-treesitter",
     ft = { "lean" },
-    opts = function(_, opts)
-      if type(opts.ensure_installed) == "table" then
-        vim.list_extend(opts.ensure_installed, { "lean" })
-      end
-    end,
+    opts = require("lang_util").treesitter_ensure({ "lean" }),
   },
 }

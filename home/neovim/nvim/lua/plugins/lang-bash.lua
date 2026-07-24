@@ -1,20 +1,22 @@
--- File: lua/plugins/lang-bash.lua
+-- =====-----------------------------------------------------------------=====
+-- BASH / SH / ZSH
+--
+-- The LSP (bash-language-server) comes from Mason. shfmt and shellcheck are
+-- installed system-wide by home/cli-tools (Nix) and already on PATH, so only
+-- bash-language-server needs Mason to manage it. Shellcheck stays off by
+-- default and runs on demand via <leader>cs, since it's noisy against zsh's
+-- non-POSIX syntax.
+-- =====-----------------------------------------------------------------=====
 
 return {
-  -- 1. MASON: Installs the LSP. shfmt and shellcheck come from
-  -- home/cli-tools/default.nix (Nix) and are already on PATH.
+  -- 1. MASON: Installs the LSP.
   {
     "mason-org/mason.nvim",
     ft = { "sh", "bash", "zsh" },
-    opts = function(_, opts)
-      opts.ensure_installed = opts.ensure_installed or {}
-      vim.list_extend(opts.ensure_installed, {
-        "bash-language-server", -- LSP for diagnostics and completion.
-      })
-    end,
+    opts = require("lang_util").mason_ensure({ "bash-language-server" }),
   },
 
-  -- 2. CONFORM.NVIM (Formatter): Use shfmt for shell script files.
+  -- 2. CONFORM.NVIM (Formatter): Uses shfmt for shell script files.
   {
     "stevearc/conform.nvim",
     ft = { "sh", "bash", "zsh" },
@@ -27,7 +29,7 @@ return {
     },
   },
 
-  -- 3. NVIM-LINT: Shellcheck disabled (call manually when needed).
+  -- 3. NVIM-LINT: Shellcheck disabled by default; toggle with <leader>cs.
   {
     "mfussenegger/nvim-lint",
     ft = { "sh", "bash", "zsh" },
@@ -66,10 +68,6 @@ return {
   {
     "nvim-treesitter/nvim-treesitter",
     ft = { "sh", "bash", "zsh" },
-    opts = function(_, opts)
-      if type(opts.ensure_installed) == "table" then
-        vim.list_extend(opts.ensure_installed, { "bash" })
-      end
-    end,
+    opts = require("lang_util").treesitter_ensure({ "bash" }),
   },
 }

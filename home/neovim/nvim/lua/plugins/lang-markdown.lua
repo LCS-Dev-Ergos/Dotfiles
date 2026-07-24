@@ -1,14 +1,18 @@
--- File: lua/plugins/lang-markdown.lua
+-- =====-----------------------------------------------------------------=====
+-- MARKDOWN
+--
+-- markdownlint (linter) comes from Mason and stays off by default, toggled
+-- with <leader>tl. prettier (formatter) isn't installed here: the
+-- formatting.prettier LazyVim extra already provides it. This file also adds
+-- an in-browser live preview and its own which-key group label.
+-- =====-----------------------------------------------------------------=====
+
 return {
   -- 1. MASON: markdownlint for linting.
-  --    prettier is omitted — the formatting.prettier extra already installs it.
   {
     "mason-org/mason.nvim",
     ft = { "markdown" },
-    opts = function(_, opts)
-      opts.ensure_installed = opts.ensure_installed or {}
-      vim.list_extend(opts.ensure_installed, { "markdownlint" })
-    end,
+    opts = require("lang_util").mason_ensure({ "markdownlint" }),
   },
 
   -- 2. NVIM-LINT: markdownlint is off by default; toggle with <leader>tl.
@@ -44,7 +48,7 @@ return {
     },
   },
 
-  -- 3. CONFORM.NVIM: prettier for formatting.
+  -- 3. CONFORM.NVIM (Formatter): prettier, installed by the prettier extra.
   {
     "stevearc/conform.nvim",
     ft = { "markdown" },
@@ -59,11 +63,7 @@ return {
   {
     "nvim-treesitter/nvim-treesitter",
     ft = { "markdown" },
-    opts = function(_, opts)
-      if type(opts.ensure_installed) == "table" then
-        vim.list_extend(opts.ensure_installed, { "markdown", "markdown_inline" })
-      end
-    end,
+    opts = require("lang_util").treesitter_ensure({ "markdown", "markdown_inline" }),
   },
 
   -- 5. MARKDOWN PREVIEW: live preview in browser.

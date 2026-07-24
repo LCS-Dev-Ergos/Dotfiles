@@ -1,6 +1,13 @@
--- Disable Nix LSP on systems without Nix (e.g., Arch install), without
--- turning off Mason's automatic installation for everything else.
--- It just skips `nil_ls` and avoids adding it to Mason's ensure_installed.
+-- =====-----------------------------------------------------------------=====
+-- NIX (LINUX GUARD)
+--
+-- Not a language-support file like its siblings: this disables the Nix LSP
+-- (nil_ls) on Linux hosts that don't have Nix installed (e.g. the Arch
+-- install), without turning off Mason's automatic installation for anything
+-- else. It skips `nil_ls` in lspconfig and strips it from Mason's
+-- ensure_installed, then returns no specs at all on other platforms.
+-- =====-----------------------------------------------------------------=====
+
 local uname = vim.loop.os_uname().sysname
 
 if uname == "Linux" then
@@ -17,12 +24,7 @@ if uname == "Linux" then
     -- Remove nil from Mason's ensure_installed list (if present).
     {
       "mason-org/mason.nvim",
-      opts = function(_, opts)
-        local skip = { ["nil"] = true, nil_ls = true }
-        opts.ensure_installed = vim.tbl_filter(function(pkg)
-          return not skip[pkg]
-        end, opts.ensure_installed or {})
-      end,
+      opts = require("lang_util").mason_exclude({ "nil", "nil_ls" }),
     },
   }
 end

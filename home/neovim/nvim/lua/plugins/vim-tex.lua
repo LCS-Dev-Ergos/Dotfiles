@@ -1,5 +1,9 @@
--- File: lua/plugins/vim-tex.lua
--- LazyVim's lang.tex extra already loads vimtex; this file overrides settings.
+-- =====-----------------------------------------------------------------=====
+-- LATEX (VIMTEX)
+--
+-- LazyVim's lang.tex extra already loads vimtex; this file overrides the
+-- viewer, compiler, quickfix behavior, and syntax concealment settings.
+-- =====-----------------------------------------------------------------=====
 return {
   {
     "lervag/vimtex",

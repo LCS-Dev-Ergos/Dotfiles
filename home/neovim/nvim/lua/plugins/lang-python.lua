@@ -1,13 +1,16 @@
--- File: lua/plugins/lang-python.lua
+-- =====-----------------------------------------------------------------=====
+-- PYTHON
+--
+-- basedpyright (LSP), ruff (linter/formatter), and debugpy (debugger) all
+-- come from Mason.
+-- =====-----------------------------------------------------------------=====
+
 return {
-  -- 1. MASON: Installs pyright (LSP), ruff (linter/formatter) and debugpy (debugger).
+  -- 1. MASON: Installs basedpyright, ruff, and debugpy.
   {
     "mason-org/mason.nvim",
     ft = { "python" },
-    opts = function(_, opts)
-      opts.ensure_installed = opts.ensure_installed or {}
-      vim.list_extend(opts.ensure_installed, { "basedpyright", "ruff", "debugpy" })
-    end,
+    opts = require("lang_util").mason_ensure({ "basedpyright", "ruff", "debugpy" }),
   },
 
   -- 2. CONFORM.NVIM (Formatter): Uses ruff.
@@ -21,7 +24,7 @@ return {
     },
   },
 
-  -- 3. NVIM-LSPCONFIG: Configures pyright.
+  -- 3. NVIM-LSPCONFIG: Configures basedpyright.
   {
     "neovim/nvim-lspconfig",
     ft = { "python" },
@@ -36,10 +39,6 @@ return {
   {
     "nvim-treesitter/nvim-treesitter",
     ft = { "python" },
-    opts = function(_, opts)
-      if type(opts.ensure_installed) == "table" then
-        vim.list_extend(opts.ensure_installed, { "python" })
-      end
-    end,
+    opts = require("lang_util").treesitter_ensure({ "python" }),
   },
 }

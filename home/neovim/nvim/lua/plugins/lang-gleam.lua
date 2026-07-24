@@ -1,8 +1,14 @@
--- File: lua/plugins/lang-gleam.lua
--- Gleam - A friendly language for building type-safe, scalable systems
+-- =====-----------------------------------------------------------------=====
+-- GLEAM
+--
+-- A friendly language for building type-safe, scalable systems. The LSP is
+-- built into the Gleam compiler itself (`gleam lsp`), so there is no Mason
+-- package and no formatter section: `gleam format` runs through the compiler
+-- too, and neither this file nor conform.nvim needs to manage it separately.
+-- =====-----------------------------------------------------------------=====
+
 return {
   -- 1. NVIM-LSPCONFIG: Configures the Gleam language server.
-  -- The LSP is built into the Gleam compiler (gleam lsp).
   {
     "neovim/nvim-lspconfig",
     ft = { "gleam" },
@@ -17,10 +23,6 @@ return {
   {
     "nvim-treesitter/nvim-treesitter",
     ft = { "gleam" },
-    opts = function(_, opts)
-      if type(opts.ensure_installed) == "table" then
-        vim.list_extend(opts.ensure_installed, { "gleam" })
-      end
-    end,
+    opts = require("lang_util").treesitter_ensure({ "gleam" }),
   },
 }

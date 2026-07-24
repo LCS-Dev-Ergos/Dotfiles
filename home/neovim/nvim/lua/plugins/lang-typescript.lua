@@ -1,8 +1,13 @@
--- File: lua/plugins/lang-typescript.lua
--- LazyVim's lang.typescript and formatting.prettier extras handle the LSP,
--- formatter, and treesitter. This file adds inlay hints and eslint_d linting.
+-- =====-----------------------------------------------------------------=====
+-- TYPESCRIPT / JAVASCRIPT
+--
+-- LazyVim's lang.typescript and formatting.prettier extras already handle
+-- the LSP, formatter, and treesitter parsers. This file only adds inlay
+-- hints and eslint_d linting (eslint_d comes from Mason).
+-- =====-----------------------------------------------------------------=====
+
 return {
-  -- Inlay hints: parameter names, types, return types for TypeScript/JavaScript.
+  -- 1. NVIM-LSPCONFIG: Inlay hints (parameter names, types, return types).
   {
     "neovim/nvim-lspconfig",
     ft = { "javascript", "typescript", "javascriptreact", "typescriptreact" },
@@ -38,17 +43,14 @@ return {
     },
   },
 
-  -- Mason: eslint_d for linting (ts-server handled by LazyVim's typescript extra).
+  -- 2. MASON: eslint_d for linting (ts-server handled by LazyVim's typescript extra).
   {
     "mason-org/mason.nvim",
     ft = { "javascript", "typescript", "javascriptreact", "typescriptreact" },
-    opts = function(_, opts)
-      opts.ensure_installed = opts.ensure_installed or {}
-      vim.list_extend(opts.ensure_installed, { "eslint_d" })
-    end,
+    opts = require("lang_util").mason_ensure({ "eslint_d" }),
   },
 
-  -- nvim-lint: eslint_d.
+  -- 3. NVIM-LINT: eslint_d.
   {
     "mfussenegger/nvim-lint",
     ft = { "javascript", "typescript", "javascriptreact", "typescriptreact" },

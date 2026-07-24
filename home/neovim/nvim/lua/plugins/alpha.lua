@@ -1,3 +1,10 @@
+-- =====-----------------------------------------------------------------=====
+-- DASHBOARD (ALPHA)
+--
+-- Start screen, used instead of Snacks' own dashboard module (disabled in
+-- snacks.lua to avoid running two dashboards side by side).
+-- =====-----------------------------------------------------------------=====
+
 return {
   "goolord/alpha-nvim",
   event = "VimEnter",
