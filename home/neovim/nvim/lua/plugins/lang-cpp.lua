@@ -1,21 +1,27 @@
--- File: lua/plugins/lang-cpp.lua
+-- =====-----------------------------------------------------------------=====
+-- C / C++
+--
+-- lazyvim.plugins.extras.lang.clangd (enabled in lazyvim.json) already wires
+-- clangd's cmd/capabilities/init_options/root_markers, clangd_extensions.nvim
+-- (AST view, inlay hints), the source/header switch keymap, and codelldb via
+-- the dap.core extra. This file only redirects clangd and clang-format off
+-- Mason and onto home/llvm's Nix-managed clang-tools (already on PATH),
+-- matching every other language here that owns its own toolchain.
+-- =====-----------------------------------------------------------------=====
 
 return {
-  -- 1. MASON: Ensures tools are installed.
+  -- 1. NVIM-LSPCONFIG: don't let Mason manage clangd; home/llvm provides it.
   {
-    "mason-org/mason.nvim",
+    "neovim/nvim-lspconfig",
     ft = { "c", "cpp" },
-    opts = function(_, opts)
-      opts.ensure_installed = opts.ensure_installed or {}
-      vim.list_extend(opts.ensure_installed, {
-        "clangd",
-        "clang-format",
-        "codelldb", -- For debugging.
-      })
-    end,
+    opts = {
+      servers = {
+        clangd = { mason = false },
+      },
+    },
   },
 
-  -- 2. CONFORM.NVIM (Formatter): Uses Mason's clang-format.
+  -- 2. CONFORM.NVIM (Formatter): clang-format, also from home/llvm.
   {
     "stevearc/conform.nvim",
     ft = { "c", "cpp" },
@@ -27,59 +33,11 @@ return {
     },
   },
 
-  -- 3. NVIM-LSPCONFIG: Configure clangd using LazyVim's pattern.
-  {
-    "neovim/nvim-lspconfig",
-    ft = { "c", "cpp" },
-    opts = {
-      servers = {
-        clangd = {
-          -- Command with useful flags.
-          cmd = {
-            "clangd",
-            "--background-index",
-            "--clang-tidy",
-            "--header-insertion=iwyu",
-            "--completion-style=detailed",
-            "--function-arg-placeholders",
-            "--fallback-style=llvm",
-          },
-          -- Define root directory detection.
-          root_dir = function(fname)
-            return require("lspconfig.util").root_pattern(
-              ".clangd",
-              ".clang-tidy",
-              ".clang-format",
-              "compile_commands.json",
-              "compile_flags.txt",
-              "configure.ac",
-              ".git"
-            )(fname) or vim.fn.getcwd()
-          end,
-          -- Capabilities are automatically handled by LazyVim.
-          capabilities = {
-            offsetEncoding = { "utf-16" },
-          },
-          -- Initial options
-          init_options = {
-            usePlaceholders = true,
-            completeUnimported = true,
-            clangdFileStatus = true,
-          },
-        },
-      },
-    },
-  },
-
-  -- 4. TREESITTER: Ensure C/C++ parsers are installed.
+  -- 3. TREESITTER: Ensure C/C++ parsers are installed (the clangd extra only
+  -- adds "cpp"; "c" is added here for plain-C files).
   {
     "nvim-treesitter/nvim-treesitter",
     ft = { "c", "cpp" },
-    opts = function(_, opts)
-      if type(opts.ensure_installed) == "table" then
-        vim.list_extend(opts.ensure_installed, { "c", "cpp" })
-      end
-    end,
+    opts = require("lang_util").treesitter_ensure({ "c", "cpp" }),
   },
-
 }

@@ -1,5 +1,10 @@
--- Disabled: Snacks Picker (snacks.lua) covers the same use case.
--- The <leader>fp keymap has been moved to snacks.lua.
+-- =====-----------------------------------------------------------------=====
+-- FUZZY FINDER (DISABLED)
+--
+-- Disabled: Snacks Picker (snacks.lua, plus the snacks_picker LazyVim extra)
+-- covers the same use case. The <leader>fp keymap moved to snacks.lua.
+-- =====-----------------------------------------------------------------=====
+
 return {
   { "nvim-telescope/telescope.nvim", enabled = false },
 }

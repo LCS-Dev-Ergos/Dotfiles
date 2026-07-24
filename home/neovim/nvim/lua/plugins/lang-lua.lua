@@ -1,14 +1,17 @@
--- File: lua/plugins/lang-lua.lua
+-- =====-----------------------------------------------------------------=====
+-- LUA
+--
+-- lua-language-server (LSP) and stylua (formatter) both come from Mason. The
+-- lspconfig settings below teach the server about Neovim's own runtime, so it
+-- recognizes globals like `vim` instead of flagging them as undefined.
+-- =====-----------------------------------------------------------------=====
 
 return {
-  -- 1. MASON: Ensures that lua-language-server (for LSP) and stylua (for formatting) are installed.
+  -- 1. MASON: Ensures lua-language-server and stylua are installed.
   {
     "mason-org/mason.nvim",
     ft = { "lua" },
-    opts = function(_, opts)
-      opts.ensure_installed = opts.ensure_installed or {}
-      vim.list_extend(opts.ensure_installed, { "lua-language-server", "stylua" })
-    end,
+    opts = require("lang_util").mason_ensure({ "lua-language-server", "stylua" }),
   },
 
   -- 2. CONFORM.NVIM (Formatter): Uses stylua for Lua files.
@@ -22,9 +25,8 @@ return {
     },
   },
 
-  -- 3. NVIM-LSPCONFIG: Configures lua-language-server (lua_ls).
-  -- The configuration here is very important to make the LSP
-  -- understand that we are working in a Neovim environment and to recognize globals like "vim".
+  -- 3. NVIM-LSPCONFIG: Configures lua-language-server (lua_ls) to understand
+  -- that we're working in a Neovim environment and recognize globals like "vim".
   {
     "neovim/nvim-lspconfig",
     ft = { "lua" },
@@ -57,10 +59,6 @@ return {
   {
     "nvim-treesitter/nvim-treesitter",
     ft = { "lua" },
-    opts = function(_, opts)
-      if type(opts.ensure_installed) == "table" then
-        vim.list_extend(opts.ensure_installed, { "lua", "query" })
-      end
-    end,
+    opts = require("lang_util").treesitter_ensure({ "lua", "query" }),
   },
 }

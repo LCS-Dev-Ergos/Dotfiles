@@ -1,4 +1,5 @@
--- File: lua/plugins/lang-go.lua
+-- =====-----------------------------------------------------------------=====
+-- GO
 --
 -- Overrides LazyVim's lang.go extra (lazyvim.json) to use the Go toolchain's
 -- own tools, already on PATH, instead of Mason's private copies:
@@ -7,9 +8,10 @@
 --   impl                                     -> `go install github.com/josharian/impl@latest`
 --   gomodifytags                             -> home/doom/default.nix (Nix)
 --
--- Go tools that need cgo (golangci-lint) require CC set to Apple's clang:
--- `go env -w CC=/usr/bin/cc`. The Nix clang wrapper that's on PATH doesn't
--- carry the macOS SDK outside a proper Nix derivation sandbox.
+-- Go tools that need cgo (golangci-lint) use the declarative CC/CXX written
+-- by home/llvm. On Darwin those resolve to LLVM 22 with the pinned macOS 26
+-- SDK, both through the environment and Go's Home Manager-owned env file.
+-- =====-----------------------------------------------------------------=====
 
 return {
   -- 1. NVIM-LSPCONFIG: gopls resolves via PATH, not Mason's registry path.
@@ -25,20 +27,14 @@ return {
   -- 2. MASON: The tools above come from the Go toolchain instead.
   {
     "mason-org/mason.nvim",
-    opts = function(_, opts)
-      local skip = {
-        gopls = true,
-        goimports = true,
-        gofumpt = true,
-        delve = true,
-        impl = true,
-        gomodifytags = true,
-        ["golangci-lint"] = true,
-      }
-      opts.ensure_installed = vim.tbl_filter(
-        function(pkg) return not skip[pkg] end,
-        opts.ensure_installed or {}
-      )
-    end,
+    opts = require("lang_util").mason_exclude({
+      "gopls",
+      "goimports",
+      "gofumpt",
+      "delve",
+      "impl",
+      "gomodifytags",
+      "golangci-lint",
+    }),
   },
 }

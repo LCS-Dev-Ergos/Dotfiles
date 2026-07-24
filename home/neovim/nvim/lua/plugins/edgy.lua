@@ -1,4 +1,10 @@
--- File: lua/plugins/edgy.lua
+-- =====-----------------------------------------------------------------=====
+-- WINDOW LAYOUT (EDGY)
+--
+-- Docks Trouble, quickfix, DAP REPL, and help windows to fixed edge panels
+-- instead of leaving them as regular splits.
+-- =====-----------------------------------------------------------------=====
+
 return {
   {
     "folke/edgy.nvim",

@@ -1,9 +1,12 @@
--- File: lua/plugins/lang-csharp.lua
+-- =====-----------------------------------------------------------------=====
+-- C#
 --
--- csharp-ls comes from `dotnet tool install --global csharp-ls`, on PATH
--- via ~/.dotnet/tools -- the same server Doom's eglot config expects (see
+-- csharp-ls comes from `dotnet tool install --global csharp-ls`, on PATH via
+-- ~/.dotnet/tools -- the same server Doom Emacs' eglot config expects (see
 -- home/doom/doom/config.el, C# section). csharpier (formatter) comes from
--- home/doom/default.nix (Nix).
+-- home/doom/default.nix (Nix). Neither tool needs Mason.
+-- =====-----------------------------------------------------------------=====
+
 return {
   -- 1. NVIM-LSPCONFIG: Configures csharp_ls.
   {
@@ -29,10 +32,6 @@ return {
   {
     "nvim-treesitter/nvim-treesitter",
     ft = { "cs" },
-    opts = function(_, opts)
-      if type(opts.ensure_installed) == "table" then
-        vim.list_extend(opts.ensure_installed, { "c_sharp" })
-      end
-    end,
+    opts = require("lang_util").treesitter_ensure({ "c_sharp" }),
   },
 }

@@ -1,15 +1,17 @@
--- File: lua/plugins/lang-kotlin.lua
+-- =====-----------------------------------------------------------------=====
+-- KOTLIN
+--
+-- kotlin-language-server comes from Mason. ktlint (formatter) comes from
+-- home/doom/default.nix (Nix) and is already on PATH, so only the LSP needs
+-- Mason to manage it.
+-- =====-----------------------------------------------------------------=====
 
 return {
-  -- 1. MASON: Installs the LSP. ktlint comes from home/doom/default.nix
-  -- (Nix) and is already on PATH.
+  -- 1. MASON: Installs the LSP.
   {
     "mason-org/mason.nvim",
     ft = { "kotlin" },
-    opts = function(_, opts)
-      opts.ensure_installed = opts.ensure_installed or {}
-      vim.list_extend(opts.ensure_installed, { "kotlin-language-server" })
-    end,
+    opts = require("lang_util").mason_ensure({ "kotlin-language-server" }),
   },
 
   -- 2. CONFORM.NVIM (Formatter): Use ktlint for Kotlin files.
@@ -36,10 +38,6 @@ return {
   {
     "nvim-treesitter/nvim-treesitter",
     ft = { "kotlin" },
-    opts = function(_, opts)
-      if type(opts.ensure_installed) == "table" then
-        vim.list_extend(opts.ensure_installed, { "kotlin" })
-      end
-    end,
+    opts = require("lang_util").treesitter_ensure({ "kotlin" }),
   },
 }

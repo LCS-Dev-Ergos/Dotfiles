@@ -1,9 +1,14 @@
--- File: lua/plugins/lang-scala.lua
+-- =====-----------------------------------------------------------------=====
+-- SCALA
 --
--- nvim-metals manages the LSP (Metals) directly, like haskell-tools.nvim and
--- rustaceanvim do for their own languages: Metals needs build-import
--- handling and decorations that a generic lspconfig entry doesn't provide.
--- Metals comes from Coursier (`cs install metals`), on PATH already.
+-- nvim-metals manages the LSP (Metals) directly, the same way
+-- haskell-tools.nvim and rustaceanvim do for their own languages: Metals
+-- needs build-import handling and decorations that a generic lspconfig entry
+-- doesn't provide, so there is no Mason or NVIM-LSPCONFIG section here.
+-- Metals and scalafmt (formatter) both come from Coursier
+-- (`cs install metals`), already on PATH.
+-- =====-----------------------------------------------------------------=====
+
 return {
   -- 1. NVIM-METALS: LSP integration (build import, decorations, etc.).
   {
@@ -24,7 +29,7 @@ return {
     end,
   },
 
-  -- 2. CONFORM.NVIM (Formatter): Uses scalafmt, also from Coursier.
+  -- 2. CONFORM.NVIM (Formatter): Uses scalafmt.
   {
     "stevearc/conform.nvim",
     ft = { "scala", "sbt" },
@@ -37,10 +42,6 @@ return {
   {
     "nvim-treesitter/nvim-treesitter",
     ft = { "scala", "sbt" },
-    opts = function(_, opts)
-      if type(opts.ensure_installed) == "table" then
-        vim.list_extend(opts.ensure_installed, { "scala" })
-      end
-    end,
+    opts = require("lang_util").treesitter_ensure({ "scala" }),
   },
 }

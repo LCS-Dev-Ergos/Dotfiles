@@ -1,8 +1,11 @@
--- File: lua/plugins/lang-ocaml.lua
+-- =====-----------------------------------------------------------------=====
+-- OCAML
 --
--- ocamllsp and ocamlformat come from opam (`opam install ocaml-lsp-server
--- ocamlformat`), on PATH via ~/.opam/default/bin -- the same toolchain
--- Doom's merlin/utop use.
+-- ocaml-lsp and ocamlformat come from opam (`opam install ocaml-lsp-server
+-- ocamlformat`), on PATH via ~/.opam/default/bin -- the same toolchain Doom
+-- Emacs' merlin/utop use. Neither tool needs Mason.
+-- =====-----------------------------------------------------------------=====
+
 return {
   -- 1. CONFORM.NVIM (Formatter): Uses ocamlformat.
   {
@@ -30,10 +33,6 @@ return {
   {
     "nvim-treesitter/nvim-treesitter",
     ft = { "ocaml" },
-    opts = function(_, opts)
-      if type(opts.ensure_installed) == "table" then
-        vim.list_extend(opts.ensure_installed, { "ocaml" })
-      end
-    end,
+    opts = require("lang_util").treesitter_ensure({ "ocaml" }),
   },
 }

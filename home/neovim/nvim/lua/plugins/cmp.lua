@@ -1,3 +1,12 @@
+-- =====-----------------------------------------------------------------=====
+-- COMPLETION (NVIM-CMP)
+--
+-- Adds an emoji completion source and a "supertab" style <Tab>/<S-Tab>: cycle
+-- suggestions or jump LuaSnip placeholders when either is active, otherwise
+-- fall back to the default key behaviour. LuaSnip's own <Tab> mapping is
+-- disabled so it doesn't fight with this one.
+-- =====-----------------------------------------------------------------=====
+
 return {
   {
     "hrsh7th/nvim-cmp",
