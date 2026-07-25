@@ -3,6 +3,7 @@
   lib,
   pkgs,
   homeDirectory,
+  hostPlatform,
   username,
   ...
 }:
@@ -10,8 +11,11 @@ let
   user = lib.escapeShellArg username;
 in
 {
-  # The platform this nix-darwin configuration is built for.
-  nixpkgs.hostPlatform = "aarch64-darwin";
+  # The platform this nix-darwin configuration is built for. It comes from the
+  # same host record in flake.nix that feeds the Linux output's `import nixpkgs
+  # { inherit system; }`, so the two hosts declare their platform once and in
+  # the same place rather than repeating a literal here.
+  nixpkgs.hostPlatform = hostPlatform;
 
   # Register the Nix Zsh as a permissible login shell. The module maps the
   # package to /run/current-system/sw/bin/zsh -- a generation-stable path that
@@ -80,9 +84,13 @@ in
       _dotfiles_restart_dock=0
       _dotfiles_restart_finder=0
 
+      # --set-home rather than relying on the always_set_home default from
+      # darwin/default.nix: that file exists for root-run Nix commands, and
+      # this hand-off should not silently depend on it. Home Manager's own
+      # nix-darwin integration passes the same flag for the same hand-off.
       _dotfiles_as_user() {
         /bin/launchctl asuser "$_dotfiles_uid" \
-          /usr/bin/sudo -u "$_dotfiles_user" -- "$@"
+          /usr/bin/sudo -u "$_dotfiles_user" --set-home -- "$@"
       }
 
       _dotfiles_ensure_default() {

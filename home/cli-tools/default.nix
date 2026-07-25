@@ -22,17 +22,11 @@
     pkgs.deadnix
     pkgs.duf
     pkgs.exiftool
-    pkgs.findutils
     pkgs.fswatch
     pkgs.gh
     pkgs.git-filter-repo
     pkgs.glab
     pkgs.glow
-    # opam resolves `tar` to an absolute path before extracting sources.
-    # Darwin's bsdtar 3.5.3 rejects valid self-hardlink metadata emitted by
-    # GitHub archives, whereas this GNU implementation extracts them correctly.
-    pkgs.gnutar
-    pkgs.gnused
     pkgs.gum
     pkgs.jolt-tui
     pkgs.jq
@@ -67,6 +61,16 @@
     pkgs.wget
   ]
   ++ lib.optionals pkgs.stdenv.isDarwin [
+    # macOS ships the BSD implementations of these three, and enough of this
+    # setup assumes GNU behaviour that they belong on PATH there. Linux gets
+    # them from its own base system, so installing them again would only add a
+    # second identical copy. opam is the concrete case for tar: it resolves the
+    # binary to an absolute path before extracting sources, and Darwin's bsdtar
+    # 3.5.3 rejects valid self-hardlink metadata emitted by GitHub archives.
+    pkgs.findutils
+    pkgs.gnused
+    pkgs.gnutar
+
     # These commands use Darwin frameworks or macOS-only APIs.
     pkgs.nowplaying-cli
     pkgs.switchaudio-osx

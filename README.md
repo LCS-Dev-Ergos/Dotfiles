@@ -42,8 +42,13 @@ cd ~/Dotfiles
 Validate first — this only evaluates and builds, it never touches the live system:
 
 ```bash
-darwin-rebuild build --flake .#LCSMacBook-Pro
+nix build .#darwinConfigurations.LCSMacBook-Pro.system --no-link
 ```
+
+`--no-link` matters more than it looks. The `./result` symlink that
+`darwin-rebuild build` leaves behind is a garbage collection root, so the
+generation it points at survives every `nix.gc` run for as long as the symlink
+exists — and since `result` is gitignored, nothing reminds you it is there.
 
 The account name and home directory are explicit host facts in `flake.nix`, so
 evaluation remains pure and does not require `--impure`. Once the build is
@@ -71,12 +76,13 @@ Dotfiles/
 ├── flake.lock
 ├── hosts/
 │   ├── lcs-macbook-pro/
-│   │   ├── darwin.nix     # Host-specific: stateVersion, hostPlatform
+│   │   ├── darwin.nix     # Host-specific: platform, account and login shell,
+│   │   │                  #   stateVersion, Dock/Finder/trackpad defaults
 │   │   └── home.nix       # Host-specific: username, homeDirectory, imports
 │   └── lcs-legion-arch/
 │       └── home.nix       # Same shape, for the Linux host
 ├── darwin/
-│   ├── default.nix        # Shared nix-darwin config: nix.gc, system.defaults, users
+│   ├── default.nix        # Shared nix-darwin config: nix.gc, fonts, /etc, unfree policy
 │   └── homebrew.nix       # Declarative Homebrew: taps, casks, formulae
 └── home/
     ├── default.nix        # Shared Home Manager policy and stateVersion
@@ -94,9 +100,10 @@ Each application's Nix glue and its actual config content live together in the s
 
 ## What's Managed Where
 
-- **`darwin/`** — system-level, macOS only: Homebrew inventory, Dock/Finder/trackpad defaults, Nix garbage collection, and the account mapping Home Manager needs.
+- **`darwin/`** — system-level policy shared by every macOS host: the Homebrew inventory, Nix garbage collection and store optimisation, system fonts, the generated `/etc` entries, and the unfree-package predicate.
+- **`hosts/lcs-macbook-pro/darwin.nix`** — the facts that are true of this Mac and not of a future one: platform, the account mapping Home Manager needs, the login shell, `system.stateVersion`, and the Dock/Finder/trackpad defaults.
 - **`home/`** — per-application Home Manager modules, shared across both hosts where a tool exists on both platforms. Platform-specific behavior is gated with `lib.mkIf pkgs.stdenv.isDarwin` / `pkgs.stdenv.isLinux` inside the shared module rather than duplicated per host.
-- **zsh is config-only**: everything under `home/zsh/` is Nix/Home Manager-managed, but the `zsh` binary itself is still Homebrew-managed for now — a deliberate, staged decision.
+- **zsh**: everything under `home/zsh/` is Nix/Home Manager-managed, and the login shell is now the Nix `zsh` via `users.users.<name>.shell`, which nix-darwin records as the generation-stable `/run/current-system/sw/bin/zsh`. Homebrew's `zsh` stays declared until that has soaked through real sessions; every stock macOS shell remains in `/etc/shells` for recovery.
 
 ## State Boundaries
 
@@ -179,7 +186,15 @@ home/zsh/config/tests/run-all.zsh --full
 git diff --check
 ```
 
-On macOS, finish with a complete non-activating build before switching:
+`--no-build` stops at evaluation, so it proves every output *evaluates* on both
+systems but runs none of the `checks`. CI builds the ones a runner can afford:
+`cpp-tools` on both systems, whose `checkPhase` is its Zsh test suite, and
+`llvm-darwin-toolchain` on macOS, whose smoke test compiles, links, and runs
+real binaries to verify the pinned SDK, the deployment target, and the Apple
+linker selection.
+
+The one check no runner builds is `darwin-configuration`, the whole system. On
+macOS, finish with it locally before switching:
 
 ```bash
 nix build .#darwinConfigurations.LCSMacBook-Pro.system --no-link

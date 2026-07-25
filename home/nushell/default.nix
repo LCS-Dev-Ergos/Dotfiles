@@ -19,9 +19,10 @@
   # Home Manager's nushell module places config at the macOS-native
   # ~/Library/Application Support/nushell/ (only when xdg.enable is false,
   # which it is by default on Darwin), but this system explicitly exports
-  # XDG_CONFIG_HOME=~/.config (see zsh's lib/75-variables.zsh), and nushell
-  # honours that over the platform default -- it was actually reading from
-  # ~/.config/nushell/ before migration. Mirroring the exact same composed
+  # XDG_CONFIG_HOME=~/.config (home/zsh/zprofile, which also exports the cache,
+  # data, and state bases with the same values Home Manager defaults to), and
+  # nushell honours that over the platform default -- it was actually reading
+  # from ~/.config/nushell/ before migration. Mirroring the same composed
   # output (which also carries the atuin fish/nu integration Home Manager
   # injects) at the XDG path keeps it working where nushell actually looks.
   #
