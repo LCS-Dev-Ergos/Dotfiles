@@ -52,9 +52,11 @@ in
         go_env=${lib.escapeShellArg goEnv}
         go_env_dir="''${go_env%/*}"
 
-        # The candidate assembly cannot be prefixed with $DRY_RUN_CMD: mktemp
-        # and the sed redirection are real filesystem writes either way, and
-        # mktemp would fail outright while the directory only "would" exist.
+        # Branching on DRY_RUN is the supported idiom ($DRY_RUN_CMD is
+        # deprecated upstream), and a per-command prefix could not express this
+        # anyway: mktemp and the sed redirection are real filesystem writes
+        # either way, and mktemp would fail outright while the directory only
+        # "would" exist.
         if [[ -v DRY_RUN ]]; then
           echo "Would reconcile CC/CXX in $go_env"
         else

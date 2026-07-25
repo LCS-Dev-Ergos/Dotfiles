@@ -27,18 +27,21 @@ shared modules instead of being copied per configuration.
 | Layer | Location | Responsibility |
 | --- | --- | --- |
 | Flake | `flake.nix`, `flake.lock` | Pinned inputs and the configuration outputs |
-| System (macOS) | `darwin/` | nix-darwin policy: Homebrew inventory, Dock, Finder and trackpad defaults, Nix garbage collection and the account mapping Home Manager needs |
+| System (macOS) | `darwin/` | nix-darwin policy shared by every macOS configuration: Homebrew inventory, Nix garbage collection and store optimisation, fonts, generated `/etc` entries and the unfree-package predicate |
 | User | `home/` | Home Manager modules, one per application, shared by both platforms |
-| Entry point | `hosts/<name>/` | Module selection and the facts of one configuration, such as its state version and platform |
+| Entry point | `hosts/<name>/` | Module selection and the facts of one configuration: platform, account mapping, login shell, state version, system defaults |
 
 ### Ownership Model
 
 Homebrew owns macOS applications and the packages that need its ecosystem;
 nix-darwin declares that inventory of taps, formulae and casks. Nix owns the
 portable command-line baseline and the development toolchains that benefit
-from reproducibility, and Home Manager owns application configuration. The zsh
-configuration under `home/zsh/` is managed by Home Manager, while the `zsh`
-executable comes from Homebrew.
+from reproducibility, and Home Manager owns application configuration.
+
+Home Manager manages everything under `home/zsh/`. On macOS the login shell is
+the Nix `zsh`, set through `users.users.<name>.shell` and recorded as the
+generation-stable `/run/current-system/sw/bin/zsh`. Homebrew's `zsh` remains
+declared, and every stock macOS shell stays in `/etc/shells` for recovery.
 
 Activation sets `homebrew.onActivation.cleanup = "none"`: a switch installs
 missing declarations and never uninstalls an undeclared package.
@@ -111,18 +114,19 @@ cd ~/Dotfiles
 
 ### macOS Activation
 
-Build before switching. `darwin-rebuild build` evaluates and builds the
-configuration without changing the running system:
+Build before every switch. The build evaluates and compiles the complete
+system without changing the running one, and no CI runner performs it:
 
 ```bash
-darwin-rebuild build --flake .#LCSMacBook-Pro
+nix build .#darwinConfigurations.LCSMacBook-Pro.system --no-link
 sudo darwin-rebuild switch --flake .#LCSMacBook-Pro
 ```
 
-The account name and home directory are declared in `flake.nix`, so evaluation
-is pure and needs no `--impure`. A switch applies the Home Manager
-configuration, the declared Homebrew inventory and the Dock, Finder and
-trackpad defaults.
+`--no-link` avoids the `result` symlink, a garbage-collection root that would
+keep the generation alive across `nix.gc` runs. The account name and home
+directory are declared in `flake.nix`, so evaluation is pure and needs no
+`--impure`. A switch applies the Home Manager configuration, the declared
+Homebrew inventory and the Dock, Finder and trackpad defaults.
 
 ### Linux Activation
 
@@ -138,12 +142,12 @@ Dotfiles/
 ├── flake.lock
 ├── hosts/
 │   ├── lcs-macbook-pro/
-│   │   ├── darwin.nix         # stateVersion, hostPlatform
+│   │   ├── darwin.nix         # Platform, account and login shell, stateVersion, system defaults
 │   │   └── home.nix           # username, homeDirectory, imports
 │   └── lcs-legion-arch/
 │       └── home.nix           # The same shape for the Linux configuration
 ├── darwin/
-│   ├── default.nix            # Shared nix-darwin policy: nix.gc, system.defaults, users
+│   ├── default.nix            # Nix GC and store optimisation, fonts, /etc, unfree policy
 │   └── homebrew.nix           # Declared taps, formulae and casks
 └── home/
     ├── default.nix            # Shared Home Manager policy and stateVersion
@@ -190,11 +194,16 @@ home/zsh/config/tests/run-all.zsh --full
 git diff --check
 ```
 
-On macOS, finish with a complete build that does not activate anything:
+`nix flake check --no-build` proves that every output evaluates on both systems
+but runs none of the checks. CI builds the check derivations a runner can
+afford: `cpp-tools`, whose check phase is its Zsh test suite, on both systems,
+and `llvm-darwin-toolchain` on macOS, whose smoke test compiles, links and runs
+real binaries to verify the pinned SDK, the deployment target and the Apple
+linker selection.
 
-```bash
-nix build .#darwinConfigurations.LCSMacBook-Pro.system --no-link
-```
+No runner builds `darwin-configuration`, the complete system. The build in
+[macOS Activation](#macos-activation) is the first complete build, so it runs
+before every switch.
 
 ## Contributing
 

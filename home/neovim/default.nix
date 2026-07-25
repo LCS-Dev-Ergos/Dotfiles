@@ -143,14 +143,19 @@ in
   # A direct :Lazy update can no longer hit the Nix store, but the updater's
   # baseline guard detects that drift and requires a switch before promotion.
   home.activation.syncNeovimRuntimeLock = lib.hm.dag.entryBefore [ "linkGeneration" ] ''
-    $DRY_RUN_CMD ${pkgs.coreutils}/bin/install -d -m 0700 \
-      ${lib.escapeShellArg runtimeLockDirectory}
-    $DRY_RUN_CMD ${pkgs.coreutils}/bin/install -m 0600 \
-      ${lib.escapeShellArg (toString lockSource)} \
-      ${lib.escapeShellArg "${runtimeLock}.new"}
-    $DRY_RUN_CMD ${pkgs.coreutils}/bin/mv -f \
-      ${lib.escapeShellArg "${runtimeLock}.new"} \
-      ${lib.escapeShellArg runtimeLock}
+    if [[ -v DRY_RUN ]]; then
+      printf 'Would sync %s from the active generation\n' \
+        ${lib.escapeShellArg runtimeLock}
+    else
+      ${pkgs.coreutils}/bin/install -d -m 0700 \
+        ${lib.escapeShellArg runtimeLockDirectory}
+      ${pkgs.coreutils}/bin/install -m 0600 \
+        ${lib.escapeShellArg (toString lockSource)} \
+        ${lib.escapeShellArg "${runtimeLock}.new"}
+      ${pkgs.coreutils}/bin/mv -f \
+        ${lib.escapeShellArg "${runtimeLock}.new"} \
+        ${lib.escapeShellArg runtimeLock}
+    fi
   '';
 
   # Plugins, Mason tools, caches, ShaDa, sessions, and the operational Lazy

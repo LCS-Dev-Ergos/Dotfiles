@@ -3,6 +3,12 @@ _: {
   # The vscode/go/cargo/uv stanzas that command also emits have no
   # nix-darwin equivalent and aren't tracked here.
   #
+  # This is the only Homebrew inventory that belongs on a nix-darwin-managed
+  # Mac. home/zsh/Brewfile has a similar shape but a different job: it is a
+  # standalone bootstrap for a machine without nix-darwin, generated from the
+  # Zsh dependency manifest. It still lists several formulae retired below, so
+  # applying it here would reinstall exactly what the migration moved to Nix.
+  #
   # cleanup = "none" is deliberate: it declares this inventory without
   # touching anything not yet listed. Switch to "uninstall"/"zap" only once
   # every live cask/tap/formula is confirmed present below -- those modes

@@ -24,9 +24,13 @@ in
   # the existence check makes later activations non-destructive.
   home.activation.seedFishVariables = lib.hm.dag.entryBefore [ "linkGeneration" ] ''
     if [[ ! -e ${lib.escapeShellArg fishVariablesState} ]]; then
-      $DRY_RUN_CMD ${pkgs.coreutils}/bin/install -D -m 0600 \
-        ${lib.escapeShellArg (toString ./fish_variables)} \
-        ${lib.escapeShellArg fishVariablesState}
+      if [[ -v DRY_RUN ]]; then
+        printf 'Would seed %s\n' ${lib.escapeShellArg fishVariablesState}
+      else
+        ${pkgs.coreutils}/bin/install -D -m 0600 \
+          ${lib.escapeShellArg (toString ./fish_variables)} \
+          ${lib.escapeShellArg fishVariablesState}
+      fi
     fi
   '';
 

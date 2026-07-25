@@ -8,6 +8,7 @@ on:
       - "darwin/**/*.nix"
       - "home/**/*.nix"
       - "home/zsh/**"
+      - "home/cpp-tools/**"
       - "hosts/**/*.nix"
       - "scripts/**"
       - "home/out-of-store-allowlist.tsv"
@@ -20,6 +21,7 @@ on:
       - "darwin/**/*.nix"
       - "home/**/*.nix"
       - "home/zsh/**"
+      - "home/cpp-tools/**"
       - "hosts/**/*.nix"
       - "scripts/**"
       - "home/out-of-store-allowlist.tsv"
@@ -58,6 +60,34 @@ jobs:
 
       - name: Evaluate every flake output
         run: nix flake check --no-build --all-systems --show-trace
+
+      # `nix flake check --no-build` stops at evaluation, so a check derivation
+      # that evaluates cleanly still never runs. Build the ones that are cheap
+      # enough for a runner; cpp-tools' checkPhase is its Zsh test suite.
+      - name: Build the Linux check derivations
+        run: nix build --no-link --print-out-paths .#checks.x86_64-linux.cpp-tools
+
+  darwin:
+    name: Darwin check derivations
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+
+      # The reason this job exists: the toolchain smoke test compiles, links,
+      # and runs real binaries to verify the pinned SDK, the deployment target,
+      # and the Apple linker selection. No Linux runner can do that, and the
+      # full darwin-configuration check is too heavy for CI -- that one stays a
+      # local `nix build --no-link` before switching.
+      - name: Build the Darwin check derivations
+        run: |
+          nix build --no-link --print-out-paths \
+            '.#checks.aarch64-darwin.cpp-tools' \
+            '.#checks.aarch64-darwin.llvm-darwin-toolchain'
 
   zsh:
     name: ${{ matrix.os }}

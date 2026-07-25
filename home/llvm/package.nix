@@ -127,6 +127,11 @@ let
       (mkDriver "clang" "clang" [ ])
       (mkDriver "clang++" "clang++" [ ])
       (mkDriver "cpp" "clang" [ "-E" ])
+      # Joined deliberately, not just referenced through --ld-path above. Both
+      # llvmPackages_22.clang and gcc15 ship a bin/ld of their own, and it is
+      # the cctools wrapper this package exists to bypass. Without this entry
+      # winning at priority 5, a bare `ld` on PATH would be exactly the linker
+      # that produces the incompatible host-native objects.
       appleLinker
     ];
 

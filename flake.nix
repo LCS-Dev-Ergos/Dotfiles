@@ -121,9 +121,14 @@
         # ./hosts/lcs-macbook-pro/darwin.nix) only. The nested home-manager
         # module below gets its own, larger argument set through
         # extraSpecialArgs (homeArgs), not this one.
+        #
+        # hostPlatform is passed under nix-darwin's own option name rather than
+        # as `system`: the host module already has a `system = { ... }` config
+        # block, and an argument by that name reads like a reference to it.
         specialArgs = {
           inherit self;
           inherit (darwinHost) homeDirectory username;
+          hostPlatform = darwinHost.system;
         };
         modules = [
           ./darwin

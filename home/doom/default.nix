@@ -62,7 +62,6 @@ in
   home.packages = [
     aspell
     pkgs.black
-    pkgs.coreutils-prefixed
     pkgs.csharpier
     pkgs.dockfmt
     pkgs.emacs-lsp-booster
@@ -79,6 +78,12 @@ in
     pkgs.shfmt
     pkgs.zig
     nosetestsCompat
+  ]
+  ++ lib.optionals pkgs.stdenv.isDarwin [
+    # Doom's dired module calls the g-prefixed GNU coreutils on macOS, where
+    # the unprefixed ones are BSD. On Linux the plain names are already GNU and
+    # dired uses them directly, so the prefixed copies would go unused.
+    pkgs.coreutils-prefixed
   ];
 
   # Emacs Customize owns custom.el and may rewrite it at runtime. Preserve the
@@ -86,12 +91,16 @@ in
   # outside the immutable Doom source. Activation never overwrites an existing
   # state file, so interactive choices survive switches and rollbacks.
   home.activation.seedDoomCustom = lib.hm.dag.entryBefore [ "linkGeneration" ] ''
-    $DRY_RUN_CMD ${pkgs.coreutils}/bin/install -d -m 0700 \
-      ${lib.escapeShellArg doomCustomDirectory}
-    if [[ ! -e ${lib.escapeShellArg doomCustomState} ]]; then
-      $DRY_RUN_CMD ${pkgs.coreutils}/bin/install -m 0600 \
-        ${lib.escapeShellArg (toString ./custom.el)} \
-        ${lib.escapeShellArg doomCustomState}
+    if [[ -v DRY_RUN ]]; then
+      printf 'Would ensure %s exists\n' ${lib.escapeShellArg doomCustomState}
+    else
+      ${pkgs.coreutils}/bin/install -d -m 0700 \
+        ${lib.escapeShellArg doomCustomDirectory}
+      if [[ ! -e ${lib.escapeShellArg doomCustomState} ]]; then
+        ${pkgs.coreutils}/bin/install -m 0600 \
+          ${lib.escapeShellArg (toString ./custom.el)} \
+          ${lib.escapeShellArg doomCustomState}
+      fi
     fi
   '';
 
