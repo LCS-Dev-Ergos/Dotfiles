@@ -206,7 +206,6 @@ _: {
       "sf-symbols"
       "supacode"
       "temurin@21"
-      "warp"
       "wireshark-app"
       "xquartz"
     ];
