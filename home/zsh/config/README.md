@@ -145,6 +145,7 @@ take precedence over the generated baseline.
 | `toolchain`, `get_toolchain_info`      | `scripts/toolchain-information.zsh`    | Show active compiler resolution                       |
 | `use_llvm`, `use_gnu`, `use_system`    | `scripts/toolchain-selection.zsh`      | Reversible per-session toolchain selection            |
 | `fnm_clean`, `zsh_profile`, `zshdeps`  | `functions/development-tools.zsh`      | Maintain fnm, profile startup, inspect dependencies   |
+| `brew_stats`                           | `functions/package-management.zsh`     | Report installed Homebrew package sizes               |
 | `security_scan`, `secscan`             | `scripts/security-scan.zsh`            | Structural, YARA, and ClamAV file scanning            |
 | `vscode_sync_*`                        | `scripts/vscode-sync.zsh`              | Setup, update, check, status, and remove VS Code sync |
 | `vscode_clean_extensions`              | `scripts/vscode-extension-cleaner.zsh` | Quarantine duplicate extensions                       |
