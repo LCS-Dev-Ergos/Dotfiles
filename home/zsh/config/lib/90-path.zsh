@@ -79,7 +79,7 @@ zsh_rebuild_path() {
 
   # Bump whenever priority semantics change so live shells cannot reuse a
   # structurally valid cache containing the previous order.
-  local cache_version="7"
+  local cache_version="8"
   local cache_signature="${cache_version}|${stable_original_path}|${PLATFORM}"
   cache_signature+="|${PYENV_ROOT}|${SDKMAN_DIR}"
   cache_signature+="|${GEM_HOME}|${GOPATH}|${ANDROID_HOME}"
@@ -134,6 +134,7 @@ zsh_rebuild_path() {
       "$PYENV_ROOT/bin"
       "$HOME/.opam/ocaml-compiler/bin"
       "$HOME/.cargo/bin" # rustup; must win over Homebrew's rust if it lingers.
+      "$HOME/.juliaup/bin" # juliaup; julia itself multiplexes the toolchain.
       "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/java/current/bin"
       "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/maven/current/bin"
       "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/kotlin/current/bin"
@@ -213,6 +214,7 @@ zsh_rebuild_path() {
       "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/gradle/current/bin"
       "$HOME/.opam/ocaml-compiler/bin"
       "$HOME/.cargo/bin" # rustup; must win over any competing rust package.
+      "$HOME/.juliaup/bin" # juliaup; julia itself multiplexes the toolchain.
 
       # ------ FNM (Current session only) ------- #
       "${FNM_MULTISHELL_PATH:+$FNM_MULTISHELL_PATH/bin}"
