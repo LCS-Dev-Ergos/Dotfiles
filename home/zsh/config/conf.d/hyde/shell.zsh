@@ -30,9 +30,7 @@ if [[ "$HYDE_ENABLED" != "1" ]]; then
   return 1
 fi
 
-# ============================================================================ #
 # +++++++++++++++++++++++++++ 1. USER PREFERENCES ++++++++++++++++++++++++++++ #
-# ============================================================================ #
 
 # Load user customizations BEFORE any plugin/prompt initialization.
 # This allows HYDE_ZSH_NO_PLUGINS and HYDE_ZSH_PROMPT to take effect.
@@ -44,9 +42,7 @@ elif [[ -f "$ZDOTDIR/user.zsh" ]]; then
   source "$ZDOTDIR/user.zsh"
 fi
 
-# ============================================================================ #
 # ++++++++++++++++ 2. OH-MY-ZSH INITIALIZATION (Conditional) +++++++++++++++++ #
-# ============================================================================ #
 
 # HyDE default settings (can be overridden in user.zsh).
 : ${HYDE_ZSH_NO_PLUGINS:=0}
@@ -103,9 +99,7 @@ if [[ "${HYDE_ZSH_NO_PLUGINS}" != "1" ]]; then
   fi
 fi
 
-# ============================================================================ #
 # ++++++++++++++++++ 3. PROMPT INITIALIZATION (Conditional) ++++++++++++++++++ #
-# ============================================================================ #
 
 if [[ "${HYDE_ZSH_PROMPT}" == "1" ]]; then
   if command -v starship >/dev/null 2>&1; then
@@ -127,9 +121,7 @@ if [[ "${HYDE_ZSH_PROMPT}" == "1" ]]; then
   fi
 fi
 
-# ============================================================================ #
 # ++++++++++++++++++++++++ 4. FUNCTIONS & COMPLETIONS ++++++++++++++++++++++++ #
-# ============================================================================ #
 
 # Load custom functions.
 for file in "$ZDOTDIR"/functions/*.zsh(N); do
@@ -141,9 +133,7 @@ for file in "$ZDOTDIR"/completions/*.zsh(N); do
   [[ -r "$file" ]] && source "$file"
 done
 
-# ============================================================================ #
 # +++++++++++++++++++++++++++++++ 5. COMPINIT ++++++++++++++++++++++++++++++++ #
-# ============================================================================ #
 
 # Add completions directory to fpath.
 fpath=("$ZDOTDIR/completions" "${fpath[@]}")
@@ -160,9 +150,7 @@ fi
 
 _comp_options+=(globdots)  # Tab complete hidden files.
 
-# ============================================================================ #
 # +++++++++++++++++++++++++ 6. HYDE-SPECIFIC ALIASES +++++++++++++++++++++++++ #
-# ============================================================================ #
 
 # HyDE Package Manager wrapper.
 if command -v hyde-shell >/dev/null 2>&1; then
@@ -174,9 +162,7 @@ if command -v hyde-shell >/dev/null 2>&1; then
   alias up='__hyde_package_manager upgrade'
 fi
 
-# ============================================================================ #
 # ++++++++++++++++++++++ 7. TERMINAL RENDERING HELPERS +++++++++++++++++++++++ #
-# ============================================================================ #
 
 # Detect terminal once at shell start; do_render() is called often (potentially
 # per-prompt), so the nested ps invocation gets cached here instead.
@@ -205,3 +191,4 @@ do_render() {
 }
 
 # ============================================================================ #
+# End of hyde/shell.zsh

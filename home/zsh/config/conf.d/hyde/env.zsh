@@ -61,3 +61,4 @@ export PATH \
   LESSHISTFILE PARALLEL_HOME SCREENRC HYDE_ENABLED
 
 # ============================================================================ #
+# End of hyde/env.zsh
