@@ -15,6 +15,20 @@
 #
 # ============================================================================ #
 
+# ++++++++++++++++++++++++++ SHARED HELPERS LOADER +++++++++++++++++++++++++++ #
+
+typeset _oci_retry_helpers="${${(%):-%N}:A:h}/_shared-helpers.zsh"
+if (( ! $+functions[_zsh_ui_log] )); then
+  if [[ -r "$_oci_retry_helpers" ]]; then
+    source "$_oci_retry_helpers"
+  else
+    print -u2 "[ERROR] Shared helpers not found: $_oci_retry_helpers"
+    unset _oci_retry_helpers
+    return 1 2>/dev/null || exit 1
+  fi
+fi
+unset _oci_retry_helpers
+
 # -----------------------------------------------------------------------------
 # oci-retry
 # @description Provisions an OCI VM.Standard.A1.Flex instance, retrying only
@@ -31,16 +45,14 @@ oci-retry() {
   local script="$script_dir/oci/oci-retry.sh"
 
   if [[ ! -r "$script" ]]; then
-    print -u2 "oci-retry: script not found: $script"
+    _zsh_ui_log error "oci-retry: script not found: $script"
     return 1
   fi
 
-  command -v bash >/dev/null 2>&1 || {
-    print -u2 "oci-retry: bash is required but not found in PATH."
-    return 1
-  }
+  _shared_require_command bash \
+    "oci-retry: bash is required but not found in PATH." || return 1
 
-  bash "$script" "$@"
+  command bash "$script" "$@"
 }
 
 # ============================================================================ #

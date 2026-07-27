@@ -229,35 +229,40 @@ vscode_sync_check() {
   issues=$(printf "%s\n" "$check_output" | awk -F= '/^ISSUES=/{value=$2} END{print value+0}')
   warnings=$(printf "%s\n" "$check_output" | awk -F= '/^WARNINGS=/{value=$2} END{print value+0}')
 
-  printf "\n"
+  print -r -- ""
   _shared_section "Environment"
+  local process_state
   if _vscode_sync_check_vscode_running 2>/dev/null; then
-    printf "  %-24s %s\n" "VS Code processes" "${C_BOLD}${C_GREEN}not running${C_RESET}"
+    process_state="Not running"
   else
     ((warnings++))
-    printf "  %-24s %s\n" "VS Code processes" "${C_BOLD}${C_YELLOW}running${C_RESET}"
+    process_state="Running"
   fi
 
+  local backup_count=0 backup_root="-"
   if [[ -d "$_VSCODE_SYNC_BACKUP_DIR" ]]; then
     local -a backup_dirs
     backup_dirs=("$_VSCODE_SYNC_BACKUP_DIR"/*(N/))
-    printf "  %-24s %s\n" "Backups" "${#backup_dirs[@]} available"
-    printf "  %-24s %s\n" "Backup root" "$_VSCODE_SYNC_BACKUP_DIR"
-  else
-    printf "  %-24s %s\n" "Backups" "0 available"
+    backup_count=${#backup_dirs[@]}
+    backup_root="$_VSCODE_SYNC_BACKUP_DIR"
   fi
+  _zsh_ui_table $'Item\tValue' \
+    "VS Code processes"$'\t'"$process_state" \
+    "Backups"$'\t'"$backup_count available" \
+    "Backup root"$'\t'"$backup_root" || return 1
 
-  printf "\n"
+  print -r -- ""
   if ((issues > 0)); then
-    printf "%s%sHealth: UNHEALTHY%s (%d error(s), %d warning(s))\n" "$C_BOLD" "$C_RED" "$C_RESET" "$issues" "$warnings"
+    _zsh_ui_log error \
+      "Health: UNHEALTHY ($issues error(s), $warnings warning(s))"
     return 1
   fi
   if ((warnings > 0)); then
-    printf "%s%sHealth: DEGRADED%s (%d warning(s))\n" "$C_BOLD" "$C_YELLOW" "$C_RESET" "$warnings"
+    _zsh_ui_log warn "Health: DEGRADED ($warnings warning(s))"
     return 0
   fi
 
-  printf "%s%sHealth: HEALTHY%s\n" "$C_BOLD" "$C_GREEN" "$C_RESET"
+  _zsh_ui_log ok "Health: HEALTHY"
   return $check_status
 }
 
