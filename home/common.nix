@@ -16,6 +16,7 @@ _: {
     ./gcc
     ./ghostty
     ./git
+    ./herdr
     ./kitty
     ./lazygit
     ./lldb

@@ -55,6 +55,14 @@
       url = "github:tmux-plugins/tmux-yank/acfd36e4fcba99f8310a7dfb432111c242fe7392";
       flake = false;
     };
+
+    # Agent multiplexer (https://herdr.dev). Pinned to a release tag per
+    # upstream's own recommendation; follows this flake's nixpkgs so the
+    # Rust build doesn't pull in a second copy of the package set.
+    herdr = {
+      url = "github:ogulcancelik/herdr/v0.7.5";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -111,6 +119,7 @@
       homeArgs = host: {
         inherit externalSources;
         inherit (host) dotfilesRoot homeDirectory username;
+        herdr = inputs.herdr.packages.${host.system}.default;
       };
     in
     {

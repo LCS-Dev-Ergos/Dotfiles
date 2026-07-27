@@ -1,0 +1,75 @@
+# https://herdr.dev/docs/configuration/
+
+[terminal]
+default_shell = "zsh"
+shell_mode = "auto"
+new_cwd = "follow"
+
+[worktrees]
+directory = "~/.herdr/worktrees"
+
+[keys]
+# tmux moved to ctrl+q (home/tmux/tmux.conf) to free ctrl+a for herdr.
+prefix = "ctrl+a"
+
+[[keys.command]]
+key = "prefix+alt+g"
+type = "popup"
+command = "lazygit"
+description = "run lazygit"
+width = "80%"
+height = "80%"
+
+[[keys.command]]
+key = "prefix+alt+y"
+type = "popup"
+command = "yazi"
+description = "file manager"
+width = "85%"
+height = "85%"
+
+[[keys.command]]
+key = "prefix+alt+b"
+type = "popup"
+command = "btop"
+description = "system monitor"
+width = "80%"
+height = "80%"
+
+[theme]
+# Matches tmux's tokyo-night theme (tmuxPlugins.tokyoNight).
+name = "tokyo-night"
+auto_switch = true
+light_name = "tokyo-day"
+dark_name = "tokyo-night"
+
+[theme.custom]
+# Default overlay0 (#565f89) is barely visible for pane borders/separators/menus.
+overlay0 = "#a9b1d6"
+# Default surface_dim equals panel_bg, making the sidebar divider invisible.
+surface_dim = "#292e42"
+
+[ui.sidebar.agents]
+# Leads with agent name instead of workspace; default: [["state_icon", "workspace", "tab"], ["agent"]].
+rows = [ ["state_icon", "agent", "workspace"], ["tab"] ]
+row_gap = 1
+
+[ui.toast]
+delivery = "system"
+
+[ui.sound.agents]
+# Opt-in per agent rather than a blanket on switch.
+claude = "on"
+
+[session]
+resume_agents_on_restore = true
+
+[remote]
+# Lets `herdr --remote` reattach from another box/phone over a scoped SSH config.
+manage_ssh_config = true
+
+[experimental]
+# tmux.conf already sets xterm-kitty:KittyGraphics=true; keep panes consistent.
+kitty_graphics = true
+# Prevents prefix keys from being swallowed by a non-US input source.
+switch_ascii_input_source_in_prefix = true
