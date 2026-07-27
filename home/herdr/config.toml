@@ -44,8 +44,6 @@ light_name = "tokyo-day"
 dark_name = "tokyo-night"
 
 [theme.custom]
-# Default overlay0 (#565f89) is barely visible for pane borders/separators/menus.
-overlay0 = "#a9b1d6"
 # Default surface_dim equals panel_bg, making the sidebar divider invisible.
 surface_dim = "#292e42"
 
