@@ -167,6 +167,15 @@ typeset wide_listing="$(COLUMNS=160 ZFUNCS_STYLE=ansi zfuncs)"
   return 1
 }
 
+typeset full_width_listing="$(
+  COLUMNS=120 ZFUNCS_MAX_WIDTH=80 ZFUNCS_STYLE=plain zfuncs
+)"
+typeset -a full_width_lines=("${(f)full_width_listing}")
+(( ${#full_width_lines[3]} == 120 )) || {
+  print -u2 "FAIL: catalog title divider still follows the column width cap"
+  return 1
+}
+
 typeset styled_info="$(NO_COLOR= ZFUNCS_STYLE=ansi zfuncs info alpha)"
 [[ "$styled_info" == *$'\e[1;38;5;212malpha'* ]] || {
   print -u2 "FAIL: ANSI function title missing from styled info output"

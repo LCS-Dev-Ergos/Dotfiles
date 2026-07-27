@@ -54,9 +54,9 @@ elif [[ -r "$_blog_helpers_fallback" ]]; then
     # shellcheck disable=SC1090
     source "$_blog_helpers_fallback"
 else
-    echo "[ERROR] Shared helpers not found."
-    echo "Tried: $_blog_helpers_primary"
-    echo "Tried: $_blog_helpers_fallback"
+    print -u2 "[ERROR] Shared helpers not found."
+    print -u2 "Tried: $_blog_helpers_primary"
+    print -u2 "Tried: $_blog_helpers_fallback"
     return 1 2>/dev/null || exit 1
 fi
 unset _blog_helpers_primary _blog_helpers_fallback
@@ -85,9 +85,6 @@ else
     ALLOWED_BLOG_ROOT=""
 fi
 
-# Init colors after platform detection.
-_shared_init_colors
-
 # ++++++++++++++++++++++++++++++ LOGGING SYSTEM ++++++++++++++++++++++++++++++ #
 
 # Logging configuration.
@@ -107,7 +104,7 @@ _blog_init_logging() {
     if [[ -z "$BLOG_LOG_FILE" ]]; then
         BLOG_LOG_FILE="${BLOG_LOG_DIR}/blog_automation_$(date +%Y%m%d_%H%M%S).log"
         mkdir -p "$BLOG_LOG_DIR" 2>/dev/null || {
-            echo "[WARNING] Cannot create log directory, using stderr" >&2
+            _zsh_ui_log warn "Cannot create log directory; using stderr."
             BLOG_LOG_FILE="/dev/stderr"
         }
     fi
@@ -124,28 +121,23 @@ blog_log() {
     local message="$2"
     local timestamp
     timestamp=$(date "+%Y-%m-%d %H:%M:%S")
-    local color=""
-    local log_entry=""
+    local ui_level="info"
+    local file_level="$level"
 
     # Initialize logging if not done yet.
     _blog_init_logging
 
-    # Set color based on level.
     case "$level" in
-        "INFO")  color="" ;;
-        "WARN")  color="$C_YELLOW" ;;
-        "ERROR") color="$C_RED" ;;
-        "DEBUG") color="$C_CYAN" ;;
-        "SUCCESS") color="$C_GREEN"; level="INFO" ;;
+        "INFO") ui_level="info" ;;
+        "WARN") ui_level="warn" ;;
+        "ERROR") ui_level="error" ;;
+        "DEBUG") ui_level="info" ;;
+        "SUCCESS") ui_level="ok"; file_level="INFO" ;;
+        *) ui_level="error" ;;
     esac
 
-    # Create log entry with color for terminal, plain for file.
-    log_entry="[$timestamp] [$level] $message"
-    if [[ -t 2 ]]; then
-        printf '%s\n' "${color}${log_entry}${C_RESET}" >&2
-    else
-        printf '%s\n' "$log_entry" >&2
-    fi
+    local log_entry="[$timestamp] [$file_level] $message"
+    _zsh_ui_log "$ui_level" "[$timestamp] $message" >&2
     [[ "$BLOG_LOG_FILE" == "/dev/stderr" ]] || printf '%s\n' "$log_entry" >> "$BLOG_LOG_FILE"
 }
 
@@ -753,7 +745,7 @@ blog_backup_before_sync() {
 # @exitcode 1 If the location, Git setup, or remote configuration fails.
 # -----------------------------------------------------------------------------
 blog_init_git() {
-    blog_info "${C_BOLD}=== Git Initialization ===${C_RESET}"
+    _zsh_ui_section "Git initialization" >&2
 
     _blog_ensure_valid_location || return 1
 
@@ -801,7 +793,7 @@ blog_init_git() {
 # @exitcode 1 If validation, rsync, or recovery fails.
 # -----------------------------------------------------------------------------
 blog_sync_posts() {
-    blog_info "${C_BOLD}=== Posts Synchronization ===${C_RESET}"
+    _zsh_ui_section "Posts synchronization" >&2
 
     _blog_ensure_valid_location || return 1
 
@@ -869,7 +861,7 @@ blog_sync_posts() {
 # @exitcode 1 If location validation or the selected detector fails.
 # -----------------------------------------------------------------------------
 blog_detect_changes() {
-    blog_info "${C_BOLD}=== Change Detection ===${C_RESET}"
+    _zsh_ui_section "Change detection" >&2
 
     _blog_ensure_valid_location || return 1
 
@@ -898,7 +890,7 @@ blog_detect_changes() {
 # @exitcode 1 If Python, the update script, or processing fails.
 # -----------------------------------------------------------------------------
 blog_update_frontmatter() {
-    blog_info "${C_BOLD}=== Frontmatter Update ===${C_RESET}"
+    _zsh_ui_section "Frontmatter update" >&2
 
     _blog_ensure_valid_location || return 1
 
@@ -963,7 +955,7 @@ blog_update_frontmatter() {
 # @exitcode 1 If Python, the image script, or processing fails.
 # -----------------------------------------------------------------------------
 blog_process_images() {
-    blog_info "${C_BOLD}=== Image Processing ===${C_RESET}"
+    _zsh_ui_section "Image processing" >&2
 
     _blog_ensure_valid_location || return 1
 
@@ -988,7 +980,7 @@ blog_process_images() {
 # @exitcode 1 If Hugo is unavailable, the build fails, or output is missing.
 # -----------------------------------------------------------------------------
 blog_build_hugo() {
-    blog_info "${C_BOLD}=== Hugo Site Build ===${C_RESET}"
+    _zsh_ui_section "Hugo site build" >&2
 
     _blog_ensure_valid_location || return 1
 
@@ -1028,7 +1020,7 @@ blog_build_hugo() {
 # @exitcode 1 If Git setup or the commit fails.
 # -----------------------------------------------------------------------------
 blog_commit_changes() {
-    blog_info "${C_BOLD}=== Commit Changes ===${C_RESET}"
+    _zsh_ui_section "Commit changes" >&2
 
     _blog_ensure_valid_location || return 1
 
@@ -1084,7 +1076,7 @@ blog_commit_changes() {
 # @exitcode 1 If branch setup or the push fails.
 # -----------------------------------------------------------------------------
 blog_push_main() {
-    blog_info "${C_BOLD}=== Push to Main Branch ===${C_RESET}"
+    _zsh_ui_section "Push to main branch" >&2
 
     _blog_ensure_valid_location || return 1
 
@@ -1138,7 +1130,7 @@ blog_push_main() {
 # @exitcode 1 If the public tree, subtree operation, or push is unavailable.
 # -----------------------------------------------------------------------------
 blog_deploy_hostinger() {
-    blog_info "${C_BOLD}=== Deploy to Hostinger ===${C_RESET}"
+    _zsh_ui_section "Deploy to Hostinger" >&2
 
     _blog_ensure_valid_location || return 1
 
@@ -1208,7 +1200,9 @@ blog_run_all() {
     _blog_acquire_lock || return 1
     trap '_blog_release_lock' EXIT INT TERM
 
-    blog_info "${C_BOLD}${C_MAGENTA}=== Starting Complete Blog Automation Process ===${C_RESET}"
+    _zsh_ui_heading \
+        "Blog automation" \
+        "Running the complete publishing workflow" >&2
 
     local start_time=$(date +%s)
     local failed_step=""
@@ -1234,7 +1228,7 @@ blog_run_all() {
             break
         fi
         blog_info "<<< Completed: $step"
-        echo ""
+        print -r -- "" >&2
     done
 
     local end_time=$(date +%s)
@@ -1247,7 +1241,7 @@ blog_run_all() {
         trap - EXIT INT TERM
         return 1
     else
-        blog_success "${C_BOLD}=== Process Completed Successfully ===${C_RESET}"
+        blog_success "Process completed successfully"
         blog_info "Total duration: ${duration}s"
 
         # Cleanup old backups.
@@ -1268,66 +1262,76 @@ blog_run_all() {
 # @noargs
 # -----------------------------------------------------------------------------
 blog_status() {
-    blog_info "${C_BOLD}=== Blog Automation Status ===${C_RESET}"
-
-    # Status only displays information, so it skips location validation.
     blog_set_defaults
     if [[ -f "$BLOG_CONFIG_FILE" ]]; then
         _blog_validate_config_permissions "$BLOG_CONFIG_FILE" && source "$BLOG_CONFIG_FILE"
     fi
 
-    blog_info "Version: $VERSION"
-    blog_info "Platform: $PLATFORM"
-    blog_info "Allowed blog directory: $ALLOWED_BLOG_ROOT"
-    blog_info "Current directory: $(pwd)"
+    _zsh_ui_heading "Blog automation status" "v$VERSION · $PLATFORM" ||
+        return 1
+    local -a overview_rows=(
+        "Allowed blog directory"$'\t'"${ALLOWED_BLOG_ROOT:-Not configured}"
+        "Current directory"$'\t'"$(pwd)"
+    )
+    _zsh_ui_table $'Context\tValue' "${overview_rows[@]}" || return 1
 
-    echo ""
-    blog_info "=== Configuration ==="
-    blog_info "BLOG_DIR: ${BLOG_DIR:-NOT SET}"
-    blog_info "BLOG_SOURCE_PATH: ${BLOG_SOURCE_PATH:-NOT SET}"
-    blog_info "BLOG_DEST_PATH: ${BLOG_DEST_PATH:-NOT SET}"
-    blog_info "BLOG_CHANGE_DETECTION: ${BLOG_CHANGE_DETECTION:-NOT SET}"
-    blog_info "BLOG_DRY_RUN: ${BLOG_DRY_RUN:-false}"
-    blog_info "BLOG_VERBOSE: ${BLOG_VERBOSE:-false}"
+    print -r -- ""
+    _zsh_ui_section "Configuration" || return 1
+    local -a config_rows=(
+        "BLOG_DIR"$'\t'"${BLOG_DIR:-NOT SET}"
+        "BLOG_SOURCE_PATH"$'\t'"${BLOG_SOURCE_PATH:-NOT SET}"
+        "BLOG_DEST_PATH"$'\t'"${BLOG_DEST_PATH:-NOT SET}"
+        "BLOG_CHANGE_DETECTION"$'\t'"${BLOG_CHANGE_DETECTION:-NOT SET}"
+        "BLOG_DRY_RUN"$'\t'"${BLOG_DRY_RUN:-false}"
+        "BLOG_VERBOSE"$'\t'"${BLOG_VERBOSE:-false}"
+    )
+    _zsh_ui_table $'Setting\tValue' "${config_rows[@]}" || return 1
 
-    echo ""
-    blog_info "=== Dependency Check ==="
+    print -r -- ""
+    _zsh_ui_section "Dependencies" || return 1
+    local -a dependency_rows=()
+    local cmd cmd_path
     for cmd in python3 hugo git rsync; do
-        local cmd_path
         if cmd_path=$(command -v "$cmd" 2>/dev/null); then
-            blog_info "$cmd: ${C_GREEN}✓${C_RESET} $cmd_path"
+            dependency_rows+=("$cmd"$'\tAvailable\t'"$cmd_path")
         else
-            blog_warn "$cmd: ${C_RED}✗ NOT FOUND${C_RESET}"
+            dependency_rows+=("$cmd"$'\tMissing\t-')
         fi
     done
+    _zsh_ui_table \
+        $'Command\tStatus\tPath' "${dependency_rows[@]}" || return 1
 
-    echo ""
-    blog_info "=== File Check ==="
+    print -r -- ""
+    _zsh_ui_section "Workflow files" || return 1
+    local -a file_rows=()
+    local file
     for file in "$BLOG_HASH_GENERATOR" "$BLOG_FRONTMATTER_SCRIPT" "$BLOG_IMAGES_SCRIPT"; do
         if [[ -f "$file" ]]; then
-            blog_info "$(basename "$file"): ${C_GREEN}✓${C_RESET}"
+            file_rows+=("$(basename "$file")"$'\tAvailable\t'"$file")
         else
-            blog_warn "$(basename "$file"): ${C_RED}✗${C_RESET} $file"
+            file_rows+=("$(basename "$file")"$'\tMissing\t'"$file")
         fi
     done
+    _zsh_ui_table $'File\tStatus\tPath' "${file_rows[@]}" || return 1
 
-    echo ""
-    blog_info "=== Location Check ==="
+    print -r -- ""
+    _zsh_ui_section "Location" || return 1
+    local root_status="Missing" location_status="Unavailable"
+    local current_dir="$(pwd)"
     if [[ -d "$ALLOWED_BLOG_ROOT" ]]; then
-        blog_info "Blog root: ${C_GREEN}✓${C_RESET} $ALLOWED_BLOG_ROOT"
-        local current_dir="$(pwd)"
+        root_status="Available"
         case "$current_dir" in
-            "$ALLOWED_BLOG_ROOT"*)
-                blog_info "Current location: ${C_GREEN}✓ Valid${C_RESET}"
-                ;;
-            *)
-                blog_warn "Current location: ${C_YELLOW}⚠ Outside blog directory${C_RESET}"
-                blog_info "To use blog functions, run: ${C_CYAN}cd $ALLOWED_BLOG_ROOT${C_RESET}"
-                ;;
+            "$ALLOWED_BLOG_ROOT"|"$ALLOWED_BLOG_ROOT"/*)
+                location_status="Inside blog directory" ;;
+            *) location_status="Outside blog directory" ;;
         esac
-    else
-        blog_error "Blog root: ${C_RED}✗ Not found${C_RESET}"
     fi
+    _zsh_ui_table $'Check\tStatus\tPath' \
+        "Blog root"$'\t'"$root_status"$'\t'"${ALLOWED_BLOG_ROOT:-Not configured}" \
+        "Current location"$'\t'"$location_status"$'\t'"$current_dir" ||
+        return 1
+    [[ "$location_status" != "Outside blog directory" ]] ||
+        _zsh_ui_log warn "Run: cd $ALLOWED_BLOG_ROOT"
 }
 
 # -----------------------------------------------------------------------------
@@ -1336,57 +1340,56 @@ blog_status() {
 # @noargs
 # -----------------------------------------------------------------------------
 blog_help() {
-    cat << EOF
-${C_BOLD}Blog Automation Script v$VERSION - System: $PLATFORM${C_RESET}
+    _zsh_ui_heading \
+        "BLOG AUTOMATION" \
+        "v$VERSION · $PLATFORM · Publishing workflow commands" || return 1
+    _zsh_ui_rule || return 1
+    print -r -- ""
 
-${C_BOLD}USAGE:${C_RESET}
-    Individual functions:
-        ${C_CYAN}blog_init_git${C_RESET}              - Initialize Git repository
-        ${C_CYAN}blog_sync_posts${C_RESET}            - Sync posts from Obsidian
-        ${C_CYAN}blog_detect_changes${C_RESET}        - Detect changes (Git or hash-based)
-        ${C_CYAN}blog_update_frontmatter${C_RESET}    - Update post frontmatter
-        ${C_CYAN}blog_process_images${C_RESET}        - Process images in posts
-        ${C_CYAN}blog_build_hugo${C_RESET}            - Build Hugo site
-        ${C_CYAN}blog_commit_changes${C_RESET}        - Commit changes to Git
-        ${C_CYAN}blog_push_main${C_RESET}             - Push to main branch (triggers GitHub Pages deploy)
+    _zsh_ui_subsection "USAGE" || return 1
+    _zsh_ui_definition_list \
+        $'blog_<command>\tOptional environment overrides may precede the command.' ||
+        return 1
+    print -r -- ""
 
-    Orchestration:
-        ${C_GREEN}blog_run_all${C_RESET}               - Execute all steps in sequence
+    _zsh_ui_subsection "COMMANDS" || return 1
+    _zsh_ui_definition_list \
+        $'blog_run_all\tRun the complete publishing workflow.' \
+        $'blog_init_git\tInitialize the Git repository.' \
+        $'blog_sync_posts\tSynchronize posts from Obsidian.' \
+        $'blog_detect_changes\tDetect Git or hash changes.' \
+        $'blog_update_frontmatter\tUpdate post frontmatter.' \
+        $'blog_process_images\tProcess images in posts.' \
+        $'blog_build_hugo\tBuild the Hugo site.' \
+        $'blog_commit_changes\tCommit generated changes.' \
+        $'blog_push_main\tPush main and trigger deployment.' \
+        $'blog_status\tShow configuration and dependencies.' \
+        $'blog_help\tShow this help.' || return 1
+    print -r -- ""
 
-    Utilities:
-        ${C_YELLOW}blog_status${C_RESET}                - Show system status
-        ${C_YELLOW}blog_help${C_RESET}                  - Show this help
+    _zsh_ui_subsection "ENVIRONMENT" || return 1
+    _zsh_ui_definition_list \
+        $'BLOG_DRY_RUN=true\tPreview without applying changes.' \
+        $'BLOG_VERBOSE=true\tEnable debug logging.' \
+        $'BLOG_CHANGE_DETECTION=git|hash\tSelect the detection strategy.' ||
+        return 1
+    print -r -- ""
 
-${C_BOLD}ENVIRONMENT VARIABLES:${C_RESET}
-    ${C_CYAN}BLOG_DRY_RUN=true${C_RESET}              - Dry-run mode (default: false)
-    ${C_CYAN}BLOG_VERBOSE=true${C_RESET}              - Verbose output (default: false)
-    ${C_CYAN}BLOG_CHANGE_DETECTION=git${C_RESET}      - Change detection method (git/hash)
+    _zsh_ui_subsection "PATHS" || return 1
+    _zsh_ui_definition_list \
+        "Allowed root"$'\t'"${ALLOWED_BLOG_ROOT:-Not configured}" \
+        "Current path"$'\t'"$(pwd)" \
+        "Configuration"$'\t'"$BLOG_CONFIG_FILE" \
+        "Logs"$'\t'"$BLOG_LOG_DIR/" \
+        "Backups"$'\t'"${BLOG_BACKUP_DIR:-$ALLOWED_BLOG_ROOT/backups}/" ||
+        return 1
+    print -r -- ""
 
-${C_BOLD}RESTRICTIONS:${C_RESET}
-    This script only works in: ${C_YELLOW}$ALLOWED_BLOG_ROOT${C_RESET}
-    Current directory: $(pwd)
-
-${C_BOLD}CONFIGURATION:${C_RESET}
-    File: $BLOG_CONFIG_FILE
-    Logs: $BLOG_LOG_DIR/
-    Backups: ${BLOG_BACKUP_DIR:-$ALLOWED_BLOG_ROOT/backups}/
-
-${C_BOLD}EXAMPLES:${C_RESET}
-    # Complete execution
-    ${C_GREEN}blog_run_all${C_RESET}
-
-    # Dry-run mode
-    ${C_CYAN}BLOG_DRY_RUN=true blog_run_all${C_RESET}
-
-    # Sync only
-    ${C_CYAN}blog_sync_posts${C_RESET}
-
-    # Status check
-    ${C_YELLOW}blog_status${C_RESET}
-
-    # Git-based change detection
-    ${C_CYAN}BLOG_CHANGE_DETECTION=git blog_run_all${C_RESET}
-EOF
+    _zsh_ui_subsection "EXAMPLES" || return 1
+    _zsh_ui_definition_list \
+        "blog_run_all" \
+        "BLOG_DRY_RUN=true blog_run_all" \
+        "BLOG_CHANGE_DETECTION=git blog_run_all"
 }
 
 _BLOG_WORKFLOW_LOADED=1

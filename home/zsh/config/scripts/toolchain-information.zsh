@@ -17,7 +17,7 @@
 #  - Symlink resolution to identify real compiler binaries
 #  - ccache wrapper detection with fallback resolution
 #  - Masquerading warnings (gcc pointing to clang, etc.)
-#  - Color-coded output with vendor/type highlighting
+#  - Shared Gum/ANSI/plain presentation
 #  - Environment variable override display (CC, CXX)
 #  - Debug mode for detailed path resolution information
 #
@@ -41,8 +41,6 @@ else
 fi
 unset _toolchain_info_helpers_dir
 
-# ++++++++++++++++++++++++++++++ Color Handling ++++++++++++++++++++++++++++++ #
-
 # -----------------------------------------------------------------------------
 # _toolchain_info_disable_trace
 # @internal
@@ -53,17 +51,6 @@ _toolchain_info_disable_trace() {
   if [[ -n "${ZSH_VERSION:-}" ]]; then
     unsetopt VERBOSE SOURCE_TRACE 2>/dev/null || true
   fi
-}
-
-# -----------------------------------------------------------------------------
-# _toolchain_info_init_colors
-# @internal
-# @description Sets C_* color variables for toolchain report output.
-# @noargs
-# -----------------------------------------------------------------------------
-_toolchain_info_init_colors() {
-  _toolchain_info_disable_trace
-  _shared_init_colors
 }
 
 # +++++++++++++++++++++++++++++++ HELPER UTILS +++++++++++++++++++++++++++++++ #
@@ -174,7 +161,7 @@ _toolchain_find_in_path() {
 _toolchain_resolve_real_compiler() {
   # Preserve xtrace state.
   emulate -L zsh
-  setopt noxtrace noverbose
+  setopt noxtrace noverbose typesetsilent
 
   local compiler_path="$1"
   local resolved
@@ -223,19 +210,19 @@ _toolchain_vendor_for_gcc() {
 
   local version_info="$1" compiler_path="$2"
   if [[ "$version_info" == *"Homebrew"* ]]; then
-    echo "Homebrew GNU"
+    print -r -- "Homebrew GNU"
   elif [[ "$compiler_path" == /opt/homebrew/Cellar/gcc/* ]]; then
-    echo "Homebrew GNU"
+    print -r -- "Homebrew GNU"
   elif [[ "$version_info" == *"Ubuntu"* ]]; then
-    echo "GNU (Ubuntu)"
+    print -r -- "GNU (Ubuntu)"
   elif [[ "$version_info" == *"Debian"* ]]; then
-    echo "GNU (Debian)"
+    print -r -- "GNU (Debian)"
   elif [[ "$version_info" == *"Arch Linux"* || "$version_info" == *"Archlinux"* ]]; then
-    echo "GNU (Arch)"
+    print -r -- "GNU (Arch)"
   elif [[ "$compiler_path" == /usr/bin/* ]]; then
-    echo "GNU (system)"
+    print -r -- "GNU (system)"
   else
-    echo "GNU"
+    print -r -- "GNU"
   fi
 }
 
@@ -254,21 +241,21 @@ _toolchain_vendor_for_clang() {
 
   local version_info="$1" compiler_path="$2"
   if [[ "$version_info" == *"Apple clang"* ]]; then
-    echo "Apple"
+    print -r -- "Apple"
   elif [[ "$compiler_path" == /nix/store/* \
     || "$compiler_path" == /etc/profiles/per-user/* \
     || "$compiler_path" == /run/current-system/sw/* ]]; then
-    echo "Nix LLVM"
+    print -r -- "Nix LLVM"
   elif [[ "$version_info" == *"Homebrew"* ]]; then
-    echo "Homebrew LLVM"
+    print -r -- "Homebrew LLVM"
   elif [[ "$version_info" == *"Ubuntu"* ]]; then
-    echo "LLVM (Ubuntu)"
+    print -r -- "LLVM (Ubuntu)"
   elif [[ "$version_info" == *"Debian"* ]]; then
-    echo "LLVM (Debian)"
+    print -r -- "LLVM (Debian)"
   elif [[ "$compiler_path" == /usr/bin/* ]]; then
-    echo "LLVM (system)"
+    print -r -- "LLVM (system)"
   else
-    echo "LLVM"
+    print -r -- "LLVM"
   fi
 }
 
@@ -318,22 +305,21 @@ _toolchain_compiler_details() {
 # @noargs
 # -----------------------------------------------------------------------------
 get_toolchain_info() {
-  # Preserve xtrace state.
   emulate -L zsh
-  setopt noxtrace
+  setopt noxtrace noverbose typesetsilent
 
-  # Initialize colors.
-  _toolchain_info_init_colors
-
-  echo "${C_GREEN}╞════════════════════════════════════════════════════════════════════╡${C_RESET}"
-  printf "\n%s%sAnalyzing C/C++ toolchain configuration (%s)...%s\n" \
-    "$C_BOLD" "$C_CYAN" "$(_toolchain_detect_platform)" "$C_RESET"
+  local platform="$(_toolchain_detect_platform)"
+  _zsh_ui_heading \
+    "C/C++ toolchain" \
+    "Active compiler resolution · $platform" || return 1
 
   if [[ -n "${CC:-}" || -n "${CXX:-}" ]]; then
-    printf "%sEnvironment variables (override defaults):%s\n" "$C_YELLOW" "$C_RESET"
-    [[ -n "${CC:-}" ]] && printf "   %sCC  = %s%s%s\n" "$C_BOLD" "$C_CYAN" "$CC" "$C_RESET"
-    [[ -n "${CXX:-}" ]] && printf "   %sCXX = %s%s%s\n" "$C_BOLD" "$C_CYAN" "$CXX" "$C_RESET"
-    echo
+    local -a environment_rows=()
+    [[ -n "${CC:-}" ]] && environment_rows+=("CC"$'\t'"$CC")
+    [[ -n "${CXX:-}" ]] && environment_rows+=("CXX"$'\t'"$CXX")
+    print -r -- ""
+    _zsh_ui_section "Environment overrides" || return 1
+    _zsh_ui_table $'Variable\tValue' "${environment_rows[@]}" || return 1
   fi
 
   local -a compilers=("cc" "c++" "gcc" "g++" "clang" "clang++")
@@ -375,65 +361,76 @@ get_toolchain_info() {
   done
   compilers=("${unique[@]}")
 
-  printf "%sActive compilers in PATH:%s\n\n" "$C_BOLD" "$C_RESET"
-
+  local -a rows=() debug_rows=()
+  local -i available=0 missing=0
   local compiler
   for compiler in "${compilers[@]}"; do
-    local cpath
+    local cpath=""
     cpath=$(command -v "$compiler" 2>/dev/null)
 
     if [[ -n "$cpath" && -x "$cpath" ]]; then
-      local real_cpath
+      local real_cpath wrapper_details real_details
       real_cpath=$(_toolchain_resolve_real_compiler "$cpath")
-
-      local wrapper_details
-      local real_details
       wrapper_details=$(_toolchain_compiler_details "$cpath")
       real_details=$(_toolchain_compiler_details "$real_cpath")
 
-      IFS='|' read -r wrapper_type wrapper_vendor wrapper_version <<<"$wrapper_details"
-      IFS='|' read -r real_type real_vendor real_version <<<"$real_details"
+      local -a wrapper_fields=("${(@s:|:)wrapper_details}")
+      local -a real_fields=("${(@s:|:)real_details}")
+      local wrapper_type="${wrapper_fields[1]:-Unknown}"
+      local wrapper_vendor="${wrapper_fields[2]-}"
+      local wrapper_version="${wrapper_fields[3]:-Unknown}"
+      local real_type="${real_fields[1]:-Unknown}"
+      local real_vendor="${real_fields[2]-}"
+      local real_version="${real_fields[3]:-Unknown}"
+      local compiler_status="Available"
+      local resolution="$cpath"
 
-      printf "%s◆ %-10s%s %s%s%s\n" "$C_GREEN" "$compiler" "$C_RESET" "$C_CYAN" "$cpath" "$C_RESET"
-
-      local has_wrapper=false
       if [[ "$cpath" == *"/ccache/"* || "$cpath" == *"ccache/bin"* ]]; then
-        printf "  ├─ %sWrapper:%s ccache (caching)\n" "$C_YELLOW" "$C_RESET"
-        has_wrapper=true
+        resolution="ccache: $cpath → $real_cpath"
       elif [[ "$cpath" != "$real_cpath" ]]; then
-        printf "  ├─ %sSymlink:%s → %s%s%s\n" "$C_YELLOW" "$C_RESET" "$C_CYAN" "$real_cpath" "$C_RESET"
-        has_wrapper=true
-      fi
-
-      if [[ "$has_wrapper" == true ]]; then
-        printf "  └─ %sReal compiler:%s %s %s\n" "$C_BLUE" "$C_RESET" "$real_vendor" "$real_type"
-        printf "     %sVersion:%s %s\n" "$C_MAGENTA" "$C_RESET" "$real_version"
-      else
-        printf "  ├─ %sType:%s %s %s\n" "$C_BLUE" "$C_RESET" "$real_vendor" "$real_type"
-        printf "  └─ %sVersion:%s %s\n" "$C_MAGENTA" "$C_RESET" "$real_version"
+        resolution="$cpath → $real_cpath"
       fi
 
       if [[ ("$compiler" == "gcc" || "$compiler" == "g++") && "$real_type" == "Clang" ]]; then
-        printf "     %sWarning:%s '%s' resolves to Clang, not GCC\n" "$C_YELLOW" "$C_RESET" "$compiler"
+        compiler_status="Warning: resolves to Clang"
       elif [[ ("$compiler" == "clang" || "$compiler" == "clang++") && "$real_type" == "GCC" ]]; then
-        printf "     %sWarning:%s '%s' resolves to GCC, not Clang\n" "$C_YELLOW" "$C_RESET" "$compiler"
+        compiler_status="Warning: resolves to GCC"
       fi
 
+      local toolchain="${real_vendor:+$real_vendor }$real_type"
+      rows+=("$compiler"$'\t'"$compiler_status"$'\t'"$toolchain"$'\t'"$real_version"$'\t'"$resolution")
+      available=$(( available + 1 ))
       if [[ "${TOOLCHAIN_INFO_DEBUG:-0}" != "0" ]]; then
-        printf "     %sDebug:%s compiler_path=%s%s%s\n" "$C_BOLD" "$C_RESET" "$C_CYAN" "$cpath" "$C_RESET"
-        printf "            real_compiler_path=%s%s%s\n" "$C_CYAN" "$real_cpath" "$C_RESET"
-        printf "            wrapper_details='%s%s%s|%s%s%s|%s%s%s'\n" \
-          "$C_BLUE" "$wrapper_type" "$C_RESET" "$C_YELLOW" "$wrapper_vendor" "$C_RESET" "$C_MAGENTA" "$wrapper_version" "$C_RESET"
-        printf "            real_details='%s%s%s|%s%s%s|%s%s%s'\n" \
-          "$C_BLUE" "$real_type" "$C_RESET" "$C_YELLOW" "$real_vendor" "$C_RESET" "$C_MAGENTA" "$real_version" "$C_RESET"
+        debug_rows+=(
+          "$compiler"$'\t'"$wrapper_type"$'\t'"$wrapper_vendor"$'\t'"$wrapper_version"$'\t'"$real_cpath"
+        )
       fi
-      echo
     else
-      printf "%s✗ %-10s%s Not found in PATH\n\n" "$C_RED" "$compiler" "$C_RESET"
+      rows+=("$compiler"$'\tMissing\t-\t-\tNot found in PATH')
+      missing=$(( missing + 1 ))
     fi
   done
 
-  echo "${C_GREEN}╞════════════════════════════════════════════════════════════════════╡${C_RESET}"
+  print -r -- ""
+  _zsh_ui_section "Compilers in PATH" || return 1
+  _zsh_ui_table \
+    $'Compiler\tStatus\tToolchain\tVersion\tResolution' \
+    "${rows[@]}" || return 1
+
+  if (( ${#debug_rows[@]} )); then
+    print -r -- ""
+    _zsh_ui_section "Debug details" || return 1
+    _zsh_ui_table \
+      $'Compiler\tWrapper type\tWrapper vendor\tWrapper version\tReal path' \
+      "${debug_rows[@]}" || return 1
+  fi
+
+  print -r -- ""
+  if (( missing )); then
+    _zsh_ui_log warn "$available compiler(s) available; $missing missing."
+  else
+    _zsh_ui_log ok "$available compiler(s) available."
+  fi
 }
 
 # ============================================================================ #

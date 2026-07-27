@@ -40,7 +40,12 @@ _blog_lazy_dispatch() {
   unfunction "$command_name" 2>/dev/null
   source "$module" || return 1
   typeset -f "$command_name" >/dev/null 2>&1 || {
-    print -u2 "blog: command not found after loading workflow: $command_name"
+    if (( $+functions[_zsh_ui_log] )); then
+      _zsh_ui_log error \
+        "Blog command not found after loading workflow: $command_name"
+    else
+      print -u2 "blog: command not found after loading workflow: $command_name"
+    fi
     return 127
   }
   "$command_name" "$@"

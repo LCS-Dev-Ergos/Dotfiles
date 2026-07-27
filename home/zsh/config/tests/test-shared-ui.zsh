@@ -93,6 +93,20 @@ gum_section="$(ZSH_UI_STYLE=gum _zsh_ui_section Section)" || return 1
   return 1
 }
 
+typeset plain_subsection
+plain_subsection="$(ZSH_UI_STYLE=plain _zsh_ui_subsection Section 80)" ||
+  return 1
+[[ "$plain_subsection" == $'Section\n  ------------------------' ]] || {
+  print -u2 "FAIL: shared subsection diverged from the zfuncs layout"
+  return 1
+}
+
+ZSH_UI_STYLE=gum _zsh_ui_subsection Section 80 >/dev/null
+[[ "$(wc -l < "$GUM_CALL_LOG" | tr -d ' ')" == 1 ]] || {
+  print -u2 "FAIL: shared subsection spawned a Gum process"
+  return 1
+}
+
 ZSH_UI_STYLE=gum _zsh_ui_card Card "" "Field  value" >/dev/null
 [[ "$(wc -l < "$GUM_CALL_LOG" | tr -d ' ')" == 2 ]] || {
   print -u2 "FAIL: shared card did not use exactly one Gum process"
@@ -119,6 +133,22 @@ gum_table="$(
 }
 [[ "$(wc -l < "$GUM_CALL_LOG" | tr -d ' ')" == 3 ]] || {
   print -u2 "FAIL: shared table did not use exactly one Gum process"
+  return 1
+}
+
+typeset plain_definitions
+plain_definitions="$(
+  ZSH_UI_STYLE=plain _zsh_ui_definition_list \
+    $'short\tOne' $'longer-term\tTwo'
+)" || return 1
+[[ "$plain_definitions" == $'  short        One\n  longer-term  Two' ]] || {
+  print -u2 "FAIL: shared definition list did not align its descriptions"
+  return 1
+}
+
+ZSH_UI_STYLE=gum _zsh_ui_definition_list $'term\tdescription' >/dev/null
+[[ "$(wc -l < "$GUM_CALL_LOG" | tr -d ' ')" == 3 ]] || {
+  print -u2 "FAIL: shared definition list spawned a Gum process"
   return 1
 }
 
@@ -174,6 +204,14 @@ typeset wide_rule
 wide_rule="$(ZSH_UI_STYLE=plain _zsh_ui_rule - 160)" || return 1
 (( ${#wide_rule} == 160 )) || {
   print -u2 "FAIL: shared rule still clamps wide layouts prematurely"
+  return 1
+}
+
+typeset styled_rule
+styled_rule="$(NO_COLOR= ZSH_UI_STYLE=ansi _zsh_ui_rule "" 40)" ||
+  return 1
+[[ "$styled_rule" == "${(pl:40::─:)}" ]] || {
+  print -u2 "FAIL: default styled rule did not match the zfuncs divider"
   return 1
 }
 

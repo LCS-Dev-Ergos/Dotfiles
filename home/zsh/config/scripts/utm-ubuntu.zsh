@@ -86,6 +86,41 @@ else
 fi
 unset _utm_helpers_dir
 
+# -----------------------------------------------------------------------------
+# _utm_usage
+# @internal
+# @description Prints command usage and configurable environment variables.
+# @noargs
+# -----------------------------------------------------------------------------
+_utm_usage() {
+    _zsh_ui_heading \
+        "UTM UBUNTU" \
+        "Start the VM, wait for SSH, and mount its shared directory" ||
+        return 1
+    _zsh_ui_rule || return 1
+    print -r -- ""
+
+    _zsh_ui_subsection "USAGE" || return 1
+    _zsh_ui_definition_list \
+        $'utm-ubuntu.zsh [options]\tRun the complete VM setup.' ||
+        return 1
+    print -r -- ""
+
+    _zsh_ui_subsection "OPTIONS" || return 1
+    _zsh_ui_definition_list \
+        $'--no-login\tMount the shared directory without opening SSH.' \
+        $'-h, --help\tShow this help.' || return 1
+    print -r -- ""
+
+    _zsh_ui_subsection "ENVIRONMENT" || return 1
+    _zsh_ui_definition_list \
+        $'VM_NAME\tUTM virtual machine name (default: Ubuntu).' \
+        $'UTM_SSH_HOST\tSSH host alias (default: VM_NAME.UTM).' \
+        $'REMOTE_SHARE_NAME\tVirtiofs share name (default: share).' \
+        $'REMOTE_MOUNTPOINT\tGuest mount point (default: Shared).' \
+        $'MAX_WAIT_SECONDS\tSSH readiness timeout (default: 120).'
+}
+
 # Parse command line arguments
 AUTO_LOGIN=true
 while [[ $# -gt 0 ]]; do
@@ -94,9 +129,13 @@ while [[ $# -gt 0 ]]; do
             AUTO_LOGIN=false
             shift
             ;;
+        -h|--help)
+            _utm_usage
+            exit 0
+            ;;
         *)
-            echo "Unknown option: $1" >&2
-            echo "Usage: $0 [--no-login]" >&2
+            _zsh_ui_log error "Unknown option: $1"
+            _utm_usage >&2
             exit 1
             ;;
     esac
@@ -126,21 +165,16 @@ REMOTE_SUDO="${REMOTE_SUDO:-sudo -n}"
 START_CMD=("${UTMCTL_CMD}" start "${VM_NAME}")
 
 # -----------------------------------------------------------------------------
-# log
-# @internal
-# @description Prints an informational message to stdout.
-# @arg $@ string Message text.
-# -----------------------------------------------------------------------------
-log() { echo "$@"; }
-
-# -----------------------------------------------------------------------------
 # fail
 # @internal
 # @description Prints an error message to stderr and exits the script.
 # @arg $1 string Error message.
 # @exitcode 1 Always; this function does not return.
 # -----------------------------------------------------------------------------
-fail() { echo "$@" >&2; exit 1; }
+fail() {
+    _zsh_ui_log error "$1"
+    exit 1
+}
 
 # -----------------------------------------------------------------------------
 # require_command
@@ -149,7 +183,9 @@ fail() { echo "$@" >&2; exit 1; }
 # when missing.
 # @arg $1 string Command name.
 # -----------------------------------------------------------------------------
-require_command() { _shared_has_command "$1" || fail "Required command not found: $1"; }
+require_command() {
+    _shared_require_command "$1" || exit 1
+}
 
 # -----------------------------------------------------------------------------
 # describe_ssh_target
@@ -167,7 +203,8 @@ describe_ssh_target() {
         host=$(grep "^hostname " "${ssh_info_file}" | awk '{print $2}' | head -1)
         port=$(grep "^port " "${ssh_info_file}" | awk '{print $2}' | head -1)
         user=$(grep "^user " "${ssh_info_file}" | awk '{print $2}' | head -1)
-        log "SSH target -> host: ${host:-unknown}, port: ${port:-22}, user: ${user:-$(whoami)}"
+        _zsh_ui_log info \
+            "SSH target: ${user:-$(whoami)}@${host:-unknown}:${port:-22}"
     fi
     rm -f "${ssh_info_file}"
 }
@@ -196,7 +233,7 @@ is_vm_reachable() {
     fi
 
     if [[ "${FIRST_SSH_FAILURE_SHOWN}" == false ]]; then
-        log "SSH not ready yet (${SSH_HOST}): ${out}"
+        _zsh_ui_log info "SSH not ready yet (${SSH_HOST}): ${out}"
         FIRST_SSH_FAILURE_SHOWN=true
     fi
     LAST_SSH_ERROR="${out}"
@@ -211,23 +248,23 @@ is_vm_reachable() {
 # @exitcode 1 If the VM fails to start; the script exits.
 # -----------------------------------------------------------------------------
 start_vm_if_needed() {
-    log "Checking if the VM is already running (SSH check on ${SSH_HOST})..."
+    _zsh_ui_section "Virtual machine"
+    _zsh_ui_log info "Checking SSH reachability for ${SSH_HOST}."
     if is_vm_reachable; then
-        log "The VM is already running."
+        _zsh_ui_log ok "The VM is already running."
         return
     fi
 
-    log "Starting the UTM virtual machine..."
+    _zsh_ui_log info "Starting the UTM virtual machine."
     if ! START_OUTPUT=$("${START_CMD[@]}" 2>&1); then
-        if echo "${START_OUTPUT}" | grep -q "OSStatus error -2700"; then
-            log "The VM appears to be already running (error -2700 ignored)."
+        if print -r -- "${START_OUTPUT}" | grep -q "OSStatus error -2700"; then
+            _zsh_ui_log warn \
+                "The VM appears to be running already; ignoring error -2700."
         else
-            log "Error starting the VM:"
-            echo "${START_OUTPUT}" >&2
-            exit 1
+            fail "Could not start the VM: ${START_OUTPUT}"
         fi
     else
-        log "The VM has been started successfully."
+        _zsh_ui_log ok "The VM started successfully."
     fi
 }
 
@@ -235,22 +272,20 @@ start_vm_if_needed() {
 # wait_for_vm
 # @internal
 # @description Polls SSH connectivity until the VM answers or MAX_WAIT_SECONDS
-# elapses, printing a progress dot per attempt; exits via fail on timeout.
+# elapses; exits via fail on timeout.
 # @noargs
 # -----------------------------------------------------------------------------
 wait_for_vm() {
-    log "Waiting for the VM to be available (SSH check on ${SSH_HOST})..."
-    elapsed=0
+    _zsh_ui_log info "Waiting for SSH on ${SSH_HOST}."
+    local -i elapsed=0
     while ! is_vm_reachable; do
         if (( elapsed >= MAX_WAIT_SECONDS )); then
             fail "Timeout: the VM is unreachable after ${MAX_WAIT_SECONDS} seconds. Last SSH error: ${LAST_SSH_ERROR}"
         fi
-        printf "."
         sleep "${SLEEP_SECONDS}"
         elapsed=$((elapsed + SLEEP_SECONDS))
     done
-    printf "\n"
-    log "The VM is ready!"
+    _zsh_ui_log ok "The VM is ready."
 }
 
 # -----------------------------------------------------------------------------
@@ -262,7 +297,8 @@ wait_for_vm() {
 # @exitcode 1 If the mount fails; the script exits via fail.
 # -----------------------------------------------------------------------------
 mount_shared_directory() {
-    log "Mounting the shared directory on the VM..."
+    _zsh_ui_section "Shared directory"
+    _zsh_ui_log info "Mounting the virtiofs share."
     local mount_output
     local remote_sudo_q remote_mount_q remote_share_q
     remote_sudo_q=$(printf "%q" "${REMOTE_SUDO}")
@@ -295,7 +331,7 @@ fi
 echo "Mount completed on the VM at \${MP}."
 EOF
 ); then
-        log "${mount_output}"
+        _zsh_ui_log ok "${mount_output}"
     else
         if [[ "${mount_output}" == *"a terminal is required"* ]] || \
            [[ "${mount_output}" == *"password is required"* ]]; then
@@ -313,6 +349,9 @@ EOF
 # @exitcode 1 If a prerequisite check, start, or mount fails.
 # -----------------------------------------------------------------------------
 main() {
+    _zsh_ui_heading \
+        "UTM Ubuntu" \
+        "Start VM, wait for SSH, and mount the shared directory"
     require_command "${UTMCTL_CMD}"
     require_command ssh
     describe_ssh_target
@@ -320,10 +359,10 @@ main() {
     start_vm_if_needed
     wait_for_vm
     mount_shared_directory
-    log "Operation completed."
+    _zsh_ui_log ok "Operation completed."
 
     if [[ "${AUTO_LOGIN}" == true ]]; then
-        log "Logging into the VM..."
+        _zsh_ui_log info "Opening the SSH session."
         exec ssh "${SSH_HOST}"
     fi
 }

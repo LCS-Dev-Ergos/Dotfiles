@@ -157,14 +157,21 @@ _zsh_ui_log() {
 # -----------------------------------------------------------------------------
 # _zsh_ui_rule
 # @internal
-# @description Prints a native horizontal rule clamped to a practical width.
-# @arg $1 string Optional rule character; defaults to "-".
+# @description Prints a native horizontal rule clamped to a practical width;
+# the default character matches the resolved plain or styled UI mode.
+# @arg $1 string Optional rule character.
 # @arg $2 integer Optional explicit width; defaults to COLUMNS.
 # -----------------------------------------------------------------------------
 _zsh_ui_rule() {
   emulate -L zsh
-  local char="${1:--}"
+  local char="${1:-}"
+  if [[ -z "$char" ]]; then
+    _zsh_ui_resolve_mode || return $?
+    char="-"
+    [[ "$REPLY" == plain ]] || char="─"
+  fi
   local -i width="${2:-${COLUMNS:-80}}"
+  (( width > 0 )) || width=80
   (( width < 40 )) && width=40
   (( width > 240 )) && width=240
   printf '%s\n' "${(pl:$width::$char:)}"
@@ -211,6 +218,42 @@ _zsh_ui_section() {
   _zsh_ui_resolve_mode || return $?
   _zsh_ui_set_palette "$REPLY"
   print -r -- "${_ZSH_UI_HEADING}${title}${_ZSH_UI_RESET}"
+}
+
+# -----------------------------------------------------------------------------
+# _zsh_ui_subsection
+# @internal
+# @description Renders a section label and the short, indented divider used by
+# the zfuncs catalog. The divider adapts to the label and available width.
+# @arg $1 string Section title.
+# @arg $2 integer Optional available width; defaults to COLUMNS or 80.
+# @exitcode 2 If the title is missing, width is invalid, or UI style is invalid.
+# -----------------------------------------------------------------------------
+_zsh_ui_subsection() {
+  emulate -L zsh
+  (( $# )) || return 2
+
+  local title="$1"
+  local available_width="${2:-${COLUMNS:-80}}"
+  [[ "$available_width" == <-> ]] || return 2
+  (( available_width > 0 )) || available_width=80
+
+  _zsh_ui_resolve_mode || return $?
+  local mode="$REPLY"
+  _zsh_ui_set_palette "$mode"
+
+  local rule_character="-"
+  [[ "$mode" == plain ]] || rule_character="─"
+  local -i rule_width=$(( ${#title} + 4 ))
+  (( rule_width < 24 )) && rule_width=24
+  (( rule_width > 48 )) && rule_width=48
+  (( rule_width > available_width - 2 )) &&
+    rule_width=$(( available_width - 2 ))
+  (( rule_width < 1 )) && rule_width=1
+
+  print -r -- "${_ZSH_UI_HEADING}${title}${_ZSH_UI_RESET}"
+  print -r -- \
+    "${_ZSH_UI_MUTED}  ${(pl:$rule_width::$rule_character:)}${_ZSH_UI_RESET}"
 }
 
 # -----------------------------------------------------------------------------
@@ -368,6 +411,53 @@ _zsh_ui_table() {
     done
     (( line_index == 1 )) && printf '%s' "$_ZSH_UI_RESET"
     printf '\n'
+  done
+}
+
+# -----------------------------------------------------------------------------
+# _zsh_ui_definition_list
+# @internal
+# @description Renders tab-separated terms and descriptions as an aligned,
+# indented list. Styling stays shell-native in every mode, so help menus do
+# not spawn one Gum process per section.
+# @arg $@ string Tab-separated term and description rows.
+# @exitcode 2 If the UI style is invalid.
+# -----------------------------------------------------------------------------
+_zsh_ui_definition_list() {
+  emulate -L zsh
+  (( $# )) || return 0
+
+  local -a terms=() descriptions=()
+  local row term description
+  local -i width=0 index
+
+  for row in "$@"; do
+    term="${row%%$'\t'*}"
+    if [[ "$row" == *$'\t'* ]]; then
+      description="${row#*$'\t'}"
+    else
+      description=""
+    fi
+    _zsh_ui_sanitize_text "$term"
+    term="$REPLY"
+    _zsh_ui_sanitize_text "$description"
+    description="$REPLY"
+    terms+=("$term")
+    descriptions+=("$description")
+    (( ${#term} > width )) && width=${#term}
+  done
+
+  _zsh_ui_resolve_mode || return $?
+  _zsh_ui_set_palette "$REPLY"
+  for (( index = 1; index <= ${#terms[@]}; index++ )); do
+    if [[ -n "${descriptions[$index]}" ]]; then
+      printf '  %s%-*s%s  %s%s%s\n' \
+        "$_ZSH_UI_INFO" "$width" "${terms[$index]}" "$_ZSH_UI_RESET" \
+        "$_ZSH_UI_MUTED" "${descriptions[$index]}" "$_ZSH_UI_RESET"
+    else
+      printf '  %s%s%s\n' \
+        "$_ZSH_UI_INFO" "${terms[$index]}" "$_ZSH_UI_RESET"
+    fi
   done
 }
 

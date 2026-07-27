@@ -436,38 +436,23 @@ function zfuncs() {
   summary_width=$(( terminal_width - name_width - 15 ))
   (( summary_width < 10 )) && summary_width=10
 
-  local reset="" name_color="" muted="" rule_character="-"
+  local reset="" name_color="" muted=""
   if [[ "$visual_style" != plain ]]; then
     _zsh_ui_heading "$title" "$subtitle" || return $?
     _zsh_ui_set_palette "$visual_style"
     reset="$_ZSH_UI_RESET"
     name_color="$_ZSH_UI_INFO"
     muted=$'\e[38;5;252m'
-    rule_character="─"
   else
     print -r -- "$title"
     print -r -- "$subtitle"
   fi
-  _zsh_ui_rule "$rule_character" "$terminal_width"
+  _zsh_ui_rule
   print -r -- ""
 
-  local category_rule
-  local -i category_rule_width
   for current_category in "${category_names[@]}"; do
     category_title="${(U)current_category}"
-    category_rule_width=$(( ${#category_title} + 4 ))
-    (( category_rule_width < 24 )) && category_rule_width=24
-    (( category_rule_width > 48 )) && category_rule_width=48
-    (( category_rule_width > terminal_width - 2 )) &&
-      category_rule_width=$(( terminal_width - 2 ))
-    category_rule="${(pl:$category_rule_width::$rule_character:)}"
-    if [[ "$visual_style" != plain ]]; then
-      _zsh_ui_section "$category_title" || return $?
-      print -r -- "${muted}  ${category_rule}${reset}"
-    else
-      print -r -- "$category_title"
-      print -r -- "  ${category_rule}"
-    fi
+    _zsh_ui_subsection "$category_title" "$terminal_width" || return $?
 
     for name in "${sorted_names[@]}"; do
       [[ "${categories[$name]}" == "$current_category" ]] || continue
