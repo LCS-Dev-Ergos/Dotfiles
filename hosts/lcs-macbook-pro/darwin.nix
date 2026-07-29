@@ -1,4 +1,5 @@
 {
+  config,
   self,
   lib,
   pkgs,
@@ -29,6 +30,12 @@ in
   # here hands nix-darwin user management for it, so keep this entry and the
   # users.users record together permanently.
   users.knownUsers = [ username ];
+
+  # Reclaims the disk space freed by the generation pruning below. Every
+  # pruned generation's now-unreferenced store paths just sit as garbage
+  # until something runs nix-collect-garbage; this schedules that weekly
+  # (module default: Sunday 03:15) instead of leaving it fully manual.
+  nix.gc.automatic = true;
 
   users.users.${username} = {
     name = username;
@@ -147,6 +154,26 @@ in
       unset _dotfiles_restart_finder _dotfiles_trackpad_domain
       unset _dotfiles_domain _dotfiles_key _dotfiles_type _dotfiles_value
       unset _dotfiles_expected _dotfiles_process _dotfiles_current
+
+      # Keep the last 20 system generations. Each one is a GC root: every
+      # store path it references stays "alive" (protected from collection)
+      # until the generation itself is deleted, so an unbounded generation
+      # count means unbounded disk growth. Runs after activation, so the
+      # generation just switched to is always safely within the kept 20.
+      # Actually reclaiming the disk space this frees is nix.gc.automatic's
+      # job (declared above), not this script's -- collecting garbage on
+      # every switch would make routine switches slower for no benefit over
+      # the weekly schedule.
+      #
+      # `|| true`: system.activationScripts.script.text runs the whole
+      # activation under `set -e` (nix-darwin's own base script), and this
+      # is the very last thing in postActivation -- an unguarded failure
+      # here (e.g. the profile transiently locked by a concurrent switch)
+      # would abort activation before nix-darwin's own final step makes the
+      # new generation current. This step is disk hygiene, not something
+      # worth failing a switch over.
+      ${config.nix.package}/bin/nix-env --delete-generations +20 \
+        --profile /nix/var/nix/profiles/system || true
     '';
   };
 }
