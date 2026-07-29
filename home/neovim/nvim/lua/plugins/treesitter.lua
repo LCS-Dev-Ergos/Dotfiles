@@ -20,6 +20,15 @@ return {
         "regex",
         "vim",
         "vimdoc",
+        -- Only needed for embedded fenced code blocks in docs (checkhealth's
+        -- "missing parsers" warning for image rendering), not as primary
+        -- filetypes.
+        "css",
+        "norg",
+        "scss",
+        "svelte",
+        "typst",
+        "vue",
       })
     end,
   },

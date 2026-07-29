@@ -135,7 +135,12 @@ let
   };
 in
 {
-  home.packages = [ nvimUpdateLock ];
+  home.packages = [
+    nvimUpdateLock
+    # Renders Mermaid diagrams in markdown-preview.nvim; checkhealth flagged
+    # it as the only genuinely missing tool (mmdc not on PATH).
+    pkgs.mermaid-cli
+  ];
 
   # Lazy rewrites its lock after installing missing plugins as well as during
   # explicit updates. Synchronize an operational state copy from the declared
