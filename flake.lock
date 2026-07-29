@@ -121,6 +121,7 @@
         "nix-darwin": "nix-darwin",
         "nixpkgs": "nixpkgs",
         "sbarlua": "sbarlua",
+        "shell-color-scripts": "shell-color-scripts",
         "smart-tmux-session-manager": "smart-tmux-session-manager",
         "tmux-continuum": "tmux-continuum",
         "tmux-resurrect": "tmux-resurrect",
@@ -166,6 +167,23 @@
         "owner": "FelixKratz",
         "repo": "SbarLua",
         "rev": "dba9cc421b868c918d5c23c408544a28aadf2f2f",
+        "type": "github"
+      }
+    },
+    "shell-color-scripts": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1714313711,
+        "narHash": "sha256-fAGDminKCNbT0BIJxySf/osOia5DQTSc5QOwzHA01Po=",
+        "owner": "shreyas-a-s",
+        "repo": "shell-color-scripts",
+        "rev": "3d8c3455f7017b1b1deb31744c22f2adb1d9665b",
+        "type": "github"
+      },
+      "original": {
+        "owner": "shreyas-a-s",
+        "repo": "shell-color-scripts",
+        "rev": "3d8c3455f7017b1b1deb31744c22f2adb1d9665b",
         "type": "github"
       }
     },
