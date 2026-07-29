@@ -1,4 +1,50 @@
-{ lib, pkgs, ... }:
+{
+  externalSources,
+  lib,
+  pkgs,
+  ...
+}:
+let
+  # `colorscript` isn't packaged in nixpkgs or Homebrew under any name.
+  # Upstream's own install path is a hardcoded /opt directory (see its
+  # Makefile/colorscript.sh), which doesn't fit a Nix store path, so this
+  # vendors just the art and wraps it with a small launcher instead of
+  # patching theirs.
+  shellColorScriptsData = pkgs.stdenvNoCC.mkDerivation {
+    pname = "shell-color-scripts-data";
+    version = "unstable-2024-04-28";
+    src = externalSources.shellColorScripts;
+
+    dontBuild = true;
+    installPhase = ''
+      runHook preInstall
+      mkdir -p $out
+      cp -r colorscripts/* $out/
+      rm -rf $out/blacklisted
+      runHook postInstall
+    '';
+  };
+
+  shellColorScripts = pkgs.writeShellApplication {
+    name = "colorscript";
+    runtimeInputs = [
+      pkgs.coreutils
+      pkgs.findutils
+    ];
+    text = ''
+      dir=${shellColorScriptsData}
+      case "''${1:-}" in
+        -e | --exec) exec "$dir/''${2:?missing script name}" ;;
+        -r | --random | "") exec "$(find "$dir" -maxdepth 1 -type f | shuf -n1)" ;;
+        -l | --list) find "$dir" -maxdepth 1 -type f -printf '%f\n' | sort ;;
+        *)
+          echo "usage: colorscript [-e NAME | -r | -l]" >&2
+          exit 64
+          ;;
+      esac
+    '';
+  };
+in
 {
   # Portable, version-independent command-line tools used across projects.
   # Keeping this baseline in the shared Home Manager configuration gives both
@@ -17,6 +63,7 @@
     pkgs.cbonsai
     pkgs.cmatrix
     pkgs.codex
+    shellColorScripts
     pkgs.cppman
     pkgs.csvlens
     pkgs.deadnix

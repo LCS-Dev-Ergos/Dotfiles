@@ -63,6 +63,13 @@
       url = "github:ogulcancelik/herdr/v0.7.5";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    # Terminal color-script art (the `colorscript` command). Not packaged in
+    # nixpkgs or Homebrew under any name.
+    shell-color-scripts = {
+      url = "github:shreyas-a-s/shell-color-scripts/3d8c3455f7017b1b1deb31744c22f2adb1d9665b";
+      flake = false;
+    };
   };
 
   outputs =
@@ -94,6 +101,7 @@
         alacrittyTheme = inputs.alacritty-theme;
         cmdHelpSyntax = inputs.cmd-help-syntax;
         sbarLua = inputs.sbarlua;
+        shellColorScripts = inputs.shell-color-scripts;
         tokyoNightYazi = inputs.tokyo-night-yazi;
         tmuxPlugins = {
           inherit (inputs) tpm;

@@ -7,7 +7,8 @@
 -- the todo-comments/trouble/flash integrations. This file only turns on the
 -- remaining modules those extras don't touch, and keeps the keymaps that
 -- have no other source (zen, bufdelete, lazygit, terminal, the plugin-file
--- finder). The dashboard stays off: ui.alpha is this setup's start screen.
+-- finder). The dashboard itself lives in dashboard.lua (its own file: header
+-- art, keys, and sections are enough content to warrant separating it out).
 -- =====-----------------------------------------------------------------=====
 
 return {
@@ -15,8 +16,6 @@ return {
   priority = 1000,
   lazy = false,
   opts = {
-    dashboard = { enabled = false },
-
     bigfile = { enabled = true },
     bufdelete = { enabled = true },
     explorer = { enabled = true },
