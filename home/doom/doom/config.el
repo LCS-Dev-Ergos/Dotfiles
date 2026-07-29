@@ -204,9 +204,24 @@
 ;; Proof General provides an interactive interface for theorem provers in Emacs
 ;; Make sure you have enabled the 'coq' module in init.el
 
+;; Two opam switches are in play: `default' for general OCaml development
+;; (tuareg-mode), and `rocq' for Rocq/Coq (coqtop, rocq-prover, etc). Unlike
+;; tuareg's `opam-switch-mode' (Doom's OCaml module), Proof General has no
+;; per-buffer opam-switch detection, so a bare "coqtop" would resolve through
+;; whichever switch happens to be ambient on PATH -- wrong whenever `default'
+;; is current. Resolve the `rocq' switch's coqtop explicitly instead.
+(defun lcs-opam-switch-bin-file (switch file)
+  "Return the absolute path of FILE in opam SWITCH's bin directory.
+Falls back to FILE unqualified (PATH lookup) if the switch cannot be resolved."
+  (let ((prefix (string-trim
+                 (shell-command-to-string
+                  (format "opam var --switch=%s prefix 2>/dev/null" switch)))))
+    (if (string-empty-p prefix)
+        file
+      (expand-file-name file (expand-file-name "bin" prefix)))))
+
 (after! proof-general
-  ;; Coqtop path (auto-detected if in PATH; override if using opam switch)
-  (setq coq-prog-name "coqtop")
+  (setq coq-prog-name (lcs-opam-switch-bin-file "rocq" "coqtop"))
   (setq coq-compile-before-require t)
   (setq coq-use-editing-holes t))
 
