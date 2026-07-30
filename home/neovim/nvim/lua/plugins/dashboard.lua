@@ -7,8 +7,8 @@
 -- actually configured (Snacks' own, since telescope.lua disables telescope),
 -- so the file-finding keys stay correct regardless of cwd.
 --
--- Layout follows Snacks' own "advanced" example verbatim (two panes, no
--- width/pane_gap override) instead of a hand-tuned size.
+-- The two-pane structure follows Snacks' own "advanced" example, while the
+-- header, menu, and other visual choices below stay personal.
 -- =====-----------------------------------------------------------------=====
 
 return {
@@ -34,7 +34,7 @@ return {
           { icon = "󰒓 ", key = "c", desc = "Config", action = ":e $MYVIMRC" },
           { icon = "󱌣 ", key = "m", desc = "Mason", action = ":Mason" },
           { icon = "󰒲 ", key = "l", desc = "Lazy", action = ":Lazy" },
-          { icon = "󰂖 ", key = "u", desc = "Update plugins", action = function() require("lazy").sync() end },
+          { icon = "󰂖 ", key = "u", desc = "Update plugins", action = ":!nvim-update-lock" },
           { icon = "󰩈 ", key = "q", desc = "Quit NVIM", action = ":qa" },
         },
       },
@@ -43,14 +43,17 @@ return {
         {
           pane = 2,
           section = "terminal",
-          -- height matches `square`'s actual output so the box has no dead
-          -- space. The trailing sleep keeps the job alive so Neovim's own
-          -- terminal-exit message never appears (jobstart's term=true
-          -- always appends one on exit); it's killed on buffer close anyway.
-          cmd = "colorscript -e square; sleep 60",
+          -- This colorscript emits an empty first and last row. Trim only
+          -- those rows so the three-line drawing fits in the documented
+          -- five-row terminal section.
+          cmd = "colorscript -e square | sed '1d;$d'",
           height = 5,
           padding = 1,
           ttl = 3600,
+          -- `square` is 58 display columns wide. Keep the personal two-column
+          -- indent, but preserve the documented 60-column terminal viewport
+          -- so Neovim does not soft-wrap at the final character.
+          width = 60,
           indent = 2,
         },
         { section = "keys", gap = 1, padding = 1 },
@@ -79,4 +82,21 @@ return {
       },
     },
   },
+  config = function(_, opts)
+    require("snacks").setup(opts)
+
+    -- Neovim adds this virtual line when a terminal job exits. Dashboard
+    -- sections are read-only snapshots, so retain their output but hide the
+    -- process-status decoration only for buffers owned by Snacks Dashboard.
+    local exitmsg_namespace = vim.api.nvim_create_namespace("nvim.terminal.exitmsg")
+    local dashboard_terminals = vim.api.nvim_create_augroup("LcsDashboardTerminalExit", { clear = true })
+    vim.api.nvim_create_autocmd("TermClose", {
+      group = dashboard_terminals,
+      callback = function(event)
+        if vim.bo[event.buf].filetype == "snacks_dashboard" then
+          vim.api.nvim_buf_clear_namespace(event.buf, exitmsg_namespace, 0, -1)
+        end
+      end,
+    })
+  end,
 }
