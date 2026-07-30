@@ -64,6 +64,14 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # OpenCode's upstream flake is pinned to an official release tag. Share
+    # this flake's nixpkgs so a deliberate OpenCode update stays isolated and
+    # does not duplicate the package set.
+    opencode = {
+      url = "github:anomalyco/opencode/v1.18.9";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # Terminal color-script art (the `colorscript` command). Not packaged in
     # nixpkgs or Homebrew under any name.
     shell-color-scripts = {
@@ -128,6 +136,7 @@
         inherit externalSources;
         inherit (host) dotfilesRoot homeDirectory username;
         herdr = inputs.herdr.packages.${host.system}.default;
+        opencode = inputs.opencode.packages.${host.system}.opencode;
       };
     in
     {

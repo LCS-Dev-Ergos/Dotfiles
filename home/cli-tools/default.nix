@@ -1,6 +1,8 @@
 {
+  dotfilesRoot,
   externalSources,
   lib,
+  opencode,
   pkgs,
   ...
 }:
@@ -42,6 +44,36 @@ let
           exit 64
           ;;
       esac
+    '';
+  };
+
+  # Keep OpenCode's mutable self-updater out of the Nix-managed command path.
+  # The upstream package is injected by flake.nix only into this module, so
+  # changes to that input cannot implicitly replace pkgs.opencode elsewhere.
+  opencodeCli = pkgs.writeShellApplication {
+    name = "opencode";
+    text = ''
+      export OPENCODE_DISABLE_AUTOUPDATE=true
+      exec ${lib.getExe opencode} "$@"
+    '';
+  };
+
+  # A deliberately small interface for release maintenance. The command is
+  # bound to this checkout, never stages/commits/switches, and restores both
+  # declarative inputs if validation or the local Darwin build fails.
+  opencodeUpdate = pkgs.writeShellApplication {
+    name = "opencode-update";
+    runtimeInputs = [
+      pkgs.coreutils
+      pkgs.curl
+      pkgs.git
+      pkgs.gnused
+      pkgs.jq
+      pkgs.nix
+    ];
+    text = ''
+      export OPENCODE_UPDATE_REPOSITORY_ROOT=${lib.escapeShellArg dotfilesRoot}
+      ${builtins.readFile ./scripts/opencode-update.sh}
     '';
   };
 in
@@ -88,7 +120,7 @@ in
     # Stable non-interactive fallback; an active FNM multishell remains
     # higher-priority for projects that deliberately select another Node.
     pkgs.nodejs_24
-    pkgs.opencode
+    opencodeCli
     pkgs.patch
     pkgs.pipes
     pkgs.procs
@@ -108,6 +140,8 @@ in
     pkgs.wget
   ]
   ++ lib.optionals pkgs.stdenv.isDarwin [
+    opencodeUpdate
+
     # macOS ships the BSD implementations of these three, and enough of this
     # setup assumes GNU behaviour that they belong on PATH there. Linux gets
     # them from its own base system, so installing them again would only add a
