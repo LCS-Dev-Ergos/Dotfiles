@@ -45,11 +45,11 @@ in
 
     # Declarative equivalent of routine `nix-collect-garbage`/store optimisation:
     # prune old generations automatically and hardlink duplicate store files.
-    # Fourteen days preserves a useful rollback margin while the migration
-    # settles instead of requiring either manual cleanup or aggressive pruning.
+    # Seven days preserve a useful rollback margin on this stable system
+    # without retaining old generations long enough to waste disk space.
     gc = {
       automatic = true;
-      options = "--delete-older-than 14d";
+      options = "--delete-older-than 7d";
     };
     optimise.automatic = true;
   };
