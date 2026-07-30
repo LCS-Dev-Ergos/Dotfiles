@@ -112,6 +112,27 @@
         "type": "github"
       }
     },
+    "opencode": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1785262486,
+        "narHash": "sha256-uvKzjPquhjm5OdDdoqexJQfDkN0OOXOW8RbdSka12NQ=",
+        "owner": "anomalyco",
+        "repo": "opencode",
+        "rev": "4da7bb44c84e013fa53e9c5d02ac753d1435c81a",
+        "type": "github"
+      },
+      "original": {
+        "owner": "anomalyco",
+        "ref": "v1.18.9",
+        "repo": "opencode",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
         "alacritty-theme": "alacritty-theme",
@@ -120,6 +141,7 @@
         "home-manager": "home-manager",
         "nix-darwin": "nix-darwin",
         "nixpkgs": "nixpkgs",
+        "opencode": "opencode",
         "sbarlua": "sbarlua",
         "shell-color-scripts": "shell-color-scripts",
         "smart-tmux-session-manager": "smart-tmux-session-manager",

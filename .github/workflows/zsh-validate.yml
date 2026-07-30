@@ -7,6 +7,7 @@ on:
       - "flake.lock"
       - "darwin/**/*.nix"
       - "home/**/*.nix"
+      - "home/cli-tools/scripts/**"
       - "home/zsh/**"
       - "home/cpp-tools/**"
       - "hosts/**/*.nix"
@@ -20,6 +21,7 @@ on:
       - "flake.lock"
       - "darwin/**/*.nix"
       - "home/**/*.nix"
+      - "home/cli-tools/scripts/**"
       - "home/zsh/**"
       - "home/cpp-tools/**"
       - "hosts/**/*.nix"
@@ -55,7 +57,7 @@ jobs:
             bash scripts/check-package-ownership-policy.sh
             bash scripts/check-declared-secrets.sh
             bash scripts/tests/run.sh
-            shellcheck scripts/*.sh scripts/tests/*.sh
+            shellcheck scripts/*.sh scripts/tests/*.sh home/cli-tools/scripts/*.sh
           '
 
       - name: Evaluate every flake output
