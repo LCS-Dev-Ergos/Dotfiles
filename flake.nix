@@ -68,7 +68,7 @@
     # this flake's nixpkgs so a deliberate OpenCode update stays isolated and
     # does not duplicate the package set.
     opencode = {
-      url = "github:anomalyco/opencode/v1.18.9";
+      url = "github:anomalyco/opencode/v1.18.11";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
