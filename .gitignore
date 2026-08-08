@@ -10,8 +10,15 @@ home/bat/syntaxes/cmd-help-sublime-syntax
 home/yazi/flavors/tokyo-night.yazi/
 home/kitty/kitty/theme.conf
 
-# Ignore Claude AI configuration files
-.claude/
+# Ignore Claude AI configuration files, except the checked-in project rules.
+# Rules encode repository constraints (build before switch, out-of-store
+# allowlist registration, Homebrew cleanup mode) and belong with the code they
+# govern, not in a local-only directory. Everything else under .claude/ is
+# session state and stays ignored.
+.claude/*
+!.claude/rules/
+.claude/rules/*
+!.claude/rules/*.md
 
 # Private operating guides and migration notes.
 /docs/
