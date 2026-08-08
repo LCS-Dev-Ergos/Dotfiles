@@ -76,6 +76,28 @@ let
       ${builtins.readFile ./scripts/opencode-update.sh}
     '';
   };
+
+  # Locale-pinned so the build survives fixupPhase on macOS 26.6. The stdenv's
+  # bash links gettext's libintl, whose setlocale() falls through to
+  # CFLocaleCopyPreferredLanguages when no locale is set in the environment.
+  # That CFPreferences lookup segfaults under the nixbld build user, which has
+  # no preferences container to read, and it takes down the isELF loops in
+  # audit-tmpdir and auto-fix-elf-files with it.
+  #
+  # Nothing about bottom provokes this -- it is simply the one package here
+  # with no aarch64-darwin binary in the cache, so it is the one that has to
+  # build locally. Pinning the locale keeps libintl on the environment path so
+  # it never reaches CoreFoundation at all.
+  #
+  # This costs us substitution: the override changes the hash, so bottom will
+  # keep building locally even after Hydra publishes it. Drop this binding
+  # once nixpkgs' bash no longer consults CoreFoundation for locale lookups.
+  bottom = pkgs.bottom.overrideAttrs (previous: {
+    env = (previous.env or { }) // {
+      LC_ALL = "C";
+      LANG = "C";
+    };
+  });
 in
 {
   # Portable, version-independent command-line tools used across projects.
@@ -90,7 +112,7 @@ in
     pkgs.bc
     pkgs.bear
     pkgs.beautysh
-    pkgs.bottom
+    bottom
     pkgs.bun
     pkgs.cbonsai
     pkgs.cmatrix
