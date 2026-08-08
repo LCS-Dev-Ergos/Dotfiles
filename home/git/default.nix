@@ -27,7 +27,26 @@
           core = {
             excludesFile = "${config.home.homeDirectory}/.gitignore";
             autocrlf = "input";
-            fsmonitor = true;
+
+            # fsmonitor stays off. Its daemon opens a Unix socket at
+            # .git/fsmonitor--daemon.ipc, and Nix's path fetcher aborts on any
+            # file that is not a regular file or symlink -- so every flake
+            # referenced by plain path fails to evaluate with "has an
+            # unsupported type" for as long as the daemon is up. The socket
+            # cannot be moved out of the way: fsmonitor.socketDir is only
+            # consulted when .git sits on a network filesystem, verified here
+            # on 2026-08-08 against git 2.55.0 with a pristine local repo.
+            #
+            # It was also not cheap. Git starts one daemon per repository it
+            # ever touches and leaves it running, which on this machine meant
+            # 80 processes holding 346 MB -- including .pyenv, .oh-my-zsh and
+            # .flutter, repositories nothing here actively works in.
+            #
+            # untrackedCache and preloadIndex below keep status fast without a
+            # daemon: they cache directory mtimes and parallelise the lstat
+            # sweep, which is most of what fsmonitor bought on APFS anyway.
+            fsmonitor = false;
+
             untrackedcache = true;
             preloadindex = true;
             compression = -1;
