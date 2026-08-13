@@ -48,8 +48,8 @@ let
   };
 
   # Keep OpenCode's mutable self-updater out of the Nix-managed command path.
-  # The upstream package is injected by flake.nix only into this module, so
-  # changes to that input cannot implicitly replace pkgs.opencode elsewhere.
+  # The independently pinned nixpkgs package is injected by flake.nix only
+  # into this module, so its updates cannot move the primary package set.
   opencodeCli = pkgs.writeShellApplication {
     name = "opencode";
     text = ''
@@ -59,15 +59,13 @@ let
   };
 
   # A deliberately small interface for release maintenance. The command is
-  # bound to this checkout, never stages/commits/switches, and restores both
-  # declarative inputs if validation or the local Darwin build fails.
+  # bound to this checkout, never stages/commits/switches, and restores the
+  # lockfile if validation fails or the package is absent from the Nix cache.
   opencodeUpdate = pkgs.writeShellApplication {
     name = "opencode-update";
     runtimeInputs = [
       pkgs.coreutils
-      pkgs.curl
       pkgs.git
-      pkgs.gnused
       pkgs.jq
       pkgs.nix
     ];
