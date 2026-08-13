@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
-# Update the release-tagged OpenCode flake input without applying a generation.
+# Update the dedicated OpenCode nixpkgs input without applying a generation.
 # OPENCODE_UPDATE_REPOSITORY_ROOT is supplied by the Nix wrapper.
 
 set -euo pipefail
@@ -13,8 +13,8 @@ die() {
 usage() {
   printf '%s\n' \
     'usage: opencode-update --check | --apply' \
-    '  --check  Report the latest stable release without modifying the checkout.' \
-    '  --apply  Update, validate, and build the OpenCode release without switching.'
+    '  --check  Compare the locked package with nixpkgs-unstable.' \
+    '  --apply  Update, validate, and fetch OpenCode without compiling or switching.'
 }
 
 if [[ -z "${OPENCODE_UPDATE_REPOSITORY_ROOT:-}" ]]; then
@@ -24,7 +24,7 @@ fi
 repository_root="$OPENCODE_UPDATE_REPOSITORY_ROOT"
 flake_file="$repository_root/flake.nix"
 lock_file="$repository_root/flake.lock"
-tag_pattern='^v[0-9]+\.[0-9]+\.[0-9]+$'
+version_pattern='^[0-9]+\.[0-9]+\.[0-9]+$'
 
 (( $# == 1 )) || {
   usage >&2
@@ -48,43 +48,28 @@ is_worktree="$(git -C "$repository_root" rev-parse --is-inside-work-tree)" \
   || die "$repository_root is not a Git worktree"
 [[ "$is_worktree" == "true" ]] || die "$repository_root is not a Git worktree"
 
-mapfile -t configured_tags < <(
-  sed -nE 's|^[[:space:]]*url = "github:anomalyco/opencode/(v[0-9]+\.[0-9]+\.[0-9]+)";$|\1|p' \
-    "$flake_file"
-)
-(( ${#configured_tags[@]} == 1 )) \
-  || die 'expected exactly one stable OpenCode release tag in flake.nix'
-current_tag="${configured_tags[0]}"
+system="$(nix eval --impure --raw --expr 'builtins.currentSystem')" \
+  || die 'could not determine the current Nix system'
+package_installable="$repository_root#packages.$system.opencode"
+current_version="$(nix eval --raw "$package_installable.version")" \
+  || die 'could not evaluate the locked OpenCode version'
+latest_version="$(nix eval --refresh --raw \
+  "github:NixOS/nixpkgs/nixpkgs-unstable#legacyPackages.$system.opencode.version")" \
+  || die 'could not evaluate OpenCode from nixpkgs-unstable'
+[[ "$current_version" =~ $version_pattern ]] \
+  || die "the locked package has an unsupported version: $current_version"
+[[ "$latest_version" =~ $version_pattern ]] \
+  || die "nixpkgs-unstable returned an unsupported version: $latest_version"
 
-release_json="$(curl \
-  --fail \
-  --silent \
-  --show-error \
-  --location \
-  --proto '=https' \
-  --tlsv1.2 \
-  --retry 2 \
-  --retry-delay 1 \
-  --user-agent 'opencode-update' \
-  --header 'Accept: application/vnd.github+json' \
-  --header 'X-GitHub-Api-Version: 2022-11-28' \
-  'https://api.github.com/repos/anomalyco/opencode/releases/latest')" \
-  || die 'could not query the official OpenCode release API'
-latest_tag="$(printf '%s' "$release_json" | jq -er '
-  select(.draft == false and .prerelease == false) | .tag_name
-')" || die 'the official release API returned an invalid stable release'
-[[ "$latest_tag" =~ $tag_pattern ]] \
-  || die "the official release API returned an unsupported tag: $latest_tag"
-
-if [[ "$current_tag" == "$latest_tag" ]]; then
-  printf 'OpenCode is already current at %s.\n' "$current_tag"
+if [[ "$current_version" == "$latest_version" ]]; then
+  printf 'OpenCode is already current in nixpkgs at %s.\n' "$current_version"
   exit 0
 fi
-if [[ "$(printf '%s\n%s\n' "$current_tag" "$latest_tag" | sort -V | tail -n1)" != "$latest_tag" ]]; then
-  die "refusing a non-increasing OpenCode release: $current_tag -> $latest_tag"
+if [[ "$(printf '%s\n%s\n' "$current_version" "$latest_version" | sort -V | tail -n1)" != "$latest_version" ]]; then
+  die "refusing a non-increasing OpenCode package: $current_version -> $latest_version"
 fi
 
-printf 'OpenCode update available: %s -> %s\n' "$current_tag" "$latest_tag"
+printf 'OpenCode package update available: %s -> %s\n' "$current_version" "$latest_version"
 [[ "$operation" == "--apply" ]] || exit 0
 
 git_directory="$(git -C "$repository_root" rev-parse --path-format=absolute --git-dir)"
@@ -98,9 +83,8 @@ rollback_required=0
 cleanup() {
   local status=$?
   if (( rollback_required )); then
-    cp -p "$temporary_directory/flake.nix" "$flake_file"
     cp -p "$temporary_directory/flake.lock" "$lock_file"
-    printf '%s\n' 'opencode-update: restored flake.nix and flake.lock after a failed validation.' >&2
+    printf '%s\n' 'opencode-update: restored flake.lock after a failed validation.' >&2
   fi
   [[ -z "$temporary_directory" ]] || rm -rf "$temporary_directory"
   rmdir "$lock_directory" 2>/dev/null || true
@@ -113,25 +97,43 @@ if ! git -C "$repository_root" diff --quiet -- flake.nix flake.lock \
   || ! git -C "$repository_root" diff --cached --quiet -- flake.nix flake.lock; then
   die 'flake.nix or flake.lock has uncommitted changes; commit or stash them first'
 fi
-command -v darwin-rebuild >/dev/null \
-  || die 'darwin-rebuild is not available on PATH'
-
 temporary_directory="$(mktemp -d "${TMPDIR:-/tmp}/opencode-update.XXXXXX")"
-cp -p "$flake_file" "$temporary_directory/flake.nix"
 cp -p "$lock_file" "$temporary_directory/flake.lock"
-cp -p "$flake_file" "$temporary_directory/flake.nix.candidate"
-sed -i "s|github:anomalyco/opencode/$current_tag|github:anomalyco/opencode/$latest_tag|" \
-  "$temporary_directory/flake.nix.candidate"
-cmp -s "$flake_file" "$temporary_directory/flake.nix.candidate" \
-  && die 'could not replace the configured OpenCode release tag'
 
 rollback_required=1
-mv -f "$temporary_directory/flake.nix.candidate" "$flake_file"
-nix flake update opencode --flake "$repository_root"
+nix flake update opencode-nixpkgs --flake "$repository_root"
+
+# Updating the dedicated input must not move any other lockfile node. Remove
+# that node from both snapshots and require everything else to be identical.
+jq -S '
+  .nodes.root.inputs["opencode-nixpkgs"] as $node
+  | del(.nodes[$node])
+  | del(.nodes.root.inputs["opencode-nixpkgs"])
+' "$temporary_directory/flake.lock" >"$temporary_directory/lock.before.json"
+jq -S '
+  .nodes.root.inputs["opencode-nixpkgs"] as $node
+  | del(.nodes[$node])
+  | del(.nodes.root.inputs["opencode-nixpkgs"])
+' "$lock_file" >"$temporary_directory/lock.after.json"
+cmp -s "$temporary_directory/lock.before.json" "$temporary_directory/lock.after.json" \
+  || die 'updating OpenCode changed another flake input'
+
+updated_version="$(nix eval --raw "$package_installable.version")" \
+  || die 'could not evaluate the updated OpenCode version'
+[[ "$updated_version" =~ $version_pattern ]] \
+  || die "the updated package has an unsupported version: $updated_version"
+if [[ "$(printf '%s\n%s\n' "$current_version" "$updated_version" | sort -V | tail -n1)" != "$updated_version" \
+  || "$updated_version" == "$current_version" ]]; then
+  die "the updated input did not increase OpenCode: $current_version -> $updated_version"
+fi
+
 nix flake check --all-systems --no-build "$repository_root"
-darwin-rebuild build --flake "$repository_root#LCSMacBook-Pro"
-git -C "$repository_root" diff -- flake.nix flake.lock
+
+# Disable both local and remote builders. This succeeds only when the complete
+# package closure can be substituted from a configured binary cache.
+nix build --no-link --max-jobs 0 --builders '' "$package_installable"
+git -C "$repository_root" diff -- flake.lock
 
 rollback_required=0
 printf '%s\n' \
-  'OpenCode release update validated. Review the diff, then commit and switch when ready.'
+  "OpenCode $updated_version fetched from cache. Review the lockfile, then commit and switch when ready."
