@@ -5,7 +5,7 @@
   # however skhd is already being started (Homebrew services or manual).
   # Only the config is Nix-managed here, matching yabai's treatment;
   # skhd's own hotkey DSL has no safe Nix parser regardless.
-  xdg.configFile = lib.mkIf pkgs.stdenv.isDarwin {
+  xdg.configFile = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     "skhd/skhdrc".source = ./skhdrc;
     "skhd/focus_space.sh" = {
       # jq is a real Nix package, so its store path is substituted via

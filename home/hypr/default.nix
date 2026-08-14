@@ -17,7 +17,7 @@
   # store deployment would either reject those writes or replace managed links
   # with untracked runtime copies. The whole Linux-only tree therefore follows
   # the same out-of-store policy as Hyprdots itself.
-  xdg.configFile."hypr" = lib.mkIf pkgs.stdenv.isLinux {
+  xdg.configFile."hypr" = lib.mkIf pkgs.stdenv.hostPlatform.isLinux {
     source = config.lib.file.mkOutOfStoreSymlink "${dotfilesRoot}/home/hypr/hypr";
   };
 }
