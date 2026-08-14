@@ -32,10 +32,10 @@
   # collide with the module's own native output there instead of fixing
   # anything -- caught via the standard cross-host `nix eval` sanity check
   # on the Linux host.
-  xdg.configFile."nushell/config.nu" = lib.mkIf pkgs.stdenv.isDarwin {
+  xdg.configFile."nushell/config.nu" = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     source = config.home.file."Library/Application Support/nushell/config.nu".source;
   };
-  xdg.configFile."nushell/env.nu" = lib.mkIf pkgs.stdenv.isDarwin {
+  xdg.configFile."nushell/env.nu" = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     source = config.home.file."Library/Application Support/nushell/env.nu".source;
   };
 }

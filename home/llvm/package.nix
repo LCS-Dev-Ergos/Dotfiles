@@ -199,5 +199,5 @@ let
     };
   });
 in
-assert lib.assertMsg stdenv.isDarwin "The Darwin LLVM toolchain requires macOS";
+assert lib.assertMsg stdenv.hostPlatform.isDarwin "The Darwin LLVM toolchain requires macOS";
 toolchain

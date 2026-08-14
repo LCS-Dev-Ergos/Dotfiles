@@ -60,7 +60,7 @@ let
     '';
   };
 in
-lib.mkIf pkgs.stdenv.isDarwin {
+lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
   # The old bootstrap script installed this exact, checksum-verified font as a
   # regular user file. Home Manager now owns the same asset; force is limited
   # to that known generated target so the first migration can replace it.

@@ -11,7 +11,7 @@
   # Kitty's config tree. Make that platform's complete tree a live writable
   # link so generated theme state and its source files cannot split apart.
   xdg.configFile."kitty" =
-    if pkgs.stdenv.isLinux then
+    if pkgs.stdenv.hostPlatform.isLinux then
       {
         source = config.lib.file.mkOutOfStoreSymlink "${dotfilesRoot}/home/kitty/kitty";
       }

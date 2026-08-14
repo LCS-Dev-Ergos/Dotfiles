@@ -5,7 +5,7 @@
   # entry, applying "--ozone-platform=wayland" on macOS could actually
   # break startup rather than just being ignored, so these are gated to
   # the Linux host only rather than deployed unconditionally.
-  xdg.configFile = lib.mkIf pkgs.stdenv.isLinux {
+  xdg.configFile = lib.mkIf pkgs.stdenv.hostPlatform.isLinux {
     "code-flags.conf".source = ./code-flags.conf;
     "code-insiders-flags.conf".source = ./code-insiders-flags.conf;
   };

@@ -16,7 +16,7 @@
   # settings (not userSettings) is used for full replacement rather than
   # a merge with Home Manager's own base defaults, avoiding the kind of
   # unverified extra-settings injection found with tmux's typed options.
-  programs.aerospace = lib.mkIf pkgs.stdenv.isDarwin {
+  programs.aerospace = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     enable = true;
     # Homebrew owns the signed application bundle; Home Manager owns config.
     package = null;
@@ -32,7 +32,7 @@
   # AeroSpace should find the top-level one first regardless, but
   # mirroring the exact composed output at the old path too costs nothing
   # and removes any doubt, same defensive move as nushell/tealdeer.
-  xdg.configFile."aerospace/aerospace.toml" = lib.mkIf pkgs.stdenv.isDarwin {
+  xdg.configFile."aerospace/aerospace.toml" = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     source = config.home.file.".aerospace.toml".source;
   };
 }

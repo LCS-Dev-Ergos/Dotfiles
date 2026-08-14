@@ -9,7 +9,7 @@ let
   # exposes cc/c++/clang/clang++/cpp/ld at a higher profile priority than the
   # generic aliases shipped by the stock Clang and GCC wrappers.
   darwinToolchain = pkgs.callPackage ./package.nix { };
-  defaultClang = if pkgs.stdenv.isDarwin then darwinToolchain else pkgs.llvmPackages_22.clang;
+  defaultClang = if pkgs.stdenv.hostPlatform.isDarwin then darwinToolchain else pkgs.llvmPackages_22.clang;
   goEnv = "${config.home.homeDirectory}/Library/Application Support/go/env";
 in
 {
@@ -21,7 +21,7 @@ in
   # 26 for every host-side compiler entry point. The underlying stock Clang
   # remains installed for its binutils and as the wrapped implementation.
   home = {
-    packages = lib.optionals pkgs.stdenv.isDarwin [ darwinToolchain ] ++ [
+    packages = lib.optionals pkgs.stdenv.hostPlatform.isDarwin [ darwinToolchain ] ++ [
       # CMake consumes ccache through its explicit compiler-launcher variables;
       # no compiler-name masquerade directory belongs in the global PATH.
       pkgs.ccache
@@ -38,7 +38,7 @@ in
       CC = "${defaultClang}/bin/clang";
       CXX = "${defaultClang}/bin/clang++";
     }
-    // lib.optionalAttrs pkgs.stdenv.isDarwin {
+    // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
       # Rust and CMake can pass their own target after CC's defaults. Publish
       # the platform-standard policy as well so every host-native link agrees.
       MACOSX_DEPLOYMENT_TARGET = darwinToolchain.darwinMinVersion;
@@ -47,7 +47,7 @@ in
     # Reconcile only Go's compiler keys after each switch. The file remains
     # writable application state, so `go env -w` can preserve unrelated values
     # such as GOPRIVATE while the next activation restores the compiler policy.
-    activation.configureGoCompilers = lib.mkIf pkgs.stdenv.isDarwin (
+    activation.configureGoCompilers = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin (
       lib.hm.dag.entryAfter [ "linkGeneration" ] ''
         go_env=${lib.escapeShellArg goEnv}
         go_env_dir="''${go_env%/*}"

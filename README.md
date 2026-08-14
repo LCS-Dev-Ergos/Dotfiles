@@ -102,7 +102,7 @@ Each application's Nix glue and its actual config content live together in the s
 
 - **`darwin/`** — system-level policy shared by every macOS host: the Homebrew inventory, Nix garbage collection and store optimisation, system fonts, the generated `/etc` entries, and the unfree-package predicate.
 - **`hosts/lcs-macbook-pro/darwin.nix`** — the facts that are true of this Mac and not of a future one: platform, the account mapping Home Manager needs, the login shell, `system.stateVersion`, and the Dock/Finder/trackpad defaults.
-- **`home/`** — per-application Home Manager modules, shared across both hosts where a tool exists on both platforms. Platform-specific behavior is gated with `lib.mkIf pkgs.stdenv.isDarwin` / `pkgs.stdenv.isLinux` inside the shared module rather than duplicated per host.
+- **`home/`** — per-application Home Manager modules, shared across both hosts where a tool exists on both platforms. Platform-specific behavior is gated with `lib.mkIf pkgs.stdenv.hostPlatform.isDarwin` / `pkgs.stdenv.hostPlatform.isLinux` inside the shared module rather than duplicated per host.
 - **zsh**: everything under `home/zsh/` is Nix/Home Manager-managed, and the login shell is now the Nix `zsh` via `users.users.<name>.shell`, which nix-darwin records as the generation-stable `/run/current-system/sw/bin/zsh`. Homebrew's `zsh` stays declared until that has soaked through real sessions; every stock macOS shell remains in `/etc/shells` for recovery.
 
 ## State Boundaries

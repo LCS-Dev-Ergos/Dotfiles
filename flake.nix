@@ -202,7 +202,7 @@
           opencode = inputs.opencode-nixpkgs.legacyPackages.${system}.opencode;
           default = self.packages.${system}.cpp-tools;
         }
-        // nixpkgs.lib.optionalAttrs pkgs.stdenv.isDarwin {
+        // nixpkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
           llvm-darwin-toolchain = pkgs.callPackage ./home/llvm/package.nix { };
         }
       );

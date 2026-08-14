@@ -130,7 +130,7 @@
           };
         }
 
-        (lib.mkIf pkgs.stdenv.isDarwin {
+        (lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
           # The empty helper first clears helpers inherited from lower-priority
           # config files, then installs the real one: the same semantics as the
           # original pair of repeated `helper =` lines. Git expands `manager`
@@ -151,7 +151,7 @@
 
         # Do not claim signing support on the provisional Linux host until a
         # real signer is configured there.
-        (lib.mkIf pkgs.stdenv.isLinux { commit.gpgsign = false; })
+        (lib.mkIf pkgs.stdenv.hostPlatform.isLinux { commit.gpgsign = false; })
       ];
     };
 

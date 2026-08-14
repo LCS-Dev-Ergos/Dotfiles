@@ -11,7 +11,7 @@
   # palette, and wallpaper-color scripts generate/update state inside this
   # tree. A recursive store copy would therefore fail at runtime; preserve the
   # complete tree as one writable link until real-host testing can refine it.
-  xdg.configFile."hyprdots" = lib.mkIf pkgs.stdenv.isLinux {
+  xdg.configFile."hyprdots" = lib.mkIf pkgs.stdenv.hostPlatform.isLinux {
     source = config.lib.file.mkOutOfStoreSymlink "${dotfilesRoot}/home/hyprdots/hyprdots";
   };
 }

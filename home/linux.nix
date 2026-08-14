@@ -4,7 +4,7 @@ _: {
   # terminal-image tool, still confined to this layer because it has no
   # Darwin use.
   # Each of these modules also gates its own options/packages internally with
-  # `lib.mkIf pkgs.stdenv.isLinux`, so a module stays correct on its own even
+  # `lib.mkIf pkgs.stdenv.hostPlatform.isLinux`, so a module stays correct on its own even
   # if it is ever imported from somewhere other than this file.
   imports = [
     ./hypr

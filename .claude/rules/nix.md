@@ -27,7 +27,7 @@ inventory here is deliberately incomplete during the migration.
 
 **Never duplicate a Home Manager module per host.** Gate platform
 differences inside the shared `home/<app>/` module with
-`lib.mkIf pkgs.stdenv.isDarwin` / `isLinux`.
+`lib.mkIf pkgs.stdenv.hostPlatform.isDarwin` / `hostPlatform.isLinux`.
 
 **Never derive `dotfilesRoot` from the flake path.** The flake is
 store-copied; deriving it there makes writable configs read-only. Host
