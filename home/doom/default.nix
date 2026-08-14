@@ -79,7 +79,7 @@ in
     pkgs.zig
     nosetestsCompat
   ]
-  ++ lib.optionals pkgs.stdenv.isDarwin [
+  ++ lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
     # Doom's dired module calls the g-prefixed GNU coreutils on macOS, where
     # the unprefixed ones are BSD. On Linux the plain names are already GNU and
     # dired uses them directly, so the prefixed copies would go unused.

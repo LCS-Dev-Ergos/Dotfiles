@@ -12,7 +12,7 @@
   # and asserts a real package must be set.
   programs.ghostty = {
     enable = true;
-    package = lib.mkIf pkgs.stdenv.isDarwin null;
+    package = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin null;
   };
 
   xdg.configFile."ghostty/config".source = ./config;

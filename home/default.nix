@@ -17,5 +17,5 @@
   # to null because macOS's /usr/bin/man already works without Nix managing it;
   # cache generation then has no effect and only emits a warning. Linux keeps
   # Home Manager's default and builds the caches normally.
-  programs.man.generateCaches = lib.mkIf pkgs.stdenv.isDarwin false;
+  programs.man.generateCaches = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin false;
 }

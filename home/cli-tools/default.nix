@@ -159,7 +159,7 @@ in
     pkgs.w3m
     pkgs.wget
   ]
-  ++ lib.optionals pkgs.stdenv.isDarwin [
+  ++ lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
     opencodeUpdate
 
     # macOS ships the BSD implementations of these three, and enough of this

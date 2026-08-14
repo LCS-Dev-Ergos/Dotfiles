@@ -22,7 +22,7 @@ in
   # did not justify a writable configuration tree or rollback-incompatible
   # bytecode. Durable edits now require a switch and follow Nix generations.
   home = {
-    packages = lib.optionals pkgs.stdenv.isLinux [ pkgs.zsh ];
+    packages = lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.zsh ];
 
     file = {
       ".zshenv".source = "${zshSource}/zshenv-bootstrap";

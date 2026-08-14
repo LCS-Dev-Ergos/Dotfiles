@@ -27,7 +27,7 @@ in
     enable = true;
     # Parsed straight from the existing TOML rather than hand-transcribed,
     # same reasoning as starship/atuin: avoids transcription risk.
-    settings = baseSettings // lib.optionalAttrs pkgs.stdenv.isLinux { opener = linuxOpeners; };
+    settings = baseSettings // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux { opener = linuxOpeners; };
     theme = builtins.fromTOML (builtins.readFile ./theme.toml);
   };
 

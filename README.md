@@ -167,8 +167,8 @@ Module conventions:
   application's configuration files live together instead of mirroring the
   layout of `$HOME`.
 - Platform differences are gated inside the shared module with
-  `lib.mkIf pkgs.stdenv.isDarwin` or `pkgs.stdenv.isLinux`, never duplicated
-  per configuration.
+  `lib.mkIf pkgs.stdenv.hostPlatform.isDarwin` or
+  `pkgs.stdenv.hostPlatform.isLinux`, never duplicated per configuration.
 
 ## Validation and CI
 
