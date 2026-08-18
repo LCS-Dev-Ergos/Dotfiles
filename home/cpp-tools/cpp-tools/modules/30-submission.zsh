@@ -88,14 +88,12 @@ function cppsubmit() {
 //===----------------------------------------------------------------------===//
 /**
  * @file: ${target_name}_sub.cpp
- * @generated: $(date '+%Y-%m-%d %H:%M:%S')
+ * @generated: $(date '+%Y-%m-%d %H:%M:%S') by CPP-Tools Submission Generator
  * @source: $solution_file
- * @author: C.L.
  *
  * @brief: ${problem_brief}
  */
 //===----------------------------------------------------------------------===//
-/* Included library and Compiler Optimizations */
 
 EOF
   then
