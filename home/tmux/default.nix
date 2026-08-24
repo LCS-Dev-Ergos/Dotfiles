@@ -1,9 +1,25 @@
 {
   externalSources,
+  lib,
   pkgs,
   ...
 }:
 let
+  # tmux 3.7c added a hard configure check on Darwin: upstream found macOS
+  # calloc(3) can fail to zero allocations, and now refuses to build unless
+  # --enable-jemalloc or --disable-jemalloc is passed explicitly. nixpkgs'
+  # package.nix doesn't pass either yet at this pin -- fixed upstream in
+  # NixOS/nixpkgs#555604 (merged 2026-08-23), just not on nixpkgs-unstable
+  # yet. Replicate that fix locally; drop this binding once the channel
+  # catches up and substitution works again.
+  tmux = pkgs.tmux.overrideAttrs (
+    previous:
+    lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
+      buildInputs = (previous.buildInputs or [ ]) ++ [ pkgs.jemalloc ];
+      configureFlags = (previous.configureFlags or [ ]) ++ [ "--enable-jemalloc" ];
+    }
+  );
+
   plugins = externalSources.tmuxPlugins;
   pluginTree = pkgs.linkFarm "tmux-plugins" [
     {
@@ -42,7 +58,7 @@ in
   # extraConfig. Most get correctly overridden by this file's own later
   # directives, but not all -- an unverified, order-dependent difference.
   # Installing the package directly and linking the raw file avoids that.
-  home.packages = [ pkgs.tmux ];
+  home.packages = [ tmux ];
 
   xdg.configFile = {
     "tmux/tmux.conf".source = ./tmux.conf;
