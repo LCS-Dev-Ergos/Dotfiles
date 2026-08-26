@@ -82,6 +82,7 @@ _: {
       "homebrew/cask"
       "homebrew/core"
       "jbreckmckye/formulae"
+      "macpaw/taps"
       {
         name = "nikitabobko/tap";
         trusted = true;
@@ -197,6 +198,7 @@ _: {
       "iterm2"
       "kitty"
       "localsend"
+      "macpaw/taps/cleanmymac-cli"
       "neovide-app"
       "ngrok"
       "nikitabobko/tap/aerospace"
