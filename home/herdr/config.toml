@@ -11,6 +11,8 @@ directory = "~/.herdr/worktrees"
 [keys]
 # tmux moved to ctrl+q (home/tmux/tmux.conf) to free ctrl+a for herdr.
 prefix = "ctrl+a"
+# Directly focus the first nine detected agents from the keyboard.
+focus_agent = "prefix+alt+1..9"
 
 [[keys.command]]
 key = "prefix+alt+g"
@@ -47,9 +49,13 @@ dark_name = "tokyo-night"
 # Default surface_dim equals panel_bg, making the sidebar divider invisible.
 surface_dim = "#292e42"
 
+[ui]
+# Surface agents needing attention before the regular workspace grouping.
+agent_panel_sort = "priority"
+
 [ui.sidebar.agents]
 # Leads with agent name instead of workspace; default: [["state_icon", "workspace", "tab"], ["agent"]].
-rows = [ ["state_icon", "agent", "workspace"], ["tab"] ]
+rows = [ ["state_icon", "agent", "workspace"], ["tab", "state_text"] ]
 row_gap = 1
 
 [ui.toast]
