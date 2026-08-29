@@ -12,7 +12,7 @@ Quarantine directory layout:
         <folder-name>
         <folder-name>.1          # when the name already existed
 
-Author: XtremeXSPC
+Author: LCS-Dev-Ergos
 Version: 1.0.0
 """
 # ============================================================================ #

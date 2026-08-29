@@ -6,7 +6,7 @@ All path-aware helpers in the codebase delegate to: `canonicalize_path`
 for consistent, strict=False resolution so that paths referring to
 not-yet-created directories are handled uniformly.
 
-Author: XtremeXSPC
+Author: LCS-Dev-Ergos
 Version: 1.0.0
 """
 # ============================================================================ #

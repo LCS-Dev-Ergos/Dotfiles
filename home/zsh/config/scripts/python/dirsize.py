@@ -8,7 +8,7 @@ support. Features batch size calculation using du, human-readable formatting,
 and optional Gum table rendering with a native text fallback. Can include files
 with the --all flag.
 
-Author: XtremeXSPC
+Author: LCS-Dev-Ergos
 Version: 2.0.0
 
 Changes in 2.0.0:

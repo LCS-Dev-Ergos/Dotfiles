@@ -18,7 +18,7 @@ The workflow exposes three entry points:
     - `apply_sync_setup`     -- create/update all sync links
     - `apply_sync_remove`    -- restore independent copies and remove links
 
-Author: XtremeXSPC
+Author: LCS-Dev-Ergos
 Version: 1.0.0
 """
 # ============================================================================ #

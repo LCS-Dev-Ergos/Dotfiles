@@ -17,7 +17,7 @@ The update workflow proceeds in several phases:
 5. Reconciliation: Repair symlinks and manifests so Insiders reflects
    the newly updated Stable state.
 
-Author: XtremeXSPC
+Author: LCS-Dev-Ergos
 Version: 1.0.0
 """
 # ============================================================================ #

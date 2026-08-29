@@ -27,7 +27,7 @@ Architecture overview::
     vscode_update          -- End-to-end extension update workflow
     cli                    -- argparse CLI exposing all subcommands
 
-Author: XtremeXSPC
+Author: LCS-Dev-Ergos
 Version: 1.0.0
 """
 # ============================================================================ #

@@ -108,7 +108,7 @@ experimental: CI evaluates it, but its build and activation are not validated.
 ### Clone
 
 ```bash
-git clone https://github.com/XtremeXSPC/Dotfiles.git ~/Dotfiles
+git clone https://github.com/LCS-Dev-Ergos/Dotfiles.git ~/Dotfiles
 cd ~/Dotfiles
 ```
 

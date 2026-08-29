@@ -26,7 +26,7 @@ Subcommand Groups
     Updates:
         `update-extensions``, `sync-update`
 
-Author: XtremeXSPC
+Author: LCS-Dev-Ergos
 Version: 1.0.0
 """
 # ============================================================================ #

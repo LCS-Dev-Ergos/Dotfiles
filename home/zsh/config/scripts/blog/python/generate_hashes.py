@@ -7,7 +7,7 @@ This script calculates and updates SHA-256 hash values for all markdown (.md)
 files in a specified directory. It maintains a record of these hashes in a
 hash file, allowing for easy detection of changes to the files over time.
 
-Author: XtremeXSPC
+Author: LCS-Dev-Ergos
 Version: 1.0.0
 """
 # ============================================================================ #

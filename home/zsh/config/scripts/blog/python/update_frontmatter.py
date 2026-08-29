@@ -6,7 +6,7 @@ Frontmatter Update Script (canonical blog backend):
 Handles YAML frontmatter updates for Hugo blog posts with improved error
 handling, atomic operations, and integration with Git-based change detection.
 
-Author: XtremeXSPC
+Author: LCS-Dev-Ergos
 Version: 2.1.0
 """
 # ============================================================================ #

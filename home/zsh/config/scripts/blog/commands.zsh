@@ -18,7 +18,7 @@
 # mode for testing, verbose logging, and timeout protection for long-running
 # operations.
 #
-# Author: XtremeXSPC
+# Author: LCS-Dev-Ergos
 # Version: 2.1.0 - Git-based change detection
 # License: MIT
 # ============================================================================ #
@@ -331,7 +331,7 @@ blog_set_defaults() {
 
     # Repository configuration.
     BLOG_REPO_PATH="${BLOG_REPO_PATH:-$ALLOWED_BLOG_ROOT}"
-    BLOG_REPO_URL="${BLOG_REPO_URL:-git@github.com:XtremeXSPC/CS-Topics-Blog.git}"
+    BLOG_REPO_URL="${BLOG_REPO_URL:-git@github.com:LCS-Dev-Ergos/CS-Topics-Blog.git}"
 
     # Backup settings.
     BLOG_BACKUP_DIR="${BLOG_BACKUP_DIR:-$ALLOWED_BLOG_ROOT/backups}"
@@ -410,7 +410,7 @@ BLOG_HASH_FILE="${XDG_CACHE_HOME:-$HOME/.cache}/blog/.file_hashes"
 
 # Git repository:
 BLOG_REPO_PATH="$ALLOWED_BLOG_ROOT"
-BLOG_REPO_URL="git@github.com:XtremeXSPC/CS-Topics-Blog.git"
+BLOG_REPO_URL="git@github.com:LCS-Dev-Ergos/CS-Topics-Blog.git"
 
 # Backup and performance:
 BLOG_BACKUP_DIR="$ALLOWED_BLOG_ROOT/backups"
