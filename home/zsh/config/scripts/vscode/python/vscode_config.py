@@ -7,7 +7,7 @@ the user-data lives under `~/Library/Application Support/` while on Linux
 it lives under `~/.config/`. The active user/profile roots are selected
 once per HOME so shell and Python workflows can agree on the same scope.
 
-Author: XtremeXSPC
+Author: LCS-Dev-Ergos
 Version: 1.0.0
 """
 # ============================================================================ #

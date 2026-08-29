@@ -15,7 +15,7 @@ Symlink drift planning (`plan_insiders_symlink_state`):
     covering linked, missing, broken, wrong-target, unmanaged, excluded,
     stale-managed, and excluded-but-symlinked states.
 
-Author: XtremeXSPC
+Author: LCS-Dev-Ergos
 Version: 1.0.0
 """
 # ============================================================================ #

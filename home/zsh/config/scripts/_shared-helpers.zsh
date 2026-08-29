@@ -15,7 +15,7 @@
 # Guard:
 #   Re-sourcing is supported so real implementations can replace lazy stubs.
 #
-# Author: XtremeXSPC
+# Author: LCS-Dev-Ergos
 # License: MIT
 # ============================================================================ #
 

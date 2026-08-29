@@ -21,7 +21,7 @@
             email = "xtremexspc@gmail.com";
           };
 
-          "credential \"https://github.com\"".username = "XtremeXSPC";
+          "credential \"https://github.com\"".username = "LCS-Dev-Ergos";
           "credential \"https://dev.azure.com\"".useHttpPath = true;
 
           core = {

@@ -16,7 +16,7 @@ The recovery plan is consumed by `apply_missing_extension_recovery`, which
 runs install tasks, creates aliases, and then reconciles the shared
 Insiders symlink state via `~vscode_sync_apply.apply_extension_setup`.
 
-Author: XtremeXSPC
+Author: LCS-Dev-Ergos
 Version: 1.0.0
 """
 # ============================================================================ #

@@ -21,7 +21,7 @@ function handles:
 All mutations are guarded by canonical path-location checks to prevent
 path-traversal attacks on the managed extension directories.
 
-Author: XtremeXSPC
+Author: LCS-Dev-Ergos
 Version: 1.0.0
 """
 # ============================================================================ #

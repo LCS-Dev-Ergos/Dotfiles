@@ -19,7 +19,7 @@ Profile manifest safety invariant
     UI-facing metadata).  The repair workflow must only touch path/version
     fields, never the selection, otherwise VS Code may re-prompt the user.
 
-Author: XtremeXSPC
+Author: LCS-Dev-Ergos
 Version: 1.0.0
 """
 # ============================================================================ #

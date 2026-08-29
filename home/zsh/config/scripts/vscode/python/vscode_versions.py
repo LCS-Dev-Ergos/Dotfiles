@@ -11,7 +11,7 @@ after non-numeric ones (`1.0.0-1 > 1.0.0-beta`).
 Tokens are split on `.`, `_`, `+`, and `-`.  Shorter version strings
 are zero-padded so that `1.0` equals `1.0.0`.
 
-Author: XtremeXSPC
+Author: LCS-Dev-Ergos
 Version: 1.0.0
 """
 # ============================================================================ #
