@@ -15,7 +15,7 @@ The version suffix is detected greedily: `_VERSION_SUFFIX_RE` captures the
 trailing `-<digits-and-dots>`, and `_PLATFORM_SUFFIX_RE` further peels
 off `-<os>-<arch>` from that version token when present.
 
-Author: XtremeXSPC
+Author: LCS-Dev-Ergos
 Version: 1.0.0
 """
 # ============================================================================ #

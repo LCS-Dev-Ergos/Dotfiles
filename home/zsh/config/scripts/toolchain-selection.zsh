@@ -27,7 +27,7 @@
 # Environment Variables (preserved):
 #   CC, CXX, CPATH, LDFLAGS, CPPFLAGS, PKG_CONFIG_PATH, PATH
 #
-# Author: XtremeXSPC
+# Author: LCS-Dev-Ergos
 # License: MIT
 # ============================================================================ #
 

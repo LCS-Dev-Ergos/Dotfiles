@@ -9,7 +9,7 @@
 # This shell layer keeps the historical command surface used by dotfiles and
 # other shell modules.
 #
-# Author: XtremeXSPC
+# Author: LCS-Dev-Ergos
 # License: MIT
 # ============================================================================ #
 

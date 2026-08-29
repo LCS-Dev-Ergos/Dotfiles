@@ -33,7 +33,7 @@ Personal dotfiles for macOS and Linux, managed declaratively with [Nix](https://
 ### Clone the Repository
 
 ```bash
-git clone https://github.com/XtremeXSPC/Dotfiles.git ~/Dotfiles
+git clone https://github.com/LCS-Dev-Ergos/Dotfiles.git ~/Dotfiles
 cd ~/Dotfiles
 ```
 

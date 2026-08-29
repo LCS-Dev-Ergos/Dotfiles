@@ -2,7 +2,7 @@
 """
 Shared data models used by the VS Code sync Python backend.
 
-Author: XtremeXSPC
+Author: LCS-Dev-Ergos
 Version: 1.0.0
 """
 # ============================================================================ #

@@ -8,7 +8,7 @@ most recent backup directories per backup subtype, so frequent subtypes (for
 example sync-item backups) cannot evict rarer ones such as cleanup quarantine
 data.
 
-Author: XtremeXSPC
+Author: LCS-Dev-Ergos
 Version: 1.0.0
 """
 # ============================================================================ #

@@ -7,7 +7,7 @@ Copies the complete bookmark/outline structure from a source PDF to a target
 PDF while preserving the hierarchical organization. Useful for restoring
 bookmarks to PDFs that have been processed or regenerated without them.
 
-Author: XtremeXSPC
+Author: LCS-Dev-Ergos
 Version: 1.0.0
 """
 # ============================================================================ #

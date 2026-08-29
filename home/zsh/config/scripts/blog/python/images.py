@@ -7,7 +7,7 @@ Processes Obsidian-style image links in markdown files and converts them to
 Hugo-compatible format with improved error handling, atomic operations,
 and comprehensive validation.
 
-Author: XtremeXSPC
+Author: LCS-Dev-Ergos
 Version: 2.1.0
 """
 # ============================================================================ #

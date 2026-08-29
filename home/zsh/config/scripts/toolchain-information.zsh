@@ -25,7 +25,7 @@
 #   get_toolchain_info              # Display comprehensive toolchain report
 #   TOOLCHAIN_INFO_DEBUG=1 get_toolchain_info  # Enable debug output
 #
-# Author: XtremeXSPC
+# Author: LCS-Dev-Ergos
 # License: MIT
 # ============================================================================ #
 

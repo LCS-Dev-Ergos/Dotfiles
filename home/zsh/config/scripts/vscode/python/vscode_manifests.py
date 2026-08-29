@@ -12,7 +12,7 @@ or via a nested `location.path` (absolute URI).  This module normalises both
 formats into `~vscode_models.ReferenceEntry` objects and aggregates references
 across root and profile manifests for a given extensions directory.
 
-Author: XtremeXSPC
+Author: LCS-Dev-Ergos
 Version: 1.0.0
 """
 # ============================================================================ #
