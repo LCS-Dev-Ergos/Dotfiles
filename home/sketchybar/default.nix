@@ -5,6 +5,7 @@
   ...
 }:
 let
+  nowplaying = pkgs.callPackage ../cli-tools/nowplaying-cli.nix { };
   sbarLua = pkgs.stdenv.mkDerivation {
     pname = "sbarlua";
     version = "unstable-2026-03-06";
@@ -18,14 +19,21 @@ let
     buildPhase = ''
       runHook preBuild
       mkdir -p bin
-      make -C lua-5.5.0/src CC=cc liblua.a
+      make -C lua-5.5.0/src CC=cc SYSCFLAGS=-DLUA_USE_MACOSX liblua.a lua
       cp lua-5.5.0/src/liblua.a bin/liblua.a
       make CC=cc bin/sketchybar.so
       runHook postBuild
     '';
+    doCheck = true;
+    checkPhase = ''
+      runHook preCheck
+      LUA_CPATH="$PWD/bin/?.so" lua-5.5.0/src/lua -e 'assert(require("sketchybar"))'
+      runHook postCheck
+    '';
     installPhase = ''
       runHook preInstall
       install -D -m 0755 bin/sketchybar.so "$out/lib/sketchybar.so"
+      install -D -m 0755 lua-5.5.0/src/lua "$out/bin/lua"
       runHook postInstall
     '';
   };
@@ -56,6 +64,12 @@ let
       cp -R ./. "$out/"
       substituteInPlace "$out/helpers/init.lua" \
         --replace-fail '@sbarlua@' '${sbarLua}/lib'
+      substituteInPlace "$out/sketchybarrc" \
+        --replace-fail '#!/usr/bin/env lua' '#!${sbarLua}/bin/lua'
+      substituteInPlace "$out/helpers/runtime.lua" \
+        --replace-fail '@nowplaying@' '${nowplaying}/bin/nowplaying-cli' \
+        --replace-fail '@switchaudio@' '${pkgs.switchaudio-osx}/bin/SwitchAudioSource' \
+        --replace-fail '@python@' '${pkgs.python3}/bin/python3'
       runHook postInstall
     '';
   };
