@@ -1,0 +1,9 @@
+--- a/src/bar.c
++++ b/src/bar.c
+@@ -83,3 +83,5 @@
+   if (bar->sid < 1 || bar->adid < 1 || !bar->shown) return;
+-  window_set_level(&bar->window, g_bar_manager.window_level);
++  // A click can raise the background above sibling windows at the same level.
++  // Keep it below items even when WindowServer changes the front window.
++  window_set_level(&bar->window, g_bar_manager.window_level - 1);
+   window_order(&bar->window, NULL, W_ABOVE);

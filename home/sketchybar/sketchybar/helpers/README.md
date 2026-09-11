@@ -51,3 +51,23 @@ The initial migration can install the generated user LaunchAgent after a full
 system build, without switching unrelated Darwin settings. Its temporary
 `$XDG_STATE_HOME/sketchybar/bootstrap-gcroot` protects the service closure until
 the next complete Home Manager activation removes that bootstrap root.
+
+The second native patch, `home/sketchybar/window-order.patch`, places the
+bar background one window level below the items. This separates the opaque
+background from the level in which clicks can raise item windows. Widget levels,
+popup levels and the unlock patch retain their existing behavior. An SDK 26.5
+control build reproduced the same occlusion, as did the original pilot binary
+and direct launchd execution; changing the SDK or launch wrapper did not fix it.
+The stock nixpkgs SDK selection is therefore retained.
+
+Runtime check for this horizontal bar, after an app/desktop click followed by
+a bar click (exit 0 requires visible item windows with none behind the background):
+
+```sh
+clang -fobjc-arc -framework Foundation -framework CoreGraphics \
+  home/sketchybar/tests/window_order.m -o /tmp/sketchybar-window-order-check
+/tmp/sketchybar-window-order-check
+```
+
+This read-only check requires the running GUI session. Build-time unit checks
+alone do not validate focus, clicks or the user-visible compositor result.
