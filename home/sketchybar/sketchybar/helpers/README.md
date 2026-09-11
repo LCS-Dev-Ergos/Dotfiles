@@ -24,6 +24,12 @@ metadata updates. stderr stays in its log; errors are visible in the widget.
 command finishes. Left click lists updates, right click upgrades, and the
 middle button refreshes the count.
 
+The terminal launch passes the quoted helper command as Ghostty's single
+`--initial-command=...` option. Positional script paths after `-e` can reach
+AppKit's file-opening handler and cause execution prompts and extra windows.
+The dedicated instance disables window restoration and exits when its last
+window closes; the user's normal Ghostty configuration is unchanged.
+
 Regression checks: `bash home/sketchybar/tests/run.sh` from the repository root.
 
 The `sketchybar-app-font` v2.0.5 asset is fetched by Nix with its reviewed

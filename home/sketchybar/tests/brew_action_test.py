@@ -2,6 +2,7 @@
 from pathlib import Path
 import os
 import signal
+import shlex
 import subprocess
 import tempfile
 import time
@@ -11,6 +12,36 @@ SCRIPT = Path(__file__).parents[1] / 'sketchybar/helpers/brew_action.sh'
 
 
 class BrewActionTests(unittest.TestCase):
+
+    def test_click_passes_one_initial_command_not_file_arguments(self):
+        # Intercept open in the same Bash process, before sourcing the real helper.
+        # No application is launched and no Homebrew operation is executed.
+        with tempfile.TemporaryDirectory(prefix="brew click '") as tmp:
+            tmp = Path(tmp)
+            script = tmp / "action ' $name.sh"
+            script.write_bytes(SCRIPT.read_bytes())
+            brew = tmp / "brew ' $name"
+            brew.touch()
+            brew.chmod(0o700)
+            provider = tmp / 'provider'
+            for button, action in [('left', 'outdated'), ('right', 'upgrade')]:
+                with self.subTest(button=button):
+                    result = subprocess.run([
+                        '/bin/bash', '-c',
+                        'function /usr/bin/open() { printf "%s\\0" "$@"; }; source "$0" "$@"',
+                        str(script), str(brew), str(provider),
+                    ], env={**os.environ, 'BUTTON': button}, capture_output=True, check=True)
+                    args = result.stdout.decode().rstrip('\0').split('\0')
+                    self.assertEqual(args[:4], ['-n', '-a', 'Ghostty', '--args'])
+                    options = args[4:]
+                    self.assertTrue(all(arg.startswith('--') and '=' in arg for arg in options),
+                                    'AppKit must not receive positional paths as files to open')
+                    commands = [arg.split('=', 1)[1] for arg in options
+                                if arg.startswith('--initial-command=')]
+                    self.assertEqual(len(commands), 1)
+                    self.assertEqual(shlex.split(commands[0]),
+                                     ['/bin/bash', str(script), '--run', str(brew), str(provider), action])
+
     def test_refresh_follows_command_completion(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
