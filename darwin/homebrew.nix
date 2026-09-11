@@ -41,6 +41,12 @@ _: {
   # the selected Nerd Font families, and Noto Sans Symbols 2. Apple SF fonts
   # remain Homebrew-owned because their licenses are proprietary.
   #
+  # xcodesorg/made/xcodes (the CLI) is deliberately absent from brews: its
+  # formula's Makefile currently fails under `brew install`, so the binary
+  # was built upstream and copied by hand to /opt/homebrew/bin -- it is not
+  # Homebrew-managed and `cleanup = "none"` would not touch it either way.
+  # The `xcodes` cask (the GUI app) installed cleanly and is declared below.
+  #
   # Deliberate Homebrew holdouts: `gcc` (hdf5, open-mpi, libmatio and vips
   # need its gfortran at runtime, and emacs-plus's native-comp links against
   # its libgccjit -- Nix's gcc15 still wins on PATH for interactive/project
@@ -209,6 +215,7 @@ _: {
       "supacode"
       "temurin@21"
       "wireshark-app"
+      "xcodes"
       "xquartz"
     ];
   };
