@@ -1,6 +1,7 @@
 local colors = require("colors")
 local icons = require("icons")
 local settings = require("settings")
+local runtime = require("helpers.runtime")
 
 local popup_width = 250
 
@@ -117,7 +118,7 @@ local function volume_toggle_details(env)
   local should_draw = volume_bracket:query().popup.drawing == "off"
   if should_draw then
     volume_bracket:set({ popup = { drawing = true } })
-    sbar.exec("command -v SwitchAudioSource >/dev/null 2>&1 && SwitchAudioSource -t output -c", function(result)
+    sbar.exec(shell_quote(runtime.audio) .. " -t output -c", function(result)
       if not result or result == "" then
         sbar.add("item", "volume.device.0", {
           position = "popup." .. volume_bracket.name,
@@ -128,7 +129,7 @@ local function volume_toggle_details(env)
         return
       end
       current_audio_device = result:gsub("[\r\n]+$", "")
-      sbar.exec("command -v SwitchAudioSource >/dev/null 2>&1 && SwitchAudioSource -a -t output", function(available)
+      sbar.exec(shell_quote(runtime.audio) .. " -a -t output", function(available)
         local current = current_audio_device
         local counter = 0
 
@@ -142,7 +143,7 @@ local function volume_toggle_details(env)
             width = popup_width,
             align = "center",
             label = { string = device, color = color },
-            click_script = "command -v SwitchAudioSource >/dev/null 2>&1 && SwitchAudioSource -s "
+            click_script = shell_quote(runtime.audio) .. " -s "
               .. shell_quote(device)
               .. " && sketchybar --set /volume.device\\.*/ label.color="
               .. colors.grey
