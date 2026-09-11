@@ -28,6 +28,16 @@ case "${BUTTON:-left}" in
   left|right)
     action=outdated
     [ "${BUTTON:-left}" = right ] && action=upgrade
-    /usr/bin/open -n -a Ghostty --args -e /bin/bash "$0" --run "$brew_path" "$provider" "$action"
+    # AppKit can treat positional -e arguments as files to open, prompting for
+    # execution and creating extra surfaces. Keep the command in one option.
+    quote() {
+      local value=$1 escaped_quote="'\\''"
+      value=${value//\'/$escaped_quote}
+      printf "'%s'" "$value"
+    }
+    command="/bin/bash $(quote "$0") --run $(quote "$brew_path") $(quote "$provider") $(quote "$action")"
+    /usr/bin/open -n -a Ghostty --args \
+      --window-save-state=never --quit-after-last-window-closed=true \
+      "--initial-command=$command"
     ;;
 esac
