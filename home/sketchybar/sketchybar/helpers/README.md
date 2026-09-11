@@ -77,3 +77,10 @@ clang -fobjc-arc -framework Foundation -framework CoreGraphics \
 
 This read-only check requires the running GUI session. Build-time unit checks
 alone do not validate focus, clicks or the user-visible compositor result.
+
+UX refinements retain the dark palette and native window patches. Secondary
+status text uses a brighter muted color; Brew keeps its count next to the icon,
+percentages reserve compact space, and popup backgrounds are more opaque. Paused media
+keeps its cover and playback controls, while unchanged stopped snapshots and
+network rates avoid redundant redraws. Audio popup requests are invalidated
+on close so delayed replies cannot recreate stale device rows.

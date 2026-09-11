@@ -10,7 +10,7 @@ local battery = sbar.add("item", "widgets.battery", {
       size = 19.0,
     }
   },
-  label = { font = { family = settings.font.numbers } },
+  label = { width = 42, align = "right", font = { family = settings.font.numbers } },
   update_freq = 180,
   popup = { align = "center" }
 })
@@ -23,7 +23,7 @@ local remaining_time = sbar.add("item", {
     align = "left"
   },
   label = {
-    string = "??:??h",
+    string = "Estimating…",
     width = 100,
     align = "right"
   },
@@ -95,12 +95,23 @@ battery:subscribe("mouse.clicked", function(env)
   battery:set( { popup = { drawing = "toggle" } })
 
   if drawing == "off" then
+    remaining_time:set({ label = "Estimating…" })
     sbar.exec("pmset -g batt", function(batt_info)
+      batt_info = batt_info or ""
       local found, _, remaining = batt_info:find(" (%d+:%d+) remaining")
       local label = found and remaining .. "h" or "No estimate"
+      if batt_info:find("charged;") and not batt_info:find("discharging;") then
+        label = "Fully charged"
+      elseif not found and batt_info:find("AC Power") then
+        label = "External power"
+      end
       remaining_time:set( { label = label })
     end)
   end
+end)
+
+battery:subscribe("mouse.exited.global", function()
+  battery:set({ popup = { drawing = false } })
 end)
 
 sbar.add("bracket", "widgets.battery.bracket", { battery.name }, {
