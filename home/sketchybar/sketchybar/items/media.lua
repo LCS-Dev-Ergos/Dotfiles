@@ -9,6 +9,7 @@ local pending = false
 local generation = 0
 
 local last_media_key = nil
+local media_visible = false
 
 local media_cover = sbar.add("item", "media.cover", {
   position = "right",
@@ -38,11 +39,12 @@ local media_artist = sbar.add("item", {
   padding_left = 3,
   padding_right = 0,
   width = 0,
+  scroll_texts = false,
   icon = { drawing = false },
   label = {
     width = 0,
-    font = { size = 9 },
-    color = colors.with_alpha(colors.white, 0.6),
+    font = { size = 10 },
+    color = colors.muted,
     max_chars = 18,
     y_offset = 6,
   },
@@ -53,9 +55,10 @@ local media_title = sbar.add("item", {
   drawing = false,
   padding_left = 3,
   padding_right = 0,
+  scroll_texts = false,
   icon = { drawing = false },
   label = {
-    font = { size = 11 },
+    font = { size = 12 },
     width = 0,
     max_chars = 16,
     y_offset = -5,
@@ -90,20 +93,25 @@ local function animate_detail(detail)
 end
 
 local function apply_media(info)
-  local drawing = type(info) == "table" and info.state == "playing"
+  local drawing = type(info) == "table" and (info.state == "playing" or info.state == "paused")
   if not drawing then
+    if not media_visible then return end
+    media_visible = false
     last_media_key = nil
     media_artist:set({ drawing = false })
     media_title:set({ drawing = false })
     media_cover:set({ drawing = false, popup = { drawing = false } })
     return
   end
-  local key = table.concat({ info.app or "", info.artist or "", info.title or "", info.artwork or "" }, "\31")
+  local key = table.concat({ info.state, info.app or "", info.artist or "", info.title or "", info.artwork or "" }, "\31")
   if key == last_media_key then return end
   last_media_key = key
+  media_visible = true
   local artwork = info.artwork and info.artwork ~= ""
   media_artist:set({ drawing = true, label = info.artist or "" })
-  media_title:set({ drawing = true, label = info.title or "" })
+  media_title:set({ drawing = true, label = {
+    string = info.title or "", color = info.state == "paused" and colors.muted or colors.white,
+  } })
   media_cover:set({ drawing = true, icon = { drawing = not artwork },
     background = { image = artwork and { string = info.artwork, drawing = true } or { drawing = false } } })
   animate_detail(true)

@@ -23,13 +23,13 @@ local CONFIG = {
   debug = false,
   hover_effect = true,
   widget_name = "widgets.brew",
-  package_icon = icons.package or "[PKG]",
+  package_icon = (icons.package or "[PKG]"):gsub("%s+$", ""),
   log_path = (os.getenv("TMPDIR") or "/tmp/"):gsub("/*$", "/") .. "sketchybar-brew-check-" .. (os.getenv("UID") or os.getenv("USER") or "user") .. ".log"
 }
 
 -- Color threshold definitions
 local THRESHOLDS = {
-  { count = 0,  color = colors.grey },
+  { count = 0,  color = colors.muted },
   { count = 1,  color = colors.blue },
   { count = 5,  color = colors.yellow },
   { count = 10, color = colors.orange },
@@ -66,7 +66,7 @@ local function start_event_provider()
 end
 local function get_color(count)
   count = tonumber(count) or 0
-  local color = colors.grey
+  local color = colors.muted
   for i = #THRESHOLDS, 1, -1 do
     if count >= THRESHOLDS[i].count then color = THRESHOLDS[i].color; break; end
   end
@@ -82,15 +82,15 @@ local brew = sbar.add("item", CONFIG.widget_name, {
   position = "right",
   icon = {
     string = CONFIG.package_icon,
-    color = colors.grey,
-    font = { family = settings.font.icons, style = settings.font.style_map["Regular"], size = 10.0, },
-    padding_right = 4,
+    color = colors.muted,
+    font = { family = settings.font.text, style = settings.font.style_map["Regular"], size = 13.0, },
+    padding_right = 2,
   },
   label = {
     string = "?",
-    font = { family = settings.font.numbers, style = settings.font.style_map["Bold"], size = 9.0, },
-    color = colors.grey,
-    align = "right", padding_right = 0, width = 0, y_offset = 4
+    font = { family = settings.font.numbers, style = settings.font.style_map["Semibold"], size = 11.0, },
+    color = colors.muted,
+    align = "left", padding_left = 3, padding_right = 2, width = "dynamic",
   },
   padding_right = settings.paddings + 6,
   background = { height = 22, color = { alpha = 0 }, border_color = { alpha = 0 }, drawing = true, },
@@ -124,7 +124,7 @@ brew:set({ click_script = "/bin/bash " .. shell_quote(config_dir .. "/helpers/br
 
 -- Hover effect and surrounding elements (unchanged)
 if CONFIG.hover_effect then
-  brew:subscribe("mouse.entered", function(env) brew:set({ background = { color = colors.bg2 }}) end)
+  brew:subscribe("mouse.entered", function(env) brew:set({ background = { color = colors.hover }}) end)
   brew:subscribe("mouse.exited", function(env) brew:set({ background = { color = { alpha = 0 } }}) end)
 end
 sbar.add("bracket", CONFIG.widget_name .. ".bracket", { brew.name }, { background = { color = colors.bg1 }})

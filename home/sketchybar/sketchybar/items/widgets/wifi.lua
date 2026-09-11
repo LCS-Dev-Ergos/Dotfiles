@@ -81,7 +81,7 @@ local wifi_up = sbar.add("item", "widgets.wifi1", {
       style = settings.font.style_map["Bold"],
       size = 9.0,
     },
-    color = colors.red,
+    color = colors.magenta,
     string = "??? Bps",
   },
   y_offset = 4,
@@ -209,23 +209,24 @@ local router = sbar.add("item", {
 
 sbar.add("item", { position = "right", width = settings.group_paddings })
 
+local last_upload, last_download
 wifi_up:subscribe("network_update", function(env)
-  local up_color = (env.upload == "000 Bps") and colors.grey or colors.red
-  local down_color = (env.download == "000 Bps") and colors.grey or colors.blue
-  wifi_up:set({
-    icon = { color = up_color },
-    label = {
-      string = env.upload,
-      color = up_color
-    }
-  })
-  wifi_down:set({
-    icon = { color = down_color },
-    label = {
-      string = env.download,
-      color = down_color
-    }
-  })
+  local up_color = (env.upload == "000 Bps") and colors.muted or colors.magenta
+  local down_color = (env.download == "000 Bps") and colors.muted or colors.blue
+  if env.upload and env.upload ~= last_upload then
+    last_upload = env.upload
+    wifi_up:set({
+      icon = { color = up_color },
+      label = { string = env.upload, color = up_color },
+    })
+  end
+  if env.download and env.download ~= last_download then
+    last_download = env.download
+    wifi_down:set({
+      icon = { color = down_color },
+      label = { string = env.download, color = down_color },
+    })
+  end
 end)
 
 local function update_connection(iface)

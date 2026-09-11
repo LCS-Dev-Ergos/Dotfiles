@@ -11,35 +11,32 @@ end
 
 local volume_percent = sbar.add("item", "widgets.volume1", {
   position = "right",
+  padding_left = 3,
   icon = { drawing = false },
   label = {
     string = "??%",
-    padding_left = -1,
+    width = 34,
+    align = "left",
+    padding_left = 1,
     font = { family = settings.font.numbers }
   },
 })
 
 local volume_icon = sbar.add("item", "widgets.volume2", {
   position = "right",
-  padding_right = -1,
+  padding_right = 0,
   icon = {
     string = icons.volume._100,
-    width = 0,
+    width = "dynamic",
     align = "left",
-    color = colors.grey,
+    padding_right = 2,
+    color = colors.white,
     font = {
       style = settings.font.style_map["Regular"],
       size = 14.0,
     },
   },
-  label = {
-    width = 25,
-    align = "left",
-    font = {
-      style = settings.font.style_map["Regular"],
-      size = 14.0,
-    },
-  },
+  label = { drawing = false },
 })
 
 local volume_bracket = sbar.add("bracket", "widgets.volume.bracket", {
@@ -96,19 +93,20 @@ volume_percent:subscribe("volume_change", function(env)
     lead = "0"
   end
 
-  volume_icon:set({ label = icon })
+  volume_icon:set({ icon = { string = icon } })
   volume_percent:set({ label = lead .. volume .. "%" })
   volume_slider:set({ slider = { percentage = volume } })
 end)
 
+local details_generation = 0
 local function volume_collapse_details()
+  details_generation = details_generation + 1
   local drawing = volume_bracket:query().popup.drawing == "on"
   if not drawing then return end
   volume_bracket:set({ popup = { drawing = false } })
   sbar.remove('/volume.device\\.*/')
 end
 
-local current_audio_device = "None"
 local function volume_toggle_details(env)
   if env.BUTTON == "right" then
     sbar.exec("open /System/Library/PreferencePanes/Sound.prefpane")
@@ -117,24 +115,33 @@ local function volume_toggle_details(env)
 
   local should_draw = volume_bracket:query().popup.drawing == "off"
   if should_draw then
+    details_generation = details_generation + 1
+    local generation = details_generation
     volume_bracket:set({ popup = { drawing = true } })
-    sbar.exec(shell_quote(runtime.audio) .. " -t output -c", function(result)
-      if not result or result == "" then
-        sbar.add("item", "volume.device.0", {
-          position = "popup." .. volume_bracket.name,
-          width = popup_width,
-          align = "center",
-          label = { string = "SwitchAudioSource unavailable", color = colors.red },
-        })
+    local status = sbar.add("item", "volume.device.status", {
+      position = "popup." .. volume_bracket.name,
+      width = popup_width,
+      icon = { drawing = false },
+      label = { string = "Loading output devices…", color = colors.muted },
+    })
+    sbar.exec(shell_quote(runtime.audio) .. " -t output -c", function(result, code)
+      if generation ~= details_generation then return end
+      if code ~= 0 or not result or result:match("^%s*$") then
+        status:set({ label = { string = "Audio devices unavailable", color = colors.red } })
         return
       end
-      current_audio_device = result:gsub("[\r\n]+$", "")
-      sbar.exec(shell_quote(runtime.audio) .. " -a -t output", function(available)
-        local current = current_audio_device
+      local current = result:gsub("[\r\n]+$", "")
+      sbar.exec(shell_quote(runtime.audio) .. " -a -t output", function(available, list_code)
+        if generation ~= details_generation then return end
+        if list_code ~= 0 or not available or available:match("^%s*$") then
+          status:set({ label = { string = "Audio devices unavailable", color = colors.red } })
+          return
+        end
+        sbar.remove(status.name)
         local counter = 0
 
         for device in string.gmatch(available or "", '[^\r\n]+') do
-          local color = colors.grey
+          local color = colors.muted
           if current == device then
             color = colors.white
           end
@@ -142,11 +149,12 @@ local function volume_toggle_details(env)
             position = "popup." .. volume_bracket.name,
             width = popup_width,
             align = "center",
+            icon = { drawing = false },
             label = { string = device, color = color },
             click_script = shell_quote(runtime.audio) .. " -s "
               .. shell_quote(device)
               .. " && sketchybar --set /volume.device\\.*/ label.color="
-              .. colors.grey
+              .. colors.muted
               .. " --set \"$NAME\" label.color="
               .. colors.white
 
