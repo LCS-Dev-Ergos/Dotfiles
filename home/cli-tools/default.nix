@@ -173,7 +173,7 @@ in
     pkgs.gnutar
 
     # These commands use Darwin frameworks or macOS-only APIs.
-    pkgs.nowplaying-cli
+    (pkgs.callPackage ./nowplaying-cli.nix { })
     pkgs.switchaudio-osx
   ];
 

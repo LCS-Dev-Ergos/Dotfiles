@@ -151,25 +151,46 @@ local spaces_indicator = sbar.add("item", {
   }
 })
 
+-- WindowServer emits bursts while the session changes. Keep only the latest
+-- icon list per space and apply it once, without starting layout animations.
+local last_icons, pending_icons = {}, {}
+local refresh_pending, locked = false, false
+local function flush_icons()
+  refresh_pending = false
+  if locked then return end
+  for sid, line in pairs(pending_icons) do
+    if last_icons[sid] ~= line then
+      spaces[sid]:set({ label = line })
+      last_icons[sid] = line
+    end
+  end
+  pending_icons = {}
+end
+sbar.add("event", "session_locked", "com.apple.screenIsLocked")
+sbar.add("event", "session_unlocked", "com.apple.screenIsUnlocked")
+space_window_observer:subscribe("session_locked", function() locked = true end)
+space_window_observer:subscribe("session_unlocked", function()
+  locked = false
+  if not refresh_pending then
+    refresh_pending = true
+    sbar.delay(0.3, flush_icons)
+  end
+end)
 space_window_observer:subscribe("space_windows_change", function(env)
-  if not env.INFO or not env.INFO.apps then return end
-  local icon_line = ""
-  local no_app = true
-  for app, count in pairs(env.INFO.apps) do
-    no_app = false
-    local lookup = app_icons[app]
-    local icon = ((lookup == nil) and app_icons["default"] or lookup)
-    icon_line = icon_line .. " " .. icon
+  if type(env.INFO) ~= "table" or type(env.INFO.apps) ~= "table" then return end
+  local sid = tonumber(env.INFO.space)
+  if not sid or not spaces[sid] then return end
+  local apps = {}
+  for app in pairs(env.INFO.apps) do apps[#apps + 1] = app end
+  table.sort(apps)
+  local line = ""
+  for _, app in ipairs(apps) do
+    line = line .. " " .. (app_icons[app] or app_icons["default"])
   end
-
-  if (no_app) then
-    icon_line = " —"
-  end
-  local space_index = tonumber(env.INFO.space)
-  if space_index and spaces[space_index] then
-    sbar.animate("tanh", 10, function()
-      spaces[space_index]:set({ label = icon_line })
-    end)
+  pending_icons[sid] = #apps == 0 and " —" or line
+  if not locked and not refresh_pending then
+    refresh_pending = true
+    sbar.delay(0.15, flush_icons)
   end
 end)
 

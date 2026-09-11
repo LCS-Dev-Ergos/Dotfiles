@@ -184,7 +184,8 @@ static void check_and_notify(
     brew_t* brew, const char* event_name, long update_interval_seconds, bool force_check,
     bool verbose) {
   bool run_update = brew_needs_update(brew, (int)update_interval_seconds);
-  if (force_check || run_update) {
+  // Metadata refreshes are throttled; the installed-package count is not.
+  {
     log_message(
         verbose, "Fetching outdated packages (forced: %s, update: %s)...",
         force_check ? "yes" : "no", run_update ? "yes" : "no");
@@ -192,14 +193,14 @@ static void check_and_notify(
     // Capture the return value to satisfy the [[nodiscard]] attribute.
     brew_error_t fetch_err = brew_fetch_outdated(brew, run_update);
     if (fetch_err != BREW_SUCCESS) {
-      log_message(verbose, "Fetch failed with error: %s", brew_error_string(fetch_err));
+      log_message(true, "Fetch failed with error: %s", brew_error_string(fetch_err));
     } else {
       log_message(verbose, "Fetch successful. Found %d outdated packages.", brew->outdated_count);
     }
   }
 
   // Prepare the message for Sketchybar.
-  char trigger_message[MAX_MESSAGE_LENGTH];
+  char trigger_message[MAX_MESSAGE_LENGTH + brew->package_list_size];
   snprintf(
       trigger_message, sizeof(trigger_message),
       "--trigger %s outdated_count=%d pending_updates='%s' last_check='%ld' error='%s'",

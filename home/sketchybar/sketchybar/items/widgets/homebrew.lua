@@ -20,8 +20,6 @@ local CONFIG = {
   check_interval = 300,
   update_interval = 3600,
   brew_path = find_brew_path(),
-  terminal_app = "ghostty",
-  timeout = 120,
   debug = false,
   hover_effect = true,
   widget_name = "widgets.brew",
@@ -38,14 +36,6 @@ local THRESHOLDS = {
   { count = 15, color = colors.red }
 }
 
--- Visual feedback colors
-local FEEDBACK_COLORS = {
-  updating = "0xff00ff00",
-  success = "0xff55ff55",
-  error = "0xffff5555",
-  loading = "0x55ffffff"
-}
-
 -- Helper functions
 local config_dir = os.getenv("CONFIG_DIR") or os.getenv("HOME") .. "/.config/sketchybar"
 local brew_check_path = config_dir .. "/helpers/event_providers/brew_check/bin/brew_check"
@@ -55,13 +45,6 @@ local function shell_quote(value)
 end
 local function debug_log(message)
   if CONFIG.debug then print("[BREW] " .. message) end
-end
-local function debug_file_log(message)
-  if not CONFIG.debug then return end
-  local file = io.open(CONFIG.log_path, "a")
-  if not file then return end
-  file:write(message .. "\n")
-  file:close()
 end
 local function safe_exec(command)
   debug_log("Executing command: " .. command)
@@ -104,7 +87,7 @@ local brew = sbar.add("item", CONFIG.widget_name, {
     padding_right = 4,
   },
   label = {
-    string = "0",
+    string = "?",
     font = { family = settings.font.numbers, style = settings.font.style_map["Bold"], size = 9.0, },
     color = colors.grey,
     align = "right", padding_right = 0, width = 0, y_offset = 4
@@ -113,99 +96,31 @@ local brew = sbar.add("item", CONFIG.widget_name, {
   background = { height = 22, color = { alpha = 0 }, border_color = { alpha = 0 }, drawing = true, },
 })
 
--- Subscribe to update event (modified for robustness)
+-- A missing payload is not a successful zero. Keep the last valid count and
+-- distinguish a failed check from an empty list of outdated packages.
+local last_count = nil
 brew:subscribe("brew_update", function(env)
-  local info = env.outdated_count
-  if CONFIG.debug then
-    print("DEBUG: brew_update received env.outdated_count:", info)
-    debug_file_log("Lua received: " .. tostring(info))
+  local failed = env.error and env.error ~= "" and env.error ~= "Success"
+  local count = tonumber(env.outdated_count)
+  if failed then
+    brew:set({
+      icon = { color = colors.red },
+      label = { string = last_count and (tostring(last_count) .. "!") or "?", color = colors.red },
+    })
+    return
   end
-  local count = tonumber(info) or 0
+  if not count or count < 0 or count % 1 ~= 0 then return end
+  last_count = count
   local color = get_color(count)
-
-  -- Ensure the icon is always set to prevent disappearing
   brew:set({
     icon = { string = CONFIG.package_icon, color = color },
-    label = { string = tostring(count), color = color }
+    label = { string = tostring(count), color = color },
   })
-
-  -- Note: tooltip property is not supported by sketchybar, removed to fix errors
-  if env.error and env.error ~= "" and env.error ~= "Success" then
-    debug_log("Error from brew_check: " .. env.error)
-  end
-  debug_log(string.format("Updated brew widget: %d packages", count))
 end)
 
--- === INTEGRATED AND ROBUST CLICK SCRIPT ===
-brew:set({
-  click_script = string.format([[
-    #!/bin/bash
-    # Robust, self-contained and reliable click controller.
-
-    # ----- Configuration ----- #
-    WIDGET_NAME="%s"
-    TERMINAL_APP="%s"
-    PACKAGE_ICON="%s"
-    BREW_PATH="%s"
-    CHECK_PROCESS_PATTERN=%s
-
-    # ----- Main Logic ----- #
-    if [ ! -x "$BREW_PATH" ]; then
-        exit 0
-    fi
-
-    # 1. Instant and Safe Visual Feedback
-    #    Set both icon and "loading" color to solve the problem
-    #    of disappearing icon. Restoration will happen later.
-    sketchybar --set "$WIDGET_NAME" icon.color='0x55ffffff'
-
-    # ----- Click Handling ----- #
-
-    if [ "$BUTTON" = "middle" ]; then
-        # Middle click: Send refresh signal to background process.
-        pkill -USR1 -f "$CHECK_PROCESS_PATTERN"
-        # After a brief moment, trigger an event to ensure UI restores.
-        sleep 0.5
-        sketchybar --trigger brew_update
-        exit 0
-    fi
-
-    # For left and right clicks, execute all logic in a background subshell
-    # (&) to never block Sketchybar's interface.
-    (
-      # Determine the command to execute in terminal.
-      # Always check the real state of brew, don't trust the widget value
-      # which might be outdated or still initializing.
-      task_command="'$BREW_PATH' outdated" # Default for left click
-      if [ "$BUTTON" = "right" ]; then
-        task_command="'$BREW_PATH' upgrade"
-      fi
-
-      # 2. Launch terminal in background and capture its PID.
-      #    Ghostty on macOS requires 'open -a' command with -n flag for new instance.
-      if [ "$TERMINAL_APP" = "ghostty" ]; then
-        open -n -a Ghostty --args -e bash -c "echo; echo 'Checking for updates...'; $task_command; echo; read -p 'Press Enter to close...'" &
-        TERMINAL_PID=$!
-      else
-        # Alacritty or other terminals with direct CLI support
-        "$TERMINAL_APP" -e bash -c "echo 'Checking for updates...'; $task_command; echo; read -p 'Press Enter to close...'" &
-        TERMINAL_PID=$!
-      fi
-
-      # 3. Wait for the terminal process (and only that) to finish.
-      #    This is a blocking call, but happens in a background subshell,
-      #    so it doesn't freeze the bar.
-      wait $TERMINAL_PID
-
-      # 4. AFTER the terminal closes, send a signal to the C helper
-      #    to force counter update.
-      pkill -USR1 -f "$CHECK_PROCESS_PATTERN"
-
-    ) & # The final ampersand is crucial for UI responsiveness.
-
-  ]], CONFIG.widget_name, CONFIG.terminal_app, CONFIG.package_icon, CONFIG.brew_path,
-      shell_quote(brew_check_path .. " brew_update"))
-})
+-- The terminal command signals the provider after brew actually completes.
+brew:set({ click_script = "/bin/bash " .. shell_quote(config_dir .. "/helpers/brew_action.sh")
+  .. " " .. shell_quote(CONFIG.brew_path) .. " " .. shell_quote(brew_check_path) })
 
 -- Hover effect and surrounding elements (unchanged)
 if CONFIG.hover_effect then

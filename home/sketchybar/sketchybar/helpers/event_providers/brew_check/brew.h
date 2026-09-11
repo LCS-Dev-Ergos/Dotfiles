@@ -409,10 +409,13 @@ static inline void brew_cleanup(brew_t* brew) {
 
   if (pid == 0) {  // Child process.
     setpgid(0, 0);
+    // Only the explicit `brew update` call may refresh metadata. Diagnostics
+    // stay on the provider's stderr, never in the package-name stream.
+    setenv("HOMEBREW_NO_AUTO_UPDATE", "1", 1);
+    setenv("HOMEBREW_NO_ENV_HINTS", "1", 1);
     if (capture_output) {
       close(pipefd[0]);                // Close unused read end.
       dup2(pipefd[1], STDOUT_FILENO);  // Redirect stdout to pipe.
-      dup2(pipefd[1], STDERR_FILENO);  // Redirect stderr to pipe as well.
       close(pipefd[1]);
     }
 
