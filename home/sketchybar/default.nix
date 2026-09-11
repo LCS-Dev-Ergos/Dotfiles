@@ -1,10 +1,12 @@
 {
+  config,
   externalSources,
   lib,
   pkgs,
   ...
 }:
 let
+  sketchybar = pkgs.callPackage ./package.nix { };
   nowplaying = pkgs.callPackage ../cli-tools/nowplaying-cli.nix { };
   sbarLua = pkgs.stdenv.mkDerivation {
     pname = "sbarlua";
@@ -83,7 +85,35 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     force = true;
   };
 
-  # Keep service ownership with the existing Homebrew launchd integration;
-  # Home Manager supplies only the immutable config and native helper closure.
+  home.packages = [ sketchybar ];
+  launchd.agents.sketchybar = {
+    enable = true;
+    config = {
+      ProgramArguments = [
+        (toString (
+          pkgs.writeShellScript "start-sketchybar" ''
+            mkdir -p ${lib.escapeShellArg "${config.xdg.stateHome}/sketchybar"}
+            # A new immutable config has a different path. Retire providers from
+            # preceding generations, which would otherwise survive a restart.
+            /usr/bin/pkill -TERM -u "$(/usr/bin/id -u)" -f \
+              '^/nix/store/[^/]+-sketchybar-config-[^/]+/helpers/event_providers/(cpu_load|network_load|brew_check)/bin/' || true
+            exec ${sketchybar}/bin/sketchybar --config ${sketchybarConfig}/sketchybarrc \
+              >> ${lib.escapeShellArg "${config.xdg.stateHome}/sketchybar/service.log"} 2>&1
+          ''
+        ))
+      ];
+      EnvironmentVariables.PATH = "${sketchybar}/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin";
+      KeepAlive = true;
+      RunAtLoad = true;
+      ProcessType = "Interactive";
+    };
+  };
+
+  # The initial user-service migration pins its closure until a complete
+  # Home Manager activation takes over garbage-collection ownership.
+  home.activation.retireSketchybarBootstrapRoot = lib.hm.dag.entryAfter [ "setupLaunchAgents" ] ''
+    run rm -f ${lib.escapeShellArg "${config.xdg.stateHome}/sketchybar/bootstrap-gcroot"}
+  '';
+
   xdg.configFile."sketchybar".source = sketchybarConfig;
 }
