@@ -22,8 +22,8 @@ _: {
   # gnu-tar, gnu-time, gpatch, gum, jolt, jq, just, just-lsp, lazydocker,
   # lazygit, lld, llmfit, llvm, nnn, node, nowplaying-cli, nushell, oh-my-posh,
   # opencode, pipes-sh, procs, pstree, qpdf, ripgrep, ruff, sesh, sevenzip,
-  # shellcheck, starship, switchaudio-osx, tealdeer, television, tex-fmt,
-  # tmux, tree, universal-ctags, uv, w3m, wget, yazi, zoxide.
+  # shellcheck, sketchybar, starship, switchaudio-osx, tealdeer, television,
+  # tex-fmt, tmux, tree, universal-ctags, uv, w3m, wget, yazi, zoxide.
   #
   # llvm/lld left for a real bug, not just ownership -- see home/llvm. `rust`
   # was never declared here to begin with (a pre-migration leftover).
@@ -119,7 +119,6 @@ _: {
       "erlang"
       "fabric-ai"
       "felixkratz/formulae/borders"
-      "felixkratz/formulae/sketchybar"
       "fnm"
       "fzf-make"
       "gawk"
