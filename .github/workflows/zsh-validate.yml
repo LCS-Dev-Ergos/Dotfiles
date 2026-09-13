@@ -81,8 +81,8 @@ jobs:
         uses: cachix/install-nix-action@v31
 
       # The reason this job exists: the toolchain smoke test compiles, links,
-      # and runs real binaries to verify the pinned SDK, the deployment target,
-      # and the Apple linker selection. No Linux runner can do that, and the
+      # and runs real binaries to verify the host SDK selection, the deployment
+      # target, and the Apple linker selection. No Linux runner can do that, and the
       # full darwin-configuration check is too heavy for CI -- that one stays a
       # local `nix build --no-link` before switching.
       - name: Build the Darwin check derivations

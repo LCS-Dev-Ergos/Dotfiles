@@ -190,8 +190,8 @@ git diff --check
 systems but runs none of the `checks`. CI builds the ones a runner can afford:
 `cpp-tools` on both systems, whose `checkPhase` is its Zsh test suite, and
 `llvm-darwin-toolchain` on macOS, whose smoke test compiles, links, and runs
-real binaries to verify the pinned SDK, the deployment target, and the Apple
-linker selection.
+real Clang and GCC binaries to verify the host SDK selection, the deployment
+target, the Apple linker selection, and the relocated runtime libraries.
 
 The one check no runner builds is `darwin-configuration`, the whole system. On
 macOS, finish with it locally before switching:
