@@ -13,19 +13,19 @@
 #
 # Features:
 #  - Automatic version selection (prefers highest versioned binary)
-#  - Safe environment preservation and restoration
-#  - PATH manipulation with original state backup
-#  - Compiler flags configuration (LDFLAGS, CPPFLAGS)
+#  - CC and CXX set to absolute compiler paths
+#  - PATH edited in place: only a directory the switch itself added is
+#    removed again, so later PATH changes survive every switch
 #  - Cross-platform compatibility (macOS Darwin, Linux)
 #  - Color-coded logging and status messages
 #
 # Usage:
 #   use_llvm    # Activate LLVM/Clang toolchain
 #   use_gnu     # Activate GNU GCC toolchain
-#   use_system  # Restore original system environment
+#   use_system  # Return to the environment before the first switch
 #
-# Environment Variables (preserved):
-#   CC, CXX, CPATH, LDFLAGS, CPPFLAGS, PKG_CONFIG_PATH, PATH
+# Environment Variables (restored by use_system):
+#   CC, CXX, CPATH, LDFLAGS, CPPFLAGS, PKG_CONFIG_PATH
 #
 # Author: LCS-Dev-Ergos
 # License: MIT
@@ -87,20 +87,10 @@ if [[ -z "${PATH:-}" ]]; then
   PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 fi
 
-if [[ -z "${ORIGINAL_PATH:-}" ]]; then
-  export ORIGINAL_PATH="${PATH}"
-fi
-: "${TOOLCHAIN_ORIGINAL_PATH:=${ORIGINAL_PATH}}"
-
-if [[ -z "${_TOOLCHAIN_SAVED_ENV:-}" ]]; then
-  _TOOLCHAIN_SAVED_ENV=1
-  TOOLCHAIN_ORIGINAL_LDFLAGS="${LDFLAGS-__TOOLCHAIN_UNSET__}"
-  TOOLCHAIN_ORIGINAL_CPPFLAGS="${CPPFLAGS-__TOOLCHAIN_UNSET__}"
-  TOOLCHAIN_ORIGINAL_CPATH="${CPATH-__TOOLCHAIN_UNSET__}"
-  TOOLCHAIN_ORIGINAL_PKG_CONFIG_PATH="${PKG_CONFIG_PATH-__TOOLCHAIN_UNSET__}"
-  TOOLCHAIN_ORIGINAL_CC="${CC-__TOOLCHAIN_UNSET__}"
-  TOOLCHAIN_ORIGINAL_CXX="${CXX-__TOOLCHAIN_UNSET__}"
-fi
+# Nothing is snapshotted when this file loads. A copy of PATH or CC taken here
+# goes stale the moment the shell changes either, and exporting it would hand
+# the parent's copy to every child shell. The baseline below is captured when
+# the shell first leaves the system toolchain instead.
 
 # +++++++++++++++++++++++++++++++ LOG HELPERS ++++++++++++++++++++++++++++++++ #
 
@@ -132,42 +122,62 @@ _toolchain_restore_var() {
 }
 
 # -----------------------------------------------------------------------------
-# _toolchain_reset_env_to_original
+# _toolchain_save_baseline
 # @internal
-# @description Restores LDFLAGS, CPPFLAGS, CPATH, PKG_CONFIG_PATH, CC, and CXX
-# to the values captured before any toolchain switch.
+# @description Records LDFLAGS, CPPFLAGS, CPATH, PKG_CONFIG_PATH, CC, and CXX
+# as they are when the shell leaves the system toolchain, so use_system can
+# return to them. Switching between LLVM and GNU keeps the first baseline.
+# @noargs
+# @set TOOLCHAIN_BASELINE_* string Saved values, or the unset sentinel.
+# -----------------------------------------------------------------------------
+_toolchain_save_baseline() {
+  [[ -z "${TOOLCHAIN_ACTIVE:-}" || "$TOOLCHAIN_ACTIVE" == system ]] || return 0
+  typeset -g TOOLCHAIN_BASELINE_LDFLAGS="${LDFLAGS-__TOOLCHAIN_UNSET__}"
+  typeset -g TOOLCHAIN_BASELINE_CPPFLAGS="${CPPFLAGS-__TOOLCHAIN_UNSET__}"
+  typeset -g TOOLCHAIN_BASELINE_CPATH="${CPATH-__TOOLCHAIN_UNSET__}"
+  typeset -g TOOLCHAIN_BASELINE_PKG_CONFIG_PATH="${PKG_CONFIG_PATH-__TOOLCHAIN_UNSET__}"
+  typeset -g TOOLCHAIN_BASELINE_CC="${CC-__TOOLCHAIN_UNSET__}"
+  typeset -g TOOLCHAIN_BASELINE_CXX="${CXX-__TOOLCHAIN_UNSET__}"
+}
+
+# -----------------------------------------------------------------------------
+# _toolchain_restore_baseline
+# @internal
+# @description Restores the variables saved by _toolchain_save_baseline, if a
+# switch ever saved them; otherwise leaves the environment as it is.
 # @noargs
 # -----------------------------------------------------------------------------
-_toolchain_reset_env_to_original() {
-  _toolchain_restore_var LDFLAGS "$TOOLCHAIN_ORIGINAL_LDFLAGS"
-  _toolchain_restore_var CPPFLAGS "$TOOLCHAIN_ORIGINAL_CPPFLAGS"
-  _toolchain_restore_var CPATH "$TOOLCHAIN_ORIGINAL_CPATH"
-  _toolchain_restore_var PKG_CONFIG_PATH "$TOOLCHAIN_ORIGINAL_PKG_CONFIG_PATH"
-  _toolchain_restore_var CC "$TOOLCHAIN_ORIGINAL_CC"
-  _toolchain_restore_var CXX "$TOOLCHAIN_ORIGINAL_CXX"
+_toolchain_restore_baseline() {
+  (( ${+TOOLCHAIN_BASELINE_CC} )) || return 0
+  _toolchain_restore_var LDFLAGS "$TOOLCHAIN_BASELINE_LDFLAGS"
+  _toolchain_restore_var CPPFLAGS "$TOOLCHAIN_BASELINE_CPPFLAGS"
+  _toolchain_restore_var CPATH "$TOOLCHAIN_BASELINE_CPATH"
+  _toolchain_restore_var PKG_CONFIG_PATH "$TOOLCHAIN_BASELINE_PKG_CONFIG_PATH"
+  _toolchain_restore_var CC "$TOOLCHAIN_BASELINE_CC"
+  _toolchain_restore_var CXX "$TOOLCHAIN_BASELINE_CXX"
 }
 
 # -----------------------------------------------------------------------------
 # _toolchain_set_path
 # @internal
-# @description Prepends a toolchain binary directory to the original PATH, or
-# restores the original PATH when called with an empty argument.
-# @arg $1 path Toolchain binary directory; empty to restore.
-# @set TOOLCHAIN_ACTIVE_BIN string The prepended directory, or empty.
+# @description Edits the current PATH in place. The directory a previous
+# switch prepended is removed, then the new one is prepended only when PATH
+# does not already contain it: moving a directory such as the Nix profile to
+# the front would also let its node or python shadow the version managers'.
+# @arg $1 path Toolchain binary directory; empty to only undo the last one.
+# @set TOOLCHAIN_ACTIVE_BIN string The directory this call prepended, or empty.
 # -----------------------------------------------------------------------------
 _toolchain_set_path() {
   local bin_dir="$1"
-  local base="${TOOLCHAIN_ORIGINAL_PATH}"
-  if [[ -z "$base" ]]; then
-    base="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+  if [[ -n "${TOOLCHAIN_ACTIVE_BIN:-}" ]]; then
+    path=("${(@)path:#${(b)TOOLCHAIN_ACTIVE_BIN}}")
   fi
-  if [[ -n "$bin_dir" ]]; then
-    export PATH="${bin_dir}:${base}"
+  TOOLCHAIN_ACTIVE_BIN=""
+  if [[ -n "$bin_dir" && -z "${path[(r)${(b)bin_dir}]}" ]]; then
+    path=("$bin_dir" "${path[@]}")
     TOOLCHAIN_ACTIVE_BIN="$bin_dir"
-  else
-    export PATH="${base}"
-    TOOLCHAIN_ACTIVE_BIN=""
   fi
+  export PATH
 }
 
 # -----------------------------------------------------------------------------
@@ -247,10 +257,11 @@ _toolchain_find_best_binary() {
       fi
 
       # Include executable symlinks: Homebrew commonly exposes versioned GCC
-      # names that way.
+      # names that way. Only base-<number> counts: gcc-ar-16 also ends in a
+      # number, but it is GCC's archiver, not version 16 of gcc.
       for candidate_path in "$dir/$base"-*(N); do
         [[ -x "$candidate_path" ]] || continue
-        ver_str="${candidate_path##*-}"
+        ver_str="${${candidate_path:t}#${base}-}"
         [[ "$ver_str" == <-> ]] || continue
         ver=$ver_str
         if (( ver > best_ver )); then
@@ -319,16 +330,39 @@ _toolchain_select_llvm_bin_dir() {
 }
 
 # -----------------------------------------------------------------------------
+# _toolchain_is_gnu_compiler
+# @internal
+# @description Tells a real GNU compiler from Apple's Clang, which answers to
+# the gcc and g++ names as well.
+# @arg $1 path Compiler to inspect.
+# @exitcode 1 If the compiler does not identify itself as GNU.
+# -----------------------------------------------------------------------------
+_toolchain_is_gnu_compiler() {
+  local banner
+  banner="$("$1" --version 2>/dev/null)" || return 1
+  [[ "$banner" == *"Free Software Foundation"* ]]
+}
+
+# -----------------------------------------------------------------------------
 # _toolchain_select_gcc_bin_dir
 # @internal
-# @description Locates the GCC bin directory: Homebrew GCC on macOS, or
-# /usr/bin / /usr/local/bin on Linux.
+# @description Locates the GCC bin directory. On macOS that is the first GNU
+# gcc on PATH -- the Nix host driver, which is the source of truth -- with
+# Homebrew's keg only as a fallback; on Linux, /usr/bin or /usr/local/bin.
 # @noargs
 # @exitcode 1 If no GCC installation is found.
 # @stdout The GCC bin directory path, on success.
 # -----------------------------------------------------------------------------
 _toolchain_select_gcc_bin_dir() {
   if [[ "$TOOLCHAIN_OS" == "macOS" ]]; then
+    local candidate
+    for candidate in ${(f)"$(whence -ap gcc 2>/dev/null)"}; do
+      if _toolchain_is_gnu_compiler "$candidate"; then
+        printf "%s\n" "${candidate:h}"
+        return 0
+      fi
+    done
+
     local brew_prefix
     brew_prefix=$(_toolchain_get_homebrew_prefix 2>/dev/null) || true
     if [[ -n "$brew_prefix" && -d "$brew_prefix/opt/gcc/bin" ]]; then
@@ -381,8 +415,8 @@ _toolchain_verify_compiler() {
 # -----------------------------------------------------------------------------
 # _toolchain_validate_resolution
 # @internal
-# @description Verifies that CC and CXX resolve to the compiler paths selected
-# before PATH was updated, guarding against stale hashes and wrong precedence.
+# @description Verifies that CC and CXX name exactly the compilers that were
+# selected, guarding against a stale hash or a selection that went wrong.
 # @arg $1 path Expected C compiler.
 # @arg $2 path Expected C++ compiler.
 # @exitcode 1 If either selected compiler resolves elsewhere.
@@ -456,12 +490,50 @@ _toolchain_restore_state() {
   rehash
 }
 
+# -----------------------------------------------------------------------------
+# _toolchain_activate
+# @internal
+# @description Makes a selected compiler pair the shell's CC and CXX, rolling
+# every change back if the pair does not resolve or does not run.
+# @arg $1 string Toolchain name recorded in TOOLCHAIN_ACTIVE.
+# @arg $2 path Selected C compiler.
+# @arg $3 path Selected C++ compiler.
+# @exitcode 1 If the selected compilers fail validation.
+# -----------------------------------------------------------------------------
+_toolchain_activate() {
+  local toolchain="$1" c_compiler="$2" cxx_compiler="$3"
+
+  _toolchain_capture_state
+  local -a previous_state=("${reply[@]}")
+  _toolchain_save_baseline
+  _toolchain_restore_baseline
+
+  # Absolute paths: CC keeps naming the selected compiler whatever PATH does
+  # afterwards, so PATH only needs the directory when it lacks it entirely.
+  _toolchain_set_path "${c_compiler:h}"
+  export CC="$c_compiler"
+  export CXX="$cxx_compiler"
+
+  _toolchain_validate_resolution "$c_compiler" "$cxx_compiler" || {
+    _toolchain_restore_state "${previous_state[@]}"
+    return 1
+  }
+  local -i verify_status=0
+  _toolchain_verify_compiler "$CC" "C" || verify_status=1
+  _toolchain_verify_compiler "$CXX" "C++" || verify_status=1
+  if (( verify_status != 0 )); then
+    _toolchain_restore_state "${previous_state[@]}"
+    return 1
+  fi
+  TOOLCHAIN_ACTIVE="$toolchain"
+}
+
 # +++++++++++++++++++++++++ MAIN TOOLCHAIN FUNCTIONS +++++++++++++++++++++++++ #
 
 # -----------------------------------------------------------------------------
 # use_llvm
 # @description Activates the best available LLVM/Clang toolchain.
-# Updates compiler variables and PATH.
+# Sets CC and CXX to its compilers for the current shell.
 # @noargs
 # @exitcode 1 If an LLVM toolchain is unavailable.
 # -----------------------------------------------------------------------------
@@ -482,38 +554,14 @@ use_llvm() {
     return 1
   fi
 
-  _toolchain_capture_state
-  local -a previous_state=("${reply[@]}")
-  _toolchain_reset_env_to_original
-
-  local bin_dir_for_path
-  bin_dir_for_path="$(dirname "$clang_bin")"
-  _toolchain_set_path "$bin_dir_for_path"
-
-  export CC
-  export CXX
-  CC=$(basename "$clang_bin")
-  CXX=$(basename "$cxx_bin")
-
-  _toolchain_validate_resolution "$clang_bin" "$cxx_bin" || {
-    _toolchain_restore_state "${previous_state[@]}"
-    return 1
-  }
-  local -i verify_status=0
-  _toolchain_verify_compiler "$CC" "C" || verify_status=1
-  _toolchain_verify_compiler "$CXX" "C++" || verify_status=1
-  if (( verify_status != 0 )); then
-    _toolchain_restore_state "${previous_state[@]}"
-    return 1
-  fi
-  TOOLCHAIN_ACTIVE="llvm"
+  _toolchain_activate llvm "$clang_bin" "$cxx_bin" || return 1
   _toolchain_log ok "LLVM/Clang is active for this shell."
 }
 
 # -----------------------------------------------------------------------------
 # use_gnu
 # @description Activates the best available GNU GCC toolchain.
-# Updates compiler variables and PATH, then reports compiler versions.
+# Sets CC and CXX to its compilers, then reports compiler versions.
 # @noargs
 # @exitcode 1 If a GCC toolchain is unavailable.
 # -----------------------------------------------------------------------------
@@ -534,53 +582,23 @@ use_gnu() {
     return 1
   fi
 
-  _toolchain_capture_state
-  local -a previous_state=("${reply[@]}")
-  _toolchain_reset_env_to_original
-
-  local bin_dir_for_path
-  bin_dir_for_path="$(dirname "$gcc_bin")"
-  _toolchain_set_path "$bin_dir_for_path"
-
-  export CC
-  export CXX
-  CC=$(basename "$gcc_bin")
-  CXX=$(basename "$gxx_bin")
-
-  _toolchain_validate_resolution "$gcc_bin" "$gxx_bin" || {
-    _toolchain_restore_state "${previous_state[@]}"
-    return 1
-  }
-  local -i verify_status=0
-  _toolchain_verify_compiler "$CC" "C" || verify_status=1
-  _toolchain_verify_compiler "$CXX" "C++" || verify_status=1
-  if (( verify_status != 0 )); then
-    _toolchain_restore_state "${previous_state[@]}"
-    return 1
-  fi
-  TOOLCHAIN_ACTIVE="gnu"
+  _toolchain_activate gnu "$gcc_bin" "$gxx_bin" || return 1
   _toolchain_log ok "GNU GCC is active for this shell."
 }
 
 # -----------------------------------------------------------------------------
 # use_system
-# @description Restores PATH and compiler variables saved before switching.
-# Reports the system C and C++ compilers after restoration.
+# @description Returns CC, CXX, and the compiler flags to their values before
+# the first switch, and removes the directory a switch added to PATH. Reports
+# the system C and C++ compilers afterwards.
 # @noargs
-# @exitcode 1 If the original PATH is unavailable.
 # -----------------------------------------------------------------------------
 use_system() {
   _toolchain_init_colors
-  _zsh_ui_heading "System toolchain" "Restoring the original shell environment"
-
-  if [[ -z "${TOOLCHAIN_ORIGINAL_PATH:-}" ]]; then
-    _toolchain_log error \
-      "TOOLCHAIN_ORIGINAL_PATH is unset; restart the shell to recover."
-    return 1
-  fi
+  _zsh_ui_heading "System toolchain" "Restoring the environment before the first switch"
 
   _toolchain_set_path ""
-  _toolchain_reset_env_to_original
+  _toolchain_restore_baseline
 
   local system_cc="${CC:-cc}" system_cxx="${CXX:-c++}"
 
