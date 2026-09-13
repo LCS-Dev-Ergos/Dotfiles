@@ -26,7 +26,11 @@
 # ============================================================================ #
 
 # ------------- Homebrew ------------- #
-export HOMEBREW_REQUIRE_TAP_TRUST="1"
+# HOMEBREW_REQUIRE_TAP_TRUST is deliberately absent. Homebrew 7 deprecated it
+# because requiring `brew trust` for non-official taps is now the default;
+# setting it only printed a deprecation warning on every invocation. The
+# behaviour it asked for is still in force unless HOMEBREW_NO_REQUIRE_TAP_TRUST
+# is set, which this configuration never does.
 
 # Precompute shared volume path before use in later sections.
 if [[ "$PLATFORM" == 'macOS' ]]; then
