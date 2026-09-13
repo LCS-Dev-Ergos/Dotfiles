@@ -56,13 +56,13 @@ _toolchain_info_disable_trace() {
 # +++++++++++++++++++++++++++++++ HELPER UTILS +++++++++++++++++++++++++++++++ #
 
 # -----------------------------------------------------------------------------
-# _toolchain_detect_platform
+# _toolchain_info_platform
 # @internal
 # @description Prints a human-readable platform string with distro details.
 # @noargs
 # @stdout The platform string.
 # -----------------------------------------------------------------------------
-_toolchain_detect_platform() {
+_toolchain_info_platform() {
   _toolchain_info_disable_trace
   _shared_platform_pretty
 }
@@ -308,7 +308,7 @@ get_toolchain_info() {
   emulate -L zsh
   setopt noxtrace noverbose typesetsilent
 
-  local platform="$(_toolchain_detect_platform)"
+  local platform="$(_toolchain_info_platform)"
   _zsh_ui_heading \
     "C/C++ toolchain" \
     "Active compiler resolution · $platform" || return 1
