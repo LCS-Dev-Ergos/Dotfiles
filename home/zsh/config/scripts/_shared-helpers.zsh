@@ -365,14 +365,22 @@ _zsh_ui_table() {
   _zsh_ui_resolve_mode || return $?
   local mode="$REPLY"
   if [[ "$mode" == gum ]]; then
-    local input="${(j:\n:)rows}"
+    # The join needs the p flag: without it the separator is the literal two
+    # characters "\n", which collapses every row into one and makes Gum reject
+    # the input, so multi-row tables silently fell back to the native renderer.
+    local input="${(pj:\n:)rows}"
+    # Gum 2.0 applies --header.foreground to the first DATA row rather than to
+    # the column header, so setting it made row one read as selected; it is
+    # left unset and only the border is themed. Gum still renders that first
+    # row bold and no flag suppresses it. --lazy-quotes keeps a cell containing
+    # a double quote from failing the CSV parse outright.
     if print -r -- "$input" | CLICOLOR_FORCE=1 command gum table \
         --print \
+        --lazy-quotes \
         --separator $'\t' \
         --columns "${(j:,:)columns}" \
         --border rounded \
-        --border.foreground 212 \
-        --header.foreground 75 2>/dev/null; then
+        --border.foreground 212 2>/dev/null; then
       return 0
     fi
     mode="ansi"
@@ -517,6 +525,73 @@ _zsh_ui_spinner() {
     _zsh_ui_log info "$label"
     command "$@"
   fi
+}
+
+# -----------------------------------------------------------------------------
+# _zsh_ui_spinner_fn
+# @internal
+# @description Runs a shell function under one Gum spinner, buffering its
+# standard output and replaying it once the work finishes. _zsh_ui_spinner can
+# only run external commands, and it drops the spinner whenever standard output
+# is redirected; Gum draws the spinner on standard error, so this variant keeps
+# it for work whose output the caller captures.
+# @arg $1 string Progress label.
+# @arg $@ command Function or command, and its arguments, to execute.
+# @exitcode 2 If no command is provided or the UI style is invalid.
+# @stdout Whatever the command wrote to standard output. The command's standard
+# error is discarded while a spinner is drawn, because it would corrupt it.
+# -----------------------------------------------------------------------------
+_zsh_ui_spinner_fn() {
+  emulate -L zsh
+  setopt localoptions no_aliases no_monitor no_notify extendedglob
+  local label="$1"
+  shift
+  (( $# )) || return 2
+
+  _zsh_ui_resolve_mode || return $?
+  # Only a non-terminal stderr rules the spinner out; a captured stdout does
+  # not, because that is not where Gum draws. For the same reason the fallback
+  # label goes to stderr: stdout belongs to the command.
+  if [[ "$REPLY" != gum || ! -t 2 ]]; then
+    _zsh_ui_log info "$label" >&2
+    "$@"
+    return $?
+  fi
+
+  local work_dir
+  work_dir="$(command mktemp -d "${TMPDIR:-/tmp}/zsh-ui-spin.XXXXXX")" || {
+    _zsh_ui_log info "$label" >&2
+    "$@"
+    return $?
+  }
+
+  local out_file="$work_dir/output"
+  local status_file="$work_dir/status"
+  local -i worker_pid worker_status
+
+  { "$@" >| "$out_file" 2>/dev/null; print -r -- $? >| "$status_file" } &
+  worker_pid=$!
+
+  # The waiter polls a status file rather than the pid: it survives a reaped
+  # child and cannot latch onto a recycled pid.
+  command gum spin --spinner dot --title "$label" -- \
+    /bin/sh -c 'until [ -s "$1" ]; do sleep 0.2; done' spin "$status_file" \
+    >/dev/null 2>&1
+
+  # `wait` reports the status of the subshell's last command, which is the
+  # bookkeeping `print`, never the worker's own. The status file is the only
+  # honest source.
+  wait "$worker_pid" 2>/dev/null
+  worker_status=1
+  if [[ -s "$status_file" ]]; then
+    local recorded
+    recorded="$(<"$status_file")"
+    [[ "$recorded" == [0-9]## ]] && worker_status=$recorded
+  fi
+
+  command cat -- "$out_file" 2>/dev/null
+  command rm -rf -- "$work_dir" 2>/dev/null
+  return $worker_status
 }
 
 # ++++++++++++++++++++++++++++++ COLOR HANDLING ++++++++++++++++++++++++++++++ #
