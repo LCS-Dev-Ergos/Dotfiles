@@ -352,6 +352,59 @@ _assert_eq "1" "$?" "submission runtime status propagation"
 (( ${+functions[_cppdiag_header]} == 0 ))
 _assert_eq "0" "$?" "diagnostic helper namespace isolation"
 
+# The plain GNU g++ wins over versioned installs, and Clang answering to the
+# g++ name never counts as GNU.
+typeset gxx_bin="$test_tmp/gxx-bin" versioned_bin="$test_tmp/versioned-bin"
+mkdir -p "$gxx_bin" "$versioned_bin"
+_write_fake_compiler() {
+  print -rl -- '#!/bin/sh' "printf '%s\\n' '$2'" >| "$1"
+  chmod 700 "$1"
+}
+_write_fake_compiler "$versioned_bin/g++-16" "g++-16 (Homebrew GCC) Free Software Foundation"
+_write_fake_compiler "$gxx_bin/g++" "Apple clang version fake"
+(
+  PATH="$gxx_bin:$versioned_bin"
+  _cp_find_gxx
+) | read -r found_gxx
+_assert_eq "$versioned_bin/g++-16" "$found_gxx" "Clang masquerading as g++ is skipped"
+_write_fake_compiler "$gxx_bin/g++" "g++ (GCC) Free Software Foundation"
+(
+  PATH="$gxx_bin:$versioned_bin"
+  _cp_find_gxx
+) | read -r found_gxx
+_assert_eq "$gxx_bin/g++" "$found_gxx" "plain GNU g++ precedes versioned names"
+
+# A build directory caching a compiler that is gone, or one other than the
+# preferred g++, is recreated rather than reused.
+typeset stale_build="$test_tmp/stale-build"
+mkdir -p "$stale_build"
+print -rl -- "CMAKE_CXX_COMPILER:FILEPATH=$test_tmp/removed/g++-15" \
+  "CMAKE_CXX_COMPILER_ID:STRING=GNU" \
+  "CMAKE_TOOLCHAIN_FILE:FILEPATH=$workspace/Algorithms/gcc-toolchain.cmake" \
+  >| "$stale_build/CMakeCache.txt"
+typeset rebuild_reason
+rebuild_reason=$(_cppconf_rebuild_reason_for_toolchain "$stale_build" "$workspace/Algorithms/gcc-toolchain.cmake")
+_assert_contains "$rebuild_reason" "no longer exists" "missing cached compiler triggers a rebuild"
+print -rl -- "CMAKE_CXX_COMPILER:FILEPATH=$versioned_bin/g++-16" \
+  "CMAKE_CXX_COMPILER_ID:STRING=GNU" \
+  "CMAKE_TOOLCHAIN_FILE:FILEPATH=$workspace/Algorithms/gcc-toolchain.cmake" \
+  >| "$stale_build/CMakeCache.txt"
+rebuild_reason=$(
+  PATH="$gxx_bin:$versioned_bin:/usr/bin:/bin"
+  _cppconf_rebuild_reason_for_toolchain "$stale_build" "$workspace/Algorithms/gcc-toolchain.cmake"
+)
+_assert_contains "$rebuild_reason" "not the preferred" "non-preferred cached g++ triggers a rebuild"
+print -rl -- "CMAKE_CXX_COMPILER:FILEPATH=$gxx_bin/g++" \
+  "CMAKE_CXX_COMPILER_ID:STRING=GNU" \
+  "CMAKE_TOOLCHAIN_FILE:FILEPATH=$workspace/Algorithms/gcc-toolchain.cmake" \
+  >| "$stale_build/CMakeCache.txt"
+rebuild_reason=$(
+  PATH="$gxx_bin:$versioned_bin:/usr/bin:/bin"
+  _cppconf_rebuild_reason_for_toolchain "$stale_build" "$workspace/Algorithms/gcc-toolchain.cmake"
+)
+_assert_eq "" "$rebuild_reason" "the preferred cached g++ is kept"
+unfunction _write_fake_compiler
+
 # Syntax validation covers every maintained Zsh source.
 typeset -a syntax_files=(
   "$project_root/competitive.sh"
