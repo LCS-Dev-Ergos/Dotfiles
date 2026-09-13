@@ -433,5 +433,203 @@ get_toolchain_info() {
   fi
 }
 
+# +++++++++++++++++++++++++++++ SDK REACHABILITY +++++++++++++++++++++++++++++ #
+
+# Apple bundles a set of third-party libraries inside the macOS SDK. A compiler
+# whose sysroot is not that SDK cannot include them: nixpkgs' stdenv compilers
+# in a `nix develop` shell use an apple-sdk that deliberately strips them, and
+# an unwrapped LLVM may have no sysroot at all. Everything that compiles C from
+# source against one of them -- pyenv, rbenv, node-gyp, cargo build scripts,
+# opam -- then behaves differently depending on which compiler is active,
+# usually by silently omitting a feature rather than by failing. The host
+# drivers from home/llvm build against the host SDK, so they should report no
+# divergence at all.
+typeset -ga _TOOLCHAIN_SDK_HEADERS=(
+  "zlib.h:compression (Python zlib, Ruby zlib, git)"
+  "bzlib.h:compression (Python bz2)"
+  "lzma.h:compression (Python lzma)"
+  "sqlite3.h:database (Python sqlite3)"
+  "editline/readline.h:line editing (Ruby readline)"
+  "readline/readline.h:line editing (Python readline)"
+  "ffi.h:foreign calls (Python ctypes, Ruby fiddle)"
+  "expat.h:XML (Python pyexpat)"
+  "libxml/parser.h:XML (Nokogiri, lxml)"
+  "curl/curl.h:HTTP (pycurl, curb)"
+  "krb5.h:Kerberos"
+  "tcl.h:Tcl/Tk (Python tkinter)"
+  "pcap.h:packet capture"
+  "iconv.h:character conversion"
+  "curses.h:terminal UI (Python curses)"
+)
+
+# -----------------------------------------------------------------------------
+# _toolchain_probe_header
+# @internal
+# @description Compiles a one-line translation unit that includes a header and
+# reports whether the given compiler resolves it with no extra flags.
+# @arg $1 path Compiler to test.
+# @arg $2 string Header to include.
+# @arg $3 path Scratch directory.
+# @exitcode 1 If the header cannot be resolved.
+# -----------------------------------------------------------------------------
+_toolchain_probe_header() {
+  emulate -L zsh
+  local compiler="$1" header="$2" scratch="$3"
+  local source_file="$scratch/probe.c"
+
+  print -r -- "#include <${header}>" >| "$source_file"
+  print -r -- "int main(void) { return 0; }" >> "$source_file"
+  command "$compiler" -fsyntax-only "$source_file" >/dev/null 2>&1
+}
+
+# -----------------------------------------------------------------------------
+# get_toolchain_sdk_support
+# @description Reports which SDK-bundled third-party libraries the active C
+# compiler can reach, next to Apple's own compiler and Homebrew. Use it to see
+# what a source build -- pyenv, rbenv, node-gyp, cargo, opam -- would silently
+# lose under the current toolchain.
+# @option -a | --all Report every probed library, not only the divergences.
+# @option -h | --help Show usage information.
+# @exitcode 1 If no C compiler can be resolved.
+# @exitcode 2 If an unknown option is given.
+# -----------------------------------------------------------------------------
+get_toolchain_sdk_support() {
+  emulate -L zsh
+  setopt localoptions no_aliases noxtrace noverbose typesetsilent
+
+  local -i show_all=0
+  while (( $# )); do
+    case "$1" in
+      -a|--all) show_all=1 ;;
+      -h|--help)
+        print -rl -- \
+          "Usage: get_toolchain_sdk_support [options]" \
+          "" \
+          "  -a, --all   Report every probed library, not only divergences." \
+          "  -h, --help  Show this help." \
+          "" \
+          "A library the active compiler cannot reach is not an error: it means" \
+          "a source build must be given an explicit -I/-L, or be compiled with" \
+          "the system compiler."
+        return 0
+        ;;
+      *)
+        print -u2 "get_toolchain_sdk_support: unknown option: $1"
+        return 2
+        ;;
+    esac
+    shift
+  done
+
+  local active="${CC:-}"
+  [[ -n "$active" ]] || active="$(command -v cc 2>/dev/null)"
+  [[ -n "$active" ]] || {
+    _zsh_ui_log error "No C compiler could be resolved."
+    return 1
+  }
+
+  # Overridable so the regression suite can compare two stub compilers instead
+  # of whatever this machine happens to have installed.
+  local system_cc="${TOOLCHAIN_SYSTEM_CC:-/usr/bin/cc}"
+  [[ -x "$system_cc" ]] || system_cc=""
+
+  local brew_prefix="${HOMEBREW_PREFIX:-/opt/homebrew}"
+  local scratch
+  scratch="$(command mktemp -d "${TMPDIR:-/tmp}/toolchain-sdk.XXXXXX")" || return 1
+  command chmod 700 "$scratch" 2>/dev/null
+
+  {
+    _zsh_ui_heading \
+      "SDK reachability" \
+      "What the active C compiler can include with no extra flags" || return 1
+
+    local -a environment_rows=(
+      "Active compiler"$'\t'"${active/#$HOME/~}"
+    )
+    [[ -n "$system_cc" ]] &&
+      environment_rows+=("System compiler"$'\t'"$system_cc")
+    print -r -- ""
+    _zsh_ui_definition_list "${environment_rows[@]}" || return 1
+
+    local -a rows=()
+    local -i divergent=0
+    local entry header purpose active_state system_state hint
+
+    for entry in "${_TOOLCHAIN_SDK_HEADERS[@]}"; do
+      header="${entry%%:*}"
+      purpose="${entry#*:}"
+
+      if _toolchain_probe_header "$active" "$header" "$scratch"; then
+        active_state="reachable"
+      else
+        active_state="missing"
+      fi
+
+      system_state="-"
+      if [[ -n "$system_cc" ]]; then
+        if _toolchain_probe_header "$system_cc" "$header" "$scratch"; then
+          system_state="reachable"
+        else
+          system_state="missing"
+        fi
+      fi
+
+      hint=""
+      if [[ "$active_state" == "missing" ]]; then
+        # Name the Homebrew keg that would supply it, when one is installed.
+        local keg="${header%%[/.]*}"
+        case "$header" in
+          editline/readline.h|readline/readline.h) keg="readline" ;;
+          bzlib.h) keg="bzip2" ;;
+          lzma.h) keg="xz" ;;
+          libxml/parser.h) keg="libxml2" ;;
+          ffi.h) keg="libffi" ;;
+          krb5.h) keg="krb5" ;;
+          tcl.h) keg="tcl-tk" ;;
+          curses.h) keg="ncurses" ;;
+          sqlite3.h) keg="sqlite" ;;
+          curl/curl.h) keg="curl" ;;
+          pcap.h) keg="libpcap" ;;
+          expat.h) keg="expat" ;;
+          iconv.h) keg="libiconv" ;;
+          zlib.h) keg="zlib" ;;
+        esac
+        if [[ -d "$brew_prefix/opt/$keg/include" ]]; then
+          hint="brew: $keg"
+        else
+          hint="brew install $keg"
+        fi
+      fi
+
+      if [[ "$active_state" != "$system_state" && "$system_state" != "-" ]]; then
+        (( divergent++ ))
+      elif (( ! show_all )); then
+        continue
+      fi
+
+      rows+=("$header"$'\t'"$active_state"$'\t'"$system_state"$'\t'"$purpose"$'\t'"$hint")
+    done
+
+    print -r -- ""
+    if (( ${#rows} )); then
+      _zsh_ui_section "Libraries" || return 1
+      _zsh_ui_table \
+        $'Header\tActive\tSystem\tUsed by\tSupplied by' "${rows[@]}" || return 1
+    fi
+
+    print -r -- ""
+    if (( divergent )); then
+      _zsh_ui_log warn \
+        "$divergent librar(ies) the system compiler sees are out of reach here."
+      _zsh_ui_log info \
+        "Source builds needing them require an explicit -I/-L or /usr/bin/cc."
+    else
+      _zsh_ui_log ok "The active compiler reaches everything the system one does."
+    fi
+  } always {
+    command rm -rf -- "$scratch" 2>/dev/null
+  }
+}
+
 # ============================================================================ #
 # End of toolchain-information.zsh
