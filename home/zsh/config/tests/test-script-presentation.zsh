@@ -42,7 +42,7 @@ export PATH="$fixture_root/bin:/usr/bin:/bin"
 rehash
 
 source "$test_root/scripts/toolchain-information.zsh"
-_toolchain_detect_platform() { print -r -- "TestOS"; }
+_toolchain_info_platform() { print -r -- "TestOS"; }
 _toolchain_resolve_real_compiler() { print -r -- "$1"; }
 _toolchain_compiler_details() {
   print -r -- "Clang|Test vendor|Test compiler 1.0"
