@@ -172,7 +172,6 @@ _: {
       "rbenv"
       "reaver"
       "redis"
-      "ruby"
       "serkanyersen/dotstate/dotstate"
       "smartmontools"
       "swi-prolog"
