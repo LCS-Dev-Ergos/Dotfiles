@@ -993,10 +993,26 @@ _cppconf_rebuild_reason_for_toolchain() {
   cached_toolchain=$(grep -E '^CMAKE_TOOLCHAIN_FILE:' "$build_dir/CMakeCache.txt" | head -n1 | cut -d'=' -f2-)
   cached_toolchain_base=${cached_toolchain##*/}
 
+  # A compiler that has since been removed -- an uninstalled Homebrew version,
+  # a garbage-collected store path -- makes every later CMake run fail.
+  if [ -n "$cached_compiler" ] && [ ! -x "$cached_compiler" ]; then
+    echo "cached compiler '$cached_compiler' no longer exists"
+    return 0
+  fi
+
   case "$toolchain_base" in
     gcc-toolchain.cmake)
       if [[ "$cached_compiler_id" == *Clang* ]] || { [ -z "$cached_compiler_id" ] && [[ "$cached_compiler" == *clang* ]]; }; then
         echo "cached compiler is Clang"
+        return 0
+      fi
+      # The toolchain file caches its first choice for good, so a build
+      # directory configured before GCC moved to Nix would keep Homebrew's.
+      local preferred_gxx
+      preferred_gxx=$(_cp_find_gxx 2>/dev/null) || preferred_gxx=""
+      if [ -n "$preferred_gxx" ] && [ -n "$cached_compiler" ] &&
+        [[ "${cached_compiler:A}" != "${preferred_gxx:A}" ]]; then
+        echo "cached compiler is not the preferred '$preferred_gxx'"
         return 0
       fi
       ;;

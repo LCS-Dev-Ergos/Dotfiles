@@ -439,18 +439,20 @@ _cp_format_ms() {
 # -----------------------------------------------------------------------------
 # _cp_find_gxx
 # -----------------------------------------------------------------------------
-# Locate a working g++ binary, newest version first. Candidates are validated
-# by actually running '--version', which filters out broken launcher shims
-# (e.g. ccache stubs pointing at uninstalled compiler versions).
+# Locate a working GNU g++. The plain name comes first: on this machine it is
+# the Nix-managed GCC, the source of truth, while versioned names belong to
+# Homebrew's copy that other formulae keep installed. A candidate counts only
+# if '--version' runs and identifies GNU, which rejects both broken launcher
+# shims and Apple's Clang answering to the g++ name.
 # -----------------------------------------------------------------------------
 _cp_find_gxx() {
-  local cand cand_path
-  for cand in g++-16 g++-15 g++-14 g++-13 g++; do
+  local cand cand_path banner
+  for cand in g++ g++-16 g++-15 g++-14 g++-13; do
     cand_path=$(command -v "$cand" 2>/dev/null) || continue
-    if "$cand_path" --version >/dev/null 2>&1; then
-      echo "$cand_path"
-      return 0
-    fi
+    banner=$("$cand_path" --version 2>/dev/null) || continue
+    [[ "$banner" == *"Free Software Foundation"* ]] || continue
+    echo "$cand_path"
+    return 0
   done
   return 1
 }
