@@ -79,10 +79,11 @@ zsh_rebuild_path() {
 
   # Bump whenever priority semantics change so live shells cannot reuse a
   # structurally valid cache containing the previous order.
-  local cache_version="9"
+  local cache_version="12"
   local cache_signature="${cache_version}|${stable_original_path}|${PLATFORM}"
   cache_signature+="|${PYENV_ROOT}|${SDKMAN_DIR}"
-  cache_signature+="|${GEM_HOME}|${GOPATH}|${ANDROID_HOME}"
+  cache_signature+="|${GOPATH}|${ANDROID_HOME}"
+  cache_signature+="|${FNM_DIR}|${NPM_CONFIG_PREFIX}"
 
   # A 24-hour TTL makes newly installed template directories visible without
   # requiring a manual `zshfix`, while the signature handles env changes.
@@ -111,24 +112,18 @@ zsh_rebuild_path() {
     fi
   fi
 
-  # Version-specific Ruby gems bin (only when Ruby and GEM_HOME are available).
-  local ruby_user_bin=""
-  if [[ -n "${GEM_HOME-}" ]]; then
-    # Use glob expansion to find the version directory without spawning Ruby.
-    # Looks for "$GEM_HOME/ruby/*/bin".
-    local -a ruby_dirs=("$GEM_HOME"/ruby/*/bin(N))
-    if (( ${#ruby_dirs} )); then
-      ruby_user_bin="${ruby_dirs[1]}"
-    fi
-  fi
-
-  # Define the desired final order of directories in the PATH.
+  # Define the desired final order of directories in the PATH. FNM's default
+  # alias links to the selected Node, so its bin costs no subprocess and beats
+  # the Nix fallback, while an activated multishell is still prepended ahead of
+  # this cache. Global npm CLIs follow from NPM_CONFIG_PREFIX (75-variables.zsh).
   local -a path_template
   if [[ "$PLATFORM" == 'macOS' ]]; then
     path_template=(
       # ----- DYNAMIC SHIMS (TOP PRIORITY) ------ #
       "$HOME/.rbenv/shims"
       "$HOME/.pyenv/shims"
+      "${FNM_DIR:-$HOME/.local/share/fnm}/aliases/default/bin"
+      "${NPM_CONFIG_PREFIX:-${XDG_DATA_HOME:-$HOME/.local/share}/npm-global}/bin"
 
       # ----- STATIC SHIMS & LANGUAGE BINS ------ #
       "$PYENV_ROOT/bin"
@@ -178,7 +173,6 @@ zsh_rebuild_path() {
       "$HOME/.perl5/bin"
       "$HOME/.fpc-deluxe/fpc/bin/aarch64-darwin"
       "$GOPATH/bin"
-      "$GEM_HOME/bin" "$ruby_user_bin"
       "$HOME/.miniforge3/condabin" "$HOME/.miniforge3/bin"
       "$ANDROID_HOME/platform-tools"
       "$ANDROID_HOME/cmdline-tools/latest/bin"
@@ -205,6 +199,8 @@ zsh_rebuild_path() {
       # ----- DYNAMIC SHIMS (TOP PRIORITY) ------ #
       "$HOME/.rbenv/shims"
       "$HOME/.pyenv/shims"
+      "${FNM_DIR:-$HOME/.local/share/fnm}/aliases/default/bin"
+      "${NPM_CONFIG_PREFIX:-${XDG_DATA_HOME:-$HOME/.local/share}/npm-global}/bin"
 
       # ----- STATIC SHIMS & LANGUAGE BINS ------ #
       "$PYENV_ROOT/bin"
@@ -241,7 +237,6 @@ zsh_rebuild_path() {
       "$HOME/.dotnet/tools" # dotnet global tools (csharp-ls, etc.)
 
       # ------ User and App-Specific Paths ------ #
-      "$GEM_HOME/bin" "$ruby_user_bin"
       "$HOME/.ada/bin"
       "$HOME/.bun/bin"
       "$HOME/.flutter/bin"

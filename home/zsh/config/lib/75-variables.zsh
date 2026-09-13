@@ -120,6 +120,14 @@ export STARSHIP_CACHE_DIR="$HOME/.cache/starship"
 export ZSH_TOOLS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/zsh/tools"
 export ZSH_BENCH_DIR="${ZSH_TOOLS_DIR}/zsh-bench"
 
+# --------------- Node --------------- #
+# npm installs global packages into the ACTIVE Node version, so selecting a new
+# FNM default or removing an old version takes every globally installed CLI
+# with it. A prefix outside the version tree keeps those tools installed across
+# Node upgrades. Only packages with native addons need a `npm rebuild -g` after
+# a major Node change; pure JavaScript CLIs survive untouched.
+export NPM_CONFIG_PREFIX="${XDG_DATA_HOME:-$HOME/.local/share}/npm-global"
+
 # -------- OS-specific environment variables -------- #
 if [[ "$PLATFORM" == 'macOS' ]]; then
   # Keep compiler/linker selection project-local. `use_llvm`, `use_gnu`, and
@@ -152,8 +160,10 @@ if [[ "$PLATFORM" == 'macOS' ]]; then
   # Android Home for Platform Tools.
   export ANDROID_HOME="$HOME/Library/Android/Sdk"
 
-  # Ruby Gems.
-  export GEM_HOME="$HOME/.gem"
+  # Ruby gems are deliberately NOT redirected with GEM_HOME. rbenv keeps one
+  # gem tree per Ruby version; a global GEM_HOME overrides that and pools every
+  # version's gems in one directory, which is how ~/.gem ended up holding
+  # orphaned 2.6.0 and 3.4.0 trees after Homebrew moved Ruby to 4.x.
 
   # Bun JavaScript runtime.
   export BUN_INSTALL="$HOME/.bun"
