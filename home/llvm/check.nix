@@ -1,0 +1,217 @@
+# Smoke tests for the host toolchain, run as `passthru.tests.default`. Every
+# case compiles, links and runs a real binary; the diagnostics it inspects are
+# the contract the drivers promise, not incidental output.
+{
+  appleLinker,
+  cctools,
+  clangRuntime,
+  darwinMinVersion,
+  gccRuntime,
+  gccVersion,
+  hostArch,
+  lib,
+  lld,
+  lldNewestSdkMajor,
+  runtimeDir,
+  toolchain,
+}:
+let
+  relocated = runtimeDir != null;
+in
+''
+  set -euo pipefail
+  export HOME="$TMPDIR"
+  cd "$TMPDIR"
+
+  bin=${toolchain}/bin
+  otool=${cctools}/bin/otool
+  lipo=${cctools}/bin/lipo
+  # As in a deployed profile: helpers such as dsymutil are found by name.
+  export PATH="$bin:$PATH"
+
+  fail() {
+    echo "FAIL: $*" >&2
+    exit 1
+  }
+
+  # Fails on any diagnostic, not only on errors: a warning on every link is
+  # exactly the kind of regression these tests exist to catch.
+  quiet() {
+    local output
+    if ! output="$("$@" 2>&1)"; then
+      printf '%s\n' "$output" >&2
+      fail "$*"
+    fi
+    if [[ -n "$output" ]]; then
+      printf '%s\n' "$output" >&2
+      fail "unexpected diagnostics from: $*"
+    fi
+  }
+
+  check_build_version() {
+    local binary="$1" load_commands
+    load_commands="$($otool -l "$binary")"
+    grep -Eq "minos[[:space:]]+${darwinMinVersion}([.]0)?$" <<<"$load_commands" ||
+      fail "$binary does not target macOS ${darwinMinVersion}"
+    grep -Eq "sdk[[:space:]]+''${sdk_version//./[.]}([.]0)?$" <<<"$load_commands" ||
+      fail "$binary was not linked against SDK $sdk_version"
+  }
+
+  for program in cc c++ clang clang++ cpp ld dsymutil gcc g++ clangd clang-tidy; do
+    [[ -x "$bin/$program" ]] || fail "missing $program"
+  done
+
+  # ----- Compiler policy ----- #
+  printf '%s\n' 'int main(void) { return 0; }' > smoke.c
+  diagnostics="$($bin/cc -### -c smoke.c 2>&1)"
+  grep -Fq -- '-apple-macosx${darwinMinVersion}.0' <<<"$diagnostics" ||
+    fail "the native triple does not target macOS ${darwinMinVersion}"
+  host_sdk="$(sed -n 's/.*"-isysroot" "\([^"]*\)".*/\1/p' <<<"$diagnostics")"
+  host_sdk="''${host_sdk%%$'\n'*}"
+  [[ -r "$host_sdk/SDKSettings.json" ]] || fail "no host SDK in: $diagnostics"
+  # The build environment exports Nix's own SDK; the driver must not take it.
+  [[ "$host_sdk" != /nix/store/* ]] || fail "the driver selected a store SDK"
+  sdk_settings="$(<"$host_sdk/SDKSettings.json")"
+  [[ "$sdk_settings" =~ \"Version\":\"([0-9.]+)\" ]] || fail "unreadable SDK version"
+  sdk_version="''${BASH_REMATCH[1]}"
+
+  grep -Fq -- '${appleLinker}' <<<"$($bin/cc -### smoke.c -o smoke 2>&1)" ||
+    fail "a native link does not use the Apple linker shim"
+  if grep -Fq -- '${appleLinker}' <<<"$($bin/cc --ld-path=/usr/bin/ld -### smoke.c -o smoke 2>&1)"; then
+    fail "an explicit --ld-path was overridden"
+  fi
+  # LLD is honoured for an SDK it can read and replaced by Apple's linker for
+  # one it cannot, which must stay true: once LLD reads the host SDK, the
+  # fallback is dead weight and lldNewestSdkMajor has to rise.
+  lld_link="$($bin/cc -fuse-ld=lld -### smoke.c -o smoke 2>&1)"
+  if (( ''${sdk_version%%.*} > ${lldNewestSdkMajor} )); then
+    grep -Fq -- '${appleLinker}' <<<"$lld_link" ||
+      fail "an LLD request against SDK $sdk_version did not fall back"
+    quiet $bin/cc -fuse-ld=lld smoke.c -o smoke-lld-fallback
+    ./smoke-lld-fallback
+    if $bin/cc --ld-path=${lld}/bin/ld64.lld smoke.c -o smoke-lld >/dev/null 2>&1; then
+      fail "LLD now reads SDK $sdk_version; raise lldNewestSdkMajor in package.nix"
+    fi
+  elif grep -Fq -- '${appleLinker}' <<<"$lld_link"; then
+    fail "an explicit -fuse-ld=lld was overridden"
+  fi
+
+  quiet $bin/cc -Werror=unused-command-line-argument --target=wasm32 -c smoke.c -o smoke.wasm.o
+  quiet $bin/cc -Werror=unused-command-line-argument -fsyntax-only smoke.c
+  quiet $bin/cc -Werror=unused-command-line-argument -E smoke.c -o smoke.i
+  quiet $bin/cc -Werror --target=${hostArch}-apple-macos14 -c smoke.c -o versioned-target.o
+  $bin/cc -cc1 -version >/dev/null || fail "-cc1 is not passed through"
+  [[ "$(printf '%s\n' '#define VALUE 42' 'VALUE' | $bin/cpp -P | tr -d '[:space:]')" == 42 ]] ||
+    fail "cpp does not read standard input"
+
+  # ----- Clang links ----- #
+  quiet $bin/cc smoke.c -o smoke-c
+  ./smoke-c
+  check_build_version smoke-c
+
+  quiet $bin/cc -c smoke.c -o smoke.o
+  quiet $bin/ld -arch ${hostArch} -lSystem smoke.o -o smoke-ld
+  ./smoke-ld
+  check_build_version smoke-ld
+
+  # zlib is one of the libraries nixpkgs' SDK strips; reaching it, in C++ and
+  # with the SDK named explicitly the way CMake does, is the point of using
+  # the host SDK.
+  printf '%s\n' \
+    '#include <zlib.h>' \
+    '#include <vector>' \
+    'int main() { std::vector<int> values{1, 2, 3};' \
+    '  return values.size() == 3 && zlibVersion()[0] != 0 ? 0 : 1; }' \
+    > sdk.cc
+  quiet $bin/c++ -std=c++23 sdk.cc -lz -o sdk-cc
+  ./sdk-cc
+  quiet $bin/c++ -std=c++23 -isysroot "$host_sdk" sdk.cc -lz -o sdk-sysroot
+  ./sdk-sysroot
+  quiet env \
+    DEVELOPER_DIR=/nix/store/00000000000000000000000000000000-apple-sdk \
+    SDKROOT=/nix/store/00000000000000000000000000000000-apple-sdk/SDKs/MacOSX.sdk \
+    $bin/c++ -std=c++23 sdk.cc -lz -o sdk-store-environment
+  ./sdk-store-environment
+
+  printf '%s\n' 'int increment(int value) { return value + 1; }' > increment.c
+  printf '%s\n' 'int increment(int); int main(void) { return increment(-1); }' > lto-main.c
+  quiet $bin/cc -flto=thin -O2 increment.c lto-main.c -o lto
+  ./lto
+
+  printf '%s\n' \
+    '#include <stdio.h>' \
+    'int main(void) { if (__builtin_available(macOS 27, *)) puts("27"); return 0; }' \
+    > available.c
+  quiet $bin/cc -arch arm64 -arch x86_64 available.c -o universal
+  [[ "$($lipo -archs universal)" == *x86_64* ]] || fail "the universal binary lacks x86_64"
+  ./universal >/dev/null
+
+  quiet $bin/cc -fsanitize=address -g smoke.c -o asan
+  # The build environment has no /usr/bin/atos to symbolise with.
+  ASAN_OPTIONS=symbolize=0 DYLD_LIBRARY_PATH=${clangRuntime} ./asan
+  ${lib.optionalString relocated ''
+    $otool -L asan | grep -Fq '${runtimeDir}/clang/libclang_rt.asan_osx_dynamic.dylib' ||
+      fail "the sanitizer runtime is not referenced through the stable directory"
+  ''}
+
+  # ----- GCC ----- #
+  printf '%s\n' \
+    '#include <bits/stdc++.h>' \
+    '#include <ext/pb_ds/assoc_container.hpp>' \
+    'using ordered_set = __gnu_pbds::tree<int, __gnu_pbds::null_type, std::less<int>,' \
+    '  __gnu_pbds::rb_tree_tag, __gnu_pbds::tree_order_statistics_node_update>;' \
+    'int main() { ordered_set values; values.insert(3); values.insert(1);' \
+    '  return *values.find_by_order(1) == 3 && std::sqrt(4.0) == 2.0 ? 0 : 1; }' \
+    > gnu.cc
+  quiet $bin/g++ -std=c++23 -O2 -Wl,-fatal_warnings gnu.cc -o gnu
+  DYLD_LIBRARY_PATH=${gccRuntime} ./gnu
+  check_build_version gnu
+  quiet $bin/g++ -std=c++23 -g gnu.cc -o gnu-debug
+  [[ -d gnu-debug.dSYM ]] || fail "g++ -g did not produce debug symbols"
+  ${lib.optionalString relocated ''
+    $otool -L gnu | grep -Fq '${runtimeDir}/gcc/libstdc++.6.dylib' ||
+      fail "libstdc++ is not referenced through the stable directory"
+  ''}
+
+  # Objects from either compiler link with the other without a version mismatch.
+  printf '%s\n' 'extern "C" int increment(int);' 'int main() { return increment(-1); }' > mixed.cc
+  quiet $bin/cc -c increment.c -o clang-increment.o
+  quiet $bin/g++ mixed.cc clang-increment.o -o gcc-links-clang
+  DYLD_LIBRARY_PATH=${gccRuntime} ./gcc-links-clang
+  quiet $bin/gcc -c increment.c -o gcc-increment.o
+  quiet $bin/c++ mixed.cc gcc-increment.o -o clang-links-gcc
+  ./clang-links-gcc
+
+  printf '%s\n' \
+    '#include <omp.h>' \
+    'int main(void) { int sum = 0;' \
+    '#pragma omp parallel for reduction(+:sum)' \
+    '  for (int i = 0; i < 100; ++i) sum += i;' \
+    '  return sum == 4950 ? 0 : 1; }' \
+    > openmp.c
+  quiet $bin/gcc -fopenmp openmp.c -o openmp
+  DYLD_LIBRARY_PATH=${gccRuntime} ./openmp
+
+  # A GCC LTO static library needs GCC's own archiver, under the versioned
+  # name CMake asks for first.
+  quiet $bin/gcc -flto -O2 -c increment.c -o increment-lto.o
+  quiet $bin/gcc-ar-${lib.versions.major gccVersion} rcs libincrement.a increment-lto.o
+  quiet $bin/gcc -flto -O2 lto-main.c -L. -lincrement -o gcc-lto
+  ./gcc-lto
+
+  # ----- Tooling ----- #
+  printf '[{"directory":"%s","file":"sdk.cc","command":"%s -std=c++23 -c sdk.cc"}]\n' \
+    "$PWD" "$bin/c++" > compile_commands.json
+  clangd_output="$($bin/clangd --check=sdk.cc 2>&1)" || {
+    printf '%s\n' "$clangd_output" >&2
+    fail "clangd could not check a C++ file"
+  }
+  grep -Fq 'All checks completed, 0 errors' <<<"$clangd_output" || {
+    printf '%s\n' "$clangd_output" >&2
+    fail "clangd disagrees with the compiler"
+  }
+  $bin/clang-tidy --quiet '-checks=-*,bugprone-use-after-move' sdk.cc >/dev/null 2>&1 ||
+    fail "clang-tidy could not parse a C++ file"
+
+  touch "$out"
+''

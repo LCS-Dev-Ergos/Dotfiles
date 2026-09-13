@@ -203,7 +203,11 @@
           default = self.packages.${system}.cpp-tools;
         }
         // nixpkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
-          llvm-darwin-toolchain = pkgs.callPackage ./home/llvm/package.nix { };
+          # The same homeDirectory Home Manager passes, so this check builds the
+          # exact derivation the profile deploys.
+          llvm-darwin-toolchain = pkgs.callPackage ./home/llvm/package.nix {
+            inherit (darwinHost) homeDirectory;
+          };
         }
       );
 

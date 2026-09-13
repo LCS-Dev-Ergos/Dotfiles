@@ -5,49 +5,64 @@
   ...
 }:
 let
+  isDarwin = pkgs.stdenv.hostPlatform.isDarwin;
   # Keep the compiler-driver policy behind one package interface. The package
-  # exposes cc/c++/clang/clang++/cpp/ld at a higher profile priority than the
-  # generic aliases shipped by the stock Clang and GCC wrappers.
-  darwinToolchain = pkgs.callPackage ./package.nix { };
-  defaultClang = if pkgs.stdenv.hostPlatform.isDarwin then darwinToolchain else pkgs.llvmPackages_22.clang;
+  # exposes the Clang and GCC drivers, the Apple linker shim and the clang-tools
+  # at a higher profile priority than the generic aliases shipped by the stock
+  # Clang and GCC wrappers.
+  darwinToolchain = pkgs.callPackage ./package.nix {
+    inherit (config.home) homeDirectory;
+  };
+  # The profile path, not a store path: CC and CXX get recorded by whatever
+  # configures against them -- rbconfig.rb, CMakeCache.txt, Go's env file --
+  # and a store path there stops existing once the garbage collector removes
+  # the generation that provided it. The profile always names the current one.
+  profileBin = "${config.home.profileDirectory}/bin";
   goEnv = "${config.home.homeDirectory}/Library/Application Support/go/env";
 in
 {
-  # System-wide C/C++ toolchain, replacing Homebrew's keg-only LLVM. On Darwin,
-  # the stock Nix wrapper targets the Nixpkgs compatibility floor (macOS 14)
-  # and SDK 14.4. That is correct inside Nix builds but incompatible with
-  # host-native toolchains whose runtime objects target macOS 26. The priority-5
-  # driver package preserves LLVM 22 as the default while selecting Nix's SDK
-  # 26 for every host-side compiler entry point. The underlying stock Clang
-  # remains installed for its binutils and as the wrapped implementation.
+  # System-wide C/C++ toolchain, replacing Homebrew's keg-only LLVM. On Darwin
+  # the stock Nix wrappers target nixpkgs' own SDK and compatibility floor,
+  # which is correct inside Nix builds but not for host-native work. The
+  # priority-5 driver package keeps LLVM 22 and GCC from Nix while compiling
+  # against the host's Apple SDK and linking with Apple's linker. The stock
+  # Clang remains installed for its binutils (ar, nm, ranlib, strip, as).
   home = {
-    packages = lib.optionals pkgs.stdenv.hostPlatform.isDarwin [ darwinToolchain ] ++ [
-      # CMake consumes ccache through its explicit compiler-launcher variables;
-      # no compiler-name masquerade directory belongs in the global PATH.
-      pkgs.ccache
-      pkgs.llvmPackages_22.clang
-      pkgs.llvmPackages_22.clang-tools
-      pkgs.llvmPackages_22.lld
-      pkgs.llvmPackages_22.lldb
-    ];
+    packages =
+      lib.optionals isDarwin [ darwinToolchain ]
+      ++ [
+        # CMake consumes ccache through its explicit compiler-launcher
+        # variables; no compiler-name masquerade directory belongs in PATH.
+        pkgs.ccache
+        pkgs.llvmPackages_22.clang
+        pkgs.llvmPackages_22.lld
+        pkgs.llvmPackages_22.lldb
+      ]
+      # On Darwin the driver package ships clang-tools itself, run against the
+      # host SDK instead of the stock wrappers' nixpkgs headers.
+      ++ lib.optionals (!isDarwin) [ pkgs.llvmPackages_22.clang-tools ];
 
-    # Use immutable compiler paths for consumers that honour CC/CXX, while the
-    # priority-5 driver names cover tools (including OCaml) that hard-code `cc`.
-    # Home Manager renders these into hm-session-vars for every managed shell.
     sessionVariables = {
-      CC = "${defaultClang}/bin/clang";
-      CXX = "${defaultClang}/bin/clang++";
+      CC = "${profileBin}/clang";
+      CXX = "${profileBin}/clang++";
     }
-    // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
+    // lib.optionalAttrs isDarwin {
       # Rust and CMake can pass their own target after CC's defaults. Publish
       # the platform-standard policy as well so every host-native link agrees.
       MACOSX_DEPLOYMENT_TARGET = darwinToolchain.darwinMinVersion;
     };
 
+    # Binaries link the Clang sanitizer and GCC runtimes through this stable
+    # directory (see runtimeRelativeDir in package.nix), so each activation
+    # must repoint it at the generation that is current.
+    file = lib.optionalAttrs isDarwin {
+      ${darwinToolchain.runtimeRelativeDir}.source = "${darwinToolchain}/runtime";
+    };
+
     # Reconcile only Go's compiler keys after each switch. The file remains
     # writable application state, so `go env -w` can preserve unrelated values
     # such as GOPRIVATE while the next activation restores the compiler policy.
-    activation.configureGoCompilers = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin (
+    activation.configureGoCompilers = lib.mkIf isDarwin (
       lib.hm.dag.entryAfter [ "linkGeneration" ] ''
         go_env=${lib.escapeShellArg goEnv}
         go_env_dir="''${go_env%/*}"
@@ -70,8 +85,8 @@ in
               "$go_env" > "$go_env_candidate"
           fi
           printf '%s\n' \
-            'CC=${darwinToolchain}/bin/clang' \
-            'CXX=${darwinToolchain}/bin/clang++' \
+            ${lib.escapeShellArg "CC=${profileBin}/clang"} \
+            ${lib.escapeShellArg "CXX=${profileBin}/clang++"} \
             >> "$go_env_candidate"
           ${pkgs.coreutils}/bin/chmod 0600 "$go_env_candidate"
           ${pkgs.coreutils}/bin/mv -f "$go_env_candidate" "$go_env"

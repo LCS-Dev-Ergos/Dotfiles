@@ -102,6 +102,7 @@ experimental: CI evaluates it, but its build and activation are not validated.
 | Nix | Flakes enabled: `experimental-features = nix-command flakes` | Same |
 | Package manager | Homebrew; nix-darwin manages its inventory but does not install it | The distribution's package manager, which remains responsible for the operating system |
 | Configuration tool | [nix-darwin](https://github.com/nix-darwin/nix-darwin) | [Home Manager](https://github.com/nix-community/home-manager) in standalone mode; NixOS is not required |
+| Build prerequisites | Command Line Tools for Xcode, whose Apple SDK the Nix compilers target | Not applicable |
 
 ## Installation
 
@@ -198,8 +199,8 @@ git diff --check
 but runs none of the checks. CI builds the check derivations a runner can
 afford: `cpp-tools`, whose check phase is its Zsh test suite, on both systems,
 and `llvm-darwin-toolchain` on macOS, whose smoke test compiles, links and runs
-real binaries to verify the pinned SDK, the deployment target and the Apple
-linker selection.
+real Clang and GCC binaries to verify the host SDK selection, the deployment
+target, the Apple linker selection and the relocated runtime libraries.
 
 No runner builds `darwin-configuration`, the complete system. The build in
 [macOS Activation](#macos-activation) is the first complete build, so it runs
