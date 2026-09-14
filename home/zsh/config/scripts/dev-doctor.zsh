@@ -9,12 +9,12 @@
 # language binaries.
 #
 # Scope:
-#   C/C++ compiler diagnosis is NOT duplicated here. Use `get_toolchain_info`
-#   (scripts/toolchain-information.zsh) for vendors, wrappers, and masquerading,
-#   and `use_llvm`/`use_gnu` to switch the active compiler.
+#   C/C++ driver startup is checked here, including CC/CXX overrides. Use
+#   `get_toolchain_info` for detailed vendors/wrappers and the Nix toolchain
+#   check for compile, link and runtime compatibility.
 #
 # Two tiers:
-#   Local (default)  Presence, active version, managed versions, PATH shadowing.
+#   Local (default)  Presence, active version, runtime startup, PATH shadowing.
 #                    No network access, no manager initialization.
 #   Remote (-u)      Batched update checks for managers that expose a native,
 #                    machine-readable check. Cached, timed out, and opt-in.
@@ -22,7 +22,10 @@
 # Registry:
 #   packages/runtime-managers.tsv, one tab-separated row per manager:
 #     id label platform root_var root_default probe version_cmd language_bin
-#     managed_list formula update_hint activation
+#     managed_list formula update_hint activation runtime_cmd
+#   runtime_cmd is optional for older registries: "-" skips it, "version"
+#   reuses the active-version probe, otherwise it is a local startup command.
+#   Only audited, non-interactive commands belong here; no install or update.
 #   activation is "always" when the manager keeps its shims on PATH for every
 #   shell, or "session" when it has to be activated per shell (fnm, conda).
 #   "-" means "not applicable". "hook" routes the field to an override function
@@ -127,6 +130,18 @@ _devdoctor_run_timeout() {
 
   if kill -0 "$job_pid" 2>/dev/null; then
     kill -TERM "$job_pid" 2>/dev/null
+    # A probe can ignore TERM. Do not turn a five-second health check into an
+    # unbounded wait when coreutils timeout is unavailable.
+    local -i grace=0
+    while (( grace < 10 )) && kill -0 "$job_pid" 2>/dev/null; do
+      if (( $+builtins[zselect] )); then
+        zselect -t 10 2>/dev/null
+      else
+        command sleep 0.1
+      fi
+      (( grace++ ))
+    done
+    kill -KILL "$job_pid" 2>/dev/null
     wait "$job_pid" 2>/dev/null
     job_status=124
   else
@@ -326,7 +341,7 @@ _devdoctor_load_registry() {
   while IFS= read -r line || [[ -n "$line" ]]; do
     [[ -z "$line" || "$line" == \#* ]] && continue
     fields=("${(@ps:\t:)line}")
-    if (( ${#fields[@]} != 12 )); then
+    if (( ${#fields[@]} != 12 && ${#fields[@]} != 13 )); then
       _zsh_ui_log error "Malformed registry row: ${fields[1]:-$line}"
       (( errors++ ))
       continue
@@ -377,6 +392,7 @@ _devdoctor_load_registry() {
 # @set dd_formula string Homebrew formula name.
 # @set dd_hint string Suggested update command.
 # @set dd_activation string "always" or "session".
+# @set dd_runtime string Runtime startup command, "version", or "-".
 # -----------------------------------------------------------------------------
 _devdoctor_unpack_row() {
   emulate -L zsh
@@ -392,9 +408,122 @@ _devdoctor_unpack_row() {
   dd_formula="$fields[10]"
   dd_hint="$fields[11]"
   dd_activation="$fields[12]"
+  dd_runtime="${fields[13]:--}"
 }
 
 # ++++++++++++++++++++++++++++ MANAGER OVERRIDES +++++++++++++++++++++++++++++ #
+
+# -----------------------------------------------------------------------------
+# _devdoctor_version_erlang
+# @internal
+# @description Starts the Erlang VM and prints its OTP release without a shell.
+# @stdout OTP release.
+# -----------------------------------------------------------------------------
+_devdoctor_version_erlang() {
+  _devdoctor_run_timeout "${DEVDOCTOR_TIMEOUT:-5}" erl -noshell \
+    -eval 'io:format("~s~n", [erlang:system_info(otp_release)]), halt().'
+}
+
+# -----------------------------------------------------------------------------
+# _devdoctor_version_perl
+# @internal
+# @description Starts Perl and prints its version without parsing a banner.
+# @stdout Perl version.
+# -----------------------------------------------------------------------------
+_devdoctor_version_perl() {
+  _devdoctor_run_timeout "${DEVDOCTOR_TIMEOUT:-5}" perl -e 'print "$^V\n"'
+}
+
+# -----------------------------------------------------------------------------
+# _devdoctor_compiler_command
+# @internal
+# @description Resolves CC/CXX as an argv array, including quoted paths and
+# launcher arguments, without evaluating shell substitutions.
+# @arg $1 string cc or cxx.
+# @set reply array Compiler command and arguments.
+# -----------------------------------------------------------------------------
+_devdoctor_compiler_command() {
+  emulate -L zsh
+  local spec
+  if [[ "$1" == cc ]]; then
+    spec="${CC:-cc}"
+  else
+    spec="${CXX:-c++}"
+  fi
+  # An exact executable path may contain spaces without shell quoting.
+  if [[ -x "$spec" && ! -d "$spec" ]]; then
+    reply=("$spec")
+  else
+    reply=(${(z)spec})
+    reply=("${(@Q)reply}")
+  fi
+}
+
+# -----------------------------------------------------------------------------
+# _devdoctor_probe_cc
+# @internal
+# @description Detects the selected C compiler, retaining invalid explicit CC
+# values so the startup probe can report them as broken.
+# @set REPLY string Empty root; a compiler has no manager-owned directory.
+# -----------------------------------------------------------------------------
+_devdoctor_probe_cc() {
+  REPLY=""
+  [[ -n "${CC:-}" ]] || (( $+commands[cc] ))
+}
+
+# -----------------------------------------------------------------------------
+# _devdoctor_probe_cxx
+# @internal
+# @description Detects the selected C++ compiler, including explicit CXX.
+# @set REPLY string Empty root.
+# -----------------------------------------------------------------------------
+_devdoctor_probe_cxx() {
+  REPLY=""
+  [[ -n "${CXX:-}" ]] || (( $+commands[c++] ))
+}
+
+# -----------------------------------------------------------------------------
+# _devdoctor_version_cc
+# @internal
+# @description Starts the selected C compiler with --version.
+# @stdout Compiler version banner.
+# -----------------------------------------------------------------------------
+_devdoctor_version_cc() {
+  local -a reply
+  _devdoctor_compiler_command cc
+  _devdoctor_run_timeout "${DEVDOCTOR_TIMEOUT:-5}" "${reply[@]}" --version
+}
+
+# -----------------------------------------------------------------------------
+# _devdoctor_version_cxx
+# @internal
+# @description Starts the selected C++ compiler with --version.
+# @stdout Compiler version banner.
+# -----------------------------------------------------------------------------
+_devdoctor_version_cxx() {
+  local -a reply
+  _devdoctor_compiler_command cxx
+  _devdoctor_run_timeout "${DEVDOCTOR_TIMEOUT:-5}" "${reply[@]}" --version
+}
+
+# -----------------------------------------------------------------------------
+# _devdoctor_version_flutter
+# @internal
+# @description Reads Flutter's cached version and starts its bundled Dart VM.
+# Avoids the flutter launcher, which can download artifacts even for --version.
+# @stdout Cached Flutter version.
+# -----------------------------------------------------------------------------
+_devdoctor_version_flutter() {
+  emulate -L zsh
+  local launcher="${commands[flutter]:-}"
+  [[ -n "$launcher" ]] || return 127
+  local sdk="${launcher:A:h:h}"
+  local metadata="$sdk/bin/cache/flutter.version.json"
+  [[ -r "$metadata" ]] || return 65
+  _devdoctor_run_timeout "${DEVDOCTOR_TIMEOUT:-5}" \
+    "$sdk/bin/cache/dart-sdk/bin/dart" --version >/dev/null || return $?
+  command sed -n 's/.*"flutterVersion"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$metadata"
+}
 
 # -----------------------------------------------------------------------------
 # _devdoctor_probe_sdkman
@@ -558,34 +687,6 @@ _devdoctor_version_coursier() {
 }
 
 # -----------------------------------------------------------------------------
-# _devdoctor_broken_coursier
-# @internal
-# @description Detects the Coursier failure mode where a generated launcher
-# still references artifacts that have been evicted from the cache.
-# @noargs
-# @exitcode 1 If no dangling artifact reference is found.
-# @set REPLY string A short description of the dangling reference.
-# -----------------------------------------------------------------------------
-_devdoctor_broken_coursier() {
-  emulate -L zsh
-  setopt localoptions no_aliases
-  local launcher="${commands[scala]:-}"
-  [[ -n "$launcher" && -f "$launcher" && ! -d "$launcher" ]] || return 1
-
-  local -a refs
-  refs=(${(f)"$(command grep -o -E '/[^ \"'\'']+\.jar' "$launcher" 2>/dev/null)"})
-  (( ${#refs} )) || return 1
-
-  local ref
-  for ref in "${refs[@]}"; do
-    [[ -e "$ref" ]] && continue
-    REPLY="missing artifact ${ref:t}"
-    return 0
-  done
-  return 1
-}
-
-# -----------------------------------------------------------------------------
 # _devdoctor_activated_fnm
 # @internal
 # @description Reports whether fnm has been activated in this shell. Its lazy
@@ -728,19 +829,19 @@ _devdoctor_active_version() {
       ;;
     hook)
       (( $+functions[_devdoctor_version_$id] )) || { REPLY=""; return 1; }
-      raw="$("_devdoctor_version_$id" "$root" 2>/dev/null)" || { REPLY=""; return 1; }
+      raw="$("_devdoctor_version_$id" "$root" 2>/dev/null)" || { local rc=$?; REPLY=""; return $rc; }
       ;;
     *)
       local -a argv_parts=(${=spec})
       (( ${#argv_parts} )) || { REPLY=""; return 1; }
-      (( $+commands[$argv_parts[1]] )) || { REPLY=""; return 1; }
+      (( $+commands[$argv_parts[1]] )) || [[ -x "$argv_parts[1]" ]] || { REPLY=""; return 127; }
       raw="$(_devdoctor_run_timeout "${DEVDOCTOR_TIMEOUT:-5}" \
-        "${argv_parts[@]}" 2>/dev/null)" || { REPLY=""; return 1; }
+        "${argv_parts[@]}" 2>/dev/null)" || { local rc=$?; REPLY=""; return $rc; }
       ;;
   esac
 
   _devdoctor_version_token "$raw"
-  [[ -n "$REPLY" ]]
+  [[ -n "$REPLY" ]] || return 65
 }
 
 # -----------------------------------------------------------------------------
@@ -804,8 +905,14 @@ _devdoctor_check_one() {
   setopt localoptions no_aliases extendedglob
 
   local dd_id dd_label dd_root_var dd_root_default dd_probe dd_version
-  local dd_lang_bin dd_managed dd_formula dd_hint dd_activation
+  local dd_lang_bin dd_managed dd_formula dd_hint dd_activation dd_runtime
   _devdoctor_unpack_row "${_devdoctor_row[$1]}"
+
+  if [[ "$dd_id" == cc || "$dd_id" == cxx ]]; then
+    local -a reply
+    _devdoctor_compiler_command "$dd_id"
+    dd_lang_bin="${reply[1]:--}"
+  fi
 
   local state="ok" active="-" origin="-" detail=""
 
@@ -841,13 +948,6 @@ _devdoctor_check_one() {
     fi
   fi
 
-  local -i version_failed=0
-  if _devdoctor_active_version "$dd_id" "$dd_version" "$root"; then
-    active="$REPLY"
-  elif [[ "$dd_version" != "-" ]]; then
-    version_failed=1
-  fi
-
   local -i managed=-1
   if _devdoctor_managed_count "$dd_id" "$dd_managed" "$root"; then
     managed="$REPLY"
@@ -859,15 +959,64 @@ _devdoctor_check_one() {
     dormant=1
   fi
 
-  if (( version_failed && ! dormant )); then
+  local -i version_status=0
+  if [[ "$dd_runtime" == version ]] && (( dormant || managed == 0 )); then
+    # Version commands for rustup/elan-like shims can install a runtime when
+    # none is selected. An empty/dormant manager is not permission to do that.
+    active="-"
+  elif _devdoctor_active_version "$dd_id" "$dd_version" "$root"; then
+    active="$REPLY"
+  else
+    version_status=$?
+  fi
+
+  if (( version_status && ! dormant && managed != 0 )) && [[ "$dd_version" != "-" ]]; then
     state="unknown"
     detail="version probe failed or timed out"
   fi
 
+  # Startup is separate from manager presence/version. Reuse a version probe
+  # when it already starts the runtime; avoid invoking it twice. A dormant or
+  # empty manager must not initialize/download a runtime just for diagnosis.
+  if [[ "$dd_runtime" != "-" ]] && (( ! dormant && managed != 0 )); then
+    local -i runtime_status=0
+    if [[ "$dd_runtime" == "version" ]]; then
+      runtime_status=$version_status
+    else
+      if _devdoctor_active_version "$dd_id" "$dd_runtime" "$root"; then
+        active="$REPLY"
+      else
+        runtime_status=$?
+      fi
+    fi
+    case "$runtime_status" in
+      0) [[ -n "$detail" ]] || detail="runtime starts" ;;
+      124|137)
+        state="unknown"
+        active="-"
+        detail="runtime probe timed out"
+        ;;
+      65)
+        state="unknown"
+        active="-"
+        detail="runtime probe returned no version"
+        ;;
+      *)
+        state="broken"
+        active="-"
+        detail="runtime probe failed (exit $runtime_status): $dd_lang_bin"
+        ;;
+    esac
+  fi
+
   # Where does the language binary actually come from? This is the question the
   # PATH ordering in lib/90-path.zsh exists to answer, so it is worth asking.
-  if [[ "$dd_lang_bin" != "-" && -n "${commands[$dd_lang_bin]-}" ]]; then
-    _devdoctor_origin "${commands[$dd_lang_bin]}" "${roots[@]}"
+  local language_path="${commands[$dd_lang_bin]:-}"
+  if [[ "$dd_lang_bin" == */* && -x "$dd_lang_bin" ]]; then
+    language_path="$dd_lang_bin"
+  fi
+  if [[ "$dd_lang_bin" != "-" && -n "$language_path" ]]; then
+    _devdoctor_origin "$language_path" "${roots[@]}"
     origin="$REPLY"
     if [[ "$origin" != "manager" && "$state" == "ok" ]]; then
       if (( managed > 0 )); then
@@ -878,7 +1027,7 @@ _devdoctor_check_one() {
           detail="not activated here; $dd_lang_bin comes from $origin"
         else
           state="shadowed"
-          detail="$dd_lang_bin resolves to $origin: ${commands[$dd_lang_bin]/#$HOME/~}"
+          detail="$dd_lang_bin resolves to $origin: ${language_path/#$HOME/~}"
         fi
       elif (( managed == 0 )); then
         state="unused"
@@ -892,6 +1041,16 @@ _devdoctor_check_one() {
 
   if [[ -z "$detail" && managed -ge 0 ]]; then
     detail="$managed managed"
+  fi
+  if (( dormant )) && [[ "$state" == ok ]]; then
+    state="dormant"
+    detail="not activated here; runtime probe skipped"
+  fi
+  if [[ "$state" == ok && ( "$dd_id" == cc || "$dd_id" == cxx ) ]]; then
+    detail="${language_path/#$HOME/~}"
+    [[ "$language_path" == /nix/store/* ]] && detail+=" (store-pinned)"
+  elif [[ "$state" == ok && "$dd_id" == flutter ]]; then
+    detail="cached Flutter version; bundled Dart starts"
   fi
 
   _devdoctor_clean_field "${active:--}"
@@ -958,8 +1117,10 @@ _devdoctor_update_signals() {
 # _devdoctor_path_conflicts
 # @internal
 # @description Prints one tab-separated record per PATH problem: a missing
-# directory, a binary resolvable from several origins, or a version-manager
+# directory, competing non-system binaries, or a version-manager
 # shim directory that has lost its priority over Homebrew and Nix.
+# @arg $1 string Comma-separated binaries already verified at their manager
+# root, or "-". Package-manager alternatives to these are expected fallbacks.
 # @arg $@ string Language binaries to test for shadowing.
 # @stdout Kind, subject, and detail per line.
 # -----------------------------------------------------------------------------
@@ -968,6 +1129,8 @@ _devdoctor_path_conflicts() {
   setopt localoptions no_aliases extendedglob
 
   local -a entries=("${(@s/:/)PATH}")
+  local -a managed_winners=("${(@s:,:)1}")
+  shift
   local entry bin
   local -i index=0 first_shim=0 first_package=0
 
@@ -1005,13 +1168,22 @@ _devdoctor_path_conflicts() {
   fi
 
   local -a matches resolved
-  local match seen
+  local match seen winner_origin
   for bin in "$@"; do
     [[ "$bin" == "-" || -z "$bin" ]] && continue
+    (( ${managed_winners[(Ie)$bin]} )) && continue
     matches=(${(f)"$(whence -pa "$bin" 2>/dev/null)"})
     (( ${#matches} > 1 )) || continue
+    _devdoctor_origin "$matches[1]"
+    winner_origin="$REPLY"
     resolved=()
     for match in "${matches[@]}"; do
+      # Apple's /usr/bin drivers and Perl remain installed alongside a
+      # chosen development toolchain. They are fallbacks, not a PATH fault.
+      if [[ "$winner_origin" != system ]]; then
+        _devdoctor_origin "$match"
+        [[ "$REPLY" == system ]] && continue
+      fi
       seen="${match:A}"
       (( ${resolved[(Ie)$seen]} )) || resolved+=("$seen")
     done
@@ -1088,7 +1260,7 @@ _devdoctor_json_escape() {
 _devdoctor_state_rank() {
   case "$1" in
     broken) REPLY=2 ;;
-    shadowed) REPLY=1 ;;
+    shadowed|unknown) REPLY=1 ;;
     *) REPLY=0 ;;
   esac
 }
@@ -1159,15 +1331,15 @@ _devdoctor_with_progress() {
 # devdoctor
 # @description Reports the health of every language runtime manager on this
 # machine: presence, active version, managed versions, where the language
-# binary actually resolves from, and PATH problems. C/C++ compiler diagnosis
-# belongs to get_toolchain_info and is not repeated here.
+# binary actually resolves from, startup failures and PATH problems. Detailed
+# C/C++ compile/link checks remain in the Nix toolchain check.
 # @option -u | --updates Also query managers that expose a native update check.
 # @option --refresh Bypass the cached update signals.
 # @option --only Restrict the report to a comma-separated list of manager ids.
 # @option --all Include managers that are not installed.
 # @option --json Emit raw records instead of a rendered report.
 # @option -h | --help Show usage information.
-# @exitcode 1 If a manager is shadowed by another origin, or PATH holds a stale
+# @exitcode 1 If a probe is inconclusive, a manager is shadowed, or PATH holds a stale
 # entry, an empty shim directory, or shims that lost their priority.
 # @exitcode 2 If a manager is broken, or the registry cannot be read.
 # -----------------------------------------------------------------------------
@@ -1205,7 +1377,8 @@ devdoctor() {
           "      --json     Emit raw records instead of a rendered report." \
           "  -h, --help     Show this help." \
           "" \
-          "C/C++ compilers are reported by get_toolchain_info, not here."
+          "Runtime startup is checked where declared; OK is not a full build test." \
+          "CC/CXX overrides are honoured. Detailed C/C++ info: get_toolchain_info."
         return 0
         ;;
       *)
@@ -1238,7 +1411,7 @@ devdoctor() {
   command chmod 700 "$work" 2>/dev/null
 
   {
-    # The local tier is sub-second, so it earns a spinner only where one can
+    # Local probes are bounded, so they get a spinner only where one can
     # actually be drawn; elsewhere its label would be pure noise. The remote
     # tier below is worth announcing in every mode.
     local plural_wanted="s"
@@ -1271,8 +1444,9 @@ devdoctor() {
     local -i worst=0
     local record label state active origin detail
     local dd_id dd_label dd_root_var dd_root_default dd_probe dd_version
-    local dd_lang_bin dd_managed dd_formula dd_hint dd_activation
+    local dd_lang_bin dd_managed dd_formula dd_hint dd_activation dd_runtime
     local -a lang_bins=()
+    local -a managed_winner_bins=()
     local -a manager_roots=()
 
     for id in "${wanted[@]}"; do
@@ -1285,6 +1459,9 @@ devdoctor() {
 
       _devdoctor_unpack_row "${_devdoctor_row[$id]}"
       [[ "$dd_lang_bin" != "-" ]] && lang_bins+=("$dd_lang_bin")
+      if [[ "$origin" == manager ]]; then
+        managed_winner_bins+=("$dd_lang_bin")
+      fi
       _devdoctor_resolve_root "$dd_root_var" "$dd_root_default"
       manager_roots+=("${reply[@]}")
 
@@ -1319,7 +1496,7 @@ devdoctor() {
     done
 
     local -a conflicts=()
-    conflicts=(${(f)"$(_devdoctor_path_conflicts "${(@u)lang_bins}")"})
+    conflicts=(${(f)"$(_devdoctor_path_conflicts "${(j:,:)managed_winner_bins}" "${(@u)lang_bins}")"})
     conflicts+=(${(f)"$(_devdoctor_npm_prefix_conflict "${(@u)manager_roots}")"})
 
     # Several origins for one binary is the normal state of this machine, so it
