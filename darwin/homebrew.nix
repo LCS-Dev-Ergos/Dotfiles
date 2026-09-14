@@ -227,7 +227,7 @@ _: {
       "supacode"
       "temurin@21"
       "wireshark-app"
-      "xcodes"
+      "xcodes-app"
       "xquartz"
     ];
   };
