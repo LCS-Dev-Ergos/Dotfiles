@@ -347,6 +347,74 @@ let
       esac
     '';
 
+  # GCC searches include-fixed, its fixincludes copies of the system headers
+  # it had to rewrite while it was built, ahead of the sysroot. nixpkgs built
+  # gcc16 against its SDK 14.4, so with any other SDK that directory shadows
+  # the host's math.h with the 14.4 one. Run against the host SDK, the same
+  # fixincludes rewrites nothing that matters -- the one fix left, in
+  # math.h, is upstream in Apple's headers now, and check.nix keeps verifying
+  # that -- so the drivers run GCC from a prefix whose include-fixed is empty.
+  #
+  # GCC_EXEC_PREFIX relocates the compiler there. Relocation also moves GCC's
+  # private include directory ahead of the libstdc++ headers, because nixpkgs
+  # installs those outside the GCC prefix; the spec gives them back their
+  # usual place, in C++ compilations only, unless the caller opts out.
+  gccTarget = stdenv.targetPlatform.config;
+  gccPrefix = runCommand "${name}-gcc-prefix" { } ''
+    source_dir=${gcc.cc}/lib/gcc/${gccTarget}/${gcc.version}
+    target_dir="$out/lib/gcc/${gccTarget}/${gcc.version}"
+    cxx_headers=${gcc.cc}/include/c++/${gcc.version}
+    if [[ ! -d "$source_dir/include-fixed" || ! -d "$cxx_headers/${gccTarget}" ]]; then
+      echo "unexpected GCC layout under ${gcc.cc}" >&2
+      exit 1
+    fi
+
+    mkdir -p "$target_dir/include-fixed" "$out/share"
+    for entry in ${gcc.cc}/lib/*; do
+      [[ "''${entry##*/}" == gcc ]] || ln -s "$entry" "$out/lib/"
+    done
+    for entry in "$source_dir"/*; do
+      [[ "''${entry##*/}" == include-fixed ]] || ln -s "$entry" "$target_dir/"
+    done
+    ln -s ${gcc.cc}/include "$out/include"
+    ln -s ${gcc.cc}/libexec "$out/libexec"
+
+    printf '%s\n' '*cc1plus:' \
+      "+ %{!nostdinc:%{!nostdinc++:%{!stdlib=libc++:-isystem $cxx_headers -isystem $cxx_headers/${gccTarget} -isystem $cxx_headers/backward}}}" \
+      "" > "$out/share/libstdcxx-headers.spec"
+  '';
+
+  # GCC's own fixincludes, built from the same source, for check.nix to rerun
+  # against the host SDK. Only its two directories are unpacked: the whole
+  # GCC tarball takes minutes to extract.
+  gccFixincludes = stdenv.mkDerivation {
+    pname = "gcc-fixincludes";
+    inherit (gcc.cc) version src;
+    # stdenv's bash crashes in fixupPhase on this host without a locale.
+    env.LC_ALL = "C";
+    unpackPhase = ''
+      tar -xf "$src" --wildcards --no-wildcards-match-slash \
+        'gcc-*/fixincludes' 'gcc-*/libiberty' 'gcc-*/include' 'gcc-*/config' \
+        'gcc-*/config.guess' 'gcc-*/config.sub' 'gcc-*/install-sh' 'gcc-*/missing' \
+        'gcc-*/mkinstalldirs' 'gcc-*/move-if-change' \
+        'gcc-*/gcc/BASE-VER' 'gcc-*/gcc/DEV-PHASE' 'gcc-*/gcc/DATESTAMP'
+      sourceRoot=$(echo gcc-*)
+    '';
+    dontConfigure = true;
+    buildPhase = ''
+      runHook preBuild
+      source_root=$PWD
+      mkdir -p ../obj/libiberty ../obj/fixincludes
+      (cd ../obj/libiberty && "$source_root/libiberty/configure" --disable-multilib && make)
+      (cd ../obj/fixincludes && "$source_root/fixincludes/configure" --target=${gccTarget} && make)
+      runHook postBuild
+    '';
+    installPhase = ''
+      install -Dm755 ../obj/fixincludes/fixincl "$out/libexec/fixincl"
+      install -Dm755 ../obj/fixincludes/fixinc.sh "$out/libexec/fixinc.sh"
+    '';
+  };
+
   mkGccDriver =
     driverName:
     writeShellScriptBin driverName ''
@@ -373,7 +441,11 @@ let
         esac
       done
 
-      policy_args=(-B${gccPrograms}/bin/ -L${gccRuntime})
+      policy_args=(
+        -specs=${gccPrefix}/share/libstdcxx-headers.spec
+        -B${gccPrograms}/bin/
+        -L${gccRuntime}
+      )
       if [[ -z "$have_sysroot" ]]; then
         resolve_host_sdk || exit 1
         policy_args+=(-isysroot "$host_sdk")
@@ -381,7 +453,8 @@ let
       if [[ -z "$have_version" ]]; then
         policy_args+=(-mmacosx-version-min=${lib.escapeShellArg darwinMinVersion})
       fi
-      exec ${gcc.cc}/bin/${driverName} "''${policy_args[@]}" "$@"
+      GCC_EXEC_PREFIX=${gccPrefix}/lib/gcc/ exec ${gcc.cc}/bin/${driverName} \
+        "''${policy_args[@]}" "$@"
     '';
 
   # GCC's own utilities, which its nixpkgs wrapper does not expose. CMake looks
@@ -498,6 +571,7 @@ let
             ;
           inherit (llvmPackages_22) lld;
           appleLinker = "${appleLinker}/bin/ld";
+          inherit gccFixincludes gccTarget;
           gccVersion = gcc.version;
           hostArch = stdenv.hostPlatform.darwinArch;
         }

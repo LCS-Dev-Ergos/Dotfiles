@@ -6,7 +6,9 @@
   cctools,
   clangRuntime,
   darwinMinVersion,
+  gccFixincludes,
   gccRuntime,
+  gccTarget,
   gccVersion,
   hostArch,
   lib,
@@ -172,6 +174,58 @@ in
     $otool -L gnu | grep -Fq '${runtimeDir}/gcc/libstdc++.6.dylib' ||
       fail "libstdc++ is not referenced through the stable directory"
   ''}
+
+  # GCC runs without the include-fixed nixpkgs generated from its own SDK:
+  # system headers come from the host SDK, libstdc++ keeps its place ahead of
+  # GCC's private headers, and a caller can still opt out of it.
+  math_origin="$(printf '%s\n' '#include <math.h>' | $bin/gcc -H -fsyntax-only -x c - 2>&1 | sed -n 1p)"
+  [[ "$math_origin" == ". $host_sdk/usr/include/math.h" ]] ||
+    fail "gcc does not take math.h from the host SDK: $math_origin"
+  search_dirs="$(printf "" | $bin/g++ -x c++ -E -v - 2>&1 |
+    sed -n '/<[.][.][.]> search starts here:/,/End of search list/{s/^ *//;p;}')"
+  [[ "$(sed -n 2p <<<"$search_dirs")" == */include/c++/${gccVersion} ]] ||
+    fail "libstdc++ headers are not searched first: $search_dirs"
+  while IFS= read -r directory; do
+    [[ -z "$(ls -A "$directory")" ]] || fail "g++ searches a populated $directory"
+  done < <(grep include-fixed <<<"$search_dirs")
+  if printf "" | $bin/g++ -nostdinc++ -x c++ -E -v - 2>&1 | grep -Fq include/c++/; then
+    fail "-nostdinc++ no longer drops the libstdc++ headers"
+  fi
+
+  printf '#include <%s>\n' \
+    assert.h complex.h ctype.h dirent.h dlfcn.h errno.h fcntl.h fenv.h float.h \
+    inttypes.h limits.h locale.h mach/mach.h math.h netdb.h poll.h pthread.h \
+    setjmp.h signal.h stdarg.h stdatomic.h stdbool.h stddef.h stdint.h stdio.h \
+    stdlib.h string.h sys/mman.h sys/socket.h sys/stat.h sys/time.h sys/wait.h \
+    termios.h tgmath.h time.h unistd.h wchar.h wctype.h zlib.h > system-headers.h
+  printf '%s\n' '#include "system-headers.h"' 'int main(void) { return isnan(sqrt(4.0)); }' \
+    > system-headers.c
+  quiet $bin/gcc -std=c17 -Wall -Wextra system-headers.c -o system-headers-c
+  quiet $bin/g++ -std=c++23 -Wall -Wextra -x c++ system-headers.c -o system-headers-cxx
+
+  # The empty include-fixed stays right only while GCC's own fixincludes
+  # finds nothing to repair in the host SDK. A new SDK that trips one of its
+  # rules fails here, before GCC reads the unrepaired header.
+  fixed_headers="$PWD/fixincludes"
+  mkdir "$fixed_headers"
+  (
+    cd ${gccFixincludes}/libexec
+    TARGET_MACHINE=${gccTarget} target_canonical=${gccTarget} MACRO_LIST=/dev/null \
+      ./fixinc.sh "$fixed_headers" "$host_sdk/usr/include"
+  ) >fixincludes.log 2>&1 || {
+    cat fixincludes.log >&2
+    fail "fixincludes could not scan the host SDK"
+  }
+  while IFS= read -r header; do
+    case "$header" in
+      # Wraps Apple's availability macros in __has_attribute(availability),
+      # a test the SDK already performs and GCC passes (checked below).
+      AvailabilityInternal.h) ;;
+      *) fail "fixincludes now rewrites $header from SDK $sdk_version; decide whether GCC needs that fix" ;;
+    esac
+  done < <(cd "$fixed_headers" && find . -type f | sed 's|^[.]/||' | sort)
+  [[ "$(printf '%s\n' '#if __has_attribute(availability)' yes '#endif' | $bin/gcc -E -P -x c - | tr -d '[:space:]')" == yes ]] ||
+    fail "gcc lost the availability attribute the AvailabilityInternal.h fix tests for"
 
   # Objects from either compiler link with the other without a version mismatch.
   printf '%s\n' 'extern "C" int increment(int);' 'int main() { return increment(-1); }' > mixed.cc
