@@ -170,6 +170,20 @@ discovered through Homebrew/pkg-config; they do not belong in the compiler
 package. Tcl/Tk 8 is declared for tkinter support. A project that needs a fully pinned Python
 environment should use a development shell in its own flake instead.
 
+After migrating the toolchain, an already running terminal, editor or tmux
+server can retain an old store path in `CC`/`CXX`. Restart the parent application
+or refresh the current shell explicitly before rebuilding:
+
+```sh
+export CC="/etc/profiles/per-user/$USER/bin/clang"
+export CXX="/etc/profiles/per-user/$USER/bin/clang++"
+```
+
+`get_toolchain_sdk_support --all` tests default header search paths only.
+`missing` does not establish that a library needs installing: Apple's `ffi.h`,
+for example, needs the SDK's `usr/include/ffi` include path, which CPython's
+configure supplies. Link and runtime checks are separate.
+
 ## Verification
 
 The flake exposes a lockfile-pinned `ci` development shell for Nix formatting

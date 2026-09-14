@@ -485,9 +485,9 @@ _toolchain_probe_header() {
 # -----------------------------------------------------------------------------
 # get_toolchain_sdk_support
 # @description Reports which SDK-bundled third-party libraries the active C
-# compiler can reach, next to Apple's own compiler and Homebrew. Use it to see
-# what a source build -- pyenv, rbenv, node-gyp, cargo, opam -- would silently
-# lose under the current toolchain.
+# compiler can reach without additional include flags, next to Apple's own
+# compiler. Build-system discovery may supply additional paths; this probe
+# does not establish whether a library is installed or can link and run.
 # @option -a | --all Report every probed library, not only the divergences.
 # @option -h | --help Show usage information.
 # @exitcode 1 If no C compiler can be resolved.
@@ -508,9 +508,9 @@ get_toolchain_sdk_support() {
           "  -a, --all   Report every probed library, not only divergences." \
           "  -h, --help  Show this help." \
           "" \
-          "A library the active compiler cannot reach is not an error: it means" \
-          "a source build must be given an explicit -I/-L, or be compiled with" \
-          "the system compiler."
+          "This tests headers without extra include flags, not link/runtime support." \
+          "A missing header may be installed outside the default search path;" \
+          "build systems can discover it via SDK paths or pkg-config."
         return 0
         ;;
       *)
@@ -550,6 +550,13 @@ get_toolchain_sdk_support() {
       environment_rows+=("System compiler"$'\t'"$system_cc")
     print -r -- ""
     _zsh_ui_definition_list "${environment_rows[@]}" || return 1
+
+    if [[ "$active" == /nix/store/* ]]; then
+      _zsh_ui_log warn \
+        "CC is pinned to a Nix store generation; profile updates do not change it."
+      _zsh_ui_log info \
+        "For host builds, check CC/CXX against the current Home Manager profile."
+    fi
 
     local -a rows=()
     local -i divergent=0
@@ -614,7 +621,7 @@ get_toolchain_sdk_support() {
     if (( ${#rows} )); then
       _zsh_ui_section "Libraries" || return 1
       _zsh_ui_table \
-        $'Header\tActive\tSystem\tUsed by\tSupplied by' "${rows[@]}" || return 1
+        $'Header\tActive\tSystem\tUsed by\tHomebrew alternative' "${rows[@]}" || return 1
     fi
 
     print -r -- ""
@@ -622,10 +629,14 @@ get_toolchain_sdk_support() {
       _zsh_ui_log warn \
         "$divergent librar(ies) the system compiler sees are out of reach here."
       _zsh_ui_log info \
-        "Source builds needing them require an explicit -I/-L or /usr/bin/cc."
+        "Check compiler/SDK selection before adding library search paths."
     else
       _zsh_ui_log ok "The active compiler reaches everything the system one does."
     fi
+    _zsh_ui_log info \
+      "Header-only probe: missing does not prove a library needs installation."
+    _zsh_ui_log info \
+      "Apple's ffi.h requires the SDK's usr/include/ffi search path."
   } always {
     command rm -rf -- "$scratch" 2>/dev/null
   }
