@@ -139,6 +139,7 @@ _: {
       "icu4c@78"
       "imagemagick"
       "jbreckmckye/formulae/daylight"
+      "libb2"
       "libgccjit"
       "libsixel"
       "libvterm"
@@ -149,12 +150,14 @@ _: {
       "models"
       "msgpack"
       "mypy"
+      "ncurses"
       "neovim"
       "ninja"
       "nmap"
       "oci-cli"
       "ocrmypdf"
       "opam"
+      "openssl@3"
       {
         name = "openjdk@21";
         link = true;
@@ -166,15 +169,23 @@ _: {
       "pkgconf"
       "plantuml"
       "powerlevel10k"
+      # Host Python builds use Apple's SDK and the Nix compiler drivers, with
+      # Homebrew's optional libraries discovered by python-build. Keep libb2,
+      # ncurses, openssl@3, readline, sqlite, xz, zlib and zstd declared even
+      # when another formula currently pulls them in transitively. Tcl/Tk 8
+      # supplies tkinter without opting into Tcl/Tk 9's experimental support.
       "pyenv"
       "qrencode"
       "raylib"
       "rbenv"
+      "readline"
       "reaver"
       "redis"
       "serkanyersen/dotstate/dotstate"
       "smartmontools"
+      "sqlite"
       "swi-prolog"
+      "tcl-tk@8"
       "teamookla/speedtest/speedtest"
       "tesseract-lang"
       "thefuck"
@@ -184,8 +195,11 @@ _: {
       # The locked Darwin build fails at link time and also injects a
       # Homebrew Samba library path, so this is not a clean Nix owner yet.
       "veeso/termscp/termscp"
+      "xz"
       "zackelia/formulae/bclm"
+      "zlib"
       "zsh"
+      "zstd"
     ];
 
     casks = [
