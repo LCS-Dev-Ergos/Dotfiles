@@ -75,6 +75,7 @@ case "$1" in
 esac
 '
 _dd_stub "$ok_root/bin/oklang" 'echo "oklang 1.0.0"'
+_dd_stub "$alt_dir/oklang" 'echo "package fallback 0.9.0"'
 
 # A manager that manages nothing, so its language comes from somewhere else.
 _dd_stub "$bin_dir/unusedmgr" '
@@ -167,6 +168,78 @@ rehash
 
 source "$test_root/scripts/dev-doctor.zsh" || _dd_fail "dev-doctor.zsh did not load"
 
+# A responding manager is insufficient when its generated runtime launcher
+# points to a missing extracted executable (not a jar). Include a space in the
+# path, as Coursier's real macOS cache does.
+typeset runtime_registry="$fixture_root/runtime-probes.tsv"
+_dd_stub "$bin_dir/cs" 'echo "2.1.25"'
+_dd_stub "$bin_dir/scala" 'exec "/missing cache/scala/bin/scala" "$@"'
+_dd_stub "$bin_dir/erl" 'printf "29\n"'
+{
+  print -- "coursier\tScala\tany\t-\t-\tcs\tcs version\tscala\t-\t-\t-\talways\tscala version --offline"
+  print -- "erlang\tErlang\tany\t-\t-\terl\thook\terl\t-\t-\t-\talways\tversion"
+} >| "$runtime_registry"
+rehash
+typeset runtime_output
+runtime_output="$(DEVDOCTOR_REGISTRY="$runtime_registry" devdoctor --json)" || true
+[[ "$runtime_output" == *'"label":"Scala","state":"broken"'* ]] ||
+  _dd_fail "a healthy manager hid a broken native runtime launcher"
+[[ "$runtime_output" == *'"label":"Erlang","state":"ok","active":"29"'* ]] ||
+  _dd_fail "Erlang's running VM must supply its OTP release"
+
+_dd_stub "$bin_dir/scala" 'echo "3.9.0"'
+runtime_output="$(DEVDOCTOR_REGISTRY="$runtime_registry" devdoctor --json)" || true
+[[ "$runtime_output" == *'"label":"Scala","state":"ok","active":"3.9.0"'* ]] ||
+  _dd_fail "a working runtime must report its own version"
+_dd_stub "$bin_dir/scala" 'sleep 10'
+runtime_output="$(DEVDOCTOR_TIMEOUT=1 DEVDOCTOR_REGISTRY="$runtime_registry" devdoctor --json)" || true
+[[ "$runtime_output" == *'"label":"Scala","state":"unknown"'*'timed out'* ]] ||
+  _dd_fail "a runtime timeout must remain inconclusive, not healthy or broken"
+command rm -f "$bin_dir/scala"
+runtime_output="$(DEVDOCTOR_REGISTRY="$runtime_registry" devdoctor --json)" || true
+[[ "$runtime_output" == *'"label":"Scala","state":"broken"'* ]] ||
+  _dd_fail "a missing managed executable must not be healthy"
+
+# Compiler overrides are commands, not shell programs to eval. Their origin
+# must follow CC/CXX rather than whichever cc happens to precede them on PATH.
+typeset compiler_registry="$fixture_root/compilers.tsv"
+typeset compiler_path="$ok_root/bin/compiler with spaces"
+_dd_stub "$compiler_path" 'echo "clang version 22.1.8"'
+{
+  print -- "cc\tC compiler\tany\t-\t-\thook\thook\tcc\t-\t-\t-\talways\tversion"
+  print -- "cxx\tC++ compiler\tany\t-\t-\thook\thook\tc++\t-\t-\t-\talways\tversion"
+} >| "$compiler_registry"
+runtime_output="$(CC="$compiler_path" CXX="\"$compiler_path\" -stdlib=libc++" \
+  DEVDOCTOR_REGISTRY="$compiler_registry" devdoctor --json)" || true
+[[ "$runtime_output" == *'"label":"C compiler","state":"ok","active":"22.1.8","origin":"other"'* &&
+   "$runtime_output" == *'"label":"C++ compiler","state":"ok","active":"22.1.8"'* ]] ||
+  _dd_fail "CC/CXX overrides with spaces or arguments were not honoured"
+runtime_output="$(CC='/missing/compiler' DEVDOCTOR_REGISTRY="$compiler_registry" devdoctor --json)" || true
+[[ "$runtime_output" == *'"label":"C compiler","state":"broken"'* ]] ||
+  _dd_fail "an invalid explicit CC was hidden by PATH fallback"
+runtime_output="$(CC='$(touch '$fixture_root'/evaluated)' DEVDOCTOR_REGISTRY="$compiler_registry" devdoctor --json)" || true
+[[ ! -e "$fixture_root/evaluated" ]] || _dd_fail "CC was evaluated as shell code"
+_dd_stub "$bin_dir/cc" 'echo "clang version 22.1.8"'
+rehash
+runtime_output="$(_devdoctor_path_conflicts - cc)"
+[[ "$runtime_output" != *$'shadowed binary\tcc\t'* ]] ||
+  _dd_fail "the system compiler fallback was treated as a competing toolchain"
+command rm -f "$bin_dir/cc"
+rehash
+
+# No managed runtime: a version shim must not be invoked (some download a
+# toolchain on first use). This holds independently of PATH precedence.
+typeset empty_registry="$fixture_root/empty-runtime.tsv"
+_dd_stub "$bin_dir/empty-runtime" 'touch "$DD_PROBE_MARKER"; echo "1.0"'
+export DD_PROBE_MARKER="$fixture_root/unwanted-start"
+print -- "empty\tEmpty\tany\t-\t-\tunusedmgr\tempty-runtime --version\tempty-runtime\tunusedmgr list\t-\t-\talways\tversion" >| "$empty_registry"
+rehash
+runtime_output="$(DEVDOCTOR_REGISTRY="$empty_registry" devdoctor --json)" || true
+[[ ! -e "$DD_PROBE_MARKER" && "$runtime_output" == *'"state":"unused"'* ]] ||
+  _dd_fail "an empty manager started its runtime shim"
+command rm -f "$bin_dir/scala" "$bin_dir/cs" "$bin_dir/erl"
+rehash
+
 # +++++++++++++++++++++++++++++ LOCAL TIER TESTS +++++++++++++++++++++++++++++ #
 
 typeset json_output
@@ -180,6 +253,8 @@ json_output="$(devdoctor --all --json)" || status_code=$?
   _dd_fail "ok_mgr was not reported as ok"
 [[ "$json_output" == *'"state":"ok","active":"1.2.3","origin":"manager","detail":"2 managed"'* ]] ||
   _dd_fail "ok_mgr origin, version, or managed count is wrong"
+[[ "$json_output" != *'"kind":"shadowed binary","subject":"oklang"'* ]] ||
+  _dd_fail "a package fallback behind the selected manager was treated as a conflict"
 
 [[ "$json_output" == *'"id":"unused_mgr","label":"Unused Manager","state":"unused"'* ]] ||
   _dd_fail "unused_mgr was not reported as unused"
@@ -315,6 +390,13 @@ if [[ -n "$real_timeout" ]]; then
     _dd_fail "the fallback failed a command that finishes in time"
   [[ "$fallback_out" == "fallback-ok" ]] ||
     _dd_fail "the fallback lost the command output, got '$fallback_out'"
+
+  fallback_status=0
+  SECONDS=0
+  _devdoctor_run_timeout 1 /bin/sh -c 'trap "" TERM; while :; do :; done' \
+    >/dev/null 2>&1 || fallback_status=$?
+  (( fallback_status == 124 && SECONDS < 4 )) ||
+    _dd_fail "the fallback did not bound a probe that ignores TERM"
 
   command ln -s "$real_timeout" "$bin_dir/timeout"
   rehash
