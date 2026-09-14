@@ -59,6 +59,13 @@ with the live installation and checks command precedence across `PATH`:
 - The audit never installs, upgrades, removes, taps or untaps anything. A
   nonzero exit status means the report contains drift or a precedence problem.
 
+On macOS, pyenv's `python-build` compiles CPython with the Nix compiler drivers
+against Apple's SDK. The external libraries it links against are declared in
+`darwin/homebrew.nix` and found through Homebrew and pkg-config; they do not
+belong in the compiler package. Tcl/Tk 8 is declared for tkinter. A project
+that needs a fully pinned Python environment uses a development shell in its
+own flake instead.
+
 ### State Boundaries
 
 Static configuration is deployed from the Nix store wherever the application
