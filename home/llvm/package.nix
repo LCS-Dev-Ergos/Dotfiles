@@ -78,7 +78,8 @@ let
   '';
 
   # Every driver compiles against the SDK of the active Apple developer
-  # directory, the same one its linker, CMake, clangd and xcrun already use.
+  # directory, unless an explicit sysroot or valid SDKROOT selects another.
+  # The same precedence applies to Clang, GCC, tooling and the Apple fallback.
   # nixpkgs' apple-sdk cannot play that role on a workstation: it strips the
   # third-party libraries Apple bundles (zlib, sqlite, libxml2, curl, ...), and
   # its libc++ headers break C++ as soon as anything adds the real SDK's
@@ -91,6 +92,16 @@ let
 
     resolve_host_sdk() {
       local developer_dir="''${DEVELOPER_DIR-}" candidate
+      # Match the compiler convention: SDKROOT must name an existing absolute
+      # directory other than /. Store SDKs have already been dropped above.
+      case "''${SDKROOT-}" in
+        /*)
+          if [[ "$SDKROOT" != / && -d "$SDKROOT" ]]; then
+            host_sdk="$SDKROOT"
+            return 0
+          fi
+          ;;
+      esac
       if [[ -z "$developer_dir" ]]; then
         developer_dir="$(/usr/bin/xcode-select --print-path 2>/dev/null)" ||
           developer_dir=
@@ -124,6 +135,7 @@ let
     have_platform=
     have_sdk_version=
     have_syslibroot=
+    sdk_root=
     have_lto_library=
     legacy_min_index=
     for ((index = 0; index < ''${#arguments[@]}; index++)); do
@@ -139,6 +151,7 @@ let
           ;;
         -syslibroot)
           have_syslibroot=1
+          sdk_root="''${arguments[index + 1]-}"
           ;;
         -lto_library)
           have_lto_library=1
@@ -150,27 +163,30 @@ let
     fi
 
     extra_args=()
-    if [[ -z "$have_syslibroot" || -z "$have_platform" ]]; then
+    if [[ -z "$have_syslibroot" ]]; then
       resolve_host_sdk || exit 1
-      if [[ -z "$have_syslibroot" ]]; then
-        extra_args+=(-syslibroot "$host_sdk")
-      fi
-      if [[ -z "$have_platform" ]]; then
-        sdk_version=${lib.escapeShellArg darwinMinVersion}
-        sdk_settings="$(<"$host_sdk/SDKSettings.json")"
-        if [[ "$sdk_settings" =~ \"Version\":\"([0-9.]+)\" ]]; then
+      sdk_root="$host_sdk"
+      extra_args+=(-syslibroot "$sdk_root")
+    fi
+    if [[ -z "$have_platform" ]]; then
+      # An arbitrary explicit sysroot need not contain SDKSettings.json.
+      # Record an unknown SDK in that case, never the unrelated host SDK.
+      sdk_version=0.0
+      if [[ -r "$sdk_root/SDKSettings.json" ]]; then
+        sdk_settings="$(<"$sdk_root/SDKSettings.json")"
+        if [[ "$sdk_settings" =~ \"Version\"[[:space:]]*:[[:space:]]*\"([0-9.]+)\" ]]; then
           sdk_version="''${BASH_REMATCH[1]}"
         fi
-        min_version=${lib.escapeShellArg darwinMinVersion}
-        if [[ -n "$legacy_min_index" ]]; then
-          min_version="''${arguments[legacy_min_index + 1]-$min_version}"
-          arguments=(
-            "''${arguments[@]:0:legacy_min_index}"
-            "''${arguments[@]:legacy_min_index + 2}"
-          )
-        fi
-        extra_args+=(-platform_version macos "$min_version" "$sdk_version")
       fi
+      min_version=${lib.escapeShellArg darwinMinVersion}
+      if [[ -n "$legacy_min_index" ]]; then
+        min_version="''${arguments[legacy_min_index + 1]-$min_version}"
+        arguments=(
+          "''${arguments[@]:0:legacy_min_index}"
+          "''${arguments[@]:legacy_min_index + 2}"
+        )
+      fi
+      extra_args+=(-platform_version macos "$min_version" "$sdk_version")
     fi
     if [[ -z "$have_lto_library" ]]; then
       extra_args+=(-lto_library ${lib.escapeShellArg ltoLibrary})
@@ -232,6 +248,7 @@ let
       have_linker=
       requested_lld=
       have_sysroot=
+      have_isysroot=
       sysroot=
       foreign_arch=
       for argument in "$@"; do
@@ -276,11 +293,17 @@ let
             ;;
           -isysroot)
             have_sysroot=1
+            have_isysroot=1
             next_is_sysroot=1
             ;;
           -isysroot?*)
             have_sysroot=1
+            have_isysroot=1
             sysroot="''${argument#-isysroot}"
+            ;;
+          --sysroot)
+            have_sysroot=1
+            next_is_sysroot=1
             ;;
           --sysroot=*)
             have_sysroot=1
@@ -309,6 +332,17 @@ let
             policy_args+=(-mmacosx-version-min=${lib.escapeShellArg darwinMinVersion})
           fi
 
+          if [[ -z "$have_sysroot" ]]; then
+            resolve_host_sdk || exit 1
+            sysroot="$host_sdk"
+          fi
+          # Darwin Clang reads SDK version metadata from -isysroot, even
+          # when --sysroot already supplies header and library paths. Supply
+          # the same path for both spellings without replacing user flags.
+          if [[ -z "$have_isysroot" && -n "$sysroot" ]]; then
+            policy_args+=(-isysroot "$sysroot")
+          fi
+
           # nixpkgs no longer builds x86_64-darwin, so its compiler-rt carries
           # only arm64. Apple's compiler is the one complete toolchain for
           # Intel and universal binaries, so those invocations go to it whole.
@@ -316,11 +350,6 @@ let
             exec /usr/bin/${appleExecutable} "''${policy_args[@]}" "$@"
           fi
 
-          if [[ -z "$have_sysroot" ]]; then
-            resolve_host_sdk || exit 1
-            policy_args+=(-isysroot "$host_sdk")
-            sysroot="$host_sdk"
-          fi
           # An explicit -fuse-ld or --ld-path is the caller's decision;
           # Clang would silently drop it in favour of ours. The exception is
           # an LLD request against an SDK newer than this LLD can read: its
@@ -431,7 +460,7 @@ let
           -mmacosx-version-min=*)
             have_version=1
             ;;
-          -isysroot)
+          -isysroot|--sysroot)
             have_sysroot=1
             next_is_sysroot=1
             ;;
@@ -510,7 +539,7 @@ let
         {
           printf '#!%s\n' ${lib.escapeShellArg stdenv.shell}
           printf '%s\n' ${lib.escapeShellArg hostSdkLookup}
-          printf '%s\n' 'if [[ -z "''${SDKROOT-}" ]] && resolve_host_sdk; then'
+          printf '%s\n' 'if resolve_host_sdk; then'
           printf '%s\n' '  export SDKROOT="$host_sdk"'
           printf '%s\n' 'fi'
           printf 'exec %s "$@"\n' "${clangTools}/bin/$tool_name-unwrapped"

@@ -51,12 +51,12 @@ in
   }
 
   check_build_version() {
-    local binary="$1" load_commands
+    local binary="$1" expected_sdk="''${2-$sdk_version}" load_commands
     load_commands="$($otool -l "$binary")"
     grep -Eq "minos[[:space:]]+${darwinMinVersion}([.]0)?$" <<<"$load_commands" ||
       fail "$binary does not target macOS ${darwinMinVersion}"
-    grep -Eq "sdk[[:space:]]+''${sdk_version//./[.]}([.]0)?$" <<<"$load_commands" ||
-      fail "$binary was not linked against SDK $sdk_version"
+    grep -Eq "sdk[[:space:]]+''${expected_sdk//./[.]}([.]0)?$" <<<"$load_commands" ||
+      fail "$binary was not linked against SDK $expected_sdk"
   }
 
   for program in cc c++ clang clang++ cpp ld dsymutil gcc g++ clangd clang-tidy; do
@@ -115,6 +115,52 @@ in
   quiet $bin/ld -arch ${hostArch} -lSystem smoke.o -o smoke-ld
   ./smoke-ld
   check_build_version smoke-ld
+
+  # An SDK view with distinct metadata exercises override policy even on a
+  # host with only one SDK installed. Headers and stubs still come from the
+  # host: this tests SDK selection/metadata, not older-SDK compatibility.
+  alternate_sdk="$PWD/alternate SDK/MacOSX.sdk"
+  alternate_version="$(( ''${sdk_version%%.*} + 1 )).0"
+  mkdir -p "$alternate_sdk"
+  for entry in "$host_sdk"/*; do
+    [[ "''${entry##*/}" == SDKSettings.json ]] || ln -s "$entry" "$alternate_sdk/"
+  done
+  sed -E 's/"Version"[[:space:]]*:[[:space:]]*"[0-9.]+"/"Version":"'"$alternate_version"'"/' \
+    "$host_sdk/SDKSettings.json" > "$alternate_sdk/SDKSettings.json"
+
+  for compiler in cc gcc; do
+    for spelling in isysroot separate equals; do
+      case "$spelling" in
+        isysroot) sdk_args=(-isysroot "$alternate_sdk") ;;
+        separate) sdk_args=(--sysroot "$alternate_sdk") ;;
+        equals) sdk_args=(--sysroot="$alternate_sdk") ;;
+      esac
+      output="sdk-$compiler-$spelling"
+      quiet env SDKROOT="$host_sdk" "$bin/$compiler" \
+        "''${sdk_args[@]}" smoke.c -o "$output"
+      check_build_version "$output" "$alternate_version"
+      ./"$output"
+    done
+    quiet env SDKROOT="$alternate_sdk" "$bin/$compiler" smoke.c -o "sdk-env-$compiler"
+    check_build_version "sdk-env-$compiler" "$alternate_version"
+  done
+
+  # SDKROOT must select the same SDK before and after the Apple fallback.
+  for arch in arm64 x86_64; do
+    trace="$(SDKROOT="$alternate_sdk" $bin/cc -arch "$arch" -### -c smoke.c 2>&1)"
+    grep -Fq -- "\"-isysroot\" \"$alternate_sdk\"" <<<"$trace" ||
+      fail "SDKROOT was not honoured for $arch"
+    grep -Fq -- "-target-sdk-version=$alternate_version" <<<"$trace" ||
+      fail "SDKROOT metadata differs for $arch"
+  done
+  quiet env SDKROOT="$alternate_sdk" $bin/cc -arch arm64 -arch x86_64 smoke.c -o sdk-universal
+  check_build_version sdk-universal "$alternate_version"
+  ./sdk-universal
+
+  # Direct ld must infer metadata from its explicit root rather than SDKROOT.
+  quiet env SDKROOT="$host_sdk" $bin/ld -arch ${hostArch} \
+    -syslibroot "$alternate_sdk" -lSystem smoke.o -o sdk-direct-ld
+  check_build_version sdk-direct-ld "$alternate_version"
 
   # zlib is one of the libraries nixpkgs' SDK strips; reaching it, in C++ and
   # with the SDK named explicitly the way CMake does, is the point of using
