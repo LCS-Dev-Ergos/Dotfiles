@@ -66,6 +66,23 @@ belong in the compiler package. Tcl/Tk 8 is declared for tkinter. A project
 that needs a fully pinned Python environment uses a development shell in its
 own flake instead.
 
+### Compiler Toolchains
+
+A running terminal, editor or tmux server keeps the `CC` and `CXX` values it
+started with, which can name an old store path after a toolchain change.
+Restart the parent application, or reset both variables in the current shell
+before rebuilding:
+
+```sh
+export CC="/etc/profiles/per-user/$USER/bin/clang"
+export CXX="/etc/profiles/per-user/$USER/bin/clang++"
+```
+
+`get_toolchain_sdk_support --all` tests default header search paths only. A
+`missing` result does not mean a library needs installing: Apple's `ffi.h`, for
+example, needs the SDK's `usr/include/ffi` include path, which CPython's
+configure supplies. Link and runtime checks are separate.
+
 ### State Boundaries
 
 Static configuration is deployed from the Nix store wherever the application
