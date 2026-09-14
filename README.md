@@ -164,6 +164,12 @@ already wins. The audit never installs, upgrades, removes, taps, or untaps
 anything; a nonzero result means the report contains drift or a precedence
 problem to review.
 
+On macOS, pyenv's `python-build` uses the host compiler drivers from Nix and
+Apple's SDK. Its external libraries are declared in `darwin/homebrew.nix` and
+discovered through Homebrew/pkg-config; they do not belong in the compiler
+package. Tcl/Tk 8 is declared for tkinter support. A project that needs a fully pinned Python
+environment should use a development shell in its own flake instead.
+
 ## Verification
 
 The flake exposes a lockfile-pinned `ci` development shell for Nix formatting
