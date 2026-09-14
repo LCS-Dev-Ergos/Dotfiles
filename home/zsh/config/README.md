@@ -72,6 +72,48 @@ in `docs/zsh-dependencies.md` beside this configuration.
 
 ## Startup architecture
 
+### Development environment health
+
+`devdoctor` reports the configured runtime managers and development tools.
+The source is `scripts/dev-doctor.zsh`; `~/.cache/zsh/lazy-scripts.zsh` contains
+generated loader stubs and must not be edited. The registry lives in
+`packages/runtime-managers.tsv` beside the Home Manager module.
+
+```zsh
+devdoctor --only cc,cxx,clang,gcc,cmake,ccache,coursier,erlang
+devdoctor --all --json
+```
+
+The optional thirteenth registry column, `runtime_cmd`, declares a local
+startup probe. `version` reuses the existing version command; `-` leaves the
+check at manager level. Other values are commands split into arguments,
+without shell evaluation. Legacy twelve-column registries still load.
+Python, Ruby, Java and Scala are started separately from their managers;
+Scala reports its default Scala version using the offline version command.
+Erlang reports the OTP release from a running VM.
+
+The report includes selected `CC`/`CXX` commands (including launcher arguments),
+Clang, GCC, CMake, ccache, Perl, .NET SDK, Bun, Android adb and Flutter. Flutter
+reads cached version metadata and starts its bundled Dart VM: the Flutter
+launcher itself can download artifacts even for a version request. Android
+checks adb startup, not SDK platforms, licenses or emulator readiness.
+
+A failed runtime startup is `broken` (exit 2). A timeout or missing version
+output is `unknown` (exit 1). Empty managers and unactivated session managers
+do not start their runtime shims. System fallbacks and package binaries behind
+a correctly selected manager are expected; displaced managers and competing
+unmanaged binaries still produce PATH warnings. `--updates` remains the
+explicit remote tier. Local probe timeout defaults to five seconds and can be
+adjusted with `DEVDOCTOR_TIMEOUT`.
+
+`OK` means the declared probes succeeded. It does not certify arbitrary
+projects, compilation, linking, every .NET global tool, Perl module, or
+optional runtime extension. C/C++ compile/link/runtime coverage belongs to
+the flake's `llvm-darwin-toolchain` check; `get_toolchain_info` and
+`get_toolchain_sdk_support` provide detailed compiler and header diagnostics.
+
+### Loading modules
+
 The normal loader sources `lib/*.zsh` in lexical order, then `functions/*.zsh`.
 A function file opts into deferred loading with a header marker:
 
