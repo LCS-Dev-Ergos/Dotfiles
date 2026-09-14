@@ -60,6 +60,36 @@ TOOLCHAIN_OS="macOS"
 _toolchain_select_llvm_bin_dir() { print -r -- "$llvm_fixture_bin"; }
 _toolchain_select_gcc_bin_dir() { print -r -- "$gcc_fixture_bin"; }
 
+# A rejected first switch must not leave a baseline for use_system to restore.
+# Cover both resolution failure and a compiler that exists but cannot run.
+typeset saved_validator="${functions[_toolchain_validate_resolution]}"
+typeset saved_verifier="${functions[_toolchain_verify_compiler]}"
+for failure_mode in resolution execution; do
+  export CC="$system_bin/cc" CXX="$system_bin/c++"
+  if [[ "$failure_mode" == resolution ]]; then
+    _toolchain_validate_resolution() { return 1; }
+  else
+    _toolchain_verify_compiler() { return 1; }
+  fi
+  if use_llvm >| "$fixture_root/failed-first-$failure_mode" 2>&1; then
+    print -u2 "FAIL: first switch accepted a $failure_mode failure"
+    return 1
+  fi
+  functions[_toolchain_validate_resolution]="$saved_validator"
+  functions[_toolchain_verify_compiler]="$saved_verifier"
+  [[ ! -v TOOLCHAIN_BASELINE_CC && "$CC" == "$system_bin/cc" ]] || {
+    print -u2 "FAIL: failed first switch retained a baseline or changed CC"
+    return 1
+  }
+  export CC="$system_bin/clang" CXX="$system_bin/clang++"
+  use_system >/dev/null || return 1
+  [[ "$CC" == "$system_bin/clang" && "$CXX" == "$system_bin/clang++" ]] || {
+    print -u2 "FAIL: use_system restored the baseline of a rejected switch"
+    return 1
+  }
+done
+unset CC CXX TOOLCHAIN_ACTIVE
+
 typeset llvm_output_file="$fixture_root/llvm-output"
 use_llvm >| "$llvm_output_file" || {
   print -u2 "FAIL: use_llvm rejected a valid preferred LLVM toolchain"
