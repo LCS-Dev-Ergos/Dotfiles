@@ -111,6 +111,26 @@ in
   ./smoke-c
   check_build_version smoke-c
 
+  # CPython probes Apple's libffi using this SDK-specific include directory.
+  # Headers alone are insufficient: a stripped SDK can pass the header probe
+  # but fail -lffi, sending configure down the wrong (non-Apple) code path.
+  cat > python-sdk.c <<'C'
+  #include <ffi.h>
+  #include <bzlib.h>
+  static int answer(void) { return 42; }
+  int main(void) {
+    ffi_cif cif;
+    ffi_arg result = 0;
+    if (ffi_prep_cif(&cif, FFI_DEFAULT_ABI, 0, &ffi_type_sint, 0) != FFI_OK)
+      return 1;
+    ffi_call(&cif, FFI_FN(answer), &result, 0);
+    return result != 42 || BZ2_bzlibVersion() == 0;
+  }
+  C
+  quiet $bin/cc -I"$host_sdk/usr/include/ffi" python-sdk.c -lffi -lbz2 -o python-sdk
+  ./python-sdk
+  check_build_version python-sdk
+
   quiet $bin/cc -c smoke.c -o smoke.o
   quiet $bin/ld -arch ${hostArch} -lSystem smoke.o -o smoke-ld
   ./smoke-ld
