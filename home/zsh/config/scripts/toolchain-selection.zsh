@@ -124,20 +124,25 @@ _toolchain_restore_var() {
 # -----------------------------------------------------------------------------
 # _toolchain_save_baseline
 # @internal
-# @description Records LDFLAGS, CPPFLAGS, CPATH, PKG_CONFIG_PATH, CC, and CXX
-# as they are when the shell leaves the system toolchain, so use_system can
-# return to them. Switching between LLVM and GNU keeps the first baseline.
-# @noargs
+# @description Commits the pre-switch values after a successful activation.
+# Switching between LLVM and GNU keeps the first baseline.
+# @arg $1 string Previous LDFLAGS or the unset sentinel.
+# @arg $2 string Previous CPPFLAGS or the unset sentinel.
+# @arg $3 string Previous CPATH or the unset sentinel.
+# @arg $4 string Previous PKG_CONFIG_PATH or the unset sentinel.
+# @arg $5 string Previous CC or the unset sentinel.
+# @arg $6 string Previous CXX or the unset sentinel.
 # @set TOOLCHAIN_BASELINE_* string Saved values, or the unset sentinel.
 # -----------------------------------------------------------------------------
 _toolchain_save_baseline() {
+  (( $# == 6 )) || return 2
   [[ -z "${TOOLCHAIN_ACTIVE:-}" || "$TOOLCHAIN_ACTIVE" == system ]] || return 0
-  typeset -g TOOLCHAIN_BASELINE_LDFLAGS="${LDFLAGS-__TOOLCHAIN_UNSET__}"
-  typeset -g TOOLCHAIN_BASELINE_CPPFLAGS="${CPPFLAGS-__TOOLCHAIN_UNSET__}"
-  typeset -g TOOLCHAIN_BASELINE_CPATH="${CPATH-__TOOLCHAIN_UNSET__}"
-  typeset -g TOOLCHAIN_BASELINE_PKG_CONFIG_PATH="${PKG_CONFIG_PATH-__TOOLCHAIN_UNSET__}"
-  typeset -g TOOLCHAIN_BASELINE_CC="${CC-__TOOLCHAIN_UNSET__}"
-  typeset -g TOOLCHAIN_BASELINE_CXX="${CXX-__TOOLCHAIN_UNSET__}"
+  typeset -g TOOLCHAIN_BASELINE_LDFLAGS="$1"
+  typeset -g TOOLCHAIN_BASELINE_CPPFLAGS="$2"
+  typeset -g TOOLCHAIN_BASELINE_CPATH="$3"
+  typeset -g TOOLCHAIN_BASELINE_PKG_CONFIG_PATH="$4"
+  typeset -g TOOLCHAIN_BASELINE_CC="$5"
+  typeset -g TOOLCHAIN_BASELINE_CXX="$6"
 }
 
 # -----------------------------------------------------------------------------
@@ -505,8 +510,11 @@ _toolchain_activate() {
 
   _toolchain_capture_state
   local -a previous_state=("${reply[@]}")
-  _toolchain_save_baseline
-  _toolchain_restore_baseline
+  # Returning from a selected toolchain uses its saved environment. Leaving
+  # the system uses the current environment, committed only after validation.
+  if [[ -n "${TOOLCHAIN_ACTIVE:-}" && "$TOOLCHAIN_ACTIVE" != system ]]; then
+    _toolchain_restore_baseline
+  fi
 
   # Absolute paths: CC keeps naming the selected compiler whatever PATH does
   # afterwards, so PATH only needs the directory when it lacks it entirely.
@@ -525,6 +533,7 @@ _toolchain_activate() {
     _toolchain_restore_state "${previous_state[@]}"
     return 1
   fi
+  _toolchain_save_baseline "${previous_state[@]:3}"
   TOOLCHAIN_ACTIVE="$toolchain"
 }
 
