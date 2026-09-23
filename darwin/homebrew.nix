@@ -16,12 +16,12 @@ _: {
   #
   # Absent on purpose, now Nix/Home Manager-owned: ansible, ansible-lint,
   # aspell, atac, atuin, bandwhich, bash, bat, bc, bear, beautysh, bottom,
-  # btop, bun, cava, cbonsai, ccache, clang-format, cmatrix, codex, cppman,
+  # btop, bun, cava, cbonsai, ccache, clang-format, cmatrix, cppman,
   # csvlens, direnv, duf, eza, exiftool, fastfetch, fd, findutils, fish,
   # fswatch, fzf, gh, git, git-delta, git-filter-repo, glab, glow, gnu-sed,
   # gnu-tar, gnu-time, gpatch, gum, jolt, jq, just, just-lsp, lazydocker,
   # lazygit, lld, llmfit, llvm, nnn, node, nowplaying-cli, nushell, oh-my-posh,
-  # opencode, pipes-sh, procs, pstree, qpdf, ripgrep, ruff, sesh, sevenzip,
+  # pipes-sh, procs, pstree, qpdf, ripgrep, ruff, sesh, sevenzip,
   # shellcheck, sketchybar, starship, switchaudio-osx, tealdeer, television,
   # tex-fmt, tmux, tree, universal-ctags, uv, w3m, wget, yazi, zoxide.
   #
@@ -35,7 +35,10 @@ _: {
   # Also absent, but not Nix takeovers: `coreutils` is only a build input for
   # activation scripts and Doom's separate `coreutils-prefixed` package,
   # never used interactively; `stow` has no Nix equivalent -- Home Manager's
-  # declarative file placement replaced it.
+  # declarative file placement replaced it. `codex` and `opencode` are absent
+  # for the same reason: both moved from Nix to npm global installs (see
+  # ~/.local/share/npm-global, already ahead of the Nix profile on PATH) so
+  # their fast-moving releases update directly, without a flake bump.
   #
   # Open font casks are also absent: nix-darwin installs CM Unicode, Fira Code,
   # the selected Nerd Font families, and Noto Sans Symbols 2. Apple SF fonts
@@ -140,6 +143,7 @@ _: {
       "imagemagick"
       "jbreckmckye/formulae/daylight"
       "libb2"
+      "libffi"
       "libgccjit"
       "libsixel"
       "libvterm"
