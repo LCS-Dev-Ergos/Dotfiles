@@ -64,13 +64,6 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # OpenCode comes from an independently pinned nixpkgs so its fast-moving
-    # release cadence does not move the package set used by the rest of the
-    # system. Keeping the package's own nixpkgs closure is intentional: it
-    # preserves the exact store paths published by cache.nixos.org and avoids
-    # compiling OpenCode locally.
-    opencode-nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-
     # Terminal color-script art (the `colorscript` command). Not packaged in
     # nixpkgs or Homebrew under any name.
     shell-color-scripts = {
@@ -135,7 +128,6 @@
         inherit externalSources;
         inherit (host) dotfilesRoot homeDirectory username;
         herdr = inputs.herdr.packages.${host.system}.default;
-        opencode = inputs.opencode-nixpkgs.legacyPackages.${host.system}.opencode;
       };
     in
     {
@@ -199,7 +191,6 @@
         in
         {
           cpp-tools = pkgs.callPackage ./home/cpp-tools/package.nix { };
-          opencode = inputs.opencode-nixpkgs.legacyPackages.${system}.opencode;
           default = self.packages.${system}.cpp-tools;
         }
         // nixpkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
