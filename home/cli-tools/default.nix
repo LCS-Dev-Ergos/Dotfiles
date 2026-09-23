@@ -1,8 +1,6 @@
 {
-  dotfilesRoot,
   externalSources,
   lib,
-  opencode,
   pkgs,
   ...
 }:
@@ -47,34 +45,6 @@ let
     '';
   };
 
-  # Keep OpenCode's mutable self-updater out of the Nix-managed command path.
-  # The independently pinned nixpkgs package is injected by flake.nix only
-  # into this module, so its updates cannot move the primary package set.
-  opencodeCli = pkgs.writeShellApplication {
-    name = "opencode";
-    text = ''
-      export OPENCODE_DISABLE_AUTOUPDATE=true
-      exec ${lib.getExe opencode} "$@"
-    '';
-  };
-
-  # A deliberately small interface for release maintenance. The command is
-  # bound to this checkout, never stages/commits/switches, and restores the
-  # lockfile if validation fails or the package is absent from the Nix cache.
-  opencodeUpdate = pkgs.writeShellApplication {
-    name = "opencode-update";
-    runtimeInputs = [
-      pkgs.coreutils
-      pkgs.git
-      pkgs.jq
-      pkgs.nix
-    ];
-    text = ''
-      export OPENCODE_UPDATE_REPOSITORY_ROOT=${lib.escapeShellArg dotfilesRoot}
-      ${builtins.readFile ./scripts/opencode-update.sh}
-    '';
-  };
-
   # Locale-pinned so the build survives fixupPhase on macOS 26.6. The stdenv's
   # bash links gettext's libintl, whose setlocale() falls through to
   # CFLocaleCopyPreferredLanguages when no locale is set in the environment.
@@ -114,7 +84,6 @@ in
     pkgs.bun
     pkgs.cbonsai
     pkgs.cmatrix
-    pkgs.codex
     shellColorScripts
     pkgs.cppman
     pkgs.csvlens
@@ -139,8 +108,13 @@ in
     pkgs.nixfmt
     # Stable non-interactive fallback; an active FNM multishell remains
     # higher-priority for projects that deliberately select another Node.
+    #
+    # Codex and OpenCode are deliberately absent here: both are npm global
+    # installs (@openai/codex, opencode-ai) at ~/.local/share/npm-global,
+    # already ahead of the Nix profile on PATH, so their releases update
+    # directly instead of through a flake bump. scripts/opencode-update.sh
+    # is retained but no longer wired into this module.
     pkgs.nodejs_24
-    opencodeCli
     pkgs.patch
     pkgs.pipes
     pkgs.procs
@@ -160,8 +134,6 @@ in
     pkgs.wget
   ]
   ++ lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
-    opencodeUpdate
-
     # macOS ships the BSD implementations of these three, and enough of this
     # setup assumes GNU behaviour that they belong on PATH there. Linux gets
     # them from its own base system, so installing them again would only add a
