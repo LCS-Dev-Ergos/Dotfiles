@@ -253,6 +253,9 @@ disabled = true
 style = 'red'
 format = '($output )'
 command = 'source $HOME/.config/starship/scripts/git_status.sh'
+# Outside a repository the script prints nothing; require_repo skips the zsh
+# it would otherwise spawn on every prompt.
+require_repo = true
 when = true
 unsafe_no_escape = true
 shell = ['zsh', '-df']
