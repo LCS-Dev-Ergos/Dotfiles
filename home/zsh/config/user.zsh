@@ -4,8 +4,8 @@
 # +++++++++++++++ USER.ZSH - Personal Customizations for HyDE ++++++++++++++++ #
 # ============================================================================ #
 #
-# This file is loaded by conf.d/hyde/shell.zsh BEFORE plugin/prompt init.
-# Your overrides here WILL take effect (unlike the old terminal.zsh flow).
+# .zshrc loads this file on HyDE systems BEFORE plugin/prompt init, unless
+# ~/.hyde.zshrc or ~/.user.zsh exists. Your overrides here WILL take effect.
 #
 # Available options:
 #   HYDE_ZSH_NO_PLUGINS=1   - Skip HyDE's plugin loading (use lib/20-zinit.zsh instead)

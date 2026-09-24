@@ -96,17 +96,35 @@ if [[ "$PLATFORM" == Linux && "$ARCH_LINUX" == true ]]; then
     }
   fi
 
+  # ---------------------------------------------------------------------------
+  # _aur_helper
+  # @internal
+  # @description Selects the installed AUR helper, preferring yay over paru.
+  # A command-table lookup, not `pacman -Qi`: this runs while the shell
+  # starts, and each pacman query reads the local package database.
+  # @noargs
+  # @exitcode 1 If neither yay nor paru is installed.
+  # @set REPLY string The helper command name.
+  # ---------------------------------------------------------------------------
   _aur_helper() {
-    pacman -Qi yay &>/dev/null && { print -r -- yay; return 0; }
-    pacman -Qi paru &>/dev/null && { print -r -- paru; return 0; }
-    return 1
+    REPLY=""
+    if (( $+commands[yay] )); then
+      REPLY=yay
+    elif (( $+commands[paru] )); then
+      REPLY=paru
+    else
+      return 1
+    fi
   }
 
   () {
-    local aur_helper="$(_aur_helper 2>/dev/null)"
-    [[ -n "$aur_helper" ]] || return 0
+    local REPLY
+    _aur_helper || return 0
+    local aur_helper="$REPLY"
     alias un="${aur_helper} -Rns"
-    alias up="${aur_helper} -Syu"
+    # Not `up`: that is the directory function in core.zsh, and an alias
+    # would shadow it.
+    alias upg="${aur_helper} -Syu"
     alias pl="${aur_helper} -Qs"
     alias pa="${aur_helper} -Ss"
     alias pc="${aur_helper} -Sc"
@@ -128,7 +146,8 @@ if [[ "$PLATFORM" == Linux && "$ARCH_LINUX" == true ]]; then
     fi
 
     local -a official=() aur=()
-    local aur_helper="$(_aur_helper 2>/dev/null)" pkg
+    local REPLY aur_helper="" pkg
+    _aur_helper && aur_helper="$REPLY"
     for pkg in "$@"; do
       if pacman -Si "$pkg" &>/dev/null; then
         official+=("$pkg")
