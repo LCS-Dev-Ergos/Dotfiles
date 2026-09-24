@@ -12,8 +12,9 @@
 # If users used UWSM, uwsm will override any variables set anywhere in your
 # shell configurations.
 
-# Basic PATH prepending (user local bin).
-PATH="$HOME/.local/bin:$PATH"
+# User local bin first. Moving it instead of prepending keeps nested shells,
+# which all source this file, from stacking duplicates.
+path=("$HOME/.local/bin" "${(@)path:#$HOME/.local/bin}")
 
 # XDG Base Directory Specification variables with defaults.
 XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
@@ -22,20 +23,41 @@ XDG_DATA_DIRS="${XDG_DATA_DIRS:-$XDG_DATA_HOME:/usr/local/share:/usr/share}"
 XDG_STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"
 XDG_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
 
-# XDG User Directories (fallback to xdg-user-dir command if available).
-if command -v xdg-user-dir >/dev/null 2>&1; then
-  XDG_DESKTOP_DIR="${XDG_DESKTOP_DIR:-$(xdg-user-dir DESKTOP)}"
-  XDG_DOWNLOAD_DIR="${XDG_DOWNLOAD_DIR:-$(xdg-user-dir DOWNLOAD)}"
-  XDG_TEMPLATES_DIR="${XDG_TEMPLATES_DIR:-$(xdg-user-dir TEMPLATES)}"
-  XDG_PUBLICSHARE_DIR="${XDG_PUBLICSHARE_DIR:-$(xdg-user-dir PUBLICSHARE)}"
-  XDG_DOCUMENTS_DIR="${XDG_DOCUMENTS_DIR:-$(xdg-user-dir DOCUMENTS)}"
-  XDG_MUSIC_DIR="${XDG_MUSIC_DIR:-$(xdg-user-dir MUSIC)}"
-  XDG_PICTURES_DIR="${XDG_PICTURES_DIR:-$(xdg-user-dir PICTURES)}"
-  XDG_VIDEOS_DIR="${XDG_VIDEOS_DIR:-$(xdg-user-dir VIDEOS)}"
+# XDG user directories, when xdg-user-dirs is installed. This file runs for
+# every zsh, scripts included, so instead of eight `xdg-user-dir` calls (each a
+# shell script sourcing the same file) it reads user-dirs.dirs once, with
+# xdg-user-dir's own defaults: $HOME/Desktop for DESKTOP, $HOME otherwise.
+if (( $+commands[xdg-user-dir] )); then
+  () {
+    setopt localoptions extendedglob
+    local file="$XDG_CONFIG_HOME/user-dirs.dirs" line key var
+    local -A dirs
+    local -a match mbegin mend
+    if [[ -r "$file" ]]; then
+      while IFS= read -r line; do
+        [[ "$line" == (#b)XDG_([A-Z]##)_DIR=\"(*)\" ]] || continue
+        dirs[${match[1]}]="${match[2]/#\$HOME/$HOME}"
+      done < "$file"
+    fi
+    for key in DESKTOP DOWNLOAD TEMPLATES PUBLICSHARE DOCUMENTS MUSIC \
+        PICTURES VIDEOS; do
+      var="XDG_${key}_DIR"
+      [[ -n "${(P)var}" ]] && continue
+      if [[ -n "${dirs[$key]-}" ]]; then
+        typeset -g "$var=${dirs[$key]}"
+      elif [[ "$key" == DESKTOP ]]; then
+        typeset -g "$var=$HOME/Desktop"
+      else
+        typeset -g "$var=$HOME"
+      fi
+    done
+  }
 fi
 
-# Less history file location.
-LESSHISTFILE="${LESSHISTFILE:-/tmp/less-hist}"
+# Less history in the user's state directory. A fixed name in the shared,
+# world-writable /tmp let another local user read the search history or
+# pre-create the file as a symlink.
+LESSHISTFILE="${LESSHISTFILE:-$XDG_STATE_HOME/lesshst}"
 
 # Application config files.
 PARALLEL_HOME="$XDG_CONFIG_HOME/parallel"
