@@ -12,11 +12,11 @@
     # runtime-mutable paths that cannot yet be store-backed are documented in
     # home/out-of-store-allowlist.tsv.
     alacritty-theme = {
-      url = "github:alacritty/alacritty-theme/94e1dc0b9511969a426208fbba24bd7448493785";
+      url = "github:alacritty/alacritty-theme/ab88d5a80d676b5dc6157e91aba8067f2078dc94";
       flake = false;
     };
     cmd-help-syntax = {
-      url = "github:victor-gp/cmd-help-sublime-syntax/273cb988177e96f4187e06008b13fa72ad22ae4d";
+      url = "github:victor-gp/cmd-help-sublime-syntax/97f869595fe7257137ef065bbdb9bc0b3cf37e14";
       flake = false;
     };
     sbarlua = {
@@ -24,19 +24,19 @@
       flake = false;
     };
     tokyo-night-yazi = {
-      url = "github:BennyOe/tokyo-night.yazi/5f5636427f9bb16cc3f7c5e5693c60914c73f036";
+      url = "github:BennyOe/tokyo-night.yazi/8e6296f14daff24151c736ebd0b9b6cd89b02b03";
       flake = false;
     };
     tpm = {
-      url = "github:tmux-plugins/tpm/99469c4a9b1ccf77fade25842dc7bafbc8ce9946";
+      url = "github:tmux-plugins/tpm/e261deb1b47614eed3400089ce7197dc68acc4eb";
       flake = false;
     };
     tokyo-night-tmux = {
-      url = "github:janoamaral/tokyo-night-tmux/caf6cbb4c3a32d716dfedc02bc63ec8cf238f632";
+      url = "github:janoamaral/tokyo-night-tmux/fe1faa1aac237d7d7b69d8fdceb55a33222c8cfb";
       flake = false;
     };
     vim-tmux-navigator = {
-      url = "github:christoomey/vim-tmux-navigator/412c474e97468e7934b9c217064025ea7a69e05e";
+      url = "github:christoomey/vim-tmux-navigator/e41c431a0c7b7388ae7ba341f01a0d217eb3a432";
       flake = false;
     };
     tmux-resurrect = {
@@ -60,7 +60,7 @@
     # upstream's own recommendation; follows this flake's nixpkgs so the
     # Rust build doesn't pull in a second copy of the package set.
     herdr = {
-      url = "github:ogulcancelik/herdr/v0.8.2";
+      url = "github:ogulcancelik/herdr/v0.9.1";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 

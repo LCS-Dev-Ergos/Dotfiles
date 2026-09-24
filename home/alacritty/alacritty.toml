@@ -76,4 +76,4 @@ live_config_reload = true
 # Gruvbox-inspired Material terminal color scheme
 # import = ["~/.config/alacritty/themes/themes/gruvbox_dark.toml"]
 # Tokyo Night terminal color scheme
-import = ["~/.config/alacritty/themes/themes/tokyo-night.toml"]
+import = ["~/.config/alacritty/themes/themes/tokyo_night.toml"]
