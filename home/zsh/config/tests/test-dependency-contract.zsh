@@ -5,8 +5,9 @@
 # ============================================================================ #
 # Verifies scripts/check-zsh-dependencies.zsh against a fixture registry:
 # required vs. optional vs. --all scope, Brewfile/Arch manifest drift
-# detection and --sync-manifests repair, and rejection of conflicting scope
-# options with exit status 2.
+# detection and --sync-manifests repair, owner-specific install hints, the
+# seven-column row format, and rejection of conflicting scope options with
+# exit status 2.
 # ============================================================================ #
 
 emulate -L zsh
@@ -29,10 +30,10 @@ typeset registry="$fixture_root/dependencies.tsv"
 typeset brewfile="$fixture_root/Brewfile"
 typeset archfile="$fixture_root/arch-zsh.txt"
 typeset optional_row=$'optional\ttest\tcommand-that-cannot-exist'
-optional_row+=$'\tmissing-brew\tmissing-arch\tMissing optional command.'
+optional_row+=$'\tmissing-brew\tmissing-arch\tmissing-nix\tMissing optional command.'
 
-print -rl -- $'# level\tfeature\tcommands\thomebrew\tarch\tdescription' \
-  $'required\tcore\tzsh\tzsh\tzsh\tAvailable required command.' \
+print -rl -- $'# level\tfeature\tcommands\thomebrew\tarch\tnix\tdescription' \
+  $'required\tcore\tzsh\tzsh\tzsh\t-\tAvailable required command.' \
   "$optional_row" \
   >| "$registry"
 
@@ -63,6 +64,36 @@ command env "${fixture_env[@]}" "$checker" --quiet >/dev/null
 if command env "${fixture_env[@]}" "$checker" --all --quiet \
     >/dev/null 2>&1; then
   print -u2 "FAIL: strict mode accepted a missing optional command"
+  exit 1
+fi
+
+# Install hints follow the owner: the nix column on a flake-managed host,
+# the platform package manager elsewhere.
+typeset owner owner_output expected_hint
+for owner expected_hint in \
+    nix "Home Manager package missing-nix" \
+    homebrew "brew missing-brew" \
+    arch "pacman missing-arch"; do
+  owner_output="$(
+    command env "${fixture_env[@]}" ZSH_DEPENDENCY_OWNER="$owner" \
+      "$checker" --all --quiet 2>&1
+  )" && {
+    print -u2 "FAIL: strict mode accepted a missing optional command"
+    exit 1
+  }
+  [[ "$owner_output" == *"install: $expected_hint"* ]] || {
+    print -u2 "FAIL: $owner owner did not hint '$expected_hint'"
+    exit 1
+  }
+done
+
+typeset malformed_registry="$fixture_root/malformed.tsv"
+print -r -- $'required\tcore\tzsh\tzsh\tzsh\tSix fields only.' \
+  >| "$malformed_registry"
+if command env "${fixture_env[@]}" \
+    ZSH_DEPENDENCY_REGISTRY="$malformed_registry" \
+    "$checker" --quiet >/dev/null 2>&1; then
+  print -u2 "FAIL: a registry row without the nix column was accepted"
   exit 1
 fi
 

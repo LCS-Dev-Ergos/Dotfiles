@@ -59,16 +59,19 @@ sets the static Homebrew environment without running `brew shellenv` in every
 process, and then sources `~/.config/zsh/.zshenv`. Durable configuration edits
 require a switch and therefore follow generation rollback.
 
-On macOS, nix-darwin deliberately leaves `programs.zsh.enable` disabled while
-Homebrew owns the login-shell binary and Home Manager owns its configuration.
+On macOS, nix-darwin deliberately leaves `programs.zsh.enable` disabled; it
+owns the login-shell binary through `users.users.<name>.shell`, and Home
+Manager owns the configuration.
 The repository `.zshenv` loads the standard multi-user Nix environment only
 when no system initializer has already done so. On Linux, Home Manager installs
 the Zsh binary as well as managing the same shared configuration.
 
 Supported dependencies are declared once in
 `packages/zsh-dependencies.tsv`. The generated `Brewfile` and Arch package list
-provide reproducible platform inventories; installation and trust details live
-in `docs/zsh-dependencies.md` beside this configuration.
+provide reproducible platform inventories, and its `nix` column is checked
+against the Home Manager packages at build time; installation and trust
+details live in `docs/zsh-dependencies.md` beside this configuration. The
+module itself installs only what nothing else needs: gawk and shdoc.
 
 ## Startup architecture
 
