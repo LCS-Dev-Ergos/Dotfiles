@@ -1371,11 +1371,11 @@ devdoctor() {
           "      --refresh  Bypass the cached update signals." \
           "      --only ID  Restrict to a comma-separated list of manager ids." \
           "      --all      Include managers that are not installed." \
+          "      --json     Emit raw records instead of a rendered report." \
+          "  -h, --help     Show this help." \
           "" \
           "States: ok, outdated, dormant (a per-shell manager not activated" \
           "here), unused, shadowed, broken, absent, unknown." \
-          "      --json     Emit raw records instead of a rendered report." \
-          "  -h, --help     Show this help." \
           "" \
           "Runtime startup is checked where declared; OK is not a full build test." \
           "CC/CXX overrides are honoured. Detailed C/C++ info: get_toolchain_info."
@@ -1541,19 +1541,40 @@ devdoctor() {
       "$(_shared_platform_pretty) · ${#rows} manager${plural_rows}"
 
     if (( ${#rows} )); then
-      _zsh_ui_table $'ID\tMANAGER\tSTATE\tACTIVE\tORIGIN\tDETAIL' "${rows[@]}"
+      _zsh_ui_table --status 3 \
+        $'ID\tMANAGER\tSTATE\tACTIVE\tORIGIN\tDETAIL' "${rows[@]}"
     else
       _zsh_ui_log warn "No managers matched the selection."
     fi
 
     if (( ${#conflicts} )); then
       print -r -- ""
-      _shared_section "PATH conflicts"
-      _zsh_ui_table $'KIND\tSUBJECT\tDETAIL' "${conflicts[@]}"
+      _shared_section "PATH conflicts · ${#conflicts}"
+      _zsh_ui_table --status 1 $'KIND\tSUBJECT\tDETAIL' "${conflicts[@]}"
+    fi
+
+    # One line that answers "is anything wrong?" without reading the table.
+    local -A state_counts=()
+    local -a tally=()
+    local counted
+    for record in "${rows[@]}"; do
+      counted="${${(@ps:\t:)record}[3]}"
+      (( state_counts[$counted]++ ))
+    done
+    for counted in OK OUTDATED DORMANT UNUSED SHADOWED UNKNOWN BROKEN ABSENT; do
+      (( ${state_counts[$counted]:-0} )) &&
+        tally+=("${state_counts[$counted]} ${(L)counted}")
+    done
+    print -r -- ""
+    if (( ${#tally} )); then
+      case "$worst" in
+        0) _zsh_ui_log ok "${(j:, :)tally}." ;;
+        1) _zsh_ui_log warn "${(j:, :)tally}; review the flagged entries." ;;
+        *) _zsh_ui_log error "${(j:, :)tally}; review the flagged entries." ;;
+      esac
     fi
 
     if (( ! want_updates )); then
-      print -r -- ""
       _zsh_ui_log info "Run 'devdoctor --updates' for native update checks."
     fi
 

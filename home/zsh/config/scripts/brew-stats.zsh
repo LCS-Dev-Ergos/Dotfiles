@@ -308,7 +308,7 @@ _brew_stats_recheck() {
 # _brew_stats_cache_summary
 # @internal
 # @description Validates the Homebrew cache path and formats its summary line.
-# @set REPLY string Sanitized "Cache:    <size> (<path>)" summary line.
+# @set REPLY string Sanitized "Cache<TAB><size> · <path>" summary line.
 # @exitcode 1 If the cache path is invalid, a broken symlink, not a directory,
 # or cannot be measured.
 # -----------------------------------------------------------------------------
@@ -336,7 +336,8 @@ _brew_stats_cache_summary() {
   _brew_stats_human_kb "$cache_kb"
   local cache_human="$REPLY"
   _zsh_ui_sanitize_text "$cache_dir"
-  REPLY="Cache:    $cache_human ($REPLY)"
+  _zsh_ui_short_path "$REPLY"
+  REPLY="Cache"$'\t'"$cache_human · $REPLY"
 }
 
 # -----------------------------------------------------------------------------
@@ -509,7 +510,7 @@ Safe linked-artifact measurement requires jq when installed casks use links.
 
   if (( quiet )); then
     ZSH_UI_STYLE=plain \
-      _zsh_ui_table $'Package\tType\tSize' "${rows[@]}" ||
+      _zsh_ui_table --align llr $'Package\tType\tSize' "${rows[@]}" ||
         _brew_stats_fail "could not render the report."
     return 0
   fi
@@ -521,18 +522,18 @@ Safe linked-artifact measurement requires jq when installed casks use links.
   local -a summary=()
   if [[ "$scope" != cask ]]; then
     _brew_stats_human_kb "$formula_kb"
-    summary+=("Formulae: $formula_count ($REPLY)")
+    summary+=("Formulae"$'\t'"$formula_count · $REPLY")
   fi
   if [[ "$scope" != formula ]]; then
     _brew_stats_human_kb "$cask_kb"
-    summary+=("Casks:    $cask_count ($REPLY)")
+    summary+=("Casks"$'\t'"$cask_count · $REPLY")
   fi
   _brew_stats_human_kb "$total_kb"
-  summary+=("Total:    $total_count packages ($REPLY)")
+  summary+=("Total"$'\t'"$total_count packages · $REPLY")
   _brew_stats_cache_summary
   summary+=("$REPLY")
 
-  _zsh_ui_table $'Package\tType\tSize' "${rows[@]}" ||
+  _zsh_ui_table --align llr $'Package\tType\tSize' "${rows[@]}" ||
     _brew_stats_fail "could not render the report."
   print -r -- ""
   _zsh_ui_card "Homebrew disk usage" "${summary[@]}" ||

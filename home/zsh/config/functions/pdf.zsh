@@ -708,11 +708,11 @@ function remove_pdf_metadata() {
             trap - EXIT INT TERM HUP
         fi
 
-        local -a result_lines=("Output    $output_file")
+        local -a result_lines=("Output"$'\t'"$output_file")
         if command -v du >/dev/null 2>&1; then
             local input_size=$(du -h "$input_file" | cut -f1)
             local output_size=$(du -h "$output_file" | cut -f1)
-            result_lines+=("Size      $input_size → $output_size")
+            result_lines+=("Size"$'\t'"$input_size → $output_size")
         fi
         _zsh_ui_card "PDF metadata removed" "${result_lines[@]}"
 
@@ -832,8 +832,8 @@ function remove_pdf_metadata_batch() {
 
     _zsh_ui_card \
         "PDF metadata batch complete" \
-        "Successful  $success_count" \
-        "Failed      $fail_count"
+        "Successful"$'\t'"$success_count" \
+        "Failed"$'\t'"$fail_count"
     (( fail_count == 0 ))
 }
 

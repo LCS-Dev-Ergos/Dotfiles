@@ -519,13 +519,13 @@ function count() {
   _zsh_ui_sanitize_text "$canonical_path"
   local display_path="$REPLY"
   local -a summary=(
-    "Location     $display_path"
+    "Location"$'\t'"$display_path"
     ""
-    "Files        $files"
-    "Directories  $dirs"
+    "Files"$'\t'"$files"
+    "Directories"$'\t'"$dirs"
   )
-  (( show_all || symlinks > 0 )) && summary+=("Symlinks     $symlinks")
-  summary+=("Hidden       $hidden" "Total        $total")
+  (( show_all || symlinks > 0 )) && summary+=("Symlinks"$'\t'"$symlinks")
+  summary+=("Hidden"$'\t'"$hidden" "Total"$'\t'"$total")
   _zsh_ui_card "Directory count · $scope" "${summary[@]}"
 }
 # -----------------------------------------------------------------------------

@@ -323,9 +323,9 @@ function serve() {
   local display_directory="$REPLY"
   _zsh_ui_card \
     "HTTP server" \
-    "Directory  $display_directory" \
-    "URL        $url_msg" \
-    "Stop       Ctrl+C"
+    "Directory"$'\t'"$display_directory" \
+    "URL"$'\t'"$url_msg" \
+    "Stop"$'\t'"Ctrl+C"
 
   if ! (( $+commands[python3] )); then
     _zsh_ui_log error "Python 3 is required to start the server safely."
@@ -403,8 +403,8 @@ function shorten() {
     fi
     _zsh_ui_card \
       "Short URL" \
-      "$short_url" \
-      "Clipboard  $clipboard_status"
+      "URL"$'\t'"$short_url" \
+      "Clipboard"$'\t'"$clipboard_status"
   else
     _zsh_ui_log error "Failed to shorten the URL."
     return 1

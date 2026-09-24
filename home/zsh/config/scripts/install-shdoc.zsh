@@ -150,8 +150,8 @@ command mv -f -- "$shdoc_wrapper_tmp" "$shdoc_wrapper" || exit 1
 
 _zsh_ui_card \
   "shdoc v${shdoc_version} installed" \
-  "Wrapper: $shdoc_wrapper" \
-  "Add to PATH: $shdoc_bin_dir"
+  "Wrapper"$'\t'"$shdoc_wrapper" \
+  "Add to PATH"$'\t'"$shdoc_bin_dir"
 
 # ============================================================================ #
 # End of install-shdoc.zsh

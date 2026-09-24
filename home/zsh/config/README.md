@@ -315,8 +315,8 @@ when no terminal is attached; interactive profiling uses the first ZLE
 ## Output Styling
 
 Shared presentation helpers use `ZSH_UI_STYLE=auto|plain|ansi|gum` and honor
-`NO_COLOR`. Gum is reserved for one-shot headings, cards, confirmations, and
-static tables; repeated logs and sections stay shell-native. `zfuncs` also
+`NO_COLOR`. Headings, sections, cards, tables, and logs are drawn natively in
+every mode; Gum is reserved for confirmations and spinners. `zfuncs` also
 accepts `ZFUNCS_STYLE` as a command-specific override. New functions follow the
-[function authoring policy](../../docs/function-authoring.md), including stable
-data output, mandatory native fallbacks, and a strict Gum process budget.
+[function authoring policy](../docs/function-authoring.md), including stable
+data output, plain capture layouts, and Gum only for interactions.
