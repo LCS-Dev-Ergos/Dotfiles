@@ -36,7 +36,7 @@ function clang_format_link() {
   # Check if target already exists.
   if [[ -e "$target_file" ]]; then
     if [[ -L "$target_file" ]]; then
-      local current_target=$(readlink "$target_file")
+      local current_target="$(readlink "$target_file")"
       if [[ "$current_target" == "$config_file" ]]; then
         echo "${C_YELLOW}Symbolic link already exists and points to the correct file.${C_RESET}"
         return 0
@@ -47,6 +47,7 @@ function clang_format_link() {
       echo "${C_YELLOW}File '.clang-format' already exists in current directory.${C_RESET}"
     fi
 
+    local response
     echo -n "${C_YELLOW}Replace existing file/link? (y/N): ${C_RESET}"
     read -r response
     if [[ ! "$response" =~ ^[Yy]$ ]]; then
@@ -385,7 +386,6 @@ function zsh_profile() {
         command env \
           ZDOTDIR="$zdot" \
           ZSH_FAST_START="$fast" \
-          ZSH_CACHE_AUTO="${ZSH_PROFILE_CACHE_AUTO:-0}" \
           ZSH_STARTUP_TRACE=1 \
           ZSH_STARTUP_TRACE_EXIT=1 \
           ZSH_STARTUP_TRACE_FILE="$trace_file" \

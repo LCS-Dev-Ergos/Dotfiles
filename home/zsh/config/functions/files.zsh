@@ -88,8 +88,10 @@ function extract() {
 
     case "$lower" in
       *.tar.gz | *.tgz)
+        # --use-compress-program works in GNU tar and bsdtar alike; bsdtar
+        # reads -I as --files-from instead.
         if command -v pigz >/dev/null 2>&1; then
-          tar -I pigz -xvf "$full_path"
+          tar --use-compress-program=pigz -xvf "$full_path"
         else
           tar -xzf "$full_path"
         fi
@@ -97,7 +99,7 @@ function extract() {
         ;;
       *.tar.bz2 | *.tbz | *.tbz2)
         if command -v pbzip2 >/dev/null 2>&1; then
-          tar -I pbzip2 -xvf "$full_path"
+          tar --use-compress-program=pbzip2 -xvf "$full_path"
         else
           tar -xjf "$full_path"
         fi
@@ -105,7 +107,7 @@ function extract() {
         ;;
       *.tar.xz | *.txz)
         if command -v pixz >/dev/null 2>&1; then
-          tar -I pixz -xvf "$full_path"
+          tar --use-compress-program=pixz -xvf "$full_path"
         elif tar --xz --help >/dev/null 2>&1; then
           tar --xz -xvf "$full_path"
         else
@@ -113,7 +115,7 @@ function extract() {
         fi
         rc=$?
         ;;
-      *.tar.zma | *.tlz)
+      *.tar.lzma | *.tar.zma | *.tlz)
         if tar --lzma --help >/dev/null 2>&1; then
           tar --lzma -xvf "$full_path"
         else
@@ -259,7 +261,7 @@ function extract() {
         ;;
       *.cpio | *.obscpio) cpio -idmvF "$full_path"; rc=$? ;;
       *.zpaq) zpaq x "$full_path"; rc=$? ;;
-      *.zlib) zlib-flate -uncompress < "$full_path" > "${archive:r}"; rc=$? ;;
+      *.zlib) zlib-flate -uncompress < "$full_path" > "${archive:t:r}"; rc=$? ;;
       *)
         echo "${C_RED}Error: Unsupported archive format for '$archive'${C_RESET}" >&2
         rc=1
@@ -367,7 +369,7 @@ function findlarge() {
     return 1
   fi
 
-  echo "${C_CYAN}Finding files larger than ${size}MB in ${dir}...${C_RESET}"
+  echo "${C_CYAN}Finding files larger than ${size}MB in ${dir}...${C_RESET}" >&2
   find "$dir" -type f -size +${size}M -exec du -h {} + 2>/dev/null | sort -rh
 }
 
@@ -480,39 +482,23 @@ function count() {
   # Stream find output via -print0 to avoid ARG_MAX limits on huge directories
   # and to handle filenames with newlines/spaces safely. Capture stderr to a
   # temp file so we can report permission errors instead of silently swallowing
-  # them. BSD find (macOS) has no -printf, so we test each entry's type in zsh.
+  # them. BSD find (macOS) has no -printf, so we test each entry's type in zsh,
+  # in the same single traversal that counts hidden entries.
   local item err_file
   err_file="$(command mktemp -t count-err.XXXXXX 2>/dev/null)" || err_file=""
 
   {
-    if [[ -n "$err_file" ]]; then
-      while IFS= read -r -d '' item; do
-        if [[ -L "$item" ]]; then
-          ((symlinks++))
-        elif [[ -f "$item" ]]; then
-          ((files++))
-        elif [[ -d "$item" ]]; then
-          ((dirs++))
-        fi
-      done < <(command find "$canonical_path" -mindepth 1 \
-        -maxdepth "$max_depth" -print0 2>"$err_file")
-    else
-      while IFS= read -r -d '' item; do
-        if [[ -L "$item" ]]; then
-          ((symlinks++))
-        elif [[ -f "$item" ]]; then
-          ((files++))
-        elif [[ -d "$item" ]]; then
-          ((dirs++))
-        fi
-      done < <(command find "$canonical_path" -mindepth 1 \
-        -maxdepth "$max_depth" -print0 2>/dev/null)
-    fi
-
     while IFS= read -r -d '' item; do
-      ((hidden++))
+      [[ "${item:t}" == .* ]] && ((hidden++))
+      if [[ -L "$item" ]]; then
+        ((symlinks++))
+      elif [[ -f "$item" ]]; then
+        ((files++))
+      elif [[ -d "$item" ]]; then
+        ((dirs++))
+      fi
     done < <(command find "$canonical_path" -mindepth 1 \
-      -maxdepth "$max_depth" -name '.*' -print0 2>/dev/null)
+      -maxdepth "$max_depth" -print0 2>"${err_file:-/dev/null}")
 
     if [[ -n "$err_file" && -s "$err_file" ]]; then
       local err_lines

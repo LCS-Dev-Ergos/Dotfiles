@@ -53,6 +53,25 @@ _pdf_install_hint() {
 }
 
 # -----------------------------------------------------------------------------
+# _pdf_scrub_metadata
+# @internal
+# @description Strips Info and XMP metadata from a PDF in place: exiftool
+# clears the tags, then qpdf rewrites the file. The rewrite is what makes the
+# removal stick; on its own, exiftool appends an incremental update and the
+# original metadata stays in the file, recoverable with
+# `exiftool -PDF-update:all=`.
+# @arg $1 path PDF to scrub in place.
+# @exitcode 1 If exiftool or qpdf is unavailable or either step fails.
+# -----------------------------------------------------------------------------
+_pdf_scrub_metadata() {
+    local file="$1"
+    (( $+commands[exiftool] && $+commands[qpdf] )) || return 1
+    command exiftool -q -q -all:all= -overwrite_original "$file" \
+        >/dev/null 2>&1 || return 1
+    command qpdf --warning-exit-0 "$file" --replace-input >/dev/null 2>&1
+}
+
+# -----------------------------------------------------------------------------
 # pdfextract
 # @description Extracts an inclusive page range from a PDF with qpdf.
 # The end page is clamped to the document length when necessary.
@@ -134,6 +153,7 @@ function pdfextract() {
 
     # Check if output file already exists and ask for confirmation.
     if [[ -f "$output_file" ]]; then
+        local response
         echo -n "${C_YELLOW}Output file '$output_file' already exists. Overwrite? (y/N): ${C_RESET}"
         read -r response
         if [[ ! "$response" =~ ^[Yy]$ ]]; then
@@ -160,8 +180,6 @@ function pdfextract() {
     fi
 }
 
-# -----------------------------------------------------------------------------
-# pdfrotate
 # -----------------------------------------------------------------------------
 # pdfrotate
 # @description Rotates selected PDF pages in place with qpdf.
@@ -303,6 +321,7 @@ function djvu_to_pdf() {
 
     # Check if output file already exists and ask for confirmation.
     if [[ -f "$output_file" ]]; then
+        local response
         echo -n "${C_YELLOW}Output file '$output_file' already exists. Overwrite? (y/N): ${C_RESET}"
         read -r response
         if [[ ! "$response" =~ ^[Yy]$ ]]; then
@@ -427,6 +446,7 @@ function copy_pdf_bookmarks() {
 
     # Check if output file already exists and ask for confirmation.
     if [[ -f "$output_file" ]]; then
+        local response
         echo -n "${C_YELLOW}Output file '$output_file' already exists. Overwrite? (y/N): ${C_RESET}"
         read -r response
         if [[ ! "$response" =~ ^[Yy]$ ]]; then
@@ -615,7 +635,9 @@ function remove_pdf_metadata() {
             return 1
         }
         command rm -f -- "$output_file" 2>/dev/null
-        trap 'command rm -f -- "$output_file" 2>/dev/null' EXIT INT TERM HUP
+        # Expand the path now: an EXIT trap set in a function runs after the
+        # function's locals are gone.
+        trap "command rm -f -- ${(q)output_file} 2>/dev/null" EXIT INT TERM HUP
     else
         # Ensure output file has .pdf extension when user supplied a name.
         if [[ ! "$output_file" =~ \.(pdf|PDF)$ ]]; then
@@ -665,8 +687,7 @@ function remove_pdf_metadata() {
         # qpdf alone doesn't remove metadata, we need exiftool for that.
         if command -v exiftool >/dev/null 2>&1; then
             _zsh_ui_log info "Removing extended metadata with exiftool."
-            # Remove all metadata.
-            if exiftool -all:all= -overwrite_original "$output_file" 2>/dev/null; then
+            if _pdf_scrub_metadata "$output_file"; then
                 _zsh_ui_log ok "Extended metadata removed."
             else
                 _zsh_ui_log warn "exiftool could not remove all metadata."
@@ -777,6 +798,7 @@ function remove_pdf_metadata_batch() {
     _zsh_ui_section "PDF metadata batch · $total_files files"
 
     # Process each PDF file.
+    local pdf_file
     for pdf_file in "$@"; do
         if [[ -f "$pdf_file" && "$pdf_file" =~ \.(pdf|PDF)$ ]]; then
             _zsh_ui_log info "Processing: $pdf_file"
@@ -790,8 +812,10 @@ function remove_pdf_metadata_batch() {
             if qpdf "$pdf_file" "$output_file" 2>/dev/null; then
 
                 # Additionally use exiftool if available.
-                if [[ "$exiftool_available" == true ]]; then
-                    exiftool -all:all= -overwrite_original "$output_file" >/dev/null 2>&1
+                if [[ "$exiftool_available" == true ]] &&
+                    ! _pdf_scrub_metadata "$output_file"; then
+                    _zsh_ui_log warn \
+                        "Metadata may remain in $output_file (exiftool failed)."
                 fi
 
                 _zsh_ui_log ok "Created: $output_file"
@@ -885,8 +909,11 @@ function remove_pdf_metadata_simple() {
         # Try to remove additional metadata with exiftool if available.
         if command -v exiftool >/dev/null 2>&1; then
             _zsh_ui_log info "Removing extended metadata with exiftool."
-            exiftool -all:all= -overwrite_original "$output_file" >/dev/null 2>&1
-            _zsh_ui_log ok "Extended metadata removed."
+            if _pdf_scrub_metadata "$output_file"; then
+                _zsh_ui_log ok "Extended metadata removed."
+            else
+                _zsh_ui_log warn "exiftool could not remove all metadata."
+            fi
         fi
 
         return 0
