@@ -372,10 +372,21 @@ typeset -i timed_out=0
 _devdoctor_run_timeout 1 /bin/sleep 5 >/dev/null 2>&1 || timed_out=1
 (( timed_out == 1 )) || _dd_fail "the timeout did not interrupt a slow probe"
 
-# Same contract without coreutils timeout, so the polling fallback is covered.
-if [[ -n "$real_timeout" ]]; then
-  command rm -f "$bin_dir/timeout"
+# Same contract without any timeout binary, so the polling fallback is
+# covered. macOS 27 ships /usr/bin/timeout, so dropping the fixture symlink is
+# not enough: the check runs on a PATH holding only the tools the fallback
+# itself calls.
+typeset fallback_bin="$fixture_root/fallback-bin" fallback_tool
+command mkdir -p "$fallback_bin"
+for fallback_tool in mktemp cat rm sleep; do
+  command ln -s "$(whence -p "$fallback_tool")" "$fallback_bin/$fallback_tool" ||
+    _dd_fail "cannot stage $fallback_tool for the fallback check"
+done
+() {
+  local PATH="$fallback_bin"
   rehash
+  (( ! $+commands[timeout] && ! $+commands[gtimeout] )) ||
+    _dd_fail "a timeout binary is still visible to the fallback check"
   typeset -i fallback_elapsed=0 fallback_status=0
   typeset -F SECONDS=0
   _devdoctor_run_timeout 1 /bin/sleep 5 >/dev/null 2>&1 || fallback_status=1
@@ -397,10 +408,8 @@ if [[ -n "$real_timeout" ]]; then
     >/dev/null 2>&1 || fallback_status=$?
   (( fallback_status == 124 && SECONDS < 4 )) ||
     _dd_fail "the fallback did not bound a probe that ignores TERM"
-
-  command ln -s "$real_timeout" "$bin_dir/timeout"
-  rehash
-fi
+}
+rehash
 
 # +++++++++++++++++++++++++++++ NPM PREFIX CHECK +++++++++++++++++++++++++++++ #
 
