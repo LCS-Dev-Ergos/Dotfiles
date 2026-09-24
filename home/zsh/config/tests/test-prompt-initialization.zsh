@@ -5,8 +5,8 @@
 # ============================================================================ #
 # Verifies lib/30-prompt.zsh: sourcing the module does not activate the prompt
 # before the deferred load runs, the Starship init cache is keyed to its
-# executable's path, and a valid cache is reused instead of re-running
-# Starship.
+# executable's path, a valid cache is reused instead of re-running Starship,
+# and the continuation prompt is left for prompt expansion to compute.
 # ============================================================================ #
 
 setopt errexit nounset pipefail
@@ -16,7 +16,7 @@ typeset test_root="${0:A:h:h}"
 source "$test_root/tests/helpers.zsh" || return 1
 typeset fixture_root
 fixture_root="$(_zsh_test_temp_dir prompt-init)" || return 1
-typeset cache_file="$fixture_root/cache/zsh/starship-init.zsh"
+typeset cache_file="$fixture_root/cache/zsh/init-starship.zsh"
 
 command mkdir -p "$fixture_root/bin-old" "$fixture_root/bin-new"
 trap '
@@ -35,6 +35,7 @@ _make_fake_starship() {
     print -r -- "print x >> ${(q)counter}"
     print -r -- "print -r -- \"PROMPT='${marker}'\""
     print -r -- "print -r -- \"RPROMPT=''\""
+    print -r -- "print -r -- 'PROMPT2=\"\$(print -r -- cont-${marker})\"'"
   } >| "$executable"
   command chmod 700 "$executable"
 }
@@ -63,6 +64,10 @@ _zsh_load_starship_init "$old_bin"
   print -u2 "FAIL: initial Starship executable was not evaluated"
   exit 1
 }
+[[ "$PROMPT2" == '$(print -r -- cont-old-prompt)' ]] || {
+  print -u2 "FAIL: the continuation prompt was evaluated at startup"
+  exit 1
+}
 [[ "$(trap -p INT)" == "$caller_interrupt_trap" ]] || {
   print -u2 "FAIL: atomic cache writing replaced the caller's signal trap"
   exit 1
@@ -76,7 +81,7 @@ _zsh_load_starship_init "$new_bin"
 
 typeset cache_header
 IFS= read -r cache_header < "$cache_file"
-[[ "$cache_header" == "# starship-bin: $new_bin" ]] || {
+[[ "$cache_header" == "# init-cache-v1 ${new_bin:A} init zsh"* ]] || {
   print -u2 "FAIL: Starship cache does not identify its executable"
   exit 1
 }

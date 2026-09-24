@@ -6,8 +6,8 @@
 #
 # Generic lazy-loading engine used by 95-lazy-scripts.zsh and
 # 96-lazy-cpp-tools.zsh.  Extracts the shared cache-build, security-check,
-# mtime-invalidation, and stub-generation logic into a single reusable
-# function.
+# content-signature invalidation, and stub-generation logic into a single
+# reusable function.
 #
 # Usage:
 #   _lazy_loader_core <loader_id> <cache_version> <stub_target> <scan_files...>
@@ -24,7 +24,7 @@
 #
 # ============================================================================ #
 
-typeset -f _zsh_is_secure_file >/dev/null 2>&1 ||
+typeset -f _zsh_cache_put >/dev/null 2>&1 ||
   source "${${(%):-%N}:A:h:h}/runtime-helpers.zsh"
 
 [[ $- == *i* ]] || return 0
@@ -60,67 +60,88 @@ _lazy_loader_core() {
   local safe_id_upper="${(U)safe_id}"
 
   # ----- Cache paths ---------------------------------------------------------
-  local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
-  local cache_file="$cache_dir/lazy-${loader_id}.zsh"
-  local cache_header="# lazy-${loader_id}-version: ${cache_version}"
+  local cache_file="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/lazy-${loader_id}.zsh"
   local msg_prefix="lazy-${loader_id}"
+
+  # ----- Cache signature -----------------------------------------------------
+  # The header records each scanned file's path, mtime, size, and inode.
+  # Home Manager serves these files from the store with a fixed mtime, so a
+  # content change arrives as a different file (inode) behind the same path;
+  # in a writable checkout it arrives as a new mtime or size. Either way the
+  # stubs are rebuilt. The zstat calls are batched because this runs on
+  # every startup.
+  zmodload -F zsh/stat b:zstat 2>/dev/null || {
+    print -u2 "${msg_prefix}: warning: zsh/stat is unavailable"
+    return 1
+  }
+  local -a signature mtimes sizes inodes
+  local -i i
+  local file
+  if zstat -A mtimes +mtime -- "${scan_files[@]}" 2>/dev/null &&
+      zstat -A sizes +size -- "${scan_files[@]}" 2>/dev/null &&
+      zstat -A inodes +inode -- "${scan_files[@]}" 2>/dev/null; then
+    for (( i = 1; i <= ${#scan_files}; i++ )); do
+      signature+=("${scan_files[i]}:${mtimes[i]}:${sizes[i]}:${inodes[i]}")
+    done
+  else
+    # A file vanished mid-scan: force a rebuild rather than trust the cache.
+    signature=("unavailable:${EPOCHREALTIME:-$$}")
+  fi
+  local cache_header="# lazy-${loader_id}-v${cache_version} ${(j:|:)signature}"
 
   # ---------------------------------------------------------------------------
   # _lazy_core_build_cache
   # @internal
-  # @description Scans files for function/alias names via awk and writes a
-  # versioned lazy-stub cache atomically to a temp file.
-  # @arg $1 path Destination cache file.
-  # @arg $@ path Files to scan for function/alias definitions.
+  # @description Scans the files for public function and alias names in one
+  # awk pass and atomically writes the self-replacing stub cache.
+  # @noargs
+  # @exitcode 1 If scanning or writing the cache fails.
   # ---------------------------------------------------------------------------
   _lazy_core_build_cache() {
-    local out_file="$1"
-    shift
-    local -a files=("$@")
-    local tmp_file="${out_file}.tmp.$$"
+    local -a readable=()
     local -A seen
+    local scan line name key
 
-    trap "rm -f ${(q)tmp_file} 2>/dev/null" EXIT INT TERM
+    for file in "${scan_files[@]}"; do
+      [[ -r "$file" ]] && readable+=("$file")
+    done
+    (( ${#readable} )) || return 1
 
-    local file name
-    local -a names
-    for file in "${files[@]}"; do
-      [[ -r "$file" ]] || continue
-      names=("${(@f)$(awk '
-        /^[[:space:]]*#/ { next }
-        /^[[:space:]]*alias[[:space:]]+[A-Za-z_][A-Za-z0-9_-]*=/ {
-          line=$0
-          sub(/^[[:space:]]*alias[[:space:]]+/, "", line)
-          name=line
-          sub(/=.*/, "", name)
-          print name
-          next
-        }
-        # Match either:
-        #   foo() { ... }
-        #   function foo() { ... }
-        #   function foo { ... }    (zsh-style, no parentheses)
-        /^[[:space:]]*(function[[:space:]]+)?[A-Za-z_][A-Za-z0-9_-]*[[:space:]]*\(\)[[:space:]]*\{/ ||
-        /^[[:space:]]*function[[:space:]]+[A-Za-z_][A-Za-z0-9_-]*[[:space:]]*\{/ {
-          line=$0
-          sub(/^[[:space:]]*/, "", line)
-          if (line ~ /^function[[:space:]]+/) sub(/^function[[:space:]]+/, "", line)
-          name=line
-          sub(/[[:space:]]*(\(\))?[[:space:]]*\{.*/, "", name)
-          print name
-        }
-      ' "$file")}")
+    # Each output line is "<file><TAB><name>".
+    scan="$(command awk '
+      /^[[:space:]]*#/ { next }
+      /^[[:space:]]*alias[[:space:]]+[A-Za-z_][A-Za-z0-9_-]*=/ {
+        line=$0
+        sub(/^[[:space:]]*alias[[:space:]]+/, "", line)
+        name=line
+        sub(/=.*/, "", name)
+        print FILENAME "\t" name
+        next
+      }
+      # Match either:
+      #   foo() { ... }
+      #   function foo() { ... }
+      #   function foo { ... }    (zsh-style, no parentheses)
+      /^[[:space:]]*(function[[:space:]]+)?[A-Za-z_][A-Za-z0-9_-]*[[:space:]]*\(\)[[:space:]]*\{/ ||
+      /^[[:space:]]*function[[:space:]]+[A-Za-z_][A-Za-z0-9_-]*[[:space:]]*\{/ {
+        line=$0
+        sub(/^[[:space:]]*/, "", line)
+        if (line ~ /^function[[:space:]]+/) sub(/^function[[:space:]]+/, "", line)
+        name=line
+        sub(/[[:space:]]*(\(\))?[[:space:]]*\{.*/, "", name)
+        print FILENAME "\t" name
+      }
+    ' "${readable[@]}")" || return 1
 
-      for name in "${names[@]}"; do
-        [[ -z "$name" ]] && continue
-        [[ "$name" =~ ^[A-Za-z_][A-Za-z0-9_-]*$ ]] || continue
-        [[ "$name" == _* ]] && continue
-        if [[ "$stub_target" == "auto" ]]; then
-          seen[$name]="$file"
-        else
-          seen[$name]="$stub_target"
-        fi
-      done
+    for line in "${(@f)scan}"; do
+      name="${line#*$'\t'}"
+      [[ "$name" =~ ^[A-Za-z_][A-Za-z0-9_-]*$ ]] || continue
+      [[ "$name" == _* ]] && continue
+      if [[ "$stub_target" == "auto" ]]; then
+        seen[$name]="${line%%$'\t'*}"
+      else
+        seen[$name]="$stub_target"
+      fi
     done
 
     {
@@ -157,68 +178,28 @@ _lazy_loader_core() {
       print -r -- '  return 127'
       print -r -- '}'
 
-      local key
-      for key in ${(k)seen}; do
-        local script_path="${seen[$key]}"
-        print -r -- "function ${(q)key}() { _lazy_${safe_id}_stub ${(q)key} ${(q)script_path} \"\$@\"; }"
+      for key in ${(ko)seen}; do
+        print -r -- "function ${(q)key}() { _lazy_${safe_id}_stub ${(q)key} ${(q)seen[$key]} \"\$@\"; }"
       done
-    } >| "$tmp_file" || { rm -f "$tmp_file" 2>/dev/null; trap - EXIT INT TERM; return 1; }
-
-    chmod 600 "$tmp_file" 2>/dev/null || :
-
-    mv -f "$tmp_file" "$out_file" || { rm -f "$tmp_file" 2>/dev/null; trap - EXIT INT TERM; return 1; }
-    trap - EXIT INT TERM
+    } | _zsh_cache_put "$cache_file"
   }
 
-  # ----- Cache invalidation --------------------------------------------------
-  local regen=0
-  if [[ ! -f "$cache_file" ]]; then
-    regen=1
-  else
-    _zsh_is_secure_file "$cache_file" || regen=1
-
-    local first_line
-    read -r first_line < "$cache_file" 2>/dev/null
-    [[ "$first_line" == "$cache_header" ]] || regen=1
-
-    if zmodload -F zsh/stat b:zstat 2>/dev/null; then
-      local -a stat_buf
-      zstat -A stat_buf +mtime -- "$cache_file" 2>/dev/null || regen=1
-      local cache_mtime="${stat_buf[1]:-0}"
-      if (( ! regen )); then
-        local sf
-        for sf in "${scan_files[@]}"; do
-          zstat -A stat_buf +mtime -- "$sf" 2>/dev/null || { regen=1; break; }
-          if (( stat_buf[1] > cache_mtime )); then
-            regen=1
-            break
-          fi
-        done
-      fi
-    else
-      regen=1
-    fi
-  fi
-
   # ----- Regenerate if needed ------------------------------------------------
-  if (( regen )); then
-    if ! mkdir -p "$cache_dir" 2>/dev/null; then
-      print -u2 "${msg_prefix}: warning: cannot create cache directory: $cache_dir"
-      return 1
-    fi
-    _lazy_core_build_cache "$cache_file" "${scan_files[@]}"
+  local first_line=""
+  if _zsh_is_secure_file "$cache_file"; then
+    IFS= read -r first_line < "$cache_file" 2>/dev/null
   fi
+  if [[ "$first_line" != "$cache_header" ]] && ! _lazy_core_build_cache; then
+    print -u2 "${msg_prefix}: warning: cannot rebuild the stub cache: $cache_file"
+  fi
+  unfunction _lazy_core_build_cache 2>/dev/null
 
   # ----- Source cache with security check ------------------------------------
-  if [[ -r "$cache_file" ]]; then
-    if _zsh_is_secure_file "$cache_file"; then
-      source "$cache_file"
-    else
-      print -u2 "${msg_prefix}: warning: skipping insecure cache file: $cache_file"
-    fi
+  if _zsh_is_secure_file "$cache_file"; then
+    source "$cache_file"
+  elif [[ -e "$cache_file" ]]; then
+    print -u2 "${msg_prefix}: warning: skipping insecure cache file: $cache_file"
   fi
-
-  unfunction _lazy_core_build_cache 2>/dev/null
 }
 
 # ============================================================================ #

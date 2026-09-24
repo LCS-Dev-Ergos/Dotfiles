@@ -244,7 +244,7 @@ _verify_fast_start() {
     'source "$DOTFILES_ZSH_ROOT/zshrc" || exit 1
      SAVEHIST=0
      HISTFILE="$TMPDIR/history"
-     type h >/dev/null
+     type cdf >/dev/null
      type zsh_rebuild_path >/dev/null
      if [[ -x /run/current-system/sw/bin/darwin-rebuild ]]; then
        type darwin-rebuild >/dev/null

@@ -47,22 +47,26 @@ if [[ ! -f "$ZINIT_HOME/zinit.zsh" ]]; then
 fi
 
 if [[ ! -f "$ZINIT_HOME/zinit.zsh" ]]; then
-  # Fallback to OMZ backup when Zinit isn't available (offline/first boot).
-  typeset _zinit_module_dir="${${(%):-%x}:A:h}"
-  typeset _zinit_omz_backup="${_zinit_module_dir}/20-omz-fallback.zsh"
+  # Fall back to the Oh-My-Zsh profile when Zinit isn't available
+  # (offline/first boot). It lives in others/, beside lib/, so the startup
+  # glob never loads it on its own.
+  typeset _zinit_omz_backup="${${(%):-%x}:A:h:h}/others/20-omz-fallback.zsh"
   if [[ "${ZSH_ZINIT_FALLBACK_OMZ:-1}" == "1" ]] && [[ -r "$_zinit_omz_backup" ]]; then
     print -u2 \
-      "Warning: zinit unavailable (fallback: 20-omz-fallback.zsh)"
+      "Warning: zinit unavailable (fallback: others/20-omz-fallback.zsh)"
     source "$_zinit_omz_backup"
-    unset _zinit_module_dir _zinit_omz_backup
+    unset _zinit_omz_backup
     return 0
   fi
-  unset _zinit_module_dir _zinit_omz_backup
+  unset _zinit_omz_backup
   print -u2 "Warning: zinit not available at $ZINIT_HOME"
   return 0
 fi
 
 source "$ZINIT_HOME/zinit.zsh"
+# zinit's `zi` alias would shadow zoxide's interactive `zi` (50-tools.zsh);
+# `zinit` itself stays the way to call zinit.
+unalias zi 2>/dev/null
 
 # Optional optimization from Zinit docs: skip some disk checks on startup.
 # Safe after the first plugin install; disable with
@@ -73,14 +77,18 @@ if [[ "${ZSH_ZINIT_OPTIMIZE_DISK_ACCESSES}" == "1" ]]; then
 fi
 
 # Use XDG cache for completion dump to avoid framework-specific cache paths.
-export ZSH_COMPDUMP="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/.zcompdump-$HOST"
+# The name carries no $HOST: on a laptop HOST follows the network (DHCP and
+# mDNS names), and every new name cost a full compinit plus a stale dump.
+# _zsh_compinit_signature already tells dumps apart by what they index.
+export ZSH_COMPDUMP="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/.zcompdump"
 
 # -----------------------------------------------------------------------------
 # _zinit_compinit_periodic
 # @internal
-# @description Runs a full compinit at most every ZSH_COMPINIT_CHECK_HOURS
-# (default 24h) or when fpath/ZSH_COMPDUMP changes; otherwise reuses the
-# cached dump with -C. Compiles the dump to .zwc after a fresh run.
+# @description Runs a full compinit when the dump is missing, older than
+# ZSH_COMPINIT_CHECK_HOURS (default 24h), or no longer matches fpath (see
+# _zsh_compinit_signature); otherwise reuses the dump with -C. Compiles the
+# dump to .zwc after a fresh run.
 # @noargs
 # -----------------------------------------------------------------------------
 _zinit_compinit_periodic() {
@@ -89,29 +97,22 @@ _zinit_compinit_periodic() {
   local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
   local stamp_file="$cache_dir/compinit.last"
   local sig_file="$cache_dir/compinit.sig"
-  local now epoch_last age_hours
-  local current_sig cached_sig=""
+  local current_sig cached_sig="" REPLY
+  local -i epoch_last=0 age_hours
 
-  now=${EPOCHSECONDS:-$(date +%s)}
-  epoch_last=0
-  current_sig="${ZSH_COMPDUMP}|${(j.:.)fpath}"
+  _zsh_compinit_signature
+  current_sig="$REPLY"
+  [[ -f "$stamp_file" ]] && _zsh_mtime "$stamp_file" && epoch_last=$REPLY
+  age_hours=$(( (${EPOCHSECONDS:-0} - epoch_last) / 3600 ))
+  [[ -r "$sig_file" ]] && IFS= read -r cached_sig < "$sig_file"
 
-  if [[ -f "$stamp_file" ]]; then
-    epoch_last="$(_zsh_mtime "$stamp_file")"
-  fi
-
-  [[ "$epoch_last" =~ ^[0-9]+$ ]] || epoch_last=0
-  age_hours=$(( (now - epoch_last) / 3600 ))
-
-  if [[ -r "$sig_file" ]]; then
-    IFS= read -r cached_sig < "$sig_file"
-  fi
-
-  command mkdir -p "$cache_dir" "${ZSH_COMPDUMP:h}" 2>/dev/null
+  [[ -d "$cache_dir" && -d "${ZSH_COMPDUMP:h}" ]] ||
+    command mkdir -p "$cache_dir" "${ZSH_COMPDUMP:h}" 2>/dev/null
   autoload -Uz compinit
 
   # Fast path: reuse dump and skip security checks.
-  if [[ -f "$ZSH_COMPDUMP" && $age_hours -lt ${ZSH_COMPINIT_CHECK_HOURS:-24} && "$cached_sig" == "$current_sig" ]]; then
+  if [[ -f "$ZSH_COMPDUMP" && "$cached_sig" == "$current_sig" ]] &&
+      (( age_hours < ${ZSH_COMPINIT_CHECK_HOURS:-24} )); then
     compinit -C -d "$ZSH_COMPDUMP"
     return $?
   fi
@@ -123,7 +124,7 @@ _zinit_compinit_periodic() {
   local rc=$?
 
   if (( rc == 0 )); then
-    touch "$stamp_file" 2>/dev/null || :
+    : >| "$stamp_file" 2>/dev/null
     print -r -- "$current_sig" >| "$sig_file" 2>/dev/null || :
     # Compile the fresh dump so later -C shells load wordcode instead of
     # reparsing ~60KB of text. Zsh ignores a .zwc older than its source, so
@@ -133,6 +134,9 @@ _zinit_compinit_periodic() {
     else
       command rm -f -- "$ZSH_COMPDUMP.zwc" 2>/dev/null
     fi
+    # Dumps named after earlier host names (.zcompdump-<HOST>) are orphans.
+    local -a stale=("${ZSH_COMPDUMP:h}"/.zcompdump-*(N))
+    (( ${#stale} )) && command rm -f -- "${stale[@]}" 2>/dev/null
   fi
   return $rc
 }
@@ -174,30 +178,93 @@ _zinit_bind_history_substring_keys() {
 }
 
 # -----------------------------------------------------------------------------
+# _zinit_autosuggest_rebind
+# @internal
+# @description Stands in for zsh-autosuggestions' precmd hook. The plugin
+# re-wraps every widget before every prompt so it stays the outermost wrapper;
+# with ~1300 widgets that is about 10 ms, a `zle -la` fork included, on every
+# prompt. Only a change in the widget table can make it necessary (a plugin,
+# the defer queue, or fast-syntax-highlighting adding widgets), so this
+# rebinds when the table differs from the one the last rebind left behind.
+# The widget count plus every definition is the fingerprint: a new widget
+# changes the count, a redefined one its value, and it costs a fraction of
+# a millisecond.
+# @noargs
+# -----------------------------------------------------------------------------
+_zinit_autosuggest_rebind() {
+  [[ "${#widgets} ${(j: :)widgets}" == "${_ZINIT_AUTOSUGGEST_WIDGETS-}" ]] &&
+    return 0
+  _zsh_autosuggest_start
+  typeset -g _ZINIT_AUTOSUGGEST_WIDGETS="${#widgets} ${(j: :)widgets}"
+}
+
+# -----------------------------------------------------------------------------
+# _zinit_autosuggest_setup
+# @internal
+# @description Starts zsh-autosuggestions and swaps its precmd hook for
+# _zinit_autosuggest_rebind, in the same slot.
+# @noargs
+# -----------------------------------------------------------------------------
+_zinit_autosuggest_setup() {
+  (( $+functions[_zsh_autosuggest_start] )) || return 0
+  local -i slot=${precmd_functions[(Ie)_zsh_autosuggest_start]}
+  (( slot )) && precmd_functions[slot]=_zinit_autosuggest_rebind
+  _zinit_autosuggest_rebind
+}
+
+# -----------------------------------------------------------------------------
+# _zinit_queue_highlighting
+# @internal
+# @description Deferred task that queues the fast-syntax-highlighting load
+# again. A task queued while the defer queue runs lands in its next batch,
+# after every task queued during startup.
+# @noargs
+# -----------------------------------------------------------------------------
+_zinit_queue_highlighting() {
+  _zsh_defer _zinit_load_highlighting
+}
+
+# -----------------------------------------------------------------------------
+# _zinit_load_highlighting
+# @internal
+# @description Loads fast-syntax-highlighting, then replays the compdefs
+# queued while it loaded.
+# @noargs
+# -----------------------------------------------------------------------------
+_zinit_load_highlighting() {
+  zinit light zdharma-continuum/fast-syntax-highlighting
+  _zinit_replay_compdefs
+}
+
+# -----------------------------------------------------------------------------
 # _zinit_add_completion_paths
 # @internal
 # @description Prepends the repository and Docker completion directories to
-# fpath, once each, before compinit runs.
+# fpath, once each, before compinit runs. ZDOTDIR points at $HOME, so the
+# repository completions resolve through the config directory instead.
 # @noargs
 # -----------------------------------------------------------------------------
 _zinit_add_completion_paths() {
-  local dir
-
-  # ZDOTDIR points at $HOME, not the XDG config tree, so the repository
-  # completions must be resolved through the config directory instead.
-  dir="${ZSH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zsh}/completions"
-  if [[ -d "$dir" ]] && (( ${fpath[(Ie)$dir]} == 0 )); then
-    fpath=("$dir" $fpath)
-  fi
-
-  dir="$HOME/.docker/completions"
-  if [[ -d "$dir" ]] && (( ${fpath[(Ie)$dir]} == 0 )); then
-    fpath=("$dir" $fpath)
-  fi
+  _zsh_fpath_prepend \
+    "${ZSH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zsh}/completions" \
+    "$HOME/.docker/completions"
+  return 0
 }
 
 # Load OMZ snippets required by selected plugin snippets.
 zinit snippet OMZL::completion.zsh
+
+# OMZL::theme-and-appearance derives LS_COLORS from `dircolors -b` in a
+# process substitution whenever the variable is empty, which is every new
+# terminal (about 9 ms). The cached copy gives it the same value first. The
+# output depends on TERM and COLORTERM, so they name the cache; a personal
+# ~/.dircolors stays with the snippet.
+if [[ -z "${LS_COLORS:-}" && ! -e "$HOME/.dircolors" ]] &&
+    (( $+commands[dircolors] )); then
+  _zsh_cached_init \
+    "dircolors-${${TERM:-none}//[^A-Za-z0-9._-]/_}${COLORTERM:+-color}" \
+    "${commands[dircolors]}" -b
+fi
 zinit snippet OMZL::theme-and-appearance.zsh
 
 # Replaces OMZL::directories.zsh.
@@ -260,7 +327,10 @@ fi
 
 # ------------------------- INTERACTIVE CORE PLUGINS ------------------------- #
 # Keep core interactive feedback plugins synchronous for immediate availability.
-zinit ice lucid atload"_zsh_autosuggest_start 2>/dev/null || true"
+# The OMZ git plugin stays synchronous as well: 60-aliases.zsh redefines
+# eleven of its aliases (gl, gcm, gp, ...), which only works while the plugin
+# loads first. The same goes for the ls alias of theme-and-appearance.
+zinit ice lucid atload"_zinit_autosuggest_setup"
 zinit light zsh-users/zsh-autosuggestions
 
 if [[ "$PLATFORM" == "macOS" ]]; then
@@ -277,9 +347,8 @@ if [[ "$PLATFORM" == "macOS" ]]; then
 elif [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" == true ]]; then
   zinit ice wait"0" lucid
   zinit light chrissicool/zsh-256color
-
-  zinit ice wait"1" lucid
-  zinit snippet OMZP::fzf/fzf.plugin.zsh
+  # No OMZP::fzf: 50-tools.zsh sets up fzf on every platform, and a second
+  # `fzf --zsh` would only rebind the same keys a second later.
 fi
 
 if [[ "$PLATFORM" == "macOS" ]] || [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" == true ]]; then
@@ -287,13 +356,19 @@ if [[ "$PLATFORM" == "macOS" ]] || [[ "$PLATFORM" == "Linux" && "$ARCH_LINUX" ==
   zinit ice lucid atload"_zinit_bind_history_substring_keys"
   zinit light zsh-users/zsh-history-substring-search
 
-  # Must stay last among interactive plugins. Turbo-deferred: widget binding
-  # measured ~70-90ms, the largest single startup cost, and wait"0" attaches
-  # highlighting right after the first prompt paints. Text typed before that
-  # colors on the next keystroke; other turbo plugins load in later slots, so
-  # this remains last among the interactive set.
-  zinit ice wait"0" lucid atload"_zinit_replay_compdefs"
-  zinit light zdharma-continuum/fast-syntax-highlighting
+  # Must stay last among interactive plugins. Deferred: widget binding
+  # measured ~70-90ms, the largest single startup cost, so highlighting
+  # attaches right after the first prompt paints; text typed before that
+  # colors on the next keystroke. It wraps every widget that exists when it
+  # loads, so it is chained behind the defer queue (00-initialization.zsh),
+  # whose integrations (atuin, fzf, ...) define widgets of their own. A Turbo
+  # wait"0" slot raced that queue and sometimes won.
+  if (( $+functions[_zsh_defer] )); then
+    _zsh_defer _zinit_queue_highlighting
+  else
+    zinit ice wait"0" lucid atload"_zinit_replay_compdefs"
+    zinit light zdharma-continuum/fast-syntax-highlighting
+  fi
 fi
 
 # ============================================================================ #

@@ -15,7 +15,8 @@
 #
 # Tools:
 #   - Fabric: LLM interaction via predefined patterns with Obsidian integration.
-#   - OpenCode: AI coding assistant with MCP support.
+#   - Claude Code, Gemini CLI, OpenCode: wrappers that hand each tool only the
+#     1Password credentials it needs.
 #
 # Features (Fabric):
 #   - Namespaced pattern execution through `fabric-pattern`.
@@ -39,22 +40,6 @@ export OPENCODE_ENABLE_EXA="true"
 
 # Main Fabric alias (fabric-ai is the actual command).
 alias fabric="fabric-ai"
-
-# Remove top-level wrappers created by the previous implementation. Compare
-# function bodies so a user replacement with the same name is never removed.
-if (( ${+parameters[_FABRIC_PATTERN_WRAPPERS]} )); then
-  local _fabric_legacy_name _fabric_current_body _fabric_owned_body
-  for _fabric_legacy_name in "${(k)_FABRIC_PATTERN_WRAPPERS[@]}"; do
-    _fabric_current_body="${functions[$_fabric_legacy_name]-}"
-    _fabric_owned_body="${_FABRIC_PATTERN_WRAPPERS[$_fabric_legacy_name]}"
-    if [[ "${_fabric_current_body//[[:space:]]/}" == \
-          "${_fabric_owned_body//[[:space:]]/}" ]]; then
-      unfunction -- "$_fabric_legacy_name" 2>/dev/null
-    fi
-  done
-  unset _fabric_legacy_name _fabric_current_body _fabric_owned_body
-  unset _FABRIC_PATTERN_WRAPPERS
-fi
 
 # Completion discovery is lazy and cached for the current shell. A successful
 # pattern update invalidates it.
@@ -347,32 +332,82 @@ fabric-list() {
   command fabric-ai --listpatterns
 }
 
-# ++++++++++++++++++++++++++++++++ GITHUB PAT ++++++++++++++++++++++++++++++++ #
+# ++++++++++++++++++++++++++ 1PASSWORD CREDENTIALS +++++++++++++++++++++++++++ #
 #
-# Loads GITHUB_PAT from 1Password lazily — deferred to keep startup fast.
-# Required by Claude Code GitHub MCP and OpenCode GitHub MCP server
-# (configured as {env:GITHUB_PAT} in their respective configs).
+# The claude, gemini, and opencode wrappers read their API credentials from
+# 1Password on first use. Each value is then cached for the session in
+# _AI_SECRET_CACHE, which is never exported, so a key only reaches the child
+# process of the wrapper that needs it. A variable already exported under the
+# same name always wins over 1Password.
+#
+#   GITHUB_PAT        GitHub MCP server in Claude Code and OpenCode.
+#   CONTEXT7_API_KEY  Context7 MCP server in Claude Code and OpenCode.
+#   GEMINI_API_KEY    Gemini CLI v0.41+ with the "gemini-api-key" auth type
+#                     (~/.gemini/settings.json); required by `gemini`.
+#   KILO_API_KEY      OpenCode's kilopass provider ({env:KILO_API_KEY}).
+#
+# Creating a missing item, e.g. the Gemini key from
+# https://aistudio.google.com/apikey (Kilo: https://kilo.ai/settings/api-keys):
+#   op item create --category="API Credential" --title="Gemini API Key" \
+#     --vault=Personal --field label=credential,value=<your-key>
 
-_GITHUB_PAT_OP_REF="op://Personal/GITHUB_PAT/credential"
-typeset -g _CACHED_GITHUB_PAT="${_CACHED_GITHUB_PAT:-}"
+# 1Password references; adjust the vault or item name here if they differ.
+typeset -gA _AI_SECRET_REFS=(
+  GITHUB_PAT       "op://Personal/GITHUB_PAT/credential"
+  CONTEXT7_API_KEY "op://Personal/CONTEXT7_API_KEY/credential"
+  GEMINI_API_KEY   "op://Personal/Gemini API Key/credential"
+  KILO_API_KEY     "op://Personal/Kilo API Key/credential"
+)
+# Declared without a value so re-sourcing this module keeps unlocked keys.
+typeset -gA _AI_SECRET_CACHE
 
 # -----------------------------------------------------------------------------
-# _load_github_pat
+# _ai_secret_load
 # @internal
-# @description Reads GITHUB_PAT from 1Password via the op CLI, caching it in
-# _CACHED_GITHUB_PAT; a no-op if already set or op is unavailable.
-# @noargs
-# @exitcode 1 If op is unavailable or the key cannot be read.
+# @description Resolves a credential from the environment, the session cache,
+# or 1Password, in that order, and caches what 1Password returns. Callers
+# declare `local REPLY` so the value never lingers in the global REPLY.
+# @arg $1 string Credential variable name; a key of _AI_SECRET_REFS.
+# @exitcode 1 If op is unavailable, the vault is locked, or the item is
+# missing or empty.
+# @set REPLY string The credential; empty on failure.
 # -----------------------------------------------------------------------------
-_load_github_pat() {
-  [[ -n "${GITHUB_PAT:-${_CACHED_GITHUB_PAT:-}}" ]] && return 0
-  command -v op &>/dev/null || return 1
+_ai_secret_load() {
+  local name="$1"
+  REPLY="${(P)name:-${_AI_SECRET_CACHE[$name]-}}"
+  [[ -n "$REPLY" ]] && return 0
 
-  local key
-  key=$(op read "$_GITHUB_PAT_OP_REF" 2>/dev/null) || return 1
-  [[ -z "$key" ]] && return 1
+  local ref="${_AI_SECRET_REFS[$name]-}"
+  [[ -n "$ref" ]] && (( $+commands[op] )) || return 1
+  REPLY="$(command op read "$ref" 2>/dev/null)" && [[ -n "$REPLY" ]] || {
+    REPLY=""
+    return 1
+  }
+  _AI_SECRET_CACHE[$name]="$REPLY"
+}
 
-  _CACHED_GITHUB_PAT="$key"
+# -----------------------------------------------------------------------------
+# _ai_secret_unlock
+# @internal
+# @description Discards a credential from the shell and the session cache,
+# then reads it again from 1Password.
+# @arg $1 string Credential variable name; a key of _AI_SECRET_REFS.
+# @exitcode 1 If the credential cannot be read.
+# -----------------------------------------------------------------------------
+_ai_secret_unlock() {
+  local name="$1" REPLY
+  unset -v "$name"
+  unset "_AI_SECRET_CACHE[$name]"
+  if _ai_secret_load "$name"; then
+    print "${C_GREEN}$name loaded from 1Password.${C_RESET}"
+    return 0
+  fi
+  # op://<vault>/<item>/<field>, split to spell out the command that creates
+  # a missing item.
+  local -a ref_parts=("${(@s:/:)${_AI_SECRET_REFS[$name]#op://}}")
+  print -u2 "${C_RED}Could not load $name — is 1Password unlocked and the item set up?${C_RESET}"
+  print -u2 "${C_YELLOW}Run: op item create --category=\"API Credential\" --title=\"${ref_parts[2]}\" --vault=${ref_parts[1]} --field label=${ref_parts[3]},value=<key>${C_RESET}"
+  return 1
 }
 
 # -----------------------------------------------------------------------------
@@ -381,43 +416,7 @@ _load_github_pat() {
 # @noargs
 # @exitcode 1 If 1Password is unavailable or the key cannot be read.
 # -----------------------------------------------------------------------------
-github-pat-unlock() {
-  unset -v GITHUB_PAT _CACHED_GITHUB_PAT
-  if _load_github_pat; then
-    print "${C_GREEN}GITHUB_PAT loaded from 1Password.${C_RESET}"
-  else
-    print "${C_RED}Could not load GITHUB_PAT — is 1Password unlocked and the item set up?${C_RESET}" >&2
-    return 1
-  fi
-}
-
-# +++++++++++++++++++++++++++++ CONTEXT7 API KEY +++++++++++++++++++++++++++++ #
-#
-# Loads CONTEXT7_API_KEY from 1Password lazily to keep startup fast.
-# Required by Claude Code Context7 MCP and OpenCode Context7 MCP server
-# (configured as {env:CONTEXT7_API_KEY} in their respective configs).
-
-_CONTEXT7_OP_REF="op://Personal/CONTEXT7_API_KEY/credential"
-typeset -g _CACHED_CONTEXT7_API_KEY="${_CACHED_CONTEXT7_API_KEY:-}"
-
-# -----------------------------------------------------------------------------
-# _load_context7_api_key
-# @internal
-# @description Reads CONTEXT7_API_KEY from 1Password via the op CLI, caching
-# it in _CACHED_CONTEXT7_API_KEY; a no-op if already set or op is unavailable.
-# @noargs
-# @exitcode 1 If op is unavailable or the key cannot be read.
-# -----------------------------------------------------------------------------
-_load_context7_api_key() {
-  [[ -n "${CONTEXT7_API_KEY:-${_CACHED_CONTEXT7_API_KEY:-}}" ]] && return 0
-  command -v op &>/dev/null || return 1
-
-  local key
-  key=$(op read "$_CONTEXT7_OP_REF" 2>/dev/null) || return 1
-  [[ -z "$key" ]] && return 1
-
-  _CACHED_CONTEXT7_API_KEY="$key"
-}
+github-pat-unlock() { _ai_secret_unlock GITHUB_PAT; }
 
 # -----------------------------------------------------------------------------
 # context7-unlock
@@ -425,78 +424,7 @@ _load_context7_api_key() {
 # @noargs
 # @exitcode 1 If 1Password is unavailable or the key cannot be read.
 # -----------------------------------------------------------------------------
-context7-unlock() {
-  unset CONTEXT7_API_KEY _CACHED_CONTEXT7_API_KEY
-  if _load_context7_api_key; then
-    print "${C_GREEN}CONTEXT7_API_KEY loaded from 1Password.${C_RESET}"
-  else
-    print "${C_RED}Could not load CONTEXT7_API_KEY — is 1Password unlocked and the item set up?${C_RESET}" >&2
-    return 1
-  fi
-}
-
-# Keys are loaded on-demand inside the claude/opencode wrappers below.
-
-# ++++++++++++++++++++++++++++++++ GEMINI CLI ++++++++++++++++++++++++++++++++ #
-#
-# Loads GEMINI_API_KEY from 1Password lazily — only on the first invocation of
-# the gemini wrapper function in a shell session, then cached in the
-# environment so subsequent calls do not re-prompt the 1Password vault.
-#
-# Required by Gemini CLI v0.41+ when auth type is set to "gemini-api-key"
-# (configured in ~/.gemini/settings.json).
-#
-# One-time setup — create the item in 1Password:
-#   1. Open 1Password -> New Item -> API Credential
-#   2. Title: "Gemini API Key"  |  Vault: Personal
-#   3. Field "credential": paste the key from https://aistudio.google.com/apikey
-#
-# Or via CLI:
-#   op item create --category="API Credential" --title="Gemini API Key" \
-#     --vault=Personal --field label=credential,value=<your-key>
-
-# 1Password reference — adjust vault/item name if different.
-_GEMINI_OP_REF="op://Personal/Gemini API Key/credential"
-typeset -g _CACHED_GEMINI_API_KEY="${_CACHED_GEMINI_API_KEY:-}"
-
-# -----------------------------------------------------------------------------
-# _load_gemini_api_key
-# @internal
-# @description Reads GEMINI_API_KEY from 1Password via the op CLI, caching it
-# in _CACHED_GEMINI_API_KEY; a no-op if already set or op is unavailable.
-# @noargs
-# @exitcode 1 If op is unavailable, the item is missing, or the vault is
-# locked/unauthenticated.
-# -----------------------------------------------------------------------------
-_load_gemini_api_key() {
-  [[ -n "${GEMINI_API_KEY:-${_CACHED_GEMINI_API_KEY:-}}" ]] && return 0
-  command -v op &>/dev/null       || return 1   # op not installed
-
-  local key
-  key=$(op read "$_GEMINI_OP_REF" 2>/dev/null) || return 1
-  [[ -z "$key" ]]                 && return 1   # item not found or vault locked
-
-  _CACHED_GEMINI_API_KEY="$key"
-}
-
-# -----------------------------------------------------------------------------
-# gemini
-# @description Loads GEMINI_API_KEY from 1Password, then runs Gemini.
-# The key is cached in the environment for the rest of the session.
-# @arg $@ string Arguments forwarded to the Gemini command.
-# @exitcode 1 If the key cannot be loaded.
-# -----------------------------------------------------------------------------
-gemini() {
-  if [[ -z "${GEMINI_API_KEY:-${_CACHED_GEMINI_API_KEY:-}}" ]]; then
-    if ! _load_gemini_api_key; then
-      print "${C_RED}gemini: Could not load GEMINI_API_KEY from 1Password.${C_RESET}" >&2
-      print "${C_YELLOW}Make sure 1Password is unlocked and the item exists at: ${_GEMINI_OP_REF}${C_RESET}" >&2
-      return 1
-    fi
-  fi
-  local gemini_key="${GEMINI_API_KEY:-${_CACHED_GEMINI_API_KEY:-}}"
-  GEMINI_API_KEY="$gemini_key" command gemini "$@"
-}
+context7-unlock() { _ai_secret_unlock CONTEXT7_API_KEY; }
 
 # -----------------------------------------------------------------------------
 # gemini-unlock
@@ -504,96 +432,7 @@ gemini() {
 # @noargs
 # @exitcode 1 If 1Password is unavailable or the key cannot be read.
 # -----------------------------------------------------------------------------
-gemini-unlock() {
-  unset GEMINI_API_KEY _CACHED_GEMINI_API_KEY
-  if _load_gemini_api_key; then
-    print "${C_GREEN}GEMINI_API_KEY loaded from 1Password.${C_RESET}"
-  else
-    print "${C_RED}Could not load GEMINI_API_KEY — is 1Password unlocked and the item set up?${C_RESET}" >&2
-    print "${C_YELLOW}Run: op item create --category=\"API Credential\" --title=\"Gemini API Key\" --vault=Personal --field label=credential,value=<key>${C_RESET}" >&2
-    return 1
-  fi
-}
-
-# -----------------------------------------------------------------------------
-# claude
-# @description Loads optional GitHub and Context7 keys, then runs Claude.
-# Keys are cached in the environment for the rest of the session.
-# @arg $@ string Arguments forwarded to the Claude command.
-# -----------------------------------------------------------------------------
-claude() {
-  if [[ -z "${GITHUB_PAT:-${_CACHED_GITHUB_PAT:-}}" ]] && ! _load_github_pat; then
-    print "${C_YELLOW}claude: Could not load GITHUB_PAT from 1Password (GitHub MCP may be unavailable).${C_RESET}" >&2
-  fi
-  if [[ -z "${CONTEXT7_API_KEY:-${_CACHED_CONTEXT7_API_KEY:-}}" ]] && ! _load_context7_api_key; then
-    print "${C_YELLOW}claude: Could not load CONTEXT7_API_KEY from 1Password (Context7 MCP may be unavailable).${C_RESET}" >&2
-  fi
-  local github_pat="${GITHUB_PAT:-${_CACHED_GITHUB_PAT:-}}"
-  local context7_key="${CONTEXT7_API_KEY:-${_CACHED_CONTEXT7_API_KEY:-}}"
-  GITHUB_PAT="$github_pat" CONTEXT7_API_KEY="$context7_key" command claude "$@"
-}
-
-# +++++++++++++++++++++++++++++++ KILO GATEWAY +++++++++++++++++++++++++++++++ #
-#
-# Loads KILO_API_KEY from 1Password lazily — only on the first invocation of
-# the opencode wrapper function in a shell session, then cached in the
-# environment so subsequent calls do not re-prompt the 1Password vault.
-#
-# Required by OpenCode's kilopass provider (configured in opencode.json as
-# {env:KILO_API_KEY}).
-#
-# One-time setup — create the item in 1Password:
-#   1. Open 1Password -> New Item -> API Credential
-#   2. Title: "Kilo API Key"  |  Vault: Personal
-#   3. Field "credential": paste the key from https://kilo.ai/settings/api-keys
-#
-# Or via CLI:
-#   op item create --category="API Credential" --title="Kilo API Key" \
-#     --vault=Personal --field label=credential,value=<your-key>
-
-# 1Password reference — adjust vault/item name if different.
-_KILO_OP_REF="op://Personal/Kilo API Key/credential"
-typeset -g _CACHED_KILO_API_KEY="${_CACHED_KILO_API_KEY:-}"
-
-# -----------------------------------------------------------------------------
-# _load_kilo_api_key
-# @internal
-# @description Reads KILO_API_KEY from 1Password via the op CLI, caching it
-# in _CACHED_KILO_API_KEY; a no-op if already set or op is unavailable.
-# @noargs
-# @exitcode 1 If op is unavailable, the item is missing, or the vault is
-# locked/unauthenticated.
-# -----------------------------------------------------------------------------
-_load_kilo_api_key() {
-  [[ -n "${KILO_API_KEY:-${_CACHED_KILO_API_KEY:-}}" ]] && return 0
-  command -v op &>/dev/null       || return 1   # op not installed
-
-  local key
-  key=$(op read "$_KILO_OP_REF" 2>/dev/null) || return 1
-  [[ -z "$key" ]]                 && return 1   # item not found or vault locked
-
-  _CACHED_KILO_API_KEY="$key"
-}
-
-# -----------------------------------------------------------------------------
-# opencode
-# @description Loads optional provider keys, then runs OpenCode.
-# Keys are cached in the environment for the rest of the session.
-# @arg $@ string Arguments forwarded to the OpenCode command.
-# -----------------------------------------------------------------------------
-opencode() {
-  if [[ -z "${KILO_API_KEY:-${_CACHED_KILO_API_KEY:-}}" ]]; then
-    if ! _load_kilo_api_key; then
-      print "${C_YELLOW}opencode: Could not load KILO_API_KEY from 1Password (kilopass provider may be unavailable).${C_RESET}" >&2
-    fi
-  fi
-  [[ -z "${GITHUB_PAT:-${_CACHED_GITHUB_PAT:-}}" ]] && _load_github_pat
-  [[ -z "${CONTEXT7_API_KEY:-${_CACHED_CONTEXT7_API_KEY:-}}" ]] && _load_context7_api_key
-  local kilo_key="${KILO_API_KEY:-${_CACHED_KILO_API_KEY:-}}"
-  local github_pat="${GITHUB_PAT:-${_CACHED_GITHUB_PAT:-}}"
-  local context7_key="${CONTEXT7_API_KEY:-${_CACHED_CONTEXT7_API_KEY:-}}"
-  KILO_API_KEY="$kilo_key" GITHUB_PAT="$github_pat" CONTEXT7_API_KEY="$context7_key" command opencode "$@"
-}
+gemini-unlock() { _ai_secret_unlock GEMINI_API_KEY; }
 
 # -----------------------------------------------------------------------------
 # kilo-unlock
@@ -601,15 +440,63 @@ opencode() {
 # @noargs
 # @exitcode 1 If 1Password is unavailable or the key cannot be read.
 # -----------------------------------------------------------------------------
-kilo-unlock() {
-  unset KILO_API_KEY _CACHED_KILO_API_KEY
-  if _load_kilo_api_key; then
-    print "${C_GREEN}KILO_API_KEY loaded from 1Password.${C_RESET}"
-  else
-    print "${C_RED}Could not load KILO_API_KEY — is 1Password unlocked and the item set up?${C_RESET}" >&2
-    print "${C_YELLOW}Run: op item create --category=\"API Credential\" --title=\"Kilo API Key\" --vault=Personal --field label=credential,value=<key>${C_RESET}" >&2
+kilo-unlock() { _ai_secret_unlock KILO_API_KEY; }
+
+# -----------------------------------------------------------------------------
+# gemini
+# @description Loads GEMINI_API_KEY from 1Password, then runs Gemini.
+# The key stays cached, unexported, for the rest of the session.
+# @arg $@ string Arguments forwarded to the Gemini command.
+# @exitcode 1 If the key cannot be loaded.
+# -----------------------------------------------------------------------------
+gemini() {
+  local REPLY
+  if ! _ai_secret_load GEMINI_API_KEY; then
+    print -u2 "${C_RED}gemini: Could not load GEMINI_API_KEY from 1Password.${C_RESET}"
+    print -u2 "${C_YELLOW}Make sure 1Password is unlocked and the item exists at: ${_AI_SECRET_REFS[GEMINI_API_KEY]}${C_RESET}"
     return 1
   fi
+  GEMINI_API_KEY="$REPLY" command gemini "$@"
+}
+
+# -----------------------------------------------------------------------------
+# claude
+# @description Loads optional GitHub and Context7 keys, then runs Claude.
+# The keys stay cached, unexported, for the rest of the session.
+# @arg $@ string Arguments forwarded to the Claude command.
+# -----------------------------------------------------------------------------
+claude() {
+  local REPLY github_pat="" context7_key=""
+  if _ai_secret_load GITHUB_PAT; then
+    github_pat="$REPLY"
+  else
+    print -u2 "${C_YELLOW}claude: Could not load GITHUB_PAT from 1Password (GitHub MCP may be unavailable).${C_RESET}"
+  fi
+  if _ai_secret_load CONTEXT7_API_KEY; then
+    context7_key="$REPLY"
+  else
+    print -u2 "${C_YELLOW}claude: Could not load CONTEXT7_API_KEY from 1Password (Context7 MCP may be unavailable).${C_RESET}"
+  fi
+  GITHUB_PAT="$github_pat" CONTEXT7_API_KEY="$context7_key" command claude "$@"
+}
+
+# -----------------------------------------------------------------------------
+# opencode
+# @description Loads optional provider and MCP keys, then runs OpenCode.
+# The keys stay cached, unexported, for the rest of the session.
+# @arg $@ string Arguments forwarded to the OpenCode command.
+# -----------------------------------------------------------------------------
+opencode() {
+  local REPLY kilo_key="" github_pat="" context7_key=""
+  if _ai_secret_load KILO_API_KEY; then
+    kilo_key="$REPLY"
+  else
+    print -u2 "${C_YELLOW}opencode: Could not load KILO_API_KEY from 1Password (kilopass provider may be unavailable).${C_RESET}"
+  fi
+  _ai_secret_load GITHUB_PAT && github_pat="$REPLY"
+  _ai_secret_load CONTEXT7_API_KEY && context7_key="$REPLY"
+  KILO_API_KEY="$kilo_key" GITHUB_PAT="$github_pat" \
+    CONTEXT7_API_KEY="$context7_key" command opencode "$@"
 }
 
 # ============================================================================ #
