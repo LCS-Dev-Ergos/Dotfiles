@@ -3,34 +3,34 @@
     "alacritty-theme": {
       "flake": false,
       "locked": {
-        "lastModified": 1714732884,
-        "narHash": "sha256-bPup3AKFGVuUC8CzVhWJPKphHdx0GAc62GxWsUWQ7Xk=",
+        "lastModified": 1789092203,
+        "narHash": "sha256-pfpujHc6+shftp+idGOA70NXKR8ASIIbdNb4eMCXb7U=",
         "owner": "alacritty",
         "repo": "alacritty-theme",
-        "rev": "94e1dc0b9511969a426208fbba24bd7448493785",
+        "rev": "ab88d5a80d676b5dc6157e91aba8067f2078dc94",
         "type": "github"
       },
       "original": {
         "owner": "alacritty",
         "repo": "alacritty-theme",
-        "rev": "94e1dc0b9511969a426208fbba24bd7448493785",
+        "rev": "ab88d5a80d676b5dc6157e91aba8067f2078dc94",
         "type": "github"
       }
     },
     "cmd-help-syntax": {
       "flake": false,
       "locked": {
-        "lastModified": 1749388503,
-        "narHash": "sha256-Lhnn8IiENh5w6Lge9ezbf2yMnSdH22PWvPsi7CwfyGY=",
+        "lastModified": 1782718431,
+        "narHash": "sha256-tsTJcNu+zZp53u94cxB5LQHgQHsVNuHymq5dhNVjVx4=",
         "owner": "victor-gp",
         "repo": "cmd-help-sublime-syntax",
-        "rev": "273cb988177e96f4187e06008b13fa72ad22ae4d",
+        "rev": "97f869595fe7257137ef065bbdb9bc0b3cf37e14",
         "type": "github"
       },
       "original": {
         "owner": "victor-gp",
         "repo": "cmd-help-sublime-syntax",
-        "rev": "273cb988177e96f4187e06008b13fa72ad22ae4d",
+        "rev": "97f869595fe7257137ef065bbdb9bc0b3cf37e14",
         "type": "github"
       }
     },
@@ -42,16 +42,16 @@
         "rust-overlay": "rust-overlay"
       },
       "locked": {
-        "lastModified": 1787161794,
-        "narHash": "sha256-sEGIN3dLZasaHob3EHscWBCIQHflMQVchYmzgsETDk4=",
+        "lastModified": 1789583424,
+        "narHash": "sha256-N6+kprfWRyh0AkAiopkGsNXUGGORyPVFHEaDHCpGQs8=",
         "owner": "ogulcancelik",
         "repo": "herdr",
-        "rev": "9eb521456ac0d19d3ab3d9d7cea3cca10baa8a4c",
+        "rev": "065ef9d6a531c49fb8bee7e818ef837065b21ee9",
         "type": "github"
       },
       "original": {
         "owner": "ogulcancelik",
-        "ref": "v0.8.2",
+        "ref": "v0.9.1",
         "repo": "herdr",
         "type": "github"
       }
@@ -258,68 +258,68 @@
     "tokyo-night-tmux": {
       "flake": false,
       "locked": {
-        "lastModified": 1740531099,
-        "narHash": "sha256-TOS9+eOEMInAgosB3D9KhahudW2i1ZEH+IXEc0RCpU0=",
+        "lastModified": 1786762154,
+        "narHash": "sha256-NKBUKsRuKMQQuFMDhGcFvRjis/73idHG6GjNtLF3La8=",
         "owner": "janoamaral",
         "repo": "tokyo-night-tmux",
-        "rev": "caf6cbb4c3a32d716dfedc02bc63ec8cf238f632",
+        "rev": "fe1faa1aac237d7d7b69d8fdceb55a33222c8cfb",
         "type": "github"
       },
       "original": {
         "owner": "janoamaral",
         "repo": "tokyo-night-tmux",
-        "rev": "caf6cbb4c3a32d716dfedc02bc63ec8cf238f632",
+        "rev": "fe1faa1aac237d7d7b69d8fdceb55a33222c8cfb",
         "type": "github"
       }
     },
     "tokyo-night-yazi": {
       "flake": false,
       "locked": {
-        "lastModified": 1751200639,
-        "narHash": "sha256-4aNPlO5aXP8c7vks6bTlLCuyUQZ4Hx3GWtGlRmbhdto=",
+        "lastModified": 1767290359,
+        "narHash": "sha256-LArhRteD7OQRBguV1n13gb5jkl90sOxShkDzgEf3PA0=",
         "owner": "BennyOe",
         "repo": "tokyo-night.yazi",
-        "rev": "5f5636427f9bb16cc3f7c5e5693c60914c73f036",
+        "rev": "8e6296f14daff24151c736ebd0b9b6cd89b02b03",
         "type": "github"
       },
       "original": {
         "owner": "BennyOe",
         "repo": "tokyo-night.yazi",
-        "rev": "5f5636427f9bb16cc3f7c5e5693c60914c73f036",
+        "rev": "8e6296f14daff24151c736ebd0b9b6cd89b02b03",
         "type": "github"
       }
     },
     "tpm": {
       "flake": false,
       "locked": {
-        "lastModified": 1677502767,
-        "narHash": "sha256-hW8mfwB8F9ZkTQ72WQp/1fy8KL1IIYMZBtZYIwZdMQc=",
+        "lastModified": 1779036064,
+        "narHash": "sha256-oRKUZNyJYQXlkeQfbEYiltUEBpvdwn2SoEBWHVUNmrA=",
         "owner": "tmux-plugins",
         "repo": "tpm",
-        "rev": "99469c4a9b1ccf77fade25842dc7bafbc8ce9946",
+        "rev": "e261deb1b47614eed3400089ce7197dc68acc4eb",
         "type": "github"
       },
       "original": {
         "owner": "tmux-plugins",
         "repo": "tpm",
-        "rev": "99469c4a9b1ccf77fade25842dc7bafbc8ce9946",
+        "rev": "e261deb1b47614eed3400089ce7197dc68acc4eb",
         "type": "github"
       }
     },
     "vim-tmux-navigator": {
       "flake": false,
       "locked": {
-        "lastModified": 1749413770,
-        "narHash": "sha256-czhzY1bauNd472osfUZSzsOEoGv9QhQBriF3ULkKNpY=",
+        "lastModified": 1769370258,
+        "narHash": "sha256-efqiRffnidYx+qjgsHyWshCFWgZp/ZrHl+Clt04pfpM=",
         "owner": "christoomey",
         "repo": "vim-tmux-navigator",
-        "rev": "412c474e97468e7934b9c217064025ea7a69e05e",
+        "rev": "e41c431a0c7b7388ae7ba341f01a0d217eb3a432",
         "type": "github"
       },
       "original": {
         "owner": "christoomey",
         "repo": "vim-tmux-navigator",
-        "rev": "412c474e97468e7934b9c217064025ea7a69e05e",
+        "rev": "e41c431a0c7b7388ae7ba341f01a0d217eb3a432",
         "type": "github"
       }
     }
