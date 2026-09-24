@@ -34,6 +34,14 @@ fi
 unset _shared_runtime_helpers
 
 # +++++++++++++++++++++++++++++ SHARED UI LAYER ++++++++++++++++++++++++++++++ #
+#
+# Static output (headings, sections, tables, cards, and log lines) is drawn by
+# the shell in every mode: it costs no process, never depends on a Gum release,
+# and looks the same whether Gum is installed or not. Gum is kept for what it
+# does better than a prompt string, confirmations and spinners. Colors are the
+# terminal's own ANSI slots, so the output follows the terminal theme, and the
+# geometry is shared with cpp-tools: a double/single rule for banners and
+# rounded boxes for structured blocks.
 
 # -----------------------------------------------------------------------------
 # _zsh_ui_resolve_mode
@@ -88,6 +96,9 @@ _zsh_ui_mode() {
 # _zsh_ui_set_palette
 # @internal
 # @description Sets private ANSI palette variables for a resolved UI mode.
+# Titles are bold cyan, section labels and table headers bold blue, frames
+# plain blue; secondary text keeps a neutral grey that stays readable on
+# both dark and light themes.
 # @arg $1 string Resolved style: plain, ansi, or gum.
 # -----------------------------------------------------------------------------
 _zsh_ui_set_palette() {
@@ -96,27 +107,159 @@ _zsh_ui_set_palette() {
 
   if [[ "$mode" == plain ]]; then
     typeset -g _ZSH_UI_RESET="" _ZSH_UI_BOLD="" _ZSH_UI_ACCENT=""
-    typeset -g _ZSH_UI_HEADING="" _ZSH_UI_MUTED="" _ZSH_UI_INFO=""
-    typeset -g _ZSH_UI_OK="" _ZSH_UI_WARN="" _ZSH_UI_ERROR=""
+    typeset -g _ZSH_UI_HEADING="" _ZSH_UI_MUTED="" _ZSH_UI_BORDER=""
+    typeset -g _ZSH_UI_KEY="" _ZSH_UI_INFO="" _ZSH_UI_OK=""
+    typeset -g _ZSH_UI_WARN="" _ZSH_UI_ERROR=""
     return 0
   fi
 
   typeset -g _ZSH_UI_RESET=$'\e[0m'
   typeset -g _ZSH_UI_BOLD=$'\e[1m'
-  typeset -g _ZSH_UI_ACCENT=$'\e[1;38;5;212m'
-  typeset -g _ZSH_UI_HEADING=$'\e[1;38;5;75m'
+  typeset -g _ZSH_UI_ACCENT=$'\e[1;36m'
+  typeset -g _ZSH_UI_HEADING=$'\e[1;34m'
   typeset -g _ZSH_UI_MUTED=$'\e[38;5;245m'
-  typeset -g _ZSH_UI_INFO=$'\e[1;38;5;81m'
-  typeset -g _ZSH_UI_OK=$'\e[1;38;5;42m'
-  typeset -g _ZSH_UI_WARN=$'\e[1;38;5;214m'
-  typeset -g _ZSH_UI_ERROR=$'\e[1;38;5;196m'
+  typeset -g _ZSH_UI_BORDER=$'\e[34m'
+  typeset -g _ZSH_UI_KEY=$'\e[36m'
+  typeset -g _ZSH_UI_INFO=$'\e[1;36m'
+  typeset -g _ZSH_UI_OK=$'\e[1;32m'
+  typeset -g _ZSH_UI_WARN=$'\e[1;33m'
+  typeset -g _ZSH_UI_ERROR=$'\e[1;31m'
+}
+
+# -----------------------------------------------------------------------------
+# _zsh_ui_width
+# @internal
+# @description Stores the terminal width, clamped to a readable range, in
+# REPLY. Banners and cards use it; tables fit the full terminal instead.
+# @arg $1 integer Optional upper bound; defaults to 100.
+# -----------------------------------------------------------------------------
+_zsh_ui_width() {
+  emulate -L zsh
+  local -i width="${COLUMNS:-80}" limit="${1:-100}"
+  (( width > 0 )) || width=80
+  (( width < 40 )) && width=40
+  (( width > limit )) && width=limit
+  REPLY=$width
+}
+
+# -----------------------------------------------------------------------------
+# _zsh_ui_text_width
+# @internal
+# @description Stores the display width of a string in REPLY, ignoring SGR
+# color sequences and counting double-width characters twice.
+# @arg $1 string Text to measure.
+# -----------------------------------------------------------------------------
+_zsh_ui_text_width() {
+  emulate -L zsh
+  setopt localoptions extendedglob
+  local text="${1//$'\e'\[[0-9;]#m/}"
+  REPLY=${(m)#text}
+}
+
+# -----------------------------------------------------------------------------
+# _zsh_ui_truncate
+# @internal
+# @description Shortens text to a display width with an ellipsis. Paths lose
+# their middle, so both the root and the file name stay visible; other text
+# loses its end.
+# @arg $1 string Text to shorten.
+# @arg $2 integer Maximum display width.
+# -----------------------------------------------------------------------------
+_zsh_ui_truncate() {
+  emulate -L zsh
+  local text="$1"
+  local -i width="$2" head tail
+
+  if (( ${(m)#text} <= width )); then
+    REPLY="$text"
+    return 0
+  fi
+  if (( width < 2 )); then
+    REPLY="${text[1,width]}"
+    return 0
+  fi
+
+  # "link → target" keeps its arrow: each side is shortened on its own, and
+  # space one side does not need goes to the other.
+  if [[ "$text" == *" → "* ]] && (( width >= 11 )); then
+    local left="${text%% → *}" right="${text#* → }"
+    local -i left_budget=$(( (width - 3) / 2 )) right_budget
+    right_budget=$(( width - 3 - left_budget ))
+    (( ${(m)#left} < left_budget )) &&
+      (( right_budget += left_budget - ${(m)#left} ))
+    (( ${(m)#right} < right_budget )) &&
+      (( left_budget += right_budget - ${(m)#right} ))
+    _zsh_ui_truncate "$left" "$left_budget"
+    left="$REPLY"
+    _zsh_ui_truncate "$right" "$right_budget"
+    REPLY="$left → $REPLY"
+    return 0
+  fi
+
+  tail=$(( (width - 1) * 3 / 5 ))
+  head=$(( width - 1 - tail ))
+  if [[ "$text" == */* ]] && (( head > 0 && tail > 0 )); then
+    REPLY="${text[1,head]}…${text[-tail,-1]}"
+  else
+    REPLY="${text[1,width-1]}…"
+  fi
+}
+
+# -----------------------------------------------------------------------------
+# _zsh_ui_short_path
+# @internal
+# @description Stores the display form of a path, or of text containing
+# paths, in REPLY. Styled output writes $HOME as ~ and cuts Nix store hashes
+# to seven characters; plain output keeps every path intact, so a captured
+# report can still be copied from.
+# @arg $1 string Path or text.
+# -----------------------------------------------------------------------------
+_zsh_ui_short_path() {
+  emulate -L zsh
+  setopt localoptions extendedglob
+  local text="$1"
+
+  if _zsh_ui_resolve_mode && [[ "$REPLY" != plain ]]; then
+    [[ -n "${HOME-}" && "$HOME" != / ]] && text="${text//$HOME\//~/}"
+    text="${text//(#b)\/nix\/store\/([a-z0-9](#c7))[a-z0-9](#c25)-//nix/store/${match[1]}…-}"
+  fi
+  REPLY="$text"
+}
+
+# -----------------------------------------------------------------------------
+# _zsh_ui_status_style
+# @internal
+# @description Stores the palette color for a status word in REPLY: green
+# for healthy states, yellow for ones worth a look, red for failures, grey
+# for informational ones, and nothing for anything else. Only the first word
+# counts, so "Warning: resolves to Clang" reads as a warning.
+# @arg $1 string Cell text.
+# -----------------------------------------------------------------------------
+_zsh_ui_status_style() {
+  emulate -L zsh
+  local word="${(L)1}"
+  word="${word%%[^a-z]*}"
+
+  case "$word" in
+    ok|available|reachable|pass|passed|active|loaded|installed|ready|\
+clean|current|verified|enabled|done|success)
+      REPLY="$_ZSH_UI_OK" ;;
+    warn|warning|outdated|lazy|shadowed|unknown|partial|stale|pending|\
+degraded|skipped|changed)
+      REPLY="$_ZSH_UI_WARN" ;;
+    broken|error|fail|failed|failure|missing|invalid|unreachable|conflict)
+      REPLY="$_ZSH_UI_ERROR" ;;
+    dormant|unused|absent|disabled|inactive|none)
+      REPLY="$_ZSH_UI_MUTED" ;;
+    *)
+      REPLY="" ;;
+  esac
 }
 
 # -----------------------------------------------------------------------------
 # _zsh_ui_log
 # @internal
-# @description Prints a compact leveled log line using native ANSI styling;
-# Gum is intentionally not spawned for per-line output.
+# @description Prints a compact leveled log line; warn and error go to stderr.
 # @arg $1 string Level: info, ok, warn, or error.
 # @arg $@ string Message text.
 # @exitcode 2 If the level or ZSH_UI_STYLE value is invalid.
@@ -157,16 +300,17 @@ _zsh_ui_log() {
 # -----------------------------------------------------------------------------
 # _zsh_ui_rule
 # @internal
-# @description Prints a native horizontal rule clamped to a practical width;
-# the default character matches the resolved plain or styled UI mode.
+# @description Prints a horizontal rule clamped to a practical width; the
+# default character matches the resolved plain or styled UI mode.
 # @arg $1 string Optional rule character.
 # @arg $2 integer Optional explicit width; defaults to COLUMNS.
 # -----------------------------------------------------------------------------
 _zsh_ui_rule() {
   emulate -L zsh
   local char="${1:-}"
+  _zsh_ui_resolve_mode || return $?
+  _zsh_ui_set_palette "$REPLY"
   if [[ -z "$char" ]]; then
-    _zsh_ui_resolve_mode || return $?
     char="-"
     [[ "$REPLY" == plain ]] || char="─"
   fi
@@ -174,50 +318,75 @@ _zsh_ui_rule() {
   (( width > 0 )) || width=80
   (( width < 40 )) && width=40
   (( width > 240 )) && width=240
-  printf '%s\n' "${(pl:$width::$char:)}"
+  print -r -- "${_ZSH_UI_BORDER}${(pl:$width::$char:)}${_ZSH_UI_RESET}"
 }
 
 # -----------------------------------------------------------------------------
 # _zsh_ui_heading
 # @internal
-# @description Prints a title and optional subtitle; Gum is invoked at most
-# once, while ANSI and plain modes remain shell-native.
+# @description Prints a title banner and an optional subtitle. Styled output
+# draws the cpp-tools rule, `════────── Title ───…───════`, with the subtitle
+# aligned under the title; plain output is the two bare lines.
 # @arg $1 string Title text.
 # @arg $2 string Optional subtitle text.
 # -----------------------------------------------------------------------------
 _zsh_ui_heading() {
   emulate -L zsh
-  local title="$1"
-  local subtitle="${2:-}"
-  local content="$title"
-  [[ -z "$subtitle" ]] || content+=$'\n'"$subtitle"
+  _zsh_ui_sanitize_text "$1"
+  local title="$REPLY"
+  _zsh_ui_sanitize_text "${2:-}"
+  local subtitle="$REPLY"
 
   _zsh_ui_resolve_mode || return $?
   local mode="$REPLY"
-  if [[ "$mode" == gum ]]; then
-    CLICOLOR_FORCE=1 command gum style \
-      --bold --foreground 212 "$content" 2>/dev/null && return 0
-    mode="ansi"
+  _zsh_ui_set_palette "$mode"
+
+  if [[ "$mode" == plain ]]; then
+    print -r -- "$title"
+    [[ -z "$subtitle" ]] || print -r -- "$subtitle"
+    return 0
   fi
 
-  _zsh_ui_set_palette "$mode"
-  print -r -- "${_ZSH_UI_ACCENT}${title}${_ZSH_UI_RESET}"
+  _zsh_ui_width
+  local -i width=$REPLY
+  local -i fill=$(( width - 16 - ${(m)#title} ))
+  if (( fill < 2 )); then
+    print -r -- "${_ZSH_UI_ACCENT}${title}${_ZSH_UI_RESET}"
+  else
+    print -r -- "${_ZSH_UI_BORDER}════──────${_ZSH_UI_RESET}"\
+" ${_ZSH_UI_ACCENT}${title}${_ZSH_UI_RESET} "\
+"${_ZSH_UI_BORDER}${(pl:$fill::─:)}════${_ZSH_UI_RESET}"
+  fi
   [[ -z "$subtitle" ]] ||
-    print -r -- "${_ZSH_UI_MUTED}${subtitle}${_ZSH_UI_RESET}"
+    print -r -- "           ${_ZSH_UI_MUTED}${subtitle}${_ZSH_UI_RESET}"
 }
 
 # -----------------------------------------------------------------------------
 # _zsh_ui_section
 # @internal
-# @description Prints a section label using native output in every UI mode.
+# @description Prints a section label. A " · " suffix, such as a count, is
+# rendered as secondary text.
 # @arg $1 string Section title.
 # -----------------------------------------------------------------------------
 _zsh_ui_section() {
   emulate -L zsh
-  local title="$1"
+  _zsh_ui_sanitize_text "$1"
+  local title="$REPLY" detail=""
   _zsh_ui_resolve_mode || return $?
-  _zsh_ui_set_palette "$REPLY"
-  print -r -- "${_ZSH_UI_HEADING}${title}${_ZSH_UI_RESET}"
+  local mode="$REPLY"
+  _zsh_ui_set_palette "$mode"
+
+  if [[ "$mode" == plain ]]; then
+    print -r -- "$title"
+    return 0
+  fi
+  if [[ "$title" == *" · "* ]]; then
+    detail=" · ${title#* · }"
+    title="${title%% · *}"
+  fi
+  print -r -- "${_ZSH_UI_BORDER}──${_ZSH_UI_RESET} "\
+"${_ZSH_UI_HEADING}${title}${_ZSH_UI_RESET}"\
+"${_ZSH_UI_MUTED}${detail}${_ZSH_UI_RESET}"
 }
 
 # -----------------------------------------------------------------------------
@@ -253,47 +422,142 @@ _zsh_ui_subsection() {
 
   print -r -- "${_ZSH_UI_HEADING}${title}${_ZSH_UI_RESET}"
   print -r -- \
-    "${_ZSH_UI_MUTED}  ${(pl:$rule_width::$rule_character:)}${_ZSH_UI_RESET}"
+    "  ${_ZSH_UI_BORDER}${(pl:$rule_width::$rule_character:)}${_ZSH_UI_RESET}"
+}
+
+# -----------------------------------------------------------------------------
+# _zsh_ui_wrap
+# @internal
+# @description Word-wraps text to a display width into the reply array. A word
+# longer than the width is split rather than allowed to overflow.
+# @arg $1 integer Display width.
+# @arg $2 string Text to wrap.
+# -----------------------------------------------------------------------------
+_zsh_ui_wrap() {
+  emulate -L zsh
+  local -i width="$1"
+  local text="$2" word line=""
+  reply=()
+  (( width > 0 )) || width=1
+
+  _zsh_ui_text_width "$text"
+  if (( REPLY <= width )); then
+    reply=("$text")
+    return 0
+  fi
+
+  for word in ${=text}; do
+    while (( ${(m)#word} > width )); do
+      [[ -z "$line" ]] || { reply+=("$line"); line="" }
+      reply+=("${word[1,width]}")
+      word="${word[width+1,-1]}"
+    done
+    [[ -n "$word" ]] || continue
+    if [[ -z "$line" ]]; then
+      line="$word"
+    elif (( ${(m)#line} + 1 + ${(m)#word} <= width )); then
+      line+=" $word"
+    else
+      reply+=("$line")
+      line="$word"
+    fi
+  done
+  [[ -z "$line" ]] || reply+=("$line")
+  (( ${#reply} )) || reply=("")
 }
 
 # -----------------------------------------------------------------------------
 # _zsh_ui_card
 # @internal
-# @description Prints a compact information card; Gum is invoked at most once.
+# @description Prints a compact information block. Body lines of the form
+# "key<TAB>value" become an aligned key/value list, empty lines stay as
+# spacing, and any other line is free text. Styled output draws a rounded box
+# sized to its content with the title set into the top border; long lines wrap
+# inside it. Free text may carry palette escapes from trusted callers.
 # @arg $1 string Card title.
 # @arg $@ string Optional body lines.
 # -----------------------------------------------------------------------------
 _zsh_ui_card() {
   emulate -L zsh
-  local title="$1"
+  setopt localoptions extendedglob
+  _zsh_ui_sanitize_text "$1"
+  local title="$REPLY"
   shift
-  local content="$title"
-  local line
+
+  local line key value
+  local -i key_width=0
   for line in "$@"; do
-    content+=$'\n'"$line"
+    [[ "$line" == *$'\t'* ]] || continue
+    key="${line%%$'\t'*}"
+    (( ${(m)#key} > key_width )) && key_width=${(m)#key}
   done
 
   _zsh_ui_resolve_mode || return $?
   local mode="$REPLY"
-  if [[ "$mode" == gum ]]; then
-    local -i width=${COLUMNS:-80}
-    (( width < 50 )) && width=50
-    (( width > 100 )) && width=100
-    CLICOLOR_FORCE=1 command gum style \
-      --border rounded \
-      --border-foreground 212 \
-      --padding '1 2' \
-      --width "$width" \
-      "$content" 2>/dev/null && return 0
-    mode="ansi"
+  _zsh_ui_set_palette "$mode"
+
+  if [[ "$mode" == plain ]]; then
+    print -r -- "$title"
+    (( $# == 0 )) || print -r -- ""
+    for line in "$@"; do
+      if [[ "$line" == *$'\t'* ]]; then
+        key="${line%%$'\t'*}"
+        printf '%s%*s  %s\n' "$key" $(( key_width - ${(m)#key} )) "" \
+          "${line#*$'\t'}"
+      else
+        print -r -- "$line"
+      fi
+    done
+    return 0
   fi
 
-  _zsh_ui_set_palette "$mode"
-  print -r -- "${_ZSH_UI_ACCENT}${title}${_ZSH_UI_RESET}"
-  (( $# == 0 )) || print -r -- ""
+  _zsh_ui_width
+  local -i max_inner=$(( REPLY - 6 )) inner=0 value_width
   for line in "$@"; do
-    print -r -- "$line"
+    if [[ "$line" == *$'\t'* ]]; then
+      _zsh_ui_text_width "${line#*$'\t'}"
+      (( REPLY += key_width + 2 ))
+    else
+      _zsh_ui_text_width "$line"
+    fi
+    (( REPLY > inner )) && inner=$REPLY
   done
+  (( ${(m)#title} + 1 > inner )) && inner=$(( ${(m)#title} + 1 ))
+  (( inner < 30 )) && inner=30
+  (( inner > max_inner )) && inner=max_inner
+  _zsh_ui_truncate "$title" $(( inner - 1 ))
+  title="$REPLY"
+
+  local border="$_ZSH_UI_BORDER" reset="$_ZSH_UI_RESET"
+  local -a body=() wrapped
+  local -i index
+  for line in "$@"; do
+    if [[ "$line" == *$'\t'* ]]; then
+      key="${line%%$'\t'*}"
+      value="${line#*$'\t'}"
+      value_width=$(( inner - key_width - 2 ))
+      _zsh_ui_wrap "$value_width" "$value"
+      wrapped=("${reply[@]}")
+      body+=("${_ZSH_UI_KEY}${key}${reset}${(l:$(( key_width - ${(m)#key} + 2 )):: :)}${wrapped[1]}")
+      for (( index = 2; index <= ${#wrapped}; index++ )); do
+        body+=("${(l:$(( key_width + 2 )):: :)}${wrapped[index]}")
+      done
+    elif [[ -z "$line" ]]; then
+      body+=("")
+    else
+      _zsh_ui_wrap "$inner" "$line"
+      body+=("${reply[@]}")
+    fi
+  done
+
+  print -r -- "${border}╭─${reset} ${_ZSH_UI_ACCENT}${title}${reset} "\
+"${border}${(pl:$(( inner + 1 - ${(m)#title} ))::─:)}╮${reset}"
+  for line in "${body[@]}"; do
+    _zsh_ui_text_width "$line"
+    print -r -- "${border}│${reset}  ${line}${reset}"\
+"${(l:$(( inner - REPLY )):: :)}  ${border}│${reset}"
+  done
+  print -r -- "${border}╰${(pl:$(( inner + 4 ))::─:)}╯${reset}"
 }
 
 # -----------------------------------------------------------------------------
@@ -306,6 +570,12 @@ _zsh_ui_card() {
 _zsh_ui_sanitize_text() {
   emulate -L zsh
   local value="$1"
+  # Almost every value is already printable; skip the per-character walk.
+  if [[ "$value" != *[[:cntrl:]]* ]]; then
+    REPLY="$value"
+    return 0
+  fi
+
   local output="" char escaped
   local -i index code
 
@@ -329,97 +599,171 @@ _zsh_ui_sanitize_text() {
 # -----------------------------------------------------------------------------
 # _zsh_ui_table
 # @internal
-# @description Renders tab-separated rows as a static Gum table, falling back
-# to an aligned Zsh-native table when Gum is unavailable or fails.
+# @description Renders tab-separated rows as a table. Styled output draws a
+# rounded frame with a bold header and fits the terminal: the widest columns
+# give up space first and their cells are shortened with an ellipsis (paths
+# in the middle). Plain output stays an unframed, untruncated, aligned layout
+# that is safe to capture. "-" cells are dimmed in every styled table.
+# @option --align <spec> One letter per column, l or r; defaults to l.
+# @option --status <n[,n]> Columns whose status words are colored.
+# @option --width <n> Width to fit instead of COLUMNS.
 # @arg $1 string Tab-separated column headings.
 # @arg $@ string Tab-separated data rows.
-# @exitcode 2 If the header is missing or the UI style is invalid.
+# @exitcode 2 If the header is missing, an option is invalid, or the UI style
+# is invalid.
 # -----------------------------------------------------------------------------
 _zsh_ui_table() {
   emulate -L zsh
+  local align="" status_spec=""
+  local -i limit=0
+
+  while [[ "${1-}" == --* ]]; do
+    case "$1" in
+      --align|--status|--width)
+        (( $# >= 2 )) || return 2
+        case "$1" in
+          --align) align="$2" ;;
+          --status) status_spec="$2" ;;
+          --width) [[ "$2" == <1-> ]] || return 2; limit=$2 ;;
+        esac
+        shift 2
+        ;;
+      --) shift; break ;;
+      *) return 2 ;;
+    esac
+  done
   (( $# )) || return 2
 
-  local header="$1"
-  shift
-  local -a raw_rows=("$@") rows=()
-  local -a raw_columns=("${(@ps:\t:)header}") columns=()
-  local -a raw_fields sanitized_fields
-  local raw_row field
+  local -a columns=() cells=() fields=() widths=() aligns=()
+  local -A status_columns=()
+  local field row
+  local -i ncols nrows c r index
 
-  for field in "${raw_columns[@]}"; do
+  for field in "${(@ps:\t:)1}"; do
     _zsh_ui_sanitize_text "$field"
     columns+=("$REPLY")
   done
-  header="${(pj:\t:)columns}"
+  shift
+  ncols=${#columns}
+  nrows=$#
+  for field in "${(@s:,:)status_spec}"; do
+    [[ "$field" == <1-> ]] && status_columns[$field]=1
+  done
 
-  for raw_row in "${raw_rows[@]}"; do
-    raw_fields=("${(@ps:\t:)raw_row}")
-    sanitized_fields=()
-    for field in "${raw_fields[@]}"; do
-      _zsh_ui_sanitize_text "$field"
-      sanitized_fields+=("$REPLY")
+  for (( c = 1; c <= ncols; c++ )); do
+    widths[c]=${(m)#columns[c]}
+    aligns[c]="${align[c]:-l}"
+  done
+  for row in "$@"; do
+    fields=("${(@ps:\t:)row}")
+    for (( c = 1; c <= ncols; c++ )); do
+      _zsh_ui_sanitize_text "${fields[c]-}"
+      cells+=("$REPLY")
+      (( ${(m)#REPLY} > widths[c] )) && widths[c]=${(m)#REPLY}
     done
-    rows+=("${(pj:\t:)sanitized_fields}")
   done
 
   _zsh_ui_resolve_mode || return $?
   local mode="$REPLY"
-  if [[ "$mode" == gum ]]; then
-    # The join needs the p flag: without it the separator is the literal two
-    # characters "\n", which collapses every row into one and makes Gum reject
-    # the input, so multi-row tables silently fell back to the native renderer.
-    local input="${(pj:\n:)rows}"
-    # Gum 2.0 applies --header.foreground to the first DATA row rather than to
-    # the column header, so setting it made row one read as selected; it is
-    # left unset and only the border is themed. Gum still renders that first
-    # row bold and no flag suppresses it. --lazy-quotes keeps a cell containing
-    # a double quote from failing the CSV parse outright.
-    if print -r -- "$input" | CLICOLOR_FORCE=1 command gum table \
-        --print \
-        --lazy-quotes \
-        --separator $'\t' \
-        --columns "${(j:,:)columns}" \
-        --border rounded \
-        --border.foreground 212 2>/dev/null; then
-      return 0
-    fi
-    mode="ansi"
+  _zsh_ui_set_palette "$mode"
+
+  local line text pad
+  if [[ "$mode" == plain ]]; then
+    for (( r = 0; r <= nrows; r++ )); do
+      line=""
+      for (( c = 1; c <= ncols; c++ )); do
+        if (( r == 0 )); then
+          text="${columns[c]}"
+        else
+          text="${cells[(r - 1) * ncols + c]}"
+        fi
+        pad="${(l:$(( widths[c] - ${(m)#text} )):: :)}"
+        if [[ "${aligns[c]}" == r ]]; then
+          text="$pad$text"
+        elif (( c < ncols )); then
+          text+="$pad"
+        fi
+        (( c > 1 )) && line+="  "
+        line+="$text"
+      done
+      print -r -- "$line"
+    done
+    return 0
   fi
 
-  _zsh_ui_set_palette "$mode"
-  local -a lines=("$header" "${rows[@]}")
-  local -a widths=()
-  local line
-  local -a fields
-  local -i column_index line_index
-
-  for line in "${lines[@]}"; do
-    fields=("${(@ps:\t:)line}")
-    for (( column_index = 1;
-        column_index <= ${#columns[@]};
-        column_index++ )); do
-      field="${fields[$column_index]-}"
-      (( ${#field} > ${widths[$column_index]:-0} )) &&
-        widths[$column_index]=${#field}
+  # Shrink the widest column one step at a time until the frame fits. A
+  # column never drops below its heading or 8 cells, whichever is smaller
+  # than its content; a table that still overflows is left to wrap.
+  local -i available="${limit:-0}" total=1 excess best widest
+  (( available > 0 )) || available="${COLUMNS:-80}"
+  for (( c = 1; c <= ncols; c++ )); do
+    (( total += widths[c] + 3 ))
+  done
+  if (( total > available )); then
+    local -a floors=()
+    for (( c = 1; c <= ncols; c++ )); do
+      floors[c]=${(m)#columns[c]}
+      (( floors[c] < 8 )) && floors[c]=8
+      (( floors[c] > widths[c] )) && floors[c]=${widths[c]}
     done
+    excess=$(( total - available ))
+    while (( excess > 0 )); do
+      best=0 widest=0
+      for (( c = 1; c <= ncols; c++ )); do
+        if (( widths[c] > floors[c] && widths[c] > widest )); then
+          widest=${widths[c]}
+          best=$c
+        fi
+      done
+      (( best )) || break
+      (( widths[best]--, excess-- ))
+    done
+  fi
+
+  local border="$_ZSH_UI_BORDER" reset="$_ZSH_UI_RESET"
+  local top="╭" middle="├" bottom="╰" segment style
+  for (( c = 1; c <= ncols; c++ )); do
+    segment="${(pl:$(( widths[c] + 2 ))::─:)}"
+    top+="$segment" middle+="$segment" bottom+="$segment"
+    if (( c < ncols )); then
+      top+="┬" middle+="┼" bottom+="┴"
+    fi
   done
 
-  for (( line_index = 1; line_index <= ${#lines[@]}; line_index++ )); do
-    fields=("${(@ps:\t:)lines[$line_index]}")
-    (( line_index == 1 )) && printf '%s' "$_ZSH_UI_HEADING"
-    for (( column_index = 1;
-        column_index <= ${#columns[@]};
-        column_index++ )); do
-      field="${fields[$column_index]-}"
-      if (( column_index < ${#columns[@]} )); then
-        printf '%-*s  ' "${widths[$column_index]}" "$field"
+  print -r -- "${border}${top}╮${reset}"
+  for (( r = 0; r <= nrows; r++ )); do
+    line="${border}│${reset}"
+    for (( c = 1; c <= ncols; c++ )); do
+      if (( r == 0 )); then
+        text="${columns[c]}"
       else
-        printf '%s' "$field"
+        text="${cells[(r - 1) * ncols + c]}"
+      fi
+      _zsh_ui_truncate "$text" "${widths[c]}"
+      text="$REPLY"
+      pad="${(l:$(( widths[c] - ${(m)#text} )):: :)}"
+
+      style=""
+      if (( r == 0 )); then
+        style="$_ZSH_UI_HEADING"
+      elif [[ "$text" == (-|—) ]]; then
+        style="$_ZSH_UI_MUTED"
+      elif (( ${+status_columns[$c]} )); then
+        _zsh_ui_status_style "$text"
+        style="$REPLY"
+      fi
+      [[ -z "$style" ]] || text="${style}${text}${reset}"
+
+      if [[ "${aligns[c]}" == r ]]; then
+        line+=" ${pad}${text} ${border}│${reset}"
+      else
+        line+=" ${text}${pad} ${border}│${reset}"
       fi
     done
-    (( line_index == 1 )) && printf '%s' "$_ZSH_UI_RESET"
-    printf '\n'
+    print -r -- "$line"
+    (( r == 0 )) && print -r -- "${border}${middle}┤${reset}"
   done
+  print -r -- "${border}${bottom}╯${reset}"
 }
 
 # -----------------------------------------------------------------------------
@@ -479,7 +823,8 @@ _zsh_ui_definition_list() {
 # -----------------------------------------------------------------------------
 _zsh_ui_confirm() {
   emulate -L zsh
-  local prompt="${1:-Continue?}"
+  _zsh_ui_sanitize_text "${1:-Continue?}"
+  local prompt="$REPLY"
   local reply
 
   if [[ ! -t 0 ]]; then
@@ -490,12 +835,16 @@ _zsh_ui_confirm() {
   _zsh_ui_resolve_mode || return $?
   local mode="$REPLY"
   if [[ "$mode" == gum && -t 1 ]]; then
-    command gum confirm --default=false "$prompt"
+    GUM_CONFIRM_PROMPT_FOREGROUND=6 \
+      GUM_CONFIRM_SELECTED_BACKGROUND=4 \
+      command gum confirm --default=false "$prompt"
     return $?
   fi
 
   _zsh_ui_set_palette "$mode"
-  printf '%s%s [y/N]: %s' "$_ZSH_UI_WARN" "$prompt" "$_ZSH_UI_RESET"
+  printf '%s?%s %s %s[y/N]%s ' \
+    "$_ZSH_UI_ACCENT" "$_ZSH_UI_RESET" "$prompt" \
+    "$_ZSH_UI_MUTED" "$_ZSH_UI_RESET"
   read -r reply
   case "$reply" in
     [yY]|[yY][eE][sS]) return 0 ;;
@@ -520,7 +869,8 @@ _zsh_ui_spinner() {
 
   _zsh_ui_resolve_mode || return $?
   if [[ "$REPLY" == gum && -t 1 && -t 2 ]]; then
-    command gum spin --spinner dot --title "$label" -- "$@"
+    GUM_SPIN_SPINNER_FOREGROUND=6 \
+      command gum spin --spinner dot --title "$label" -- "$@"
   else
     _zsh_ui_log info "$label"
     command "$@"
@@ -574,7 +924,8 @@ _zsh_ui_spinner_fn() {
 
   # The waiter polls a status file rather than the pid: it survives a reaped
   # child and cannot latch onto a recycled pid.
-  command gum spin --spinner dot --title "$label" -- \
+  GUM_SPIN_SPINNER_FOREGROUND=6 \
+    command gum spin --spinner dot --title "$label" -- \
     /bin/sh -c 'until [ -s "$1" ]; do sleep 0.2; done' spin "$status_file" \
     >/dev/null 2>&1
 
@@ -636,29 +987,23 @@ _shared_rule() {
 # -----------------------------------------------------------------------------
 # _shared_banner
 # @internal
-# @description Prints a bordered title block with an optional subtitle.
+# @description Prints the shared title banner followed by a blank line.
 # @arg $1 string Title text.
 # @arg $2 string Optional subtitle text.
 # -----------------------------------------------------------------------------
 _shared_banner() {
-  local title="$1"
-  local subtitle="${2:-}"
-  _shared_rule "="
-  _zsh_ui_heading "$title" "$subtitle"
-  _shared_rule "="
-  printf "\n"
+  _zsh_ui_heading "$1" "${2:-}" || return $?
+  print -r -- ""
 }
 
 # -----------------------------------------------------------------------------
 # _shared_section
 # @internal
-# @description Prints a section label followed by a rule.
+# @description Prints a section label.
 # @arg $1 string Section title.
 # -----------------------------------------------------------------------------
 _shared_section() {
-  local ZSH_UI_STYLE="${ZSH_UI_STYLE:-auto}"
   _zsh_ui_section "$1"
-  _shared_rule "-"
 }
 
 # +++++++++++++++++++++++++++++ PLATFORM HELPERS ++++++++++++++++++++++++++++++ #

@@ -25,9 +25,8 @@ import sys
 import argparse
 import subprocess
 import shutil
-import csv
-import io
 import signal
+import unicodedata
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Tuple
@@ -44,6 +43,8 @@ C_YELLOW = "\033[0;33m"
 C_GREEN = "\033[0;32m"
 C_RED = "\033[0;31m"
 C_DIM = "\033[2m"
+C_BORDER = "\033[34m"
+C_HEADER = "\033[1;34m"
 C_RESET = "\033[0m"
 
 # Global flag for graceful interruption
@@ -361,8 +362,9 @@ def configure_colors(mode: str) -> None:
     """Disable ANSI constants when plain output was requested."""
     if mode != "plain":
         return
-    global C_CYAN, C_YELLOW, C_GREEN, C_RED, C_DIM, C_RESET
+    global C_CYAN, C_YELLOW, C_GREEN, C_RED, C_DIM, C_RESET, C_BORDER, C_HEADER
     C_CYAN = C_YELLOW = C_GREEN = C_RED = C_DIM = C_RESET = ""
+    C_BORDER = C_HEADER = ""
 
 
 def sanitize_display_text(value: str) -> str:
@@ -383,57 +385,11 @@ def sanitize_display_text(value: str) -> str:
     return "".join(escaped)
 
 
-def render_with_gum(items: List[dict]) -> bool:
-    """
-    Render items using one static Gum table.
-
-    Args:
-        items: List of item dicts with 'size', 'type', 'name' keys.
-
-    Returns:
-        True if successful, False otherwise.
-    """
-    data = io.StringIO(newline="")
-    writer = csv.writer(data)
-    writer.writerows((item["size_str"], item["type"], item["name"]) for item in items)
-
-    try:
-        # The child writes directly to the terminal; flush Python's buffered
-        # progress lines first so redirected and captured output stays ordered.
-        sys.stdout.flush()
-        subprocess.run(
-            [
-                "gum",
-                "table",
-                "--print",
-                "--separator",
-                ",",
-                "--columns",
-                "Size,Type,Name",
-                "--border",
-                "rounded",
-                "--border.foreground",
-                "212",
-                "--header.foreground",
-                "75",
-            ],
-            input=data.getvalue(),
-            text=True,
-            check=True,
-            timeout=30,
-        )
-        return True
-    except (
-        subprocess.CalledProcessError,
-        subprocess.TimeoutExpired,
-        FileNotFoundError,
-        OSError,
-    ):
-        return False
-
-
 def confirm_next_page(prompt: str, ui_mode: str) -> bool:
     """Request pagination confirmation, with a native fallback for Gum errors."""
+    # Without a terminal on stdin there is nobody to answer; stop paging.
+    if not sys.stdin.isatty():
+        return False
     if ui_mode == "gum":
         try:
             return (
@@ -441,37 +397,132 @@ def confirm_next_page(prompt: str, ui_mode: str) -> bool:
                     ["gum", "confirm", "--default=false", prompt],
                     check=False,
                     timeout=30,
+                    env={
+                        **os.environ,
+                        "GUM_CONFIRM_PROMPT_FOREGROUND": "6",
+                        "GUM_CONFIRM_SELECTED_BACKGROUND": "4",
+                    },
                 ).returncode
                 == 0
             )
         except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
             pass
 
-    response = input(f"{C_YELLOW}{prompt} [y/N] {C_RESET}")
+    response = input(f"{C_CYAN}?{C_RESET} {prompt} {C_DIM}[y/N]{C_RESET} ")
     return response.lower() in {"y", "yes"}
 
 
-def render_text_table(items: List[dict]):
+def log(level: str, message: str) -> None:
+    """Print a leveled line in the shared Zsh log format; warn/error to stderr."""
+    labels = {
+        "info": ("[INFO] ", C_CYAN),
+        "ok": ("[OK]   ", C_GREEN),
+        "warn": ("[WARN] ", C_YELLOW),
+        "error": ("[ERROR]", C_RED),
+    }
+    label, color = labels[level]
+    stream = sys.stderr if level in ("warn", "error") else sys.stdout
+    bold = "\033[1m" if color else ""
+    print(f"{bold}{color}{label}{C_RESET} {message}", file=stream)
+
+
+def display_path(path: Path) -> str:
+    """Return a sanitized path with the home directory written as ~."""
+    text = str(path)
+    home = str(Path.home())
+    if home != "/" and (text == home or text.startswith(home + os.sep)):
+        text = "~" + text[len(home) :]
+    return sanitize_display_text(text)
+
+
+def display_width(text: str) -> int:
+    """Return the terminal column width of text, counting wide glyphs twice."""
+    return sum(
+        2 if unicodedata.east_asian_width(character) in ("W", "F") else 1
+        for character in text
+    )
+
+
+def pad(text: str, width: int, right: bool = False) -> str:
+    """Pad text with spaces to a display width, on the left when right=True."""
+    fill = " " * max(0, width - display_width(text))
+    return fill + text if right else text + fill
+
+
+def truncate_middle(text: str, width: int) -> str:
+    """Shorten text to width with an ellipsis in the middle, keeping both ends."""
+    if display_width(text) <= width:
+        return text
+    if width < 2:
+        return text[:width]
+    tail = (width - 1) * 3 // 5
+    head = width - 1 - tail
+    # Wide glyphs take two columns; trim the longer side until it fits.
+    while display_width(text[:head] + text[len(text) - tail :]) > width - 1:
+        if tail >= head:
+            tail -= 1
+        else:
+            head -= 1
+    return text[:head] + "…" + text[len(text) - tail :]
+
+
+def render_table(items: List[dict], styled: bool) -> None:
     """
-    Render items as plain text table.
+    Render one page of items as a table.
+
+    Styled output draws the same rounded frame as the shared Zsh helpers and
+    fits the terminal by shortening names in the middle; plain output is an
+    unframed, untruncated layout that stays useful when captured.
 
     Args:
         items: List of item dicts with 'size_str', 'type', 'name' keys.
+        styled: Whether to draw the colored frame.
     """
-    print(f"{C_CYAN}{'Size':<10} {'Type':<7} {'Name'}{C_RESET}")
-    print(f"{C_CYAN}{'-' * 60}{C_RESET}")
+    headers = ("Size", "Type", "Name")
+    rows = [(item["size_str"], item["type"], item["name"]) for item in items]
+    widths = [
+        max([display_width(header)] + [display_width(row[index]) for row in rows])
+        for index, header in enumerate(headers)
+    ]
 
-    for item in items:
-        type_str = item["type"]
-        # Color broken links
-        if type_str == "link!":
-            type_colored = f"{C_RED}{type_str:<7}{C_RESET}"
-        elif type_str.endswith("@"):
-            type_colored = f"{C_DIM}{type_str:<7}{C_RESET}"
+    if not styled:
+        print(f"{pad('Size', widths[0], True)}  {pad('Type', widths[1])}  Name")
+        for size, kind, name in rows:
+            print(f"{pad(size, widths[0], True)}  {pad(kind, widths[1])}  {name}")
+        return
+
+    columns = shutil.get_terminal_size((80, 24)).columns
+    overflow = sum(widths) + 3 * len(widths) + 1 - columns
+    if overflow > 0:
+        widths[2] = max(len(headers[2]), widths[2] - overflow)
+
+    border, reset = C_BORDER, C_RESET
+
+    def frame(left: str, joint: str, right: str) -> str:
+        segments = joint.join("─" * (width + 2) for width in widths)
+        return f"{border}{left}{segments}{right}{reset}"
+
+    bar = f"{border}│{reset}"
+    print(frame("╭", "┬", "╮"))
+    print(
+        f"{bar} {C_HEADER}{pad('Size', widths[0], True)}{reset} "
+        f"{bar} {C_HEADER}{pad('Type', widths[1])}{reset} "
+        f"{bar} {C_HEADER}{pad('Name', widths[2])}{reset} {bar}"
+    )
+    print(frame("├", "┼", "┤"))
+    for size, kind, name in rows:
+        if kind == "link!":
+            kind_cell = f"{C_RED}{pad(kind, widths[1])}{reset}"
+        elif kind.endswith("@"):
+            kind_cell = f"{C_DIM}{pad(kind, widths[1])}{reset}"
         else:
-            type_colored = f"{type_str:<7}"
-
-        print(f"{item['size_str']:<10} {type_colored} {item['name']}")
+            kind_cell = pad(kind, widths[1])
+        name_cell = pad(truncate_middle(name, widths[2]), widths[2])
+        print(
+            f"{bar} {pad(size, widths[0], True)} {bar} {kind_cell} "
+            f"{bar} {name_cell} {bar}"
+        )
+    print(frame("╰", "┴", "╯"))
 
 
 # +++++++++++++++++++++++++++++++++++ Main +++++++++++++++++++++++++++++++++++ #
@@ -539,38 +590,27 @@ def main():
     try:
         target_dir = Path(args.directory).resolve()
     except OSError as exc:
-        print(f"{C_RED}Error: Cannot resolve path: {exc}{C_RESET}", file=sys.stderr)
+        log("error", f"Cannot resolve path: {sanitize_display_text(str(exc))}")
         sys.exit(1)
 
     if not target_dir.exists():
-        print(
-            f"{C_RED}Error: Path '{args.directory}' does not exist.{C_RESET}",
-            file=sys.stderr,
-        )
+        log("error", f"Path '{sanitize_display_text(args.directory)}' does not exist.")
         sys.exit(1)
 
     if not target_dir.is_dir():
-        print(
-            f"{C_RED}Error: '{args.directory}' is not a directory.{C_RESET}",
-            file=sys.stderr,
-        )
+        log("error", f"'{sanitize_display_text(args.directory)}' is not a directory.")
         sys.exit(1)
 
-    display_target = sanitize_display_text(str(target_dir))
-    print(f"{C_CYAN}Analyzing: {display_target}{C_RESET}")
+    log("info", f"Scanning {display_path(target_dir)}")
 
     # Scan directory
     try:
-        print(f"{C_YELLOW}Scanning directory...{C_RESET}")
         paths, type_map, scan_warnings = scan_directory(target_dir, args.all)
     except PermissionError:
-        print(
-            f"{C_RED}Error: Permission denied accessing '{target_dir}'{C_RESET}",
-            file=sys.stderr,
-        )
+        log("error", f"Permission denied accessing '{display_path(target_dir)}'.")
         sys.exit(1)
     except RuntimeError as e:
-        print(f"{C_RED}Error: {e}{C_RESET}", file=sys.stderr)
+        log("error", sanitize_display_text(str(e)))
         sys.exit(1)
 
     if args.verbose and scan_warnings:
@@ -581,20 +621,20 @@ def main():
             print(f"{C_DIM}  ... and {len(scan_warnings) - 10} more{C_RESET}")
 
     if not paths:
-        print(f"{C_YELLOW}No items found in directory.{C_RESET}")
+        log("warn", "No items found in directory.")
         return
 
     # Calculate sizes
     parallel = not args.no_parallel
     mode = "parallel" if parallel else "sequential"
-    print(f"{C_YELLOW}Calculating sizes ({mode})...{C_RESET}")
+    log("info", f"Measuring {len(paths)} entries ({mode})")
 
     size_map, calc_errors = get_sizes_batched(
         paths, parallel=parallel, max_workers=args.workers
     )
 
     if _interrupted:
-        print(f"{C_YELLOW}Operation interrupted.{C_RESET}")
+        log("warn", "Operation interrupted.")
         sys.exit(130)
 
     if args.verbose and calc_errors:
@@ -636,7 +676,7 @@ def main():
     items.sort(key=lambda x: x["size_val"], reverse=True)
 
     total_items = len(items)
-    print(f"{C_GREEN}Found {total_items} items{C_RESET}\n")
+    print()
 
     # Pagination
     offset = 0
@@ -648,14 +688,7 @@ def main():
 
         chunk = items[offset : offset + limit]
 
-        if ui_mode == "gum":
-            if not render_with_gum(chunk):
-                print(f"{C_YELLOW}Gum rendering failed; using native output.{C_RESET}")
-                ui_mode = "ansi" if sys.stdout.isatty() else "plain"
-                configure_colors(ui_mode)
-                render_text_table(chunk)
-        else:
-            render_text_table(chunk)
+        render_table(chunk, styled=ui_mode != "plain")
 
         offset += len(chunk)
 
@@ -666,19 +699,20 @@ def main():
                 prompt_count = min(limit, remaining)
                 confirmed = confirm_next_page(f"Show next {prompt_count}?", ui_mode)
                 if not confirmed:
-                    print(
-                        f"\n{C_CYAN}Stopped at {offset}/{total_items} items.{C_RESET}"
-                    )
                     break
             except (KeyboardInterrupt, EOFError):
-                print(f"\n{C_CYAN}Stopped.{C_RESET}")
+                print()
                 break
             print()
 
     # Summary
     total_size = sum(it["size_val"] for it in items)
-    print(f"\n{C_GREEN}Displayed: {min(offset, total_items)}/{total_items} items")
-    print(f"Total size: {format_size(total_size)}{C_RESET}")
+    print()
+    log(
+        "ok",
+        f"Showed {min(offset, total_items)} of {total_items} entries · "
+        f"{format_size(total_size)} in total.",
+    )
 
 
 if __name__ == "__main__":

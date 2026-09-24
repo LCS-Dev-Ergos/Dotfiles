@@ -1,8 +1,10 @@
-"""Tests for dirsize presentation policy and Gum table serialization."""
+"""Tests for dirsize presentation policy and native table rendering."""
 
 from __future__ import annotations
 
+import io
 import os
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -103,33 +105,52 @@ class SizeCollectionTests(unittest.TestCase):
             self.assertTrue(any("Broken symlink" in item for item in all_warnings))
 
 
-class GumRenderingTests(unittest.TestCase):
-    """Verify one Gum process receives valid CSV, including special names."""
+class TableRenderingTests(unittest.TestCase):
+    """Verify the native table in plain and styled form, without Gum."""
+
+    ITEMS = [
+        {"size_str": "1.0K", "type": "file", "name": "a,b.txt"},
+        {"size_str": "12.0M", "type": "dir", "name": "docs"},
+    ]
 
     @mock.patch("dirsize.subprocess.run")
-    def test_serializes_rows_for_one_static_table(self, run: mock.Mock) -> None:
-        run.return_value.returncode = 0
-        items = [
-            {"size_str": "1.0K", "type": "file", "name": "a,b.txt"},
-            {"size_str": "2.0K", "type": "dir", "name": "docs"},
+    def test_plain_table_is_unframed_and_aligned(self, run: mock.Mock) -> None:
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as stdout:
+            dirsize.render_table(self.ITEMS, styled=False)
+        self.assertEqual(
+            stdout.getvalue().splitlines(),
+            [" Size  Type  Name", " 1.0K  file  a,b.txt", "12.0M  dir   docs"],
+        )
+        run.assert_not_called()
+
+    @mock.patch("dirsize.shutil.get_terminal_size")
+    def test_styled_table_fits_the_terminal(self, size: mock.Mock) -> None:
+        size.return_value = os.terminal_size((30, 24))
+        items = [{"size_str": "1.0K", "type": "file", "name": "n" * 60 + ".txt"}]
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as stdout:
+            dirsize.render_table(items, styled=True)
+        lines = [
+            re.sub(r"\x1b\[[0-9;]*m", "", line)
+            for line in stdout.getvalue().splitlines()
         ]
+        self.assertTrue(lines[0].startswith("╭") and lines[-1].endswith("╯"))
+        self.assertTrue(all(len(line) <= 30 for line in lines))
+        self.assertRegex(lines[3], r"n…n+\.txt")
 
-        self.assertTrue(dirsize.render_with_gum(items))
-        run.assert_called_once()
-        args, kwargs = run.call_args
-        self.assertEqual(args[0][:3], ["gum", "table", "--print"])
-        self.assertIn('"a,b.txt"', kwargs["input"])
-        self.assertTrue(kwargs["check"])
-        self.assertNotIn("shell", kwargs)
-        self.assertEqual(kwargs["timeout"], 30)
-
+    @mock.patch("dirsize.sys.stdin.isatty", return_value=True)
     @mock.patch("dirsize.input", return_value="y")
     @mock.patch("dirsize.subprocess.run", side_effect=FileNotFoundError)
     def test_confirmation_falls_back_when_gum_disappears(
-        self, _run: mock.Mock, native_input: mock.Mock
+        self, _run: mock.Mock, native_input: mock.Mock, _isatty: mock.Mock
     ) -> None:
         self.assertTrue(dirsize.confirm_next_page("Continue?", "gum"))
         native_input.assert_called_once()
+
+    @mock.patch("dirsize.subprocess.run")
+    def test_confirmation_declines_without_a_terminal(self, run: mock.Mock) -> None:
+        with mock.patch("dirsize.sys.stdin.isatty", return_value=False):
+            self.assertFalse(dirsize.confirm_next_page("Continue?", "gum"))
+        run.assert_not_called()
 
 
 if __name__ == "__main__":

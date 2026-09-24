@@ -148,7 +148,7 @@ info="$(zfuncs info hyphen-command)"
 }
 
 typeset styled_listing="$(NO_COLOR= ZFUNCS_STYLE=ansi zfuncs)"
-[[ "$styled_listing" == *$'\e[1;38;5;212mCUSTOM FUNCTIONS'* ]] || {
+[[ "$styled_listing" == *$'\e[1;36mCUSTOM FUNCTIONS'* ]] || {
   print -u2 "FAIL: ANSI catalog title missing from styled output"
   return 1
 }
@@ -177,11 +177,11 @@ typeset -a full_width_lines=("${(f)full_width_listing}")
 }
 
 typeset styled_info="$(NO_COLOR= ZFUNCS_STYLE=ansi zfuncs info alpha)"
-[[ "$styled_info" == *$'\e[1;38;5;212malpha'* ]] || {
+[[ "$styled_info" == *$'\e[1;36malpha'* ]] || {
   print -u2 "FAIL: ANSI function title missing from styled info output"
   return 1
 }
-[[ "$styled_info" == *$'\e[1;38;5;81mUsage'* ]] || {
+[[ "$styled_info" == *$'\e[36mUsage'* ]] || {
   print -u2 "FAIL: ANSI field labels missing from styled info output"
   return 1
 }
