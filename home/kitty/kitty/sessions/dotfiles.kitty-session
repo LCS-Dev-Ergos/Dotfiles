@@ -23,15 +23,15 @@ new_tab Config-Files
 layout grid
 
 # Kitty configuration
-cd ~/Dotfiles/kitty/.config/kitty
+cd ~/Dotfiles/home/kitty/kitty
 launch --title "Kitty" --cwd=current zsh
 
 # Zsh configuration
-cd ~/Dotfiles/zsh
+cd ~/Dotfiles/home/zsh
 launch --title "Zsh" --cwd=current zsh
 
 # Fastfetch configuration
-cd ~/Dotfiles/fastfetch/.config/fastfetch
+cd ~/Dotfiles/home/fastfetch
 launch --title "Fastfetch" --cwd=current zsh
 
 focus

@@ -1,256 +1,543 @@
-# ============================================================================ #
-# ++++++++++++++++++++++++++ Kitty Tab Bar Configs +++++++++++++++++++++++++++ #
-# ============================================================================ #
+# =====------------------------------------------------------------------===== #
+# ++++++++++++++++++++++++++++++ KITTY TAB BAR +++++++++++++++++++++++++++++++ #
+# =====------------------------------------------------------------------===== #
+#
+# Custom tab bar for `tab_bar_style custom`. The layout, left to right:
+#
+#   badge   the current session (or host), replaced by the keyboard mode while
+#           one is active, so the ctrl+shift+a prefix is always visible
+#   tabs    index, an icon for the foreground process, the title, and markers
+#           for bell, failed command, activity, progress, zoom and window
+#           count; the active tab is a rounded pill in the theme's tab colors
+#   status  active layout, battery, date and a clock pill, dropped from the
+#           least useful end when the bar gets narrow
+#
+# Every color comes from the loaded theme (tab colors plus the 16 ANSI slots),
+# so switching the theme (or `kitten @ set-colors`) restyles the bar as well.
+#
+# =====------------------------------------------------------------------===== #
 
 import datetime
-import subprocess
+import os
 import re
+import socket
+import subprocess
+import threading
+import time
+from typing import NamedTuple
+
 from kitty.boss import get_boss
-from kitty.fast_data_types import Screen, add_timer, get_options
+from kitty.constants import is_macos
+from kitty.fast_data_types import Screen, add_timer, get_options, remove_timer, wcswidth
+from kitty.rgb import alpha_blend
+from kitty.tab_bar import DrawData, ExtraData, TabAccessor, TabBarData, as_rgb
 from kitty.utils import color_as_int
-from kitty.tab_bar import (
-    DrawData,
-    ExtraData,
-    Formatter,
-    TabBarData,
-    as_rgb,
-    draw_attributed_string,
-    draw_title,
-)
 
-# ++++++++++++++++++++++++++++++ Configuration +++++++++++++++++++++++++++++++ #
+if is_macos:
+    from kitty.fast_data_types import cocoa_is_secure_input_enabled
+else:
 
-REFRESH_TIME = 1.0
+    def cocoa_is_secure_input_enabled() -> bool:
+        return False
 
-# Icons.
-ICON_BATTERY = ""
-ICON_BATTERY_CHARGING = ""
-ICON_CLOCK = ""
-ICON_CALENDAR = ""
-ICON_CPU = ""
-ICON_WINDOW = ""
-ICON_LAYOUT = ""
-ICON_CUSTOM = " LCS.Dev 󰔃 "
 
-# Powerline symbols.
-SEPARATOR_SYMBOL = ""
-SEPARATOR_LEFT_HARD = ""
-SEPARATOR_LEFT_SOFT = ""
+# =====----- Glyphs -----------------------------------------------------===== #
 
-# ++++++++++++++++++++++++++++++++++ State +++++++++++++++++++++++++++++++++++ #
+# Nerd Font codepoints by glyph name. They are spelled with chr() so the
+# source reads the same in any font and no formatter rewrites them.
+CAP_LEFT = chr(0xE0B6)  # pl-left_half_circle_thick
+CAP_RIGHT = chr(0xE0B4)  # pl-right_half_circle_thick
 
-timer_id = None
-battery_cache = {"status": "", "time": 0}
-_prev_bg = 0  # Global state for tab background continuity.
+ICON_SESSION = chr(0xF0328)  # md-layers
+ICON_HOST = chr(0xF018D)  # md-console
+ICON_MODE = chr(0xF030C)  # md-keyboard
+ICON_BELL = chr(0xF009E)  # md-bell_ring
+ICON_ACTIVITY = chr(0xF444)  # oct-dot_fill
+ICON_ZOOM = chr(0xF0293)  # md-fullscreen
+ICON_PROGRESS = chr(0xF0996)  # md-progress_clock
+ICON_SECURE = chr(0xF023)  # fa-lock
+ICON_FAILED = chr(0xF0159)  # md-close_circle
+ICON_LAYOUT = chr(0xF0574)  # md-view_quilt
+ICON_DATE = chr(0xF00ED)  # md-calendar
+ICON_CLOCK = chr(0xF0150)  # md-clock_outline
+ICON_PROCESS = chr(0xF0C8B)  # md-application_brackets
+ICON_SHELL = chr(0xF120)  # fa-terminal
 
-# +++++++++++++++++++++++++++++++++ Helpers ++++++++++++++++++++++++++++++++++ #
+# md-battery_10 ... md-battery_90, then md-battery for a full charge.
+ICON_BATTERY_LEVELS = tuple(chr(c) for c in (*range(0xF007A, 0xF0083), 0xF0079))
+ICON_BATTERY_CHARGING = chr(0xF0084)  # md-battery_charging
+ICON_BATTERY_LOW = chr(0xF0083)  # md-battery_alert
 
-def get_battery_status():
-    """Get battery status with caching."""
-    now = datetime.datetime.now().timestamp()
-    if now - battery_cache["time"] < 5.0 and battery_cache["status"]:
-        return battery_cache["status"]
+# Foreground process -> icon. Names are normalized first (basename, lower
+# case, trailing version stripped), so python3.13 and python both match.
+_ICON_GROUPS = {
+    chr(0xF36F): "nvim",  # linux-neovim
+    chr(0xE62B): "vim vi",  # custom-vim
+    chr(0xE702): "git lazygit tig gitui gh",  # dev-git
+    chr(0xE73C): "python ipython uv pytest poetry pip",  # dev-python
+    chr(0xE7A8): "cargo rustc rustup bacon",  # dev-rust
+    chr(0xE718): "node npm npx pnpm yarn bun deno",  # dev-nodejs_small
+    chr(0xE738): "java gradle mvn sbt scala",  # dev-java
+    chr(
+        0xF085
+    ): "make cmake ninja meson clang gcc g++ clang++ cc c++ ccache",  # fa-gears
+    chr(0xF08C0): "ssh mosh sshpass",  # md-ssh
+    chr(0xF308): "docker podman lazydocker orb",  # linux-docker
+    chr(0xF0A07): "htop btop btm top bottom glances",  # md-monitor_dashboard
+    chr(0xF02D): "man less more bat tldr",  # fa-book
+    chr(0xF07C): "yazi nnn ranger lf",  # fa-folder_open
+    chr(0xF06A9): "claude codex gemini aider opencode",  # md-robot
+    chr(0xF0574): "tmux herdr zellij",  # md-view_quilt
+    ICON_SHELL: "zsh bash fish sh dash nu",
+}
+PROCESS_ICONS = {
+    name: icon for icon, names in _ICON_GROUPS.items() for name in names.split()
+}
 
-    try:
-        command = ["pmset", "-g", "batt"]
-        result = subprocess.run(command, capture_output=True, text=True, timeout=0.5)
+ELLIPSIS = "…"
+SEPARATOR = " │ "
+SUPERSCRIPT = str.maketrans("0123456789", "⁰¹²³⁴⁵⁶⁷⁸⁹")
 
-        if result.returncode != 0:
-            return ""
+# Keyboard modes kitty pushes on its own get friendlier labels.
+MODE_LABELS = {"__sequence__": "KEYS", "__visual_select__": "SELECT"}
 
-        output = result.stdout
-        if "InternalBattery" not in output:
-            return ""
+# =====----- Tunables ---------------------------------------------------===== #
 
-        percent_match = re.search(r"(\d+)%", output)
-        percent = int(percent_match.group(1)) if percent_match else 0
+REFRESH_SECONDS = 1.0  # how often the status is checked; redraws only on change
+BATTERY_TTL = 30.0  # seconds between battery samples
+BADGE_MAX = 20  # cells for the session or mode label
+MIN_FIRST_TAB = 12  # cells tab 1 keeps before the badge shrinks to its icon
+STATUS_GAP = 2  # minimum blank cells between the last tab and the status
 
-        status = "discharging"
-        if "charging" in output.lower():
-            status = "charging"
-        elif "charged" in output.lower():
-            status = "charged"
-        elif "finishing charge" in output.lower():
-            status = "charging"
+# =====----- Palette ----------------------------------------------------===== #
 
-        icon = ICON_BATTERY
-        if status == "charging":
-            icon = ICON_BATTERY_CHARGING
 
-        battery_cache["status"] = (percent, status, icon)
-        battery_cache["time"] = now
-        return battery_cache["status"]
+class Palette(NamedTuple):
+    bar: int
+    text: int
+    muted: int
+    surface: int
+    session: int
+    mode: int
+    on_accent: int
+    info: int
+    ok: int
+    warn: int
+    error: int
 
-    except Exception:
-        return ""
 
-def _redraw_tab_bar(timer_id):
-    for tm in get_boss().all_tab_managers:
-        tm.mark_tab_bar_dirty()
-
-# ++++++++++++++++++++++++++ Drawing - Right Status ++++++++++++++++++++++++++ #
-
-def draw_right_status(draw_data: DrawData, screen: Screen) -> None:
+def _palette(draw_data: DrawData) -> Palette:
+    # draw_data carries the tab colors after any `kitten @ set-colors` or
+    # automatic theme switch; the ANSI slots come from the live options.
     opts = get_options()
+    bar = draw_data.default_bg
+    text = draw_data.inactive_fg
 
-    # Theme Colors.
-    color_bg = as_rgb(color_as_int(opts.tab_bar_background))
+    def rgb(color) -> int:
+        return as_rgb(color_as_int(color))
 
-    # Widget Colors.
-    bg_clock = as_rgb(color_as_int(opts.color16))  # Orange
-    fg_clock = as_rgb(color_as_int(opts.color0))
+    return Palette(
+        bar=rgb(bar),
+        text=rgb(text),
+        muted=rgb(alpha_blend(text, bar, 0.55)),
+        surface=rgb(alpha_blend(opts.foreground, bar, 0.14)),
+        session=rgb(opts.color5),
+        mode=rgb(opts.color3),
+        on_accent=rgb(draw_data.active_fg),
+        info=rgb(opts.color6),
+        ok=rgb(opts.color2),
+        warn=rgb(opts.color3),
+        error=rgb(opts.color1),
+    )
 
-    bg_date = as_rgb(color_as_int(opts.color8))    # Grey
-    fg_date = as_rgb(color_as_int(opts.color15))   # White Text
 
-    bg_batt = as_rgb(color_as_int(opts.color18))   # Darker Grey/Black
-    fg_batt = as_rgb(color_as_int(opts.color15))
+# =====----- Text helpers -----------------------------------------------===== #
 
-    cells = []
 
-    # 1. Battery.
-    batt_data = get_battery_status()
-    if batt_data:
-        percent, status, icon = batt_data
-        cells.append((f"{icon} {percent}%", fg_batt, bg_batt))
+def _width(text: str) -> int:
+    return max(0, wcswidth(text))
 
-    # 2. Date.
-    now = datetime.datetime.now()
-    date_str = now.strftime(f"{ICON_CALENDAR} %d %b")
-    cells.append((date_str, fg_date, bg_date))
 
-    # 3. Clock.
-    time_str = now.strftime(f"{ICON_CLOCK} %H:%M")
-    cells.append((time_str, fg_clock, bg_clock))
-
-    # Layout Logic.
-    draw_attributed_string(Formatter.reset, screen)
-
-    while cells:
-        required_width = sum(len(c[0]) + 3 for c in cells)
-        if screen.cursor.x + required_width < screen.columns:
+def _take(chars, room: int) -> str:
+    out, used = [], 0
+    for ch in chars:
+        used += _width(ch)
+        if used > room:
             break
-        cells.pop(0)
+        out.append(ch)
+    return "".join(out)
 
-    if not cells:
+
+def _abbreviate_path(path: str) -> str:
+    """Fish-style: every directory but the last shrinks to its first letter."""
+    parts = path.split("/")
+    dirs = [p[:2] if p.startswith(".") else p[:1] for p in parts[:-1]]
+    return "/".join([*dirs, parts[-1]])
+
+
+def _fit(text: str, room: int) -> str:
+    """Shorten text to room cells.
+
+    A bare path (the shell integration title at a prompt) abbreviates its
+    directories, ~/Dotfiles/home/kitty becoming ~/D/h/kitty, then falls back to
+    just its last component. A path inside a longer title loses its middle, and
+    everything else its end.
+    """
+    if _width(text) <= room:
+        return text
+    if room < 2:
+        return ELLIPSIS[:room]
+    if "/" in text and " " not in text:
+        short = _abbreviate_path(text)
+        if _width(short) <= room:
+            return short
+        last = ELLIPSIS + "/" + text.rstrip("/").rsplit("/", 1)[-1]
+        return last if _width(last) <= room else _take(last, room - 1) + ELLIPSIS
+    if "/" in text and room >= 5:
+        # Both ends of a path carry meaning: where it lives and what it is.
+        tail_room = (room - 1) // 2
+        tail = _take(reversed(text), tail_room)[::-1]
+        return _take(text, room - 1 - _width(tail)) + ELLIPSIS + tail
+    return _take(text, room - 1) + ELLIPSIS
+
+
+def _process_icon(live_tab) -> str:
+    exe = live_tab.get_exe_of_active_window() if live_tab else ""
+    name = os.path.basename(exe or "").lstrip("-").lower()
+    name = re.sub(r"[\d.]+$", "", name) or name
+    return PROCESS_ICONS.get(name, ICON_PROCESS if name else ICON_SHELL)
+
+
+def _draw(screen: Screen, text: str, fg: int, bg: int, bold: bool = False) -> None:
+    screen.cursor.fg = fg
+    screen.cursor.bg = bg
+    screen.cursor.bold = bold
+    screen.draw(text)
+
+
+def _draw_pill(
+    screen: Screen, text: str, fg: int, bg: int, bar: int, bold: bool = True
+) -> None:
+    _draw(screen, CAP_LEFT, bg, bar)
+    _draw(screen, text, fg, bg, bold)
+    _draw(screen, CAP_RIGHT, bg, bar)
+
+
+# =====----- Badge ------------------------------------------------------===== #
+
+_hostname = ""
+
+
+def _badge(os_window_id: int) -> tuple[str, str, bool]:
+    """Return (icon, label, is_mode) for the badge at the left edge."""
+    global _hostname
+    boss = get_boss()
+    mode = boss.mappings.current_keyboard_mode_name
+    if mode:
+        return ICON_MODE, MODE_LABELS.get(mode) or mode.upper(), True
+    tm = boss.os_window_map.get(os_window_id)
+    active = tm.active_tab if tm else None
+    session = active.active_session_name if active else ""
+    if session:
+        return ICON_SESSION, session, False
+    if not _hostname:
+        _hostname = socket.gethostname().split(".")[0] or "kitty"
+    return ICON_HOST, _hostname, False
+
+
+def _draw_badge(screen: Screen, draw_data: DrawData, pal: Palette, room: int) -> None:
+    icon, label, is_mode = _badge(draw_data.os_window_id)
+    text = f"{icon} {_fit(label, BADGE_MAX)}"
+    # The badge is drawn inside tab 1's share of the bar. When kitty squeezes
+    # the tabs, keep only the icon so the first tab can still show its title.
+    if room - (_width(text) + 4) < MIN_FIRST_TAB:
+        text = icon
+    _draw(screen, " ", pal.bar, pal.bar)
+    bg = pal.mode if is_mode else pal.session
+    _draw_pill(screen, text, pal.on_accent, bg, pal.bar)
+    _draw(screen, " ", pal.bar, pal.bar)
+
+
+# =====----- Tabs -------------------------------------------------------===== #
+
+
+def _markers(tab: TabBarData, live_tab, pal: Palette) -> list[tuple[str, int]]:
+    """Per-tab state glyphs, most urgent first, each with its inactive color."""
+    markers = []
+    if tab.needs_attention:
+        markers.append((ICON_BELL, pal.error))
+    window = live_tab.active_window if live_tab and not tab.is_active else None
+    # Shell integration records each command's exit status. Flag a failure in
+    # a tab you are not looking at; 130 is a ctrl+c, which you did yourself.
+    if window is not None and window.last_cmd_exit_status not in (0, 130):
+        markers.append((ICON_FAILED, pal.error))
+    if tab.has_activity_since_last_focus and not tab.is_active:
+        markers.append((ICON_ACTIVITY, pal.warn))
+    if tab.num_of_windows_with_progress:
+        progress = TabAccessor(tab.tab_id).progress_percent.strip()
+        if progress:
+            markers.append((f"{ICON_PROGRESS} {progress}", pal.info))
+    if tab.is_active and cocoa_is_secure_input_enabled():
+        markers.append((ICON_SECURE, pal.error))
+    if tab.num_windows > 1 and tab.layout_name == "stack":
+        # Only one window is visible; say so, or the others are easy to forget.
+        markers.append((ICON_ZOOM, pal.info))
+    return markers
+
+
+def _draw_tab_body(
+    draw_data: DrawData,
+    screen: Screen,
+    tab: TabBarData,
+    room: int,
+    index: int,
+    pal: Palette,
+) -> None:
+    active = tab.is_active
+    bg = as_rgb(draw_data.tab_bg(tab)) if active else pal.bar
+    fg = as_rgb(draw_data.tab_fg(tab))
+    muted = fg if active else pal.muted
+    # Inactive tabs keep blank cells where the caps go, so a tab does not
+    # shift its neighbours when it becomes active.
+    cap_left, cap_right = (CAP_LEFT, CAP_RIGHT) if active else (" ", " ")
+
+    if tab.tab_id < 0:
+        # The synthetic "+" drop target kitty adds while a window is dragged.
+        _draw(screen, cap_left, bg, pal.bar)
+        _draw(screen, tab.title, fg, bg, active)
+        _draw(screen, cap_right, bg, pal.bar)
         return
 
-    # Padding.
-    current_x = screen.cursor.x
-    total_width = sum(len(c[0]) + 2 for c in cells) + len(cells)
-    padding = screen.columns - current_x - total_width
+    live_tab = get_boss().tab_for_id(tab.tab_id)
+    number = str(index)
+    icon = _process_icon(live_tab)
+    markers = _markers(tab, live_tab, pal)
+    windows = str(tab.num_windows).translate(SUPERSCRIPT) if tab.num_windows > 1 else ""
 
-    if padding > 0:
-        screen.cursor.bg = color_bg
-        screen.draw(" " * padding)
+    # Cells besides the title: caps, "N icon", the window count, and a space
+    # before the title and before each marker.
+    fixed = 2 + len(number) + 1 + _width(icon) + _width(windows)
+    fixed += sum(1 + _width(text) for text, _ in markers)
+    title_room = room - fixed - 1
+    if draw_data.max_tab_title_length > 0:
+        title_room = min(title_room, draw_data.max_tab_title_length)
+    title = _fit(tab.title, title_room) if title_room >= 3 else ""
+    if not title:
+        # Too narrow for a title: keep the index and the most urgent marker.
+        markers, windows = markers[:1], ""
 
-    # Draw Cells.
-    prev_bg = color_bg
+    _draw(screen, cap_left, bg, pal.bar)
+    _draw(screen, f"{number} ", muted, bg, active)
+    _draw(screen, icon, fg, bg, active)
+    if title:
+        _draw(screen, f" {title}", fg, bg, active)
+    if windows:
+        _draw(screen, windows, muted, bg, active)
+    for text, color in markers:
+        _draw(screen, f" {text}", fg if active else color, bg, active)
+    _draw(screen, cap_right, bg, pal.bar)
 
-    for content, fg, bg in cells:
-        screen.cursor.fg = bg
-        screen.cursor.bg = prev_bg
-        screen.draw(SEPARATOR_SYMBOL)
 
-        screen.cursor.fg = fg
-        screen.cursor.bg = bg
-        screen.draw(f" {content} ")
+# =====----- Status -----------------------------------------------------===== #
 
-        prev_bg = bg
 
-    screen.cursor.bg = 0
-    screen.cursor.fg = 0
+class Segment(NamedTuple):
+    icon: str
+    text: str
+    icon_fg: int
+    priority: int  # the lowest goes first when space runs out
 
-# ++++++++++++++++++++++++ Drawing - Tabs (Left Side) ++++++++++++++++++++++++ #
+
+def _battery_segment(pal: Palette) -> Segment | None:
+    sample = _battery()
+    if sample is None:
+        return None
+    percent, charging = sample
+    if charging:
+        icon, color = ICON_BATTERY_CHARGING, pal.ok
+    elif percent <= 10:
+        icon, color = ICON_BATTERY_LOW, pal.error
+    else:
+        icon = ICON_BATTERY_LEVELS[min(9, (percent - 1) // 10)]
+        color = pal.error if percent <= 20 else pal.warn if percent <= 35 else pal.text
+    return Segment(icon, f"{percent}%", color, 2)
+
+
+def _status_segments(draw_data: DrawData, pal: Palette) -> list[Segment]:
+    segments = []
+    tm = get_boss().os_window_map.get(draw_data.os_window_id)
+    tab = tm.active_tab if tm else None
+    if tab is not None and len(tab) > 1:
+        # The layout only matters once a tab is split.
+        segments.append(Segment(ICON_LAYOUT, tab.current_layout.name, pal.info, 0))
+    battery = _battery_segment(pal)
+    if battery:
+        segments.append(battery)
+    now = datetime.datetime.now()
+    segments.append(Segment(ICON_DATE, now.strftime("%a %d %b"), pal.muted, 1))
+    segments.append(Segment(ICON_CLOCK, now.strftime("%H:%M"), pal.text, 3))
+    return segments
+
+
+def _status_width(segments: list[Segment]) -> int:
+    # Plain segments end with a separator; the clock at the end is a pill.
+    body = sum(_width(s.icon) + 1 + _width(s.text) for s in segments)
+    return body + _width(SEPARATOR) * (len(segments) - 1) + 2
+
+
+def _draw_status(draw_data: DrawData, screen: Screen, pal: Palette) -> None:
+    segments = _status_segments(draw_data, pal)
+    # Keep the last cell free: after the last tab kitty clears from the cursor
+    # to the end of the line, so anything drawn there would be erased.
+    available = screen.columns - 1 - screen.cursor.x - STATUS_GAP
+    while segments and _status_width(segments) > available:
+        segments.remove(min(segments, key=lambda s: s.priority))
+    if not segments:
+        return
+
+    start = screen.columns - 1 - _status_width(segments)
+    _draw(screen, " " * (start - screen.cursor.x), pal.bar, pal.bar)
+    *plain, clock = segments
+    for segment in plain:
+        _draw(screen, segment.icon, segment.icon_fg, pal.bar)
+        _draw(screen, f" {segment.text}", pal.text, pal.bar)
+        _draw(screen, SEPARATOR, pal.muted, pal.bar)
+    _draw(screen, CAP_LEFT, pal.surface, pal.bar)
+    _draw(screen, clock.icon, clock.icon_fg, pal.surface)
+    _draw(screen, f" {clock.text}", pal.text, pal.surface, bold=True)
+    _draw(screen, CAP_RIGHT, pal.surface, pal.bar)
+
+
+# =====----- Battery ----------------------------------------------------===== #
+
+_battery_state = {"sample": None, "taken": float("-inf"), "probing": False}
+
+
+def _battery() -> tuple[int, bool] | None:
+    """Last battery sample as (percent, charging), refreshed in the background."""
+    now = time.monotonic()
+    if now - _battery_state["taken"] >= BATTERY_TTL and not _battery_state["probing"]:
+        _battery_state["taken"] = now
+        if is_macos:
+            # pmset takes a few milliseconds; keep it off the render thread.
+            _battery_state["probing"] = True
+            threading.Thread(
+                target=_probe_pmset, name="tab-bar-battery", daemon=True
+            ).start()
+        else:
+            _battery_state["sample"] = _read_sysfs_battery()
+    return _battery_state["sample"]
+
+
+def _probe_pmset() -> None:
+    sample = None
+    try:
+        output = subprocess.run(
+            ["/usr/bin/pmset", "-g", "batt"], capture_output=True, text=True, timeout=5
+        ).stdout
+        # " -InternalBattery-0 (id=...)\t85%; charging; 1:02 remaining ..."
+        match = re.search(r"InternalBattery.*?(\d+)%;\s*([^;]+)", output)
+        if match:
+            state = match.group(2).strip().lower()
+            on_power = "AC Power" in output or state in (
+                "charging",
+                "finishing charge",
+                "charged",
+            )
+            sample = (int(match.group(1)), on_power)
+    except (OSError, subprocess.SubprocessError):
+        pass
+    _battery_state["sample"] = sample
+    _battery_state["probing"] = False
+
+
+def _read_sysfs_battery() -> tuple[int, bool] | None:
+    base = "/sys/class/power_supply"
+    try:
+        names = sorted(n for n in os.listdir(base) if n.startswith("BAT"))
+    except OSError:
+        return None
+    for name in names:
+        try:
+            with open(os.path.join(base, name, "capacity")) as f:
+                percent = int(f.read().strip())
+            with open(os.path.join(base, name, "status")) as f:
+                status = f.read().strip().lower()
+        except (OSError, ValueError):
+            continue
+        return percent, status in ("charging", "full", "not charging")
+    return None
+
+
+# =====----- Refresh ----------------------------------------------------===== #
+
+# A fresh token on every (re)load, so a config reload replaces the timer the
+# previous copy of this module started instead of stacking a second one.
+_MODULE_TOKEN = object()
+_last_signature = None
+
+
+def _tick(timer_id: int | None) -> None:
+    # Everything the status shows that can change without kitty noticing:
+    # the minute, the battery sample, and the macOS secure input state.
+    global _last_signature
+    signature = (
+        time.strftime("%Y%m%d%H%M"),
+        _battery(),
+        cocoa_is_secure_input_enabled(),
+    )
+    if signature != _last_signature:
+        _last_signature = signature
+        for tm in get_boss().all_tab_managers:
+            tm.mark_tab_bar_dirty()
+
+
+def _ensure_timer() -> None:
+    boss = get_boss()
+    owner, timer_id = getattr(boss, "_dotfiles_tab_bar_timer", (None, None))
+    if owner is _MODULE_TOKEN:
+        return
+    if timer_id is not None:
+        remove_timer(timer_id)
+    boss._dotfiles_tab_bar_timer = (
+        _MODULE_TOKEN,
+        add_timer(_tick, REFRESH_SECONDS, True),
+    )
+
+
+# =====----- Entry point ------------------------------------------------===== #
+
 
 def draw_tab(
     draw_data: DrawData,
     screen: Screen,
     tab: TabBarData,
     before: int,
-    max_title_length: int,
+    max_tab_length: int,
     index: int,
     is_last: bool,
     extra_data: ExtraData,
 ) -> int:
-    global timer_id, _prev_bg
-    if timer_id is None:
-        timer_id = add_timer(_redraw_tab_bar, REFRESH_TIME, True)
+    _ensure_timer()
+    pal = _palette(draw_data)
+    # Vertical tab bars call this once per row with is_last always set, so the
+    # badge and the status belong to the horizontal bar only.
+    horizontal = draw_data.tab_bar_edge in ("top", "bottom")
 
-    opts = get_options()
+    if horizontal and index == 1:
+        _draw_badge(screen, draw_data, pal, max_tab_length)
+    room = max_tab_length - (screen.cursor.x - before)
+    _draw_tab_body(draw_data, screen, tab, room, index, pal)
+    end = screen.cursor.x
 
-    # Colors.
-    tab_bg = as_rgb(color_as_int(opts.tab_bar_background))
+    # kitty first calls draw_tab only to measure each tab (for_layout). The
+    # status is drawn on the real pass, and the returned end excludes it, so
+    # clicking the clock does not select the last tab.
+    if horizontal and is_last and not extra_data.for_layout:
+        _draw_status(draw_data, screen, pal)
+    screen.cursor.bold = False
+    return end
 
-    # Active Tab Colors.
-    active_bg = as_rgb(color_as_int(opts.color4)) # Blue
-    active_fg = as_rgb(color_as_int(opts.color0)) # Dark text
 
-    # Inactive Tab Colors.
-    inactive_bg = as_rgb(color_as_int(opts.tab_bar_background))
-    inactive_fg = as_rgb(color_as_int(opts.inactive_tab_foreground))
-
-    # Custom Icon Colors.
-    icon_bg = as_rgb(color_as_int(opts.color16)) # Orange
-    icon_fg = as_rgb(color_as_int(opts.color0))
-
-    # Determine current tab background.
-    current_bg = active_bg if tab.is_active else inactive_bg
-    current_fg = active_fg if tab.is_active else inactive_fg
-
-    # ------------------------------------------------------------------------
-    # 1) First Tab Handling (Draw Custom Icon).
-    # ------------------------------------------------------------------------
-    if index == 1:
-        # Draw the custom icon block.
-        screen.cursor.bg = icon_bg
-        screen.cursor.fg = icon_fg
-        screen.draw(ICON_CUSTOM)
-
-        # Initialize previous background to the icon's background.
-        _prev_bg = icon_bg
-
-    # ------------------------------------------------------------------------
-    # 2) Separator Logic (Previous -> Current).
-    # ------------------------------------------------------------------------
-    # If colors differ, use Hard Separator. If same, use Soft Separator.
-    if _prev_bg != current_bg:
-        screen.cursor.fg = _prev_bg
-        screen.cursor.bg = current_bg
-        screen.draw(SEPARATOR_LEFT_HARD)
-    else:
-        # Same background, use soft separator for visual break.
-        screen.cursor.fg = inactive_fg # Use a lighter color for the separator.
-        screen.cursor.bg = current_bg
-        screen.draw(f" {SEPARATOR_LEFT_SOFT}")
-
-    # ------------------------------------------------------------------------
-    # 3) Tab Content.
-    # ------------------------------------------------------------------------
-    screen.cursor.bg = current_bg
-    screen.cursor.fg = current_fg
-    screen.draw(f" {index} {ICON_WINDOW} ")
-
-    # Use native draw_title for correct truncation/rendering.
-    draw_title(draw_data, screen, tab, index)
-    screen.draw(" ")
-
-    # Update global state.
-    _prev_bg = current_bg
-
-    # ------------------------------------------------------------------------
-    # 4) Last Tab Handling (Current -> Bar Background).
-    # ------------------------------------------------------------------------
-    if is_last:
-        # Always draw a hard separator to close the tab bar.
-        screen.cursor.fg = current_bg
-        screen.cursor.bg = tab_bg
-        screen.draw(SEPARATOR_LEFT_HARD)
-
-        # Draw the right status bar.
-        draw_right_status(draw_data, screen)
-
-    return screen.cursor.x
-
-# ============================================================================ #
+# =====------------------------------------------------------------------===== #
 # End of tab_bar.py
