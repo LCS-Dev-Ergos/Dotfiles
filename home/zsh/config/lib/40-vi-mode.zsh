@@ -18,6 +18,8 @@
 #   - Vi mode with minimal ESC key delay.
 #   - Dynamic cursor shapes (block for normal, blinking for insert).
 #   - Tmux-compatible cursor control.
+#   - Vim text objects for quotes and brackets (ci", da(, yi{, ...).
+#   - Home/End/Delete in every encoding terminals use.
 #   - Custom widgets (copy cwd, navigation).
 #   - Chainable widget system for compatibility.
 #
@@ -36,9 +38,10 @@
 #
 # ============================================================================ #
 
-# Enable vi mode with minimal delay for Escape key.
+# Enable vi mode with minimal delay for Escape key. KEYTIMEOUT is a shell
+# parameter, not something child processes need, so it stays unexported.
 bindkey -v
-export KEYTIMEOUT=1
+KEYTIMEOUT=1
 
 # +++++++++++++++++++++++++++++++ CURSOR SHAPE +++++++++++++++++++++++++++++++ #
 
@@ -135,36 +138,56 @@ zle -N zle-keymap-select _vi_keymap_select
 # -----------------------------------------------------------------------------
 # _vi_copy_cwd
 # @internal
-# @description Copies $PWD to the system clipboard via pbcopy and shows a ZLE
-# status message; bound to Ctrl+O. Only defined when pbcopy is available
-# (macOS).
+# @description Copies $PWD to the system clipboard and shows a ZLE status
+# message; bound to Ctrl+O. It goes through clipcopy
+# (functions/omz-compatibility.zsh), which picks pbcopy, wl-copy, xclip, and
+# so on, and falls back to pbcopy while that bundle is not loaded yet.
 # @noargs
 # -----------------------------------------------------------------------------
-if command -v pbcopy >/dev/null 2>&1; then
-  _vi_copy_cwd() {
+_vi_copy_cwd() {
+  if (( $+functions[clipcopy] )); then
+    print -rn -- "$PWD" | clipcopy
+  elif (( $+commands[pbcopy] )); then
     print -rn -- "$PWD" | pbcopy
-    zle -M "Copied: $PWD"
-  }
-  zle -N _vi_copy_cwd
-  bindkey '^O' _vi_copy_cwd
-fi
-
-# -----------------------------------------------------------------------------
-# Terminal keybindings previously provided by OMZ key-bindings.
-# -----------------------------------------------------------------------------
-[[ -n "${terminfo[khome]-}" ]] && {
-  bindkey -M viins "${terminfo[khome]}" beginning-of-line
-  bindkey -M vicmd "${terminfo[khome]}" beginning-of-line
+  else
+    zle -M "No clipboard tool available"
+    return 1
+  fi
+  zle -M "Copied: $PWD"
 }
+zle -N _vi_copy_cwd
+bindkey '^O' _vi_copy_cwd
 
-[[ -n "${terminfo[kend]-}" ]] && {
-  bindkey -M viins "${terminfo[kend]}" end-of-line
-  bindkey -M vicmd "${terminfo[kend]}" end-of-line
+# -----------------------------------------------------------------------------
+# Navigation keys, previously provided by OMZ key-bindings. terminfo's khome
+# and kend are the application-keypad forms (ESC O H), which a terminal only
+# sends while that mode is on, and nothing here turns it on: in normal mode
+# Home and End arrive as ESC [ H / ESC [ F, or as ESC [ 1~ / ESC [ 4~ under
+# tmux and the Linux console. Unbound, the leading Escape switched to normal
+# mode and the rest of the sequence ran as vi commands, so Home deleted a
+# character. Every form is bound in both keymaps.
+# -----------------------------------------------------------------------------
+() {
+  local -a home_keys=("${terminfo[khome]-}" $'\e[H' $'\eOH' $'\e[1~' $'\e[7~')
+  local -a end_keys=("${terminfo[kend]-}" $'\e[F' $'\eOF' $'\e[4~' $'\e[8~')
+  local -a delete_keys=("${terminfo[kdch1]-}" $'\e[3~')
+  local seq keymap
+  for keymap in viins vicmd; do
+    for seq in ${(u)home_keys:#}; do
+      bindkey -M "$keymap" "$seq" beginning-of-line
+    done
+    for seq in ${(u)end_keys:#}; do
+      bindkey -M "$keymap" "$seq" end-of-line
+    done
+  done
+  for seq in ${(u)delete_keys:#}; do
+    bindkey -M viins "$seq" delete-char
+    bindkey -M vicmd "$seq" vi-delete-char
+  done
 }
 
 [[ -n "${terminfo[kpp]-}" ]] && bindkey "${terminfo[kpp]}" up-line-or-history
 [[ -n "${terminfo[knp]-}" ]] && bindkey "${terminfo[knp]}" down-line-or-history
-[[ -n "${terminfo[kdch1]-}" ]] && bindkey -M viins "${terminfo[kdch1]}" delete-char
 [[ -n "${terminfo[kcbt]-}" ]] && bindkey "${terminfo[kcbt]}" reverse-menu-complete
 
 bindkey -M viins '^?' backward-delete-char
@@ -186,21 +209,45 @@ bindkey -M viins '^R' history-incremental-search-backward
 bindkey -M viins '^T' transpose-chars
 bindkey -M viins '^Y' yank
 
-# Quick escape: "jk" in insert mode switches to normal mode.
-bindkey -M viins 'jk' vi-cmd-mode
+# No multi-key "jk" escape: with KEYTIMEOUT=1 the second key must arrive
+# within 10 ms, which only pasted text or key repeat can do. Escape itself is
+# instant, which is the trade-off this module is built around.
 
-for seq in $'\e[1;5D' $'\e[5D' $'\eb'; do
-  bindkey -M viins "$seq" backward-word
-  bindkey -M vicmd "$seq" backward-word
-done
-for seq in $'\e[1;5C' $'\e[5C' $'\ef'; do
-  bindkey -M viins "$seq" forward-word
-  bindkey -M vicmd "$seq" forward-word
-done
+# Word motion with Ctrl/Alt+arrows and Alt+b/f in both keymaps.
+() {
+  local seq
+  for seq in $'\e[1;5D' $'\e[5D' $'\eb'; do
+    bindkey -M viins "$seq" backward-word
+    bindkey -M vicmd "$seq" backward-word
+  done
+  for seq in $'\e[1;5C' $'\e[5C' $'\ef'; do
+    bindkey -M viins "$seq" forward-word
+    bindkey -M vicmd "$seq" forward-word
+  done
+}
 
 autoload -Uz edit-command-line
 zle -N edit-command-line
 bindkey -M vicmd 'v' edit-command-line
+
+# Vim text objects for quotes and brackets: ci", da(, yi{, vib, and so on,
+# from the widgets zsh ships. They live in the operator-pending and visual
+# keymaps, where `a` and `i` are never bound on their own, so the second key
+# has no KEYTIMEOUT race (unlike multi-key sequences in vicmd).
+autoload -Uz select-bracketed select-quoted
+zle -N select-bracketed
+zle -N select-quoted
+() {
+  local keymap c
+  for keymap in viopp visual; do
+    for c in {a,i}{\',\",\`}; do
+      bindkey -M "$keymap" -- "$c" select-quoted
+    done
+    for c in {a,i}${(s..)^:-'()[]{}<>bB'}; do
+      bindkey -M "$keymap" -- "$c" select-bracketed
+    done
+  done
+}
 
 # ============================================================================ #
 # End of lib/40-vi-mode.zsh

@@ -26,52 +26,23 @@
 typeset -f _zsh_cache_is_fresh >/dev/null 2>&1 ||
   source "${${(%):-%N}:A:h:h}/runtime-helpers.zsh"
 
-# HyDE adds the user completion directory before this module runs. Keep loading
-# generated metadata, but do not add that directory to fpath a second time.
-if [[ "$HYDE_ENABLED" == "1" ]]; then
-  HYDE_SKIP_FPATH_COMPLETIONS=1
-fi
-
 # -----------------------------------------------------------------------------
 # _cache_completion
 # @internal
-# @description Sources a cached completion script, regenerating it under
-# ${XDG_CACHE_HOME:-$HOME/.cache}/zsh/completions/_<cmd> when missing or
-# older than 7 days.
+# @description Loads the completion script a command prints about itself
+# through _zsh_cached_init, so the cache follows the installed executable
+# (an upgrade regenerates it) instead of expiring on a timer.
 # @arg $1 string Command name (e.g. "ngrok", "ng").
-# @arg $@ string Generation command (e.g. ngrok completion).
+# @arg $@ string Arguments that make the command print its zsh completion.
+# @exitcode 1 If the command is missing or prints nothing usable.
 # @example
-#   _cache_completion "ngrok" "ngrok completion"
-#   _cache_completion "ng" "ng completion script"
+#   _cache_completion ng completion script
 # -----------------------------------------------------------------------------
 _cache_completion() {
   local cmd="$1"
   shift
-  local -a generate_cmd=("$@")
-  local cache_file="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/completions/_$cmd"
-  # Check if cache exists, is safe, and is less than 7 days old.
-  if _zsh_cache_is_fresh "$cache_file" 604800; then
-    source "$cache_file"
-    return
-  elif [[ -f "$cache_file" ]] && ! _zsh_is_secure_file "$cache_file"; then
-    print -u2 "Completion cache skipped (insecure file): $cache_file"
-  fi
-
-  # Generate completion.
-  local cache_dir="${cache_file:h}"
-  local tmp_file=""
-  mkdir -p "$cache_dir"
-
-  tmp_file="$(mktemp "${cache_dir}/.${cmd}.XXXXXX" 2>/dev/null)" || return 1
-  if "${generate_cmd[@]}" >"$tmp_file" 2>/dev/null; then
-    chmod 600 "$tmp_file" 2>/dev/null || :
-    mv -f "$tmp_file" "$cache_file"
-  else
-    rm -f -- "$tmp_file" 2>/dev/null
-    return 1
-  fi
-
-  _zsh_is_secure_file "$cache_file" && source "$cache_file"
+  (( $+commands[$cmd] )) || return 1
+  _zsh_cached_init "completion-$cmd" "${commands[$cmd]}" "$@"
 }
 
 # -----------------------------------------------------------------------------
@@ -159,7 +130,7 @@ ${ZSH_CONFIG_DIR:-$default_config_dir}}"
   (( ${#source_files[@]} )) || return 1
   signature_files=("${source_files[@]}" "$generator" "$indexer")
 
-  zmodload -i zsh/stat 2>/dev/null || return 1
+  zmodload -F zsh/stat b:zstat 2>/dev/null || return 1
   for file in "${signature_files[@]}"; do
     stat_info=()
     zstat -L -H stat_info -- "$file" 2>/dev/null || return 1
@@ -213,36 +184,22 @@ _late_completions() {
   if [[ -s "$HOME/.bun/_bun" ]]; then
     source "$HOME/.bun/_bun"
   fi
-  if command -v ngrok >/dev/null 2>&1; then
-    _cache_completion ngrok ngrok completion
-  fi
-  if command -v ng >/dev/null 2>&1; then
-    _cache_completion ng ng completion script
-  fi
+  # ngrok picks the script flavor from $SHELL; pin it so a shell started
+  # from bash (or an IDE) does not cache the bash script.
+  SHELL="${commands[zsh]:-zsh}" _cache_completion ngrok completion
+  _cache_completion ng completion script
   unfunction _late_completions 2>/dev/null
 }
 
-# ----------- Docker CLI  ------------ #
-# Add custom completions directories (unless HyDE already did it).
+# ------ Completion directories ------ #
+# 20-zinit.zsh and HyDE's shell.zsh add these before their compinit, so this
+# is a no-op for them; it is the safety net for the OMZ fallback. ZDOTDIR
+# points at $HOME, so the repository completions resolve through the config
+# directory.
 typeset -i _completion_fpath_changed=0
-if [[ "${HYDE_SKIP_FPATH_COMPLETIONS:-0}" != "1" ]]; then
-  # ZDOTDIR points at $HOME, not the XDG config tree, so the repository
-  # completions must be resolved through the config directory instead.
-  local _completions_dir="${ZSH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zsh}/completions"
-  if [[ -d "$_completions_dir" ]] && (( ${fpath[(Ie)$_completions_dir]} == 0 )); then
-    fpath=("$_completions_dir" $fpath)
-    _completion_fpath_changed=1
-  fi
-  unset _completions_dir
-fi
-
-# Docker completions (always check, as HyDE doesn't add this).
-local _docker_completions_dir="$HOME/.docker/completions"
-if [[ -d "$_docker_completions_dir" ]] && (( ${fpath[(Ie)$_docker_completions_dir]} == 0 )); then
-  fpath=("$_docker_completions_dir" $fpath)
-  _completion_fpath_changed=1
-fi
-unset _docker_completions_dir
+_zsh_fpath_prepend \
+  "${ZSH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zsh}/completions" \
+  "$HOME/.docker/completions" && _completion_fpath_changed=1
 
 autoload -Uz compinit
 typeset -a compinit_opts

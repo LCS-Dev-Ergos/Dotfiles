@@ -15,8 +15,13 @@
 # This is the main loader that sources individual configuration modules.
 #
 # ARCHITECTURE:
-#   This file has been refactored from a 2000+ line monolithic configuration
-#   into a modular system for better maintainability and organization.
+#   1. lib/*.zsh load in lexical order; the numeric prefix is the dependency
+#      order. ZSH_FAST_START=1 keeps only the core listed below.
+#   2. functions/*.zsh follow. A bundle whose header carries the
+#      `# zsh-load: deferred` marker is sourced once the shell is idle.
+#   3. The prompt activates last, after 90-path.zsh has fixed PATH.
+#   HyDE (Arch) integration lives in the modules' own guards plus the single
+#   hook in the module loop below.
 #
 # Consult the README.md for further details on the design philosophy,
 # module breakdown, and usage tips.
@@ -25,26 +30,24 @@
 
 # -----------------------------------------------------------------------------
 # Configuration directory: robustly determine the configuration directory.
-# We look for the 'lib' directory to confirm we have the right place.
+# We look for the 'lib' directory to confirm we have the right place: first
+# ZDOTDIR, then the XDG location, then paths relative to the resolved file.
+# `config/` beside it is the layout of both the repository (home/zsh) and its
+# store copy, so a checkout's zshrc finds its own tree. $HOME/.config/zsh is
+# the last resort.
 # -----------------------------------------------------------------------------
-# 1. Try "ZDOTDIR".
 if [[ -n "$ZDOTDIR" && -d "$ZDOTDIR/lib" ]]; then
     ZSH_CONFIG_DIR="$ZDOTDIR"
-# 2. Try Standard XDG location.
 elif [[ -d "$HOME/.config/zsh/lib" ]]; then
     ZSH_CONFIG_DIR="$HOME/.config/zsh"
+elif [[ -d "${${(%):-%x}:A:h}/lib" ]]; then
+    ZSH_CONFIG_DIR="${${(%):-%x}:A:h}"
+elif [[ -d "${${(%):-%x}:A:h}/config/lib" ]]; then
+    ZSH_CONFIG_DIR="${${(%):-%x}:A:h}/config"
+elif [[ -d "${${(%):-%x}:A:h}/.config/zsh/lib" ]]; then
+    ZSH_CONFIG_DIR="${${(%):-%x}:A:h}/.config/zsh"
 else
-    # 3. Try relative to this file (for symlinks or direct sourcing).
-    local current_dir="${${(%):-%x}:A:h}"
-
-    if [[ -d "$current_dir/lib" ]]; then
-        ZSH_CONFIG_DIR="$current_dir"
-    elif [[ -d "$current_dir/.config/zsh/lib" ]]; then
-        ZSH_CONFIG_DIR="$current_dir/.config/zsh"
-    # 4. Fallback to HOME if nothing else works (last resort).
-    else
-        ZSH_CONFIG_DIR="$HOME/.config/zsh"
-    fi
+    ZSH_CONFIG_DIR="$HOME/.config/zsh"
 fi
 
 if [[ "${ZSH_STARTUP_TRACE:-0}" == "1" ]] &&
@@ -55,47 +58,19 @@ fi
     _zsh_startup_trace_mark ".zshrc:entry"
 
 # Debug: Uncomment to troubleshoot configuration directory detection.
-# echo "ZSH_CONFIG_DIR=$ZSH_CONFIG_DIR"
-# echo "HYDE_ENABLED=${HYDE_ENABLED:-not set}"
+# echo "ZSH_CONFIG_DIR=$ZSH_CONFIG_DIR HYDE_ENABLED=${HYDE_ENABLED:-not set}"
 
 # -----------------------------------------------------------------------------
-# Fast start toggle: skip heavy modules for a minimal, quick shell.
-# Enable with: ZSH_FAST_START=1
+# Fast start: the minimal core, without plugins, prompt engines, language
+# managers, or function bundles. Enable with: ZSH_FAST_START=1
 # -----------------------------------------------------------------------------
-if [[ "${ZSH_FAST_START:-}" == "1" ]]; then
-    source "$ZSH_CONFIG_DIR/lib/00-initialization.zsh"
-    (( $+functions[_zsh_startup_trace_mark] )) &&
-        _zsh_startup_trace_mark "module:00-initialization.zsh"
-    source "$ZSH_CONFIG_DIR/lib/10-history.zsh"
-    (( $+functions[_zsh_startup_trace_mark] )) &&
-        _zsh_startup_trace_mark "module:10-history.zsh"
-    source "$ZSH_CONFIG_DIR/lib/40-vi-mode.zsh"
-    (( $+functions[_zsh_startup_trace_mark] )) &&
-        _zsh_startup_trace_mark "module:40-vi-mode.zsh"
-    source "$ZSH_CONFIG_DIR/lib/60-aliases.zsh"
-    (( $+functions[_zsh_startup_trace_mark] )) &&
-        _zsh_startup_trace_mark "module:60-aliases.zsh"
-    source "$ZSH_CONFIG_DIR/lib/75-variables.zsh"
-    (( $+functions[_zsh_startup_trace_mark] )) &&
-        _zsh_startup_trace_mark "module:75-variables.zsh"
-    source "$ZSH_CONFIG_DIR/lib/90-path.zsh"
-    (( $+functions[_zsh_startup_trace_mark] )) &&
-        _zsh_startup_trace_mark "module:90-path.zsh"
-    PROMPT='%F{cyan}%n@%m%f:%F{yellow}%~%f %(?.%F{green}.%F{red})%#%f '
-    RPROMPT='%F{240}%D{%H:%M:%S}%f'
-    (( $+functions[_zsh_startup_trace_arm] )) && _zsh_startup_trace_arm
-    return 0
-fi
+typeset -ga _ZSH_FAST_START_MODULES=(
+    00-initialization 10-history 40-vi-mode 60-aliases 75-variables 90-path
+)
 
-# ++++++++++++++++++++++++++++ LOAD CORE MODULES +++++++++++++++++++++++++++++ #
-
-# Load modules in priority order.
-# Note: Order is critical - Do not rearrange without understanding dependencies.
-
-# On HyDE systems, load user preferences FIRST to determine which modules to use.
-# This allows user.zsh to set HYDE_ZSH_NO_PLUGINS and HYDE_ZSH_PROMPT
-if [[ "$HYDE_ENABLED" == "1" ]]; then
-    # Load user preferences before deciding what to load.
+# On HyDE systems, load user preferences FIRST to determine which modules to
+# use. This allows user.zsh to set HYDE_ZSH_NO_PLUGINS and HYDE_ZSH_PROMPT.
+if [[ "$HYDE_ENABLED" == "1" && "${ZSH_FAST_START:-}" != "1" ]]; then
     if [[ -f "$HOME/.hyde.zshrc" ]]; then
         source "$HOME/.hyde.zshrc"
     elif [[ -f "$HOME/.user.zsh" ]]; then
@@ -105,14 +80,53 @@ if [[ "$HYDE_ENABLED" == "1" ]]; then
     fi
 fi
 
-# Determine which modules to load based on platform/environment and user prefs.
-typeset -a config_modules
-typeset -ga _ZSH_HEAVY_FUNCTION_FILES=()
-: "${ZSH_FUNCTION_MARKER_SCAN_LINES:=12}"
+# ++++++++++++++++++++++++++++ LOAD CORE MODULES +++++++++++++++++++++++++++++ #
+
+# Modules are sourced at top level on purpose: inside a function, their plain
+# `typeset` declarations would become locals and vanish.
+typeset _zsh_rc_file
+typeset -a _zsh_rc_modules=("$ZSH_CONFIG_DIR"/lib/*.zsh(N))
+if (( ${#_zsh_rc_modules} == 0 )); then
+    print -u2 "Warning: No Zsh configuration modules found in $ZSH_CONFIG_DIR/lib/"
+    print -u2 "    Please check your ZSH_CONFIG_DIR setting."
+fi
+
+for _zsh_rc_file in "${_zsh_rc_modules[@]}"; do
+    if [[ "${ZSH_FAST_START:-}" == "1" ]] &&
+        (( ! ${_ZSH_FAST_START_MODULES[(Ie)${_zsh_rc_file:t:r}]} )); then
+        continue
+    fi
+    source "$_zsh_rc_file"
+    (( $+functions[_zsh_startup_trace_mark] )) &&
+        _zsh_startup_trace_mark "module:${_zsh_rc_file:t}"
+
+    # HyDE: unless HYDE_ZSH_NO_PLUGINS=1, its shell.zsh owns Oh-My-Zsh (and,
+    # with HYDE_ZSH_PROMPT=1, the prompt) in the slot of 20-zinit.zsh, whose
+    # guard makes it a no-op in that case. 30-prompt.zsh has the matching
+    # guard for the prompt.
+    if [[ "${_zsh_rc_file:t}" == 20-zinit.zsh && "$HYDE_ENABLED" == "1" &&
+          "${HYDE_ZSH_NO_PLUGINS}" != "1" &&
+          -r "$ZSH_CONFIG_DIR/conf.d/hyde/shell.zsh" ]]; then
+        source "$ZSH_CONFIG_DIR/conf.d/hyde/shell.zsh"
+    fi
+done
+(( $+functions[_zsh_startup_trace_mark] )) &&
+    _zsh_startup_trace_mark "modules:ready"
+
+if [[ "${ZSH_FAST_START:-}" == "1" ]]; then
+    PROMPT='%F{cyan}%n@%m%f:%F{yellow}%~%f %(?.%F{green}.%F{red})%#%f '
+    RPROMPT='%F{240}%D{%H:%M:%S}%f'
+    unset _zsh_rc_file _zsh_rc_modules
+    (( $+functions[_zsh_startup_trace_arm] )) && _zsh_startup_trace_arm
+    return 0
+fi
 
 # -----------------------------------------------------------------------------
 # Function file loader helpers
 # -----------------------------------------------------------------------------
+typeset -ga _ZSH_HEAVY_FUNCTION_FILES=()
+: "${ZSH_FUNCTION_MARKER_SCAN_LINES:=12}"
+
 # Keep startup hot path small by deferring heavy helper bundles until the shell
 # is idle after the first prompt.
 _zsh_source_function_file() {
@@ -164,104 +178,23 @@ _zsh_schedule_heavy_functions() {
     fi
 }
 
-if [[ "$HYDE_ENABLED" == "1" ]]; then
-    # -------------------------------------------------------------------------
-    # +++++++++++++++++++++++++ ARCH LINUX with HyDE ++++++++++++++++++++++++++
-    # -------------------------------------------------------------------------
-    # Check user preferences to decide which system handles OMZ/prompt:
-    #   - HYDE_ZSH_NO_PLUGINS=1 → use lib/20-zinit.zsh (user's config)
-    #   - HYDE_ZSH_PROMPT=0     → use lib/30-prompt.zsh (user's config)
+# ++++++++++++++++++++++++++++ LOAD FUNCTION FILES +++++++++++++++++++++++++++ #
 
-    # Load base modules first.
-    source "$ZSH_CONFIG_DIR/lib/00-initialization.zsh"
-    source "$ZSH_CONFIG_DIR/lib/10-history.zsh"
-    (( $+functions[_zsh_startup_trace_mark] )) &&
-        _zsh_startup_trace_mark "modules:base"
-
-    # OMZ: user's lib/ or HyDE's shell.zsh?
-    if [[ "${HYDE_ZSH_NO_PLUGINS}" == "1" ]]; then
-        # User wants their own plugin manager config.
-        source "$ZSH_CONFIG_DIR/lib/20-zinit.zsh"
-    else
-        # HyDE handles OMZ - load shell.zsh (partial, just OMZ part).
-        [[ -f "$ZSH_CONFIG_DIR/conf.d/hyde/shell.zsh" ]] && \
-            source "$ZSH_CONFIG_DIR/conf.d/hyde/shell.zsh"
-    fi
-
-    # Prompt: user's lib/ or HyDE's shell.zsh?
-    if [[ "${HYDE_ZSH_PROMPT}" != "1" ]]; then
-        # User wants their own prompt config (with transient prompt).
-        source "$ZSH_CONFIG_DIR/lib/30-prompt.zsh"
-    fi
-    # If HYDE_ZSH_PROMPT=1, shell.zsh already loaded prompt.
-
-    # Load remaining modules.
-    source "$ZSH_CONFIG_DIR/lib/40-vi-mode.zsh"
-    source "$ZSH_CONFIG_DIR/lib/50-tools.zsh"
-    source "$ZSH_CONFIG_DIR/lib/60-aliases.zsh"
-    source "$ZSH_CONFIG_DIR/lib/70-ai-tools.zsh"
-    source "$ZSH_CONFIG_DIR/lib/75-variables.zsh"
-    source "$ZSH_CONFIG_DIR/lib/80-languages.zsh"
-    source "$ZSH_CONFIG_DIR/lib/85-completions.zsh"
-    source "$ZSH_CONFIG_DIR/lib/90-path.zsh"
-    [[ -f "$ZSH_CONFIG_DIR/lib/94-lazy-loader-core.zsh" ]] && source "$ZSH_CONFIG_DIR/lib/94-lazy-loader-core.zsh"
-    [[ -f "$ZSH_CONFIG_DIR/lib/95-lazy-scripts.zsh" ]] && source "$ZSH_CONFIG_DIR/lib/95-lazy-scripts.zsh"
-    [[ -f "$ZSH_CONFIG_DIR/lib/96-lazy-cpp-tools.zsh" ]] && source "$ZSH_CONFIG_DIR/lib/96-lazy-cpp-tools.zsh"
-    (( $+functions[_zsh_startup_trace_mark] )) &&
-        _zsh_startup_trace_mark "modules:ready"
-
-    # Load custom functions (shell.zsh only loads them when HYDE_ZSH_NO_PLUGINS!=1).
-    if [[ "${HYDE_ZSH_NO_PLUGINS}" == "1" ]]; then
-        for file in "$ZSH_CONFIG_DIR"/functions/*.zsh(N); do
-            _zsh_queue_function_file "$file"
-        done
-        _zsh_schedule_heavy_functions
-    fi
-    (( $+functions[_zsh_startup_trace_mark] )) &&
-        _zsh_startup_trace_mark "functions:ready"
+# Every mode, HyDE's included: bundles that duplicate what Oh-My-Zsh provides
+# (omz-compatibility.zsh) step aside on their own.
+typeset -a _zsh_rc_functions=("$ZSH_CONFIG_DIR"/functions/*.zsh(N))
+if (( ${#_zsh_rc_functions} == 0 )); then
+    print -u2 "Warning: No function files found in $ZSH_CONFIG_DIR/functions/"
+    print -u2 "    ZSH_CONFIG_DIR=$ZSH_CONFIG_DIR"
+    print -u2 "    Please check if the functions directory exists and contains .zsh files."
 else
-    # -------------------------------------------------------------------------
-    # ++++++++++++++++++++++++ macOS or non-HyDE Linux ++++++++++++++++++++++++
-    # -------------------------------------------------------------------------
-    # Load ALL modules normally - no HyDE interference
-    config_modules=("$ZSH_CONFIG_DIR/lib/"*.zsh(N))
-
-    if (( ${#config_modules} == 0 )); then
-        print -u2 "Warning: No Zsh configuration modules found in $ZSH_CONFIG_DIR/lib/"
-        print -u2 "    Please check your ZSH_CONFIG_DIR setting."
-    else
-        for config_module in "${config_modules[@]}"; do
-            source "$config_module"
-            (( $+functions[_zsh_startup_trace_mark] )) &&
-                _zsh_startup_trace_mark "module:${config_module:t}"
-        done
-    fi
-
-    # Load custom functions.
-    typeset -a function_files
-    function_files=("$ZSH_CONFIG_DIR"/functions/*.zsh(N))
-
-    if (( ${#function_files} == 0 )); then
-        print -u2 "Warning: No function files found in $ZSH_CONFIG_DIR/functions/"
-        print -u2 "    ZSH_CONFIG_DIR=$ZSH_CONFIG_DIR"
-        print -u2 "    Please check if the functions directory exists and contains .zsh files."
-    else
-        for file in "${function_files[@]}"; do
-            _zsh_queue_function_file "$file"
-        done
-        _zsh_schedule_heavy_functions
-    fi
-    (( $+functions[_zsh_startup_trace_mark] )) &&
-        _zsh_startup_trace_mark "functions:ready"
+    for _zsh_rc_file in "${_zsh_rc_functions[@]}"; do
+        _zsh_queue_function_file "$_zsh_rc_file"
+    done
+    _zsh_schedule_heavy_functions
 fi
-
-# Queue the cache freshness check only after the function bundles above, so
-# the deferred queue defines zshcache before the check runs. Deferring it from
-# 00-initialization.zsh made the check always fall back to a bare compinit
-# that wrote a stray dump and wiped caches built earlier in the same startup.
-if (( $+functions[_zsh_cache_auto_check] && $+functions[_zsh_defer] )); then
-    _zsh_defer _zsh_cache_auto_check
-fi
+(( $+functions[_zsh_startup_trace_mark] )) &&
+    _zsh_startup_trace_mark "functions:ready"
 
 # Activate the prompt only after 90-path.zsh has selected the definitive tool
 # locations. This prevents cached init code from pinning a shadowed executable.
@@ -299,6 +232,8 @@ if [[ "${ZSH_LAZY_SCRIPTS:-1}" != "1" ]]; then
         }
     fi
 fi
+
+unset _zsh_rc_file _zsh_rc_modules _zsh_rc_functions
 
 (( $+functions[_zsh_startup_trace_mark] )) &&
     _zsh_startup_trace_mark "startup:configured"

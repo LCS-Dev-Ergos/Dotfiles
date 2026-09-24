@@ -21,14 +21,20 @@
 #
 # Performance:
 #   - Deferred loading for atuin, fzf, zoxide, direnv.
+#   - Their init scripts are cached per executable (_zsh_cached_init), so the
+#     deferred step sources files instead of forking four tools right after
+#     the first prompt, when the line editor is already accepting input.
 #   - Immediate loading only for lightweight shell wrappers.
 #
 # ============================================================================ #
 
+typeset -f _zsh_cached_init >/dev/null 2>&1 ||
+  source "${${(%):-%N}:A:h:h}/runtime-helpers.zsh"
+
 # ++++++++++++++++++++++++++++++++++ ATUIN +++++++++++++++++++++++++++++++++++ #
 
 # Initialize Atuin (Magical Shell History).
-if command -v atuin >/dev/null 2>&1; then
+if (( $+commands[atuin] )); then
   # ---------------------------------------------------------------------------
   # _atuin_lazy_init
   # @internal
@@ -39,7 +45,8 @@ if command -v atuin >/dev/null 2>&1; then
   _atuin_lazy_init() {
     [[ -n "${_ATUIN_INIT_DONE:-}" ]] && return 0
     _ATUIN_INIT_DONE=1
-    eval "$(atuin init zsh)" || echo "${C_YELLOW}Warning: atuin init failed.${C_RESET}"
+    _zsh_cached_init atuin "${commands[atuin]}" init zsh ||
+      print -u2 "${C_YELLOW}Warning: atuin init failed.${C_RESET}"
     unfunction _atuin_lazy_init 2>/dev/null
   }
 
@@ -68,7 +75,7 @@ function y() {
     IFS= read -r -d '' cwd <"$tmp"
     [[ -n "$cwd" && "$cwd" != "$PWD" ]] && builtin cd -- "$cwd"
   } always {
-    rm -f -- "$tmp"
+    command rm -f -- "$tmp"
   }
 }
 
@@ -85,16 +92,27 @@ _tools_lazy_init() {
   # Remove hook before running to avoid re-entry races.
   add-zsh-hook -d precmd _tools_lazy_init
 
-  if command -v fzf >/dev/null 2>&1; then
-    eval "$(fzf --zsh 2>/dev/null)" || echo "${C_YELLOW}Warning: fzf init failed.${C_RESET}"
+  if (( $+commands[fzf] )); then
+    _zsh_cached_init fzf "${commands[fzf]}" --zsh ||
+      print -u2 "${C_YELLOW}Warning: fzf init failed.${C_RESET}"
   fi
 
-  if command -v zoxide >/dev/null 2>&1; then
-    eval "$(zoxide init zsh 2>/dev/null)" || echo "${C_YELLOW}Warning: zoxide init failed.${C_RESET}"
+  if (( $+commands[zoxide] )); then
+    _zsh_cached_init zoxide "${commands[zoxide]}" init zsh ||
+      print -u2 "${C_YELLOW}Warning: zoxide init failed.${C_RESET}"
   fi
 
-  if command -v direnv >/dev/null 2>&1; then
-    eval "$(direnv hook zsh 2>/dev/null)" || echo "${C_YELLOW}Warning: direnv init failed.${C_RESET}"
+  if (( $+commands[direnv] )); then
+    if _zsh_cached_init direnv "${commands[direnv]}" hook zsh; then
+      # Route direnv's precmd and chpwd hooks through the guard below.
+      local -i slot
+      slot=${precmd_functions[(Ie)_direnv_hook]}
+      (( slot )) && precmd_functions[slot]=_zsh_direnv_hook
+      slot=${chpwd_functions[(Ie)_direnv_hook]}
+      (( slot )) && chpwd_functions[slot]=_zsh_direnv_hook
+    else
+      print -u2 "${C_YELLOW}Warning: direnv init failed.${C_RESET}"
+    fi
   fi
 
   # Self-destruct after first run.
@@ -108,6 +126,28 @@ elif typeset -f _zsh_defer >/dev/null 2>&1; then
 else
   add-zsh-hook precmd _tools_lazy_init
 fi
+
+# -----------------------------------------------------------------------------
+# _zsh_direnv_hook
+# @internal
+# @description Runs direnv's hook unless the call could only print nothing:
+# no direnv environment is loaded and there is no .envrc or .env from $PWD
+# up to /. direnv's own hook forks `direnv export` before every prompt and
+# after every cd (about 11 ms each); most directories take the early return.
+# Anywhere near an .envrc, and inside a loaded environment, every call still
+# goes to direnv, so watched files and `direnv allow` behave as before.
+# @noargs
+# -----------------------------------------------------------------------------
+_zsh_direnv_hook() {
+  if [[ -z "${DIRENV_DIR-}" ]]; then
+    local dir="$PWD"
+    while [[ ! -e "$dir/.envrc" && ! -e "$dir/.env" ]]; do
+      [[ -z "$dir" || "$dir" == / ]] && return 0
+      dir="${dir:h}"
+    done
+  fi
+  _direnv_hook
+}
 
 # ++++++++++++++++++++++++++++ FZF CONFIGURATION +++++++++++++++++++++++++++++ #
 
@@ -144,8 +184,10 @@ _gen_fzf_default_opts() {
  --color=fg:$color04,header:$color0D,info:$color0A,pointer:$color0C\
  --color=marker:$color0C,fg+:$color06,prompt:$color0A,hl+:$color0D"
 
-  # Strip any previous color opts to avoid accumulation on re-source.
-  export FZF_DEFAULT_OPTS="${FZF_DEFAULT_OPTS//${~color_opts}/}${color_opts}"
+  # Strip any previous color opts to avoid accumulation on re-source and in
+  # nested shells. The match is literal: as a pattern, EXTENDED_GLOB would
+  # read every `#` in the hex colors as a repetition operator.
+  export FZF_DEFAULT_OPTS="${FZF_DEFAULT_OPTS//$color_opts/}${color_opts}"
 }
 
 _gen_fzf_default_opts
@@ -221,8 +263,8 @@ if command -v fzf >/dev/null 2>&1; then
   # ---------------------------------------------------------------------------
   # _fzf_comprun
   # @internal
-  # @description Picks a preview command for fzf-tab completion based on the
-  # invoking command (cd, export/unset, ssh, or a file default).
+  # @description Picks a preview command for fzf's `**<TAB>` fuzzy completion
+  # based on the invoking command (cd, export/unset, ssh, or a file default).
   # @arg $1 string Invoking command name.
   # @arg $@ string Remaining fzf arguments.
   # ---------------------------------------------------------------------------
@@ -418,7 +460,8 @@ _orbstack_init() {
 if [[ -f "$HOME/.orbstack/shell/init.zsh" ]]; then
   if [[ "${ZSH_FAST_START:-}" == "1" ]]; then
     : # skip during fast start.
-  elif [[ "${ZSH_DEFER_ORBSTACK:-1}" == "1" ]]; then
+  elif [[ "${ZSH_DEFER_ORBSTACK:-1}" == "1" ]] &&
+      (( $+functions[_zsh_defer] )); then
     _zsh_defer _orbstack_init
   else
     _orbstack_init
@@ -489,14 +532,16 @@ kitty_restore_session() {
   fi
 
   # Determine target session file.
+  # Newest first, so both the fzf list and the fallback start at the latest.
+  local -a sessions=("$save_dir"/*.kitty-session(N.om))
   if [[ -n "${1:-}" ]]; then
     target_file="$save_dir/${1%.kitty-session}.kitty-session"
-  elif command -v fzf >/dev/null 2>&1; then
-    target_file="$(find "$save_dir" -maxdepth 1 -type f -name '*.kitty-session' 2>/dev/null \
-      | fzf --prompt='kitty sessions> ' --tac)"
+  elif (( ${#sessions} )) && command -v fzf >/dev/null 2>&1; then
+    target_file="$(print -rl -- "${sessions[@]}" |
+      fzf --prompt='kitty sessions> ')"
     [[ -z "$target_file" ]] && return 1  # user cancelled
   else
-    target_file="$(ls -1t "$save_dir"/*.kitty-session 2>/dev/null | head -n 1)"
+    target_file="${sessions[1]-}"
   fi
 
   # Validate target file.

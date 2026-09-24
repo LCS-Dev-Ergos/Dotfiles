@@ -39,14 +39,16 @@ typeset -f _zsh_cache_is_fresh >/dev/null 2>&1 ||
 # -----------------------------------------------------------------------------
 # zsh_rebuild_path
 # @description Rebuilds PATH deterministically with version-manager shims first.
-# Removes duplicates and caches the result for up to 24 hours.
+# Removes duplicates and caches each result for up to 24 hours.
 # @noargs
 # @exitcode 1 If PATH rebuilding or cache handling fails.
 # -----------------------------------------------------------------------------
 zsh_rebuild_path() {
-  # Store original PATH for debugging and fallback (exported for inspection).
-  export PATH_BEFORE_BUILD="$PATH"
+  # Keep the inherited PATH for inspection in this shell only; exporting it
+  # would hand a stale copy to every child and nested shell.
+  typeset -g PATH_BEFORE_BUILD="$PATH"
   local original_path="$PATH"
+  local dir REPLY
 
   # ---------------------------------------------------------------------------
   # _path_strip_fnm
@@ -56,23 +58,18 @@ zsh_rebuild_path() {
   # entries in the cache key or value would either invalidate the cache for
   # every new shell, or pollute a new shell with a stale fnm directory.
   # @arg $1 string Colon-separated PATH-like string.
-  # @stdout The filtered, colon-separated string.
+  # @set REPLY string The filtered, colon-separated string.
   # ---------------------------------------------------------------------------
   _path_strip_fnm() {
-    local input="$1"
-    local -a parts kept
-    local part
-    parts=("${(@s/:/)input}")
-    for part in "${parts[@]}"; do
-      [[ -z "$part" || "$part" == *fnm_multishells* ]] && continue
-      kept+=("$part")
-    done
-    print -r -- "${(j/:/)kept}"
+    local -a parts=("${(@s/:/)1}")
+    parts=("${(@)parts:#}")
+    REPLY="${(j/:/)${(@)parts:#*fnm_multishells*}}"
   }
 
   # Use a stable, FNM-free view of the inherited PATH for the cache signature.
   local stable_original_path
-  stable_original_path="$(_path_strip_fnm "$original_path")"
+  _path_strip_fnm "$original_path"
+  stable_original_path="$REPLY"
 
   local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
   local cache_file="$cache_dir/path.cache"
@@ -84,23 +81,37 @@ zsh_rebuild_path() {
   cache_signature+="|${PYENV_ROOT}|${SDKMAN_DIR}"
   cache_signature+="|${GOPATH}|${ANDROID_HOME}"
   cache_signature+="|${FNM_DIR}|${NPM_CONFIG_PREFIX}"
+  # The template below is part of the key too: its resolved file changes
+  # with every Home Manager generation, its mtime with every checkout edit.
+  local module="${functions_source[zsh_rebuild_path]-}"
+  if [[ -n "$module" ]] && _zsh_mtime "$module"; then
+    cache_signature+="|${module:A}:${REPLY}"
+  fi
 
-  # A 24-hour TTL makes newly installed template directories visible without
-  # requiring a manual `zshfix`, while the signature handles env changes.
-  if _zsh_cache_is_fresh "$cache_file" 86400; then
-    local cached_signature cached_path
-    {
-      IFS= read -r cached_signature
-      IFS= read -r cached_path
-    } < "$cache_file"
-
-    if [[ "$cached_signature" == "$cache_signature" && -n "$cached_path" ]]; then
+  # The cache holds a few entries, one per input PATH: this function runs at
+  # startup and again from fnm's lazy init (80-languages.zsh) with the PATH
+  # the first run produced, and a single entry made each run evict the
+  # other's, so startup never hit. Each entry is an epoch/signature/PATH
+  # triple with its own 24-hour TTL, which makes newly installed template
+  # directories visible without a manual `zshfix`; the signature handles
+  # env changes.
+  local -a kept_entries=()
+  local entry_stamp entry_signature entry_path
+  if _zsh_is_secure_file "$cache_file"; then
+    while IFS= read -r entry_stamp && IFS= read -r entry_signature &&
+        IFS= read -r entry_path; do
+      [[ "$entry_stamp" == <-> ]] || break
+      (( ${EPOCHSECONDS:-0} - entry_stamp < 86400 )) || continue
+      if [[ "$entry_signature" != "$cache_signature" || -z "$entry_path" ]]; then
+        kept_entries+=("$entry_stamp" "$entry_signature" "$entry_path")
+        continue
+      fi
       # Defensive: drop any FNM entry that slipped into the cached blob, then
       # prepend the current shell's FNM dir so node/npm/etc. resolve to the
       # right multishell session.
-      local final_path="$cached_path"
+      local final_path="$entry_path"
       case "$final_path" in
-        *fnm_multishells*) final_path="$(_path_strip_fnm "$final_path")" ;;
+        *fnm_multishells*) _path_strip_fnm "$final_path"; final_path="$REPLY" ;;
       esac
       if [[ -n "$FNM_MULTISHELL_PATH" && -d "$FNM_MULTISHELL_PATH/bin" ]]; then
         final_path="$FNM_MULTISHELL_PATH/bin:$final_path"
@@ -109,7 +120,7 @@ zsh_rebuild_path() {
       typeset -gU PATH fpath manpath
       unset -f _path_strip_fnm
       return 0
-    fi
+    done < "$cache_file"
   fi
 
   # Define the desired final order of directories in the PATH. FNM's default
@@ -325,8 +336,7 @@ zsh_rebuild_path() {
   done
 
   # Convert array to PATH string.
-  local IFS=':'
-  export PATH="${new_path_array[*]}"
+  export PATH="${(j/:/)new_path_array}"
 
   # Cleanup helper.
   unset -f _add_to_path
@@ -335,14 +345,15 @@ zsh_rebuild_path() {
   # by the logic above, but -gU ensures it stays unique globally.
   typeset -gU PATH fpath manpath
 
-  # Persist a FNM-free PATH for shells with a different FNM_MULTISHELL_PATH.
+  # Persist a FNM-free PATH so shells with a different FNM_MULTISHELL_PATH
   # can reuse this cache. The current shell's FNM dir was already added to the
   # live $PATH above; on cache hit, the next shell re-prepends its own.
-  local cacheable_path
-  cacheable_path="$(_path_strip_fnm "$PATH")"
+  _path_strip_fnm "$PATH"
   {
+    print -r -- "${EPOCHSECONDS:-0}"
     print -r -- "$cache_signature"
-    print -r -- "$cacheable_path"
+    print -r -- "$REPLY"
+    (( ${#kept_entries} )) && print -rl -- "${(@)kept_entries[1,9]}"
   } | _zsh_cache_put "$cache_file" 2>/dev/null
 
   unset -f _path_strip_fnm

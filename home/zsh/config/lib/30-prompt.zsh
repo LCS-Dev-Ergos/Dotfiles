@@ -18,7 +18,8 @@
 #   4. Minimal       - Basic fallback (always works).
 #
 # Features:
-#   - Transient prompt support (Starship) using Powerlevel10k technique.
+#   - Transient prompt support (Starship) using Powerlevel10k technique; its
+#     chevron keeps the exit-status color the full prompt showed.
 #   - Consistent newline spacing between prompts.
 #   - Ctrl+C handling.
 #   - Platform-aware initialization.
@@ -45,6 +46,27 @@ setopt PROMPT_SUBST
 # ++++++++++++++++++++++++++++++++ STARSHIP +++++++++++++++++++++++++++++++++ #
 
 # -----------------------------------------------------------------------------
+# _zsh_starship_init_filter
+# @internal
+# @description Rewrites Starship's eager `PROMPT2="$(starship prompt
+# --continuation)"` into a single-quoted PROMPT2, so PROMPT_SUBST runs the
+# same command only when a continuation line is drawn instead of forking
+# Starship on every startup. Unrecognized lines are left untouched.
+# @noargs
+# @set REPLY string The filtered init script.
+# -----------------------------------------------------------------------------
+_zsh_starship_init_filter() {
+  local -a lines=("${(@f)REPLY}")
+  local -i i
+  for (( i = 1; i <= ${#lines}; i++ )); do
+    if [[ "${lines[i]}" == 'PROMPT2="$('*')"' && "${lines[i]}" != *\'* ]]; then
+      lines[i]="PROMPT2='${${lines[i]#PROMPT2=\"}%\"}'"
+    fi
+  done
+  REPLY="${(F)lines}"
+}
+
+# -----------------------------------------------------------------------------
 # _zsh_load_starship_init
 # @internal
 # @description Loads cached Starship init code when it belongs to the selected
@@ -53,42 +75,20 @@ setopt PROMPT_SUBST
 # @exitcode 1 If Starship initialization or cache evaluation fails.
 # -----------------------------------------------------------------------------
 _zsh_load_starship_init() {
-  local starship_bin="$1"
-  [[ -n "$starship_bin" && -x "$starship_bin" ]] || return 1
-
-  local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
-  local cache_file="$cache_dir/starship-init.zsh"
-  local cache_header="# starship-bin: $starship_bin"
-  local cached_header=""
-  if _zsh_cache_is_fresh "$cache_file"; then
-    IFS= read -r cached_header < "$cache_file"
-  fi
-
-  if [[ "$cached_header" == "$cache_header" &&
-        "$cache_file" -nt "$starship_bin" ]]; then
-    source "$cache_file"
-    return $?
-  fi
-
-  local init_code
-  init_code="$("$starship_bin" init zsh)" || {
-    print "Warning: Starship init failed" >&2
+  _zsh_cached_init -f _zsh_starship_init_filter starship "$1" init zsh || {
+    print -u2 "Warning: Starship init failed"
     return 1
   }
-  eval "$init_code" || return 1
-  {
-    print -r -- "$cache_header"
-    print -r -- "$init_code"
-  } | _zsh_cache_put "$cache_file" 2>/dev/null
 }
 
 # -----------------------------------------------------------------------------
 # _init_starship_prompt
 # @internal
 # @description Initializes Starship with the transient-prompt technique (same
-# as Powerlevel10k): on Enter, apply the transient prompt and open a zle -F
-# callback on /dev/null; once the fd is readable after the command runs, the
-# callback restores the full prompt before precmd fires.
+# as Powerlevel10k): on Enter, the accepted line's prompt collapses to the
+# transient one; _tp_precmd puts the full prompt back before the next one is
+# drawn. A zle -F callback on /dev/null is the fallback for a line that ends
+# without a new prompt cycle.
 # @noargs
 # @exitcode 1 If Starship is unavailable or initialization fails.
 # -----------------------------------------------------------------------------
@@ -118,8 +118,11 @@ _init_starship_prompt() {
   typeset -gi _tp_enabled=1
 
   # Transient prompt string (minimal version shown for past commands).
-  # Format: truncated path + green chevron.
-  typeset -g _tp_transient='%B%F{cyan}%(4~|…/%2~|%~)%f%b %B%F{green}❯%f%b '
+  # Format: truncated path + chevron, green or red like Starship's character
+  # for the status the full prompt was drawn with. The color comes from
+  # _tp_precmd: by the time a line is accepted, $? no longer holds it.
+  typeset -g _tp_char_color=green
+  typeset -g _tp_transient='%B%F{cyan}%(4~|…/%2~|%~)%f%b %B%F{${_tp_char_color}}❯%f%b '
 
   # Store original prompts from Starship.
   typeset -g _tp_prompt_orig="$PROMPT"
@@ -197,8 +200,12 @@ _init_starship_prompt() {
   # ---------------------------------------------------------------------------
   # _tp_restore_prompt
   # @internal
-  # @description Closes the one-shot file descriptor and restores the full
-  # Starship prompt after a command finishes.
+  # @description Closes the one-shot file descriptor and, when the transient
+  # prompt is still in place, restores the full Starship prompt. Normally
+  # _tp_precmd has restored it already: the callback only fires once the next
+  # line editor is waiting for input, after that prompt was drawn, so doing
+  # the restore here drew each new prompt twice (transient first, then full,
+  # with Starship rendered by the second draw).
   # @arg $1 integer File descriptor passed by the zle -F callback.
   # ---------------------------------------------------------------------------
   _tp_restore_prompt() {
@@ -208,7 +215,7 @@ _init_starship_prompt() {
     zle -F $fd
     _tp_fd=0
 
-    # Restore full prompt.
+    [[ "$PROMPT" == "$_tp_transient" ]] || return 0
     _tp_set_prompt
 
     # Refresh if in line editor context.
@@ -236,8 +243,9 @@ _init_starship_prompt() {
   # @arg $1 string Command line about to execute.
   # ---------------------------------------------------------------------------
   _tp_preexec() {
-    # Extract first word of command
-    local cmd="${1%% *}"
+    # First shell word of the command line; (z) also copes with leading
+    # blanks and `clear;ls`.
+    local cmd="${${(z)1}[1]}"
     case "$cmd" in
       clear|cls|reset|c) _tp_skip_newline=1 ;;
     esac
@@ -254,12 +262,16 @@ _init_starship_prompt() {
   # ---------------------------------------------------------------------------
   # _tp_precmd
   # @internal
-  # @description Sets _tp_newline before each prompt. On its first call it
-  # redefines itself (and TRAPINT) so the very first prompt skips the leading
-  # newline, while later calls apply the normal skip-on-clear newline logic.
+  # @description Sets _tp_newline and the transient chevron color before each
+  # prompt and puts the full prompt back in place of the transient one. On
+  # its first call it redefines itself (and TRAPINT) so the very first prompt
+  # skips the leading newline, while later calls apply the normal
+  # skip-on-clear newline logic.
   # @noargs
   # ---------------------------------------------------------------------------
   _tp_precmd() {
+    # Every precmd hook still sees the finished command's status.
+    (( $? )) && _tp_char_color=red || _tp_char_color=green
     TRAPINT() {
       zle && _tp_zle_line_finish
       return $(( 128 + $1 ))
@@ -267,6 +279,7 @@ _init_starship_prompt() {
 
     # After first run, redefine with newline logic.
     _tp_precmd() {
+      (( $? )) && _tp_char_color=red || _tp_char_color=green
       TRAPINT() {
         zle && _tp_zle_line_finish
         return $(( 128 + $1 ))
@@ -278,6 +291,7 @@ _init_starship_prompt() {
       else
         _tp_newline=$'\n'
       fi
+      _tp_set_prompt
     }
   }
 
