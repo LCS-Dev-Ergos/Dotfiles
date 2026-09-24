@@ -49,19 +49,29 @@ Choose the output class before choosing its presentation:
    does not own.
 
 The shared layer honors `ZSH_UI_STYLE=auto|plain|ansi|gum` and `NO_COLOR`.
-Every Gum presentation must have a native plain/ANSI fallback. Use
-`_zsh_ui_log` for individual status lines, `_zsh_ui_section` for lightweight
-labels, `_zsh_ui_card` for compact summaries, `_zsh_ui_table` for structured
-rows, `_zsh_ui_confirm` for destructive choices, and `_zsh_ui_spinner` only
-when hiding command output is acceptable.
+Use `_zsh_ui_log` for individual status lines, `_zsh_ui_heading` for a
+command's title banner, `_zsh_ui_section` for lightweight labels (a
+` · detail` suffix renders as secondary text), `_zsh_ui_card` for compact
+summaries (`key<TAB>value` lines become an aligned list), `_zsh_ui_table` for
+structured rows (`--align` for numeric columns, `--status` for state columns),
+`_zsh_ui_confirm` for destructive choices, and `_zsh_ui_spinner` only when
+hiding command output is acceptable. `_zsh_ui_short_path` gives the display
+form of a path: `~` for the home directory and short Nix store hashes in styled
+output, the full path in plain output.
 
-Logs and table fields escape terminal control characters centrally. Sanitize
-untrusted filesystem or network text with `_zsh_ui_sanitize_text` before using
-it in cards or headings, which may intentionally contain presentation codes.
+Static output is drawn by the shell in every mode, with the terminal's ANSI
+colors and the same geometry as cpp-tools: a `════──────` banner for titles,
+rounded frames for tables and cards. Styled tables fit the terminal width by
+shortening their widest cells; plain output is never truncated, so captured
+reports stay complete. Gum is reserved for confirmations and spinners, the
+two places where it does something a prompt string cannot; never spawn it
+for static output, per row, per file, or per log line.
 
-Gum is a coarse-grained renderer, not a logging framework. Spawn it at most
-once per cohesive heading, card, table, confirmation, or spinner; never once
-per row, file, or log line. Nushell is not a presentation dependency.
+Logs, headings, sections, table fields, and card titles escape terminal
+control characters centrally. Sanitize untrusted filesystem or network text
+with `_zsh_ui_sanitize_text` before placing it in card body lines, which may
+intentionally contain presentation codes. Nushell is not a presentation
+dependency.
 
 Help output and data output must remain useful when redirected. Commands with
 informational chatter should provide `--quiet`; quiet mode must suppress
@@ -70,7 +80,8 @@ wrapper headings and preflight notices as well as backend progress.
 ## Validation
 
 Add focused regression coverage for argument validation, exit status, state
-changes, plain fallback output, and the Gum process budget where relevant.
+changes, plain fallback output, and the absence of Gum processes for static
+output where relevant.
 Create fixtures with `mktemp`, a private `umask`, checked allocation, and exact
 cleanup targets. State-changing functions should reject symlink destinations
 when appropriate and publish files through secure sibling temporaries.

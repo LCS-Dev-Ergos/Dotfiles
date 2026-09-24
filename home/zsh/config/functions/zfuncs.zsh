@@ -285,41 +285,22 @@ function zfuncs() {
     _zfuncs_resolve_status "$target" "${sources[$target]}"
     local display_status="$REPLY"
 
-    if [[ "$visual_style" == gum ]]; then
+    if [[ "$visual_style" != plain ]]; then
+      local tab=$'\t'
       local -a info_lines=(
-        "Usage     ${usages[$target]:-(not documented)}"
-        "Category  ${categories[$target]}"
-        "Status    $display_status"
-        "Source    ${display_source}:${source_lines[$target]}"
+        "$display_summary"
+        ""
+        "Usage${tab}${usages[$target]:-(not documented)}"
+        "Category${tab}${categories[$target]}"
+        "Status${tab}$display_status"
+        "Source${tab}${display_source}:${source_lines[$target]}"
       )
       [[ -z "${details[$target]-}" ]] ||
-        info_lines+=("Details   ${details[$target]}")
+        info_lines+=("Details${tab}${details[$target]}")
       [[ -z "${duplicates[$target]-}" ]] ||
-        info_lines+=("Conflict  ${duplicates[$target]}")
+        info_lines+=("Conflict${tab}${duplicates[$target]}")
 
-      _zsh_ui_card "$target — $display_summary" "" "${info_lines[@]}"
-      return $?
-    fi
-
-    if [[ "$visual_style" == ansi ]]; then
-      _zsh_ui_set_palette "$visual_style"
-      local -a styled_info_lines=(
-        "${_ZSH_UI_INFO}Usage${_ZSH_UI_RESET}     "\
-"${usages[$target]:-(not documented)}"
-        "${_ZSH_UI_INFO}Category${_ZSH_UI_RESET}  ${categories[$target]}"
-        "${_ZSH_UI_INFO}Status${_ZSH_UI_RESET}    $display_status"
-        "${_ZSH_UI_INFO}Source${_ZSH_UI_RESET}    "\
-"${_ZSH_UI_MUTED}${display_source}:${source_lines[$target]}"\
-"${_ZSH_UI_RESET}"
-      )
-      [[ -z "${details[$target]-}" ]] ||
-        styled_info_lines+=(
-          "${_ZSH_UI_INFO}Details${_ZSH_UI_RESET}   ${details[$target]}")
-      [[ -z "${duplicates[$target]-}" ]] ||
-        styled_info_lines+=(
-          "${_ZSH_UI_INFO}Conflict${_ZSH_UI_RESET}  ${duplicates[$target]}")
-      _zsh_ui_card "$target — $display_summary" "" \
-        "${styled_info_lines[@]}"
+      _zsh_ui_card "$target" "${info_lines[@]}"
       return $?
     fi
 
@@ -432,10 +413,11 @@ function zfuncs() {
     name_color="$_ZSH_UI_INFO"
     muted=$'\e[38;5;252m'
   else
+    # The styled heading is already a rule; plain output draws its own.
     print -r -- "$title"
     print -r -- "$subtitle"
+    _zsh_ui_rule
   fi
-  _zsh_ui_rule
   print -r -- ""
 
   for current_category in "${category_names[@]}"; do

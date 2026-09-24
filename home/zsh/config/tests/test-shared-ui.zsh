@@ -5,8 +5,10 @@
 # ============================================================================ #
 # Verifies the shared UI helpers in scripts/_shared-helpers.zsh: mode
 # resolution (plain/ansi/gum, NO_COLOR override, invalid mode rejection),
-# ANSI accent colors, the Gum process budget per call, and the safe-by-default
-# non-interactive confirm.
+# the native heading/section/card/table renderers (no Gum process for static
+# output, width fitting, status colors, plain capture layout), path display
+# shortening, the function spinner contract, and the safe non-interactive
+# confirm.
 # ============================================================================ #
 
 emulate -L zsh
@@ -29,16 +31,6 @@ cat > "$fixture_root/bin/gum" <<'EOF'
 #!/bin/sh
 printf 'call\n' >> "$GUM_CALL_LOG"
 printf '%s\n' "$*" >> "$GUM_ARG_LOG"
-if [ "${GUM_FAIL:-0}" = 1 ]; then
-  if [ "$1" = table ]; then
-    cat >/dev/null
-  fi
-  exit 1
-fi
-if [ "$1" = table ]; then
-  cat
-  exit 0
-fi
 for argument do
   last_argument=$argument
 done
@@ -71,27 +63,53 @@ if _zsh_ui_mode invalid >/dev/null 2>&1; then
   return 1
 fi
 
+_ui_gum_calls() {
+  if [[ -s "$GUM_CALL_LOG" ]]; then
+    command wc -l < "$GUM_CALL_LOG" | command tr -d ' '
+  else
+    print -r -- 0
+  fi
+}
+
+_ui_strip() {
+  emulate -L zsh
+  setopt localoptions extendedglob
+  REPLY="${1//$'\e'\[[0-9;]#m/}"
+}
+
 typeset ansi_heading
 ansi_heading="$(ZSH_UI_STYLE=ansi _zsh_ui_heading Title Subtitle)" || return 1
-[[ "$ansi_heading" == *$'\e[1;38;5;212mTitle'* ]] || {
-  print -u2 "FAIL: ANSI heading did not use the shared accent"
+[[ "$ansi_heading" == *$'\e[1;36mTitle'* &&
+   "$ansi_heading" == *'════──────'* &&
+   "$ansi_heading" == *Subtitle* ]] || {
+  print -u2 "FAIL: ANSI heading did not draw the shared title banner"
   return 1
 }
 
+typeset plain_heading
+plain_heading="$(ZSH_UI_STYLE=plain _zsh_ui_heading Title Subtitle)" || return 1
+[[ "$plain_heading" == $'Title\nSubtitle' ]] || {
+  print -u2 "FAIL: plain heading is no longer two bare lines"
+  return 1
+}
+
+# Static output is drawn natively in every mode; Gum is reserved for prompts
+# and spinners, so none of these may start a process.
 ZSH_UI_STYLE=gum _zsh_ui_heading Title Subtitle >/dev/null
-[[ "$(wc -l < "$GUM_CALL_LOG" | tr -d ' ')" == 1 ]] || {
-  print -u2 "FAIL: shared heading did not use exactly one Gum process"
-  return 1
-}
-
 typeset gum_section
-gum_section="$(ZSH_UI_STYLE=gum _zsh_ui_section Section)" || return 1
-[[ "$gum_section" == *$'\e[1;38;5;75mSection'* ]] || {
-  print -u2 "FAIL: Gum mode section did not retain native ANSI color"
+gum_section="$(ZSH_UI_STYLE=gum _zsh_ui_section 'Section · 3')" || return 1
+[[ "$gum_section" == *$'\e[1;34mSection'* &&
+   "$gum_section" == *' · 3'* ]] || {
+  print -u2 "FAIL: styled section lost its label or secondary detail"
   return 1
 }
-[[ "$(wc -l < "$GUM_CALL_LOG" | tr -d ' ')" == 1 ]] || {
-  print -u2 "FAIL: a per-section Gum process was spawned"
+ZSH_UI_STYLE=gum _zsh_ui_subsection Section 80 >/dev/null
+ZSH_UI_STYLE=gum _zsh_ui_card Card "" $'Field\tvalue' >/dev/null
+ZSH_UI_STYLE=gum _zsh_ui_table $'Name\tValue' $'alpha\t1' >/dev/null
+ZSH_UI_STYLE=gum _zsh_ui_definition_list $'term\tdescription' >/dev/null
+ZSH_UI_STYLE=gum _shared_banner Banner Subtitle >/dev/null
+[[ "$(_ui_gum_calls)" == 0 ]] || {
+  print -u2 "FAIL: static output spawned a Gum process"
   return 1
 }
 
@@ -103,15 +121,33 @@ plain_subsection="$(ZSH_UI_STYLE=plain _zsh_ui_subsection Section 80)" ||
   return 1
 }
 
-ZSH_UI_STYLE=gum _zsh_ui_subsection Section 80 >/dev/null
-[[ "$(wc -l < "$GUM_CALL_LOG" | tr -d ' ')" == 1 ]] || {
-  print -u2 "FAIL: shared subsection spawned a Gum process"
+typeset plain_card
+plain_card="$(
+  ZSH_UI_STYLE=plain _zsh_ui_card Card $'Short\tone' $'Longer key\ttwo'
+)" || return 1
+[[ "$plain_card" == $'Card\n\nShort       one\nLonger key  two' ]] || {
+  print -u2 "FAIL: plain card did not align its key/value lines"
   return 1
 }
 
-ZSH_UI_STYLE=gum _zsh_ui_card Card "" "Field  value" >/dev/null
-[[ "$(wc -l < "$GUM_CALL_LOG" | tr -d ' ')" == 2 ]] || {
-  print -u2 "FAIL: shared card did not use exactly one Gum process"
+typeset styled_card
+styled_card="$(
+  COLUMNS=44 ZSH_UI_STYLE=ansi _zsh_ui_card Card \
+    $'Key\tvalue that is long enough to wrap inside the narrow card'
+)" || return 1
+typeset -a card_lines=("${(@f)styled_card}")
+typeset card_line
+typeset -i card_width=0
+for card_line in "${card_lines[@]}"; do
+  _ui_strip "$card_line"
+  (( card_width == 0 )) && card_width=${(m)#REPLY}
+  (( ${(m)#REPLY} == card_width && card_width <= 44 )) || {
+    print -u2 "FAIL: styled card is ragged or wider than the terminal"
+    return 1
+  }
+done
+(( ${#card_lines} > 3 )) || {
+  print -u2 "FAIL: styled card did not wrap a long value"
   return 1
 }
 
@@ -120,51 +156,62 @@ plain_table="$(
   ZSH_UI_STYLE=plain _zsh_ui_table \
     $'Name\tValue' $'alpha\t1' $'longer\t2'
 )" || return 1
-[[ "$plain_table" == *'Name'*'Value'*'longer'*'2'* ]] || {
-  print -u2 "FAIL: native table fallback lost headers or rows"
+[[ "$plain_table" == $'Name    Value\nalpha   1\nlonger  2' ]] || {
+  print -u2 "FAIL: plain table layout changed"
   return 1
 }
 
-typeset gum_table
-gum_table="$(
-  ZSH_UI_STYLE=gum _zsh_ui_table $'Name\tValue' $'alpha\t1'
+typeset aligned_table
+aligned_table="$(
+  ZSH_UI_STYLE=plain _zsh_ui_table --align lr \
+    $'Name\tSize' $'alpha\t1 KB' $'beta\t120 KB'
 )" || return 1
-[[ "$gum_table" == *$'alpha\t1'* ]] || {
-  print -u2 "FAIL: Gum table did not receive its row data"
-  return 1
-}
-[[ "$(wc -l < "$GUM_CALL_LOG" | tr -d ' ')" == 3 ]] || {
-  print -u2 "FAIL: shared table did not use exactly one Gum process"
+[[ "$aligned_table" == $'Name     Size\nalpha    1 KB\nbeta   120 KB' ]] || {
+  print -u2 "FAIL: right-aligned column was not padded on the left"
   return 1
 }
 
-typeset plain_definitions
-plain_definitions="$(
+typeset styled_table
+styled_table="$(
+  ZSH_UI_STYLE=ansi _zsh_ui_table --status 2 \
+    $'Name\tState' $'alpha\tOK' $'beta\tbroken' $'gamma\t-'
+)" || return 1
+[[ "$styled_table" == *'╭'*'╯'* &&
+   "$styled_table" == *$'\e[1;34mName'* &&
+   "$styled_table" == *$'\e[1;32mOK'* &&
+   "$styled_table" == *$'\e[1;31mbroken'* &&
+   "$styled_table" == *$'\e[38;5;245m-'* ]] || {
+  print -u2 "FAIL: styled table lost its frame, header, or status colors"
+  return 1
+}
+
+# A table wider than the terminal gives up space from its widest column and
+# keeps both ends of a path.
+typeset fitted_table
+fitted_table="$(
+  COLUMNS=40 ZSH_UI_STYLE=ansi _zsh_ui_table $'Name\tPath' \
+    $'tool\t/very/long/directory/that/cannot/fit/in/forty/columns/bin/tool'
+)" || return 1
+typeset table_line
+for table_line in "${(@f)fitted_table}"; do
+  _ui_strip "$table_line"
+  (( ${(m)#REPLY} <= 40 )) || {
+    print -u2 "FAIL: styled table overflowed a 40-column terminal"
+    return 1
+  }
+done
+[[ "$fitted_table" == *'/very/'*'…'*'/bin/tool'* ]] || {
+  print -u2 "FAIL: path cell was not shortened in the middle"
+  return 1
+}
+
+typeset definitions
+definitions="$(
   ZSH_UI_STYLE=plain _zsh_ui_definition_list \
     $'short\tOne' $'longer-term\tTwo'
 )" || return 1
-[[ "$plain_definitions" == $'  short        One\n  longer-term  Two' ]] || {
+[[ "$definitions" == $'  short        One\n  longer-term  Two' ]] || {
   print -u2 "FAIL: shared definition list did not align its descriptions"
-  return 1
-}
-
-ZSH_UI_STYLE=gum _zsh_ui_definition_list $'term\tdescription' >/dev/null
-[[ "$(wc -l < "$GUM_CALL_LOG" | tr -d ' ')" == 3 ]] || {
-  print -u2 "FAIL: shared definition list spawned a Gum process"
-  return 1
-}
-
-typeset failed_gum_table
-failed_gum_table="$(
-  GUM_FAIL=1 ZSH_UI_STYLE=gum _zsh_ui_table \
-    $'Name\tValue' $'fallback\tworks'
-)" || return 1
-[[ "$failed_gum_table" == *'Name'*'Value'*'fallback'*'works'* ]] || {
-  print -u2 "FAIL: failed Gum table did not use the native fallback"
-  return 1
-}
-[[ "$(wc -l < "$GUM_CALL_LOG" | tr -d ' ')" == 4 ]] || {
-  print -u2 "FAIL: failed Gum table spawned an unexpected process count"
   return 1
 }
 
@@ -179,9 +226,12 @@ unsafe_table="$(
   return 1
 }
 
-ZSH_UI_STYLE=gum _shared_banner Banner Subtitle >/dev/null
-[[ "$(wc -l < "$GUM_CALL_LOG" | tr -d ' ')" == 5 ]] || {
-  print -u2 "FAIL: compatibility banner exceeded its Gum process budget"
+typeset unsafe_styled
+unsafe_styled="$(
+  ZSH_UI_STYLE=ansi _zsh_ui_table $'Name\tValue' $'unsafe\tline\e[2J'
+)" || return 1
+[[ "$unsafe_styled" != *$'\e[2J'* ]] || {
+  print -u2 "FAIL: styled table passed a control sequence through"
   return 1
 }
 
@@ -212,8 +262,23 @@ wide_rule="$(ZSH_UI_STYLE=plain _zsh_ui_rule - 160)" || return 1
 typeset styled_rule
 styled_rule="$(NO_COLOR= ZSH_UI_STYLE=ansi _zsh_ui_rule "" 40)" ||
   return 1
-[[ "$styled_rule" == "${(pl:40::─:)}" ]] || {
+_ui_strip "$styled_rule"
+[[ "$REPLY" == "${(pl:40::─:)}" ]] || {
   print -u2 "FAIL: default styled rule did not match the zfuncs divider"
+  return 1
+}
+
+typeset short_path
+HOME=/home/tester ZSH_UI_STYLE=ansi \
+  _zsh_ui_short_path "/home/tester/bin → /nix/store/abcdefghijklmnopqrstuvwxyz012345-cc/bin/cc"
+short_path="$REPLY"
+[[ "$short_path" == "~/bin → /nix/store/abcdefg…-cc/bin/cc" ]] || {
+  print -u2 "FAIL: styled path shortening changed: $short_path"
+  return 1
+}
+ZSH_UI_STYLE=plain _zsh_ui_short_path "/nix/store/abcdefghijklmnopqrstuvwxyz012345-cc"
+[[ "$REPLY" == "/nix/store/abcdefghijklmnopqrstuvwxyz012345-cc" ]] || {
+  print -u2 "FAIL: plain output shortened a path"
   return 1
 }
 
@@ -221,32 +286,6 @@ if ZSH_UI_STYLE=plain _zsh_ui_confirm "Continue?" </dev/null 2>/dev/null; then
   print -u2 "FAIL: non-interactive confirmation did not fail safely"
   return 1
 fi
-
-# ++++++++++++++++++++++++++ GUM TABLE REGRESSIONS +++++++++++++++++++++++++++ #
-
-# The row join needs the p flag. Without it the rows were joined by the literal
-# characters "\" and "n", Gum saw a single malformed record, and every table
-# with more than one row silently fell back to the native renderer.
-typeset multi_row_table
-multi_row_table="$(
-  ZSH_UI_STYLE=gum _zsh_ui_table \
-    $'Name\tValue' $'alpha\t1' $'beta\t2' $'gamma\t3'
-)" || return 1
-[[ "$multi_row_table" == $'alpha\t1\nbeta\t2\ngamma\t3' ]] || {
-  print -u2 "FAIL: multi-row table rows were not passed to Gum as separate lines"
-  return 1
-}
-
-typeset table_args
-table_args="$(command grep -m1 '^table ' "$GUM_ARG_LOG" || true)"
-[[ "$table_args" == *--lazy-quotes* ]] || {
-  print -u2 "FAIL: Gum table did not tolerate quotes in cell data"
-  return 1
-}
-[[ "$table_args" != *--header.foreground* ]] || {
-  print -u2 "FAIL: Gum 2.0 applies --header.foreground to the first data row"
-  return 1
-}
 
 # +++++++++++++++++++++++ FUNCTION SPINNER CONTRACT ++++++++++++++++++++++++++ #
 
@@ -259,7 +298,7 @@ _ui_spin_worker() {
 # and the label must not contaminate the captured standard output.
 typeset spin_calls_before spin_output
 typeset -i spin_status=0
-spin_calls_before="$(wc -l < "$GUM_CALL_LOG" | tr -d ' ')"
+spin_calls_before="$(_ui_gum_calls)"
 spin_output="$(
   ZSH_UI_STYLE=gum _zsh_ui_spinner_fn "Working" _ui_spin_worker 2>/dev/null
 )" || spin_status=$?
@@ -271,7 +310,7 @@ spin_output="$(
   print -u2 "FAIL: function spinner lost the worker exit status, got $spin_status"
   return 1
 }
-[[ "$(wc -l < "$GUM_CALL_LOG" | tr -d ' ')" == "$spin_calls_before" ]] || {
+[[ "$(_ui_gum_calls)" == "$spin_calls_before" ]] || {
   print -u2 "FAIL: function spinner spawned Gum with no terminal to draw on"
   return 1
 }
@@ -306,7 +345,7 @@ if zmodload zsh/zpty 2>/dev/null; then
   }
 fi
 
-print -r -- "PASS: shared UI modes, Gum budget, and safe fallback"
+print -r -- "PASS: shared UI modes, native rendering, and safe fallback"
 
 # ============================================================================ #
 # End of tests/test-shared-ui.zsh

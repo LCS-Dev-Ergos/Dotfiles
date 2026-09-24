@@ -222,12 +222,12 @@ _test_contains "$default_output" '200.0 KB' \
   "default report changed pkg-large's allocated size"
 _test_contains "$default_output" "caskA" \
   "default report omitted the canonical cask"
-_test_contains "$default_output" "Formulae: 2 ($expected_formula_human)" \
+_test_contains "$default_output" "Formulae  2 · $expected_formula_human" \
   "formula subtotal followed an external symlink"
-_test_contains "$default_output" "Casks:    1 ($expected_cask_human)" \
+_test_contains "$default_output" "Casks     1 · $expected_cask_human" \
   "canonical cask alias was counted separately"
 _test_contains "$default_output" \
-  "Total:    3 packages ($expected_total_human)" "grand total is wrong"
+  "Total     3 packages · $expected_total_human" "grand total is wrong"
 [[ "$default_output" != *cask-old* && "$default_output" != *package_name=* ]] || {
   print -u2 "FAIL: report leaked an alias or local declaration"
   return 1
@@ -273,7 +273,7 @@ done
 }
 typeset top_output="$(brew_stats --top 1)"
 _test_contains "$top_output" \
-  "Total:    3 packages ($expected_total_human)" \
+  "Total     3 packages · $expected_total_human" \
   "--top narrowed the summary totals"
 typeset quiet_output="$(brew_stats -q)"
 [[ "$quiet_output" != *'Homebrew disk usage'* ]] || {

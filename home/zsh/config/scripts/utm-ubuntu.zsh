@@ -97,7 +97,9 @@ _utm_usage() {
         "UTM UBUNTU" \
         "Start the VM, wait for SSH, and mount its shared directory" ||
         return 1
-    _zsh_ui_rule || return 1
+    # The styled heading is already a rule; plain output draws its own.
+    _zsh_ui_resolve_mode || return 1
+    [[ "$REPLY" != plain ]] || _zsh_ui_rule || return 1
     print -r -- ""
 
     _zsh_ui_subsection "USAGE" || return 1

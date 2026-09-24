@@ -17,7 +17,7 @@
 #  - Symlink resolution to identify real compiler binaries
 #  - ccache wrapper detection with fallback resolution
 #  - Masquerading warnings (gcc pointing to clang, etc.)
-#  - Shared Gum/ANSI/plain presentation
+#  - Shared styled/plain presentation
 #  - Environment variable override display (CC, CXX)
 #  - Debug mode for detailed path resolution information
 #
@@ -398,7 +398,14 @@ get_toolchain_info() {
       fi
 
       local toolchain="${real_vendor:+$real_vendor }$real_type"
-      rows+=("$compiler"$'\t'"$compiler_status"$'\t'"$toolchain"$'\t'"$real_version"$'\t'"$resolution")
+      # The Toolchain column already names the vendor, so the version column
+      # only needs the number; the full banner stays in the debug table.
+      local display_version="$real_version"
+      [[ "$real_version" =~ '[0-9]+\.[0-9]+(\.[0-9]+)?' ]] &&
+        display_version="$MATCH"
+      _zsh_ui_short_path "$resolution"
+      resolution="$REPLY"
+      rows+=("$compiler"$'\t'"$compiler_status"$'\t'"$toolchain"$'\t'"$display_version"$'\t'"$resolution")
       available=$(( available + 1 ))
       if [[ "${TOOLCHAIN_INFO_DEBUG:-0}" != "0" ]]; then
         debug_rows+=(
@@ -412,8 +419,8 @@ get_toolchain_info() {
   done
 
   print -r -- ""
-  _zsh_ui_section "Compilers in PATH" || return 1
-  _zsh_ui_table \
+  _zsh_ui_section "Compilers in PATH · ${#rows}" || return 1
+  _zsh_ui_table --status 2 \
     $'Compiler\tStatus\tToolchain\tVersion\tResolution' \
     "${rows[@]}" || return 1
 
@@ -617,10 +624,10 @@ get_toolchain_sdk_support() {
       rows+=("$header"$'\t'"$active_state"$'\t'"$system_state"$'\t'"$purpose"$'\t'"$hint")
     done
 
-    print -r -- ""
     if (( ${#rows} )); then
+      print -r -- ""
       _zsh_ui_section "Libraries" || return 1
-      _zsh_ui_table \
+      _zsh_ui_table --status 2,3 \
         $'Header\tActive\tSystem\tUsed by\tHomebrew alternative' "${rows[@]}" || return 1
     fi
 
