@@ -22,7 +22,7 @@ This configuration provides:
 
 - **High Performance**: Optimized repaint and input delays for smooth operation
 - **Modern UI**: Semi-transparent background with native macOS rounded corners
-- **Advanced Layouts**: 6 different window layouts for multitasking
+- **Advanced Layouts**: 7 window layouts, splits by default
 - **Powerful Hints**: URL, path, and text extraction with visual hints
 - **Remote Control**: Live configuration reload without restart
 - **Shell Integration**: Custom functions and aliases for enhanced workflow
@@ -64,17 +64,8 @@ sync_to_monitor yes     # Prevents screen tearing
 - Foreground: `#a9b1d6`
 - Cursor: `#c0caf5`
 - Selection: `#28344a`
-- Tab Bar: `#16161e` with powerline style
 
-**Tab Bar Styling**:
-
-- Active tab: Bold cyan (`#7dcfff`) on elevated background (`#1f2335`)
-- Inactive tabs: Lighter gray (`#787c99`) with fade effect on main background
-- Tab bar background: Elevated dark (`#1f2335`) with increased margins for visibility
-- Session indicator: Bright cyan (`#7dcfff`)
-- Process name: Teal (`#73daca`)
-- Title: Yellow-orange (`#e0af68`)
-- Separator color: Blue accent (`#7aa2f7`)
+The tab bar takes every color from the active theme; see [Custom Tab Bar](#custom-tab-bar).
 
 **Alternative Theme**: Gruvbox (see `themes/gruvbox.conf`; switch the `include` in `kitty.conf` to use it)
 
@@ -101,39 +92,32 @@ dynamic_background_opacity yes   # Adjustable at runtime
 
 #### Available Layouts
 
-1. **Tall**: Main pane on left, stack on right
-2. **Fat**: Main pane on top, stack on bottom
-3. **Grid**: Automatic grid arrangement
-4. **Horizontal**: Side-by-side splits
-5. **Vertical**: Top-bottom splits
-6. **Stack**: Full-screen single window (toggle mode)
+1. **Splits** (default): split the focused window with `Cmd+D` / `Cmd+Shift+D`
+2. **Tall**: Main pane on left, stack on right
+3. **Fat**: Main pane on top, stack on bottom
+4. **Grid**: Automatic grid arrangement
+5. **Horizontal**: Side-by-side splits
+6. **Vertical**: Top-bottom splits
+7. **Stack**: Full-screen single window (toggle mode)
 
 #### Window Splitting
 
-| Shortcut      | Action                            |
-| ------------- | --------------------------------- |
-| `Cmd+D`       | Split window vertically           |
-| `Cmd+Shift+D` | Split window horizontally         |
-| `Cmd+Shift+[` | Focus previous window             |
-| `Cmd+Shift+]` | Focus next window                 |
-| `Cmd+Shift+R` | Start interactive window resizing |
+| Shortcut      | Action                              |
+| ------------- | ----------------------------------- |
+| `Cmd+D`       | Split side by side (splits layout)  |
+| `Cmd+Shift+D` | Split top to bottom (splits layout) |
+| `Cmd+Shift+[` | Focus previous window               |
+| `Cmd+Shift+]` | Focus next window                   |
+| `Cmd+Shift+R` | Start interactive window resizing   |
 
-#### Tmux-Style Window Navigation
+#### Window Navigation
 
-Navigate between windows using `Ctrl+A` prefix (similar to tmux):
-
-| Shortcut            | Action               |
-| ------------------- | -------------------- |
-| `Ctrl+A` then `1-9` | Jump to window 1-9   |
-| `Ctrl+A` then `0`   | Jump to window 10    |
-| `Ctrl+A` then `N`   | Next window          |
-| `Ctrl+A` then `P`   | Previous window      |
-| `Ctrl+A` then `C`   | Create new window    |
-| `Ctrl+A` then `W`   | Close current window |
-
-**Usage**: Press `Ctrl+A`, release, then press the window key.
-
-**Alternative**: Use `Ctrl+Shift+1-9` for direct window access without prefix.
+| Shortcut                  | Action                  |
+| ------------------------- | ----------------------- |
+| `Ctrl+Shift+1-9`, `0`     | Jump to window 1-10     |
+| `Ctrl+Shift+]` / `[`      | Next / previous window  |
+| `Ctrl+Shift+F` / `B`      | Move window forward/back |
+| `` Ctrl+Shift+` ``        | Move window to the top  |
 
 #### Layout Management
 
@@ -161,24 +145,36 @@ On Linux, shortcuts that use `Cmd` on macOS are mapped to `Super` (Windows key).
 | `Ctrl+Shift+Right/Left` | Navigate between tabs        |
 | `Ctrl+Shift+./,`        | Move tab forward/backward    |
 
-#### Tmux-Style Tab Navigation
+#### Tab Prefix (tmux style)
 
-Navigate between tabs using `Ctrl+A + Shift` prefix (similar to tmux window navigation):
+Press `Ctrl+Shift+A`, release, then one key. While kitty waits for that key the
+tab bar badge turns into a yellow **PREFIX** pill. The mode ends after one
+action, on any other key, on `Esc`, or after 2 seconds. `Ctrl+A` stays with
+herdr and `Ctrl+Q` with tmux, so the three prefixes never collide.
 
-| Shortcut                  | Action            |
-| ------------------------- | ----------------- |
-| `Ctrl+A` then `Shift+1-9` | Jump to tab 1-9   |
-| `Ctrl+A` then `Shift+N`   | Next tab          |
-| `Ctrl+A` then `Shift+P`   | Previous tab      |
-| `Ctrl+A` then `Shift+T`   | Create new tab    |
-| `Ctrl+A` then `Shift+W`   | Close current tab |
+| Key after the prefix | Action                                   |
+| -------------------- | ---------------------------------------- |
+| `1-9`, `0`           | Jump to tab 1-10                         |
+| `N` / `P`            | Next / previous tab                      |
+| `C`                  | New tab in the current directory         |
+| `W`                  | Pick a tab from a list                   |
+| `,`                  | Rename the current tab                   |
+| `L`                  | Next layout                              |
+| `Z` or `Enter`       | Toggle the stack layout (zoom)           |
+| `S`                  | Pick a session from `sessions/`          |
+| Arrows               | Focus the neighbouring window            |
+| `Shift` + arrows     | Move the window in that direction        |
+| `R`                  | Resize the window interactively          |
+| `X`                  | Close the window (asks first)            |
+| `H`                  | Scrollback in the pager                  |
+| `=` / `-`            | Background opacity +5% / -5%             |
+| `D`                  | Default background opacity               |
 
-**Usage**: Press `Ctrl+A`, release, then press `Shift` + key.
+On macOS skhd captures `Ctrl+Shift+H/J/K/L` for yabai, so the prefix's `H` and
+`L` are the way to reach the scrollback pager and the next layout there.
 
-**Note**:
-
-- Windows (panes): `Ctrl+A` + `1-9` (lowercase)
-- Tabs: `Ctrl+A` + `Shift+1-9` (uppercase)
+Unfinished multi-key sequences such as `Cmd+Shift+S>...` give up after 3 seconds
+(`map_timeout`).
 
 #### Text Navigation
 
@@ -348,24 +344,16 @@ Sessions are text-based configuration files (`.kitty-session`) that specify:
 | `Cmd+Shift+S` then `L` | Jump to previous session (Last)    |
 | `Cmd+Shift+S` then `X` | Close current session              |
 | `Cmd+Shift+S` then `S` | Save current session (relocatable) |
+| `Ctrl+Shift+A` then `S` | Pick any session from `sessions/`  |
 
 **Usage**: Press `Cmd+Shift+S`, release, then press the session key.
 
 #### Session Styling
 
-Sessions are visually indicated in the tab bar with Tokyo Night colors:
-
-- **Session name**: Blue (`#7aa2f7`) prefix before tab title
-- **Tab filtering**: Only tabs from current session are displayed
-- **Maximum session name length**: 20 characters
-
-Example tab title format:
-
-```text
-dotfiles 1: (nvim) kitty.conf
-```
-
-Where `dotfiles` is the session indicator in blue.
+- **Session badge**: the purple pill at the left edge of the tab bar names the
+  active session (the host name when none is active)
+- **Tab filtering**: only tabs from the current session are displayed
+  (`tab_bar_filter session:~ or session:^$`)
 
 #### Session File Locations
 
@@ -521,7 +509,16 @@ kitty @ launch --location=vsplit
 kitty @ send-text "echo Hello\n"
 ```
 
-**Socket Location**: `unix:/tmp/kitty`
+**Socket Location**: `$TMPDIR/kitty-<pid>` (exported as `$KITTY_LISTEN_ON`)
+
+`allow_remote_control socket-only` accepts commands on that socket and refuses
+control sequences printed to the terminal, so a program's output (including over
+SSH) cannot drive kitty.
+
+#### Command Notifications
+
+`notify_on_cmd_finish invisible 15` sends a desktop notification when a command
+that ran for 15 seconds or more finishes in a tab you are not looking at.
 
 ---
 
@@ -559,7 +556,7 @@ set -ga update-environment 'TERM'
 set -ga update-environment 'TERM_PROGRAM'
 ```
 
-Reload tmux configuration: `Prefix + R` (default: `Ctrl+A` then `R`)
+Reload tmux configuration: `Prefix + r` (the prefix is `Ctrl+Q`)
 
 #### Font Icons Not Displaying
 
@@ -645,50 +642,47 @@ brew install fzf
 
 ## Custom Tab Bar
 
-### Features
+File: [`tab_bar.py`](tab_bar.py), loaded by `tab_bar_style custom`.
 
-Powerline-styled tab bar with live system widgets using Tokyo Night colors:
-
-- **Battery Status**: Shows charging icon () or standard battery icon () with percentage
-- **Date Display**: Current date with calendar icon () in format "DD Mon YYYY"
-- **Time Display**: Current time with clock icon () in 24-hour format
-
-### Implementation
-
-File: [`tab_bar.py`](tab_bar.py)
-
-The tab bar uses:
-
-- `draw_tab_with_powerline()` for native Kitty tab rendering
-- macOS-compatible system calls (`pmset` for battery)
-- Automatic cell dropping if terminal width insufficient
-- 2-second refresh interval for live updates
-
-### Widget Configuration
-
-Toggle widgets in [`tab_bar.py`](tab_bar.py#L27-L30):
-
-```python
-SHOW_BATTERY = True  # Battery percentage and charging status
-SHOW_DATE = True     # Current date
-SHOW_CLOCK = True    # Current time
+```text
+ (demo)  (1 [] ~/Dotfiles²)  2 N nvim kitty.conf  3 [] cargo build² 42% []      [] tall | 100% | Thu 24 Sep  (23:58)
 ```
 
-### Powerline Separators
+### Layout
 
-- First widget:  (powerline separator from default bg to tab bg)
-- Subsequent widgets:  (thin separator within tab bg)
+- **Badge**: the current session name in a purple pill, or the host name when
+  no session is active. It turns into a yellow `PREFIX` pill while the tab prefix
+  waits, and shows `KEYS` while a multi-key sequence is pending.
+- **Tabs**: index, an icon for the foreground process (nvim, git, python,
+  cargo, ssh, docker, AI agents, ...), the title, and markers. The active tab
+  is a rounded pill in the theme's active tab colors; inactive tabs are plain
+  text, so switching tabs never shifts the bar.
+- **Markers**: bell (red), last command failed (red, inactive tabs only; a
+  ctrl+c does not count), unseen activity (yellow dot), progress reported with
+  OSC 9;4, macOS Secure Input (lock), zoom (stack layout hiding other windows),
+  and a superscript window count.
+- **Status**: the active layout (only when the tab is split), battery, date,
+  and a clock pill. When space runs out the layout goes first, then the date,
+  then the battery.
 
-### Color Scheme
+### Implementation Notes
 
-Widgets use colors from `draw_data` for theme consistency:
-
-- Background: `draw_data.inactive_bg`
-- Foreground: `draw_data.inactive_fg`
-- Default background: `draw_data.default_bg`
+- Colors come from the theme: tab colors plus ANSI slots 1-6, so switching the
+  theme or running `kitten @ set-colors` restyles the bar too.
+- Titles are shortened to `tab_title_max_length` and to the space kitty gives
+  each tab. A shell's directory title shrinks fish-style (`~/D/h/kitty`, then
+  `…/kitty`); other paths lose their middle, other titles their end.
+- When the bar is crowded the badge shrinks to its icon, so tab 1 keeps its
+  title.
+- The battery is read from `pmset` (macOS, in a background thread) or
+  `/sys/class/power_supply` (Linux) every 30 seconds.
+- A one-second timer redraws the bar only when the minute, the battery sample
+  or the Secure Input state changes. A config reload replaces the timer
+  instead of adding a second one.
+- Glyph codepoints are listed by Nerd Font name at the top of the file.
 
 ---
 
-**Last Updated**: 2025-12-03
+**Last Updated**: 2026-09-24
 **Author**: LCS.Dev
 **Optimized by**: Claude (Anthropic)
