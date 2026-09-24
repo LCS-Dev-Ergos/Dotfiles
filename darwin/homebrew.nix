@@ -228,7 +228,6 @@ _: {
       "racket"
       "raycast"
       "sf-symbols"
-      "supacode"
       "temurin@21"
       "wireshark-app"
       "xcodes-app"
