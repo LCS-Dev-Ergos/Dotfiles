@@ -18,6 +18,22 @@
 # ============================================================================ #
 
 # -----------------------------------------------------------------------------
+# _fuzzy_open_in_editor
+# @internal
+# @description Opens a file in $EDITOR, or in vim when EDITOR is unset or does
+# not resolve to a command.
+# @arg $1 path File to open.
+# -----------------------------------------------------------------------------
+_fuzzy_open_in_editor() {
+  if [[ -n "${EDITOR:-}" ]] && (( $+commands[${EDITOR%% *}] )); then
+    ${=EDITOR} "$1"
+  else
+    print -u2 "EDITOR is not set to an available command. Using vim."
+    vim "$1"
+  fi
+}
+
+# -----------------------------------------------------------------------------
 # _fuzzy_change_directory
 # @internal
 # @description Interactively changes to a directory selected with fzf.
@@ -47,7 +63,7 @@ _fuzzy_change_directory() {
   fi
 
   if [[ -n "$selected_dir" && -d "$selected_dir" ]]; then
-    cd "$selected_dir" || return 1
+    builtin cd -- "$selected_dir" || return 1
   else
     return 1
   fi
@@ -79,12 +95,7 @@ _fuzzy_edit_search_file() {
   fi
 
   if [[ -n "$selected_file" && -f "$selected_file" ]]; then
-    if command -v "$EDITOR" &>/dev/null; then
-      "$EDITOR" "$selected_file"
-    else
-      echo "EDITOR is not specified. Using vim."
-      vim "$selected_file"
-    fi
+    _fuzzy_open_in_editor "$selected_file"
   else
     return 1
   fi
@@ -132,21 +143,19 @@ _fuzzy_edit_search_file_content() {
   fi
 
   if [[ -n "$selected_file" ]]; then
-    if command -v "$EDITOR" &>/dev/null; then
-      "$EDITOR" "$selected_file"
-    else
-      echo "EDITOR is not specified. Using vim."
-      vim "$selected_file"
-    fi
+    _fuzzy_open_in_editor "$selected_file"
   else
-    echo "No file selected or search returned no results."
+    print -u2 "No file selected or search returned no results."
+    return 1
   fi
 }
 
 # -----------------------------------------------------------------------------
 # _fuzzy_search_cmd_history
 # @internal
-# @description Fuzzy-searches shell history and loads the selection into ZLE.
+# @description Fuzzy-searches shell history and loads the selection into the
+# edit buffer: directly when running as a ZLE widget, or through the buffer
+# stack (print -z) when invoked as the ffch command.
 # @arg $1 string Optional initial fzf query.
 # @exitcode 1 If fzf integration is unavailable or selection fails.
 # -----------------------------------------------------------------------------
@@ -184,9 +193,15 @@ _fuzzy_search_cmd_history() {
   local ret=$?
   if [[ -n "$selected" ]]; then
     if [[ $(awk '{print $1; exit}' <<< "$selected") =~ ^[1-9][0-9]* ]]; then
-      zle vi-fetch-history -n $MATCH
-    else
+      if zle; then
+        zle vi-fetch-history -n $MATCH
+      else
+        print -rz -- "${history[$MATCH]}"
+      fi
+    elif zle; then
       LBUFFER="$selected"
+    else
+      print -rz -- "$selected"
     fi
   fi
   return $ret

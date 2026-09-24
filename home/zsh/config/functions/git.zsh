@@ -13,6 +13,11 @@
 #
 # ============================================================================ #
 
+# The OMZ git plugin (lib/20-zinit.zsh, or HyDE's plugin set) aliases gbr to
+# `git branch --remotes`, and an alias shadows a function of the same name.
+# The gbr below is the one this configuration documents.
+unalias gbr 2>/dev/null
+
 # -----------------------------------------------------------------------------
 # gbr
 # @description Lists local branches by most recent commit, including each
@@ -26,11 +31,14 @@ function gbr() {
     return 1
   fi
 
-  git for-each-ref \
-    --sort=-committerdate refs/heads/ \
-    --format='%(HEAD) %(color:yellow)%(refname:short)%(color:reset) - \
-        %(color:red)%(objectname:short)%(color:reset) - %(contents:subject) - \
-        %(authorname) (%(color:green)%(committerdate:relative)%(color:reset))'
+  # Built from pieces: a backslash-newline inside single quotes is literal, so
+  # a wrapped quoted format would print every branch across three lines.
+  local format='%(HEAD) %(color:yellow)%(refname:short)%(color:reset)'
+  format+=' - %(color:red)%(objectname:short)%(color:reset)'
+  format+=' - %(contents:subject) - %(authorname)'
+  format+=' (%(color:green)%(committerdate:relative)%(color:reset))'
+
+  git for-each-ref --sort=-committerdate --format="$format" refs/heads/
 }
 
 # -----------------------------------------------------------------------------
@@ -56,7 +64,7 @@ function gstash() {
     --header='Select stash to apply. Press CTRL-C to cancel')
 
   if [[ -n "$stash" ]]; then
-    local stash_id=$(echo "$stash" | cut -d: -f1)
+    local stash_id="${stash%%:*}"
     echo "${C_CYAN}Applying stash: $stash_id${C_RESET}"
     git stash apply "$stash_id"
   fi

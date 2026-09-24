@@ -39,7 +39,12 @@ function weather() {
   local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/weather"
   local location_key="${location//[^A-Za-z0-9._-]/_}"
   local cache_file="$cache_dir/${location_key}.cache"
-  local location_url="${location// /%20}"
+  local location_url
+  if typeset -f omz_urlencode >/dev/null 2>&1; then
+    location_url="$(omz_urlencode -P "$location")" || return 1
+  else
+    location_url="${location// /%20}"
+  fi
   local cache_age=3600
 
   command mkdir -p -- "$cache_dir" 2>/dev/null || {
@@ -52,18 +57,12 @@ function weather() {
     return 0
   fi
 
-  local tmp_file
-  tmp_file="$(mktemp "${cache_dir}/.weather.${location_key}.XXXXXX" 2>/dev/null)" || {
-    echo "${C_RED}Error: Unable to allocate temporary cache file.${C_RESET}" >&2
-    return 1
-  }
-
-  if curl -fsS --max-time 15 --connect-timeout 5 "https://wttr.in/${location_url}?lang=it" >"$tmp_file"; then
-    chmod 600 "$tmp_file" 2>/dev/null || :
-    mv -f "$tmp_file" "$cache_file"
-    cat "$cache_file"
+  local report
+  if report="$(curl -fsS --max-time 15 --connect-timeout 5 \
+      "https://wttr.in/${location_url}?lang=it")" && [[ -n "$report" ]]; then
+    print -r -- "$report" | _zsh_cache_put "$cache_file" 2>/dev/null
+    print -r -- "$report"
   else
-    rm -f -- "$tmp_file" 2>/dev/null
     echo "${C_RED}Error: Unable to fetch weather data.${C_RESET}" >&2
     if [[ -f "$cache_file" ]]; then
       echo "${C_YELLOW}(Showing cached data)${C_RESET}"
@@ -275,6 +274,7 @@ function serve() {
   if (( $+commands[lsof] )) &&
       command lsof -Pi :"$port" -sTCP:LISTEN -t >/dev/null 2>&1; then
     _zsh_ui_log warn "Port $port is already in use."
+    local new_port
     printf 'Choose another port or press Enter to continue anyway: '
     read -r new_port
     if [[ -n "$new_port" ]]; then
@@ -460,7 +460,9 @@ function qr() {
     return $?
   fi
   echo "${C_YELLOW}Privacy: qrencode is unavailable; sending text to qrenco.de. Do not use this fallback for credentials.${C_RESET}" >&2
-  curl -fsSF-="\<-" --max-time 10 --connect-timeout 5 "https://qrenco.de" <<<"$1"
+  # `-F '-=<-'` posts stdin as the form field; the leading `<` must reach
+  # curl unescaped, or it sends the literal text instead of the input.
+  curl -fsS -F '-=<-' --max-time 10 --connect-timeout 5 "https://qrenco.de" <<<"$1"
 }
 
 # ============================================================================ #

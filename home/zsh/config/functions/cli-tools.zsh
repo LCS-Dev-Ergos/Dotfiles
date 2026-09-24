@@ -53,8 +53,7 @@ if command -v bat &>/dev/null; then
   # @arg $@ string Optional arguments forwarded to the command.
   # @exitcode 1 If no command is supplied.
   # ---------------------------------------------------------------------------
-  # ---------------------------------------------------------------------------
-   h() {
+  h() {
     if [[ $# -eq 0 ]]; then
       echo "Usage: h <command>"
       echo "Shows help for a command with syntax highlighting."
@@ -79,16 +78,25 @@ fi
 # https://github.com/muesli/duf
 
 if command -v duf &>/dev/null; then
-  # Wrapper function to handle paths correctly.
-  _df() {
-    if [[ $# -ge 1 && -e "${@: -1}" ]]; then
-      duf "${@: -1}"
+  # ---------------------------------------------------------------------------
+  # _cli_duf_df
+  # @internal
+  # @description Backs the df alias: shows duf for the last argument when it
+  # names an existing path, otherwise for every mount. df-style flags are
+  # dropped. The name must not be `_df`: that is the completion function
+  # compinit binds to df, and redefining it would make `\df <Tab>` or
+  # `sudo df <Tab>` run duf in the middle of completion.
+  # @arg $@ string df-style arguments; only a trailing path is used.
+  # ---------------------------------------------------------------------------
+  _cli_duf_df() {
+    if (( $# )) && [[ -e "${@[-1]}" ]]; then
+      command duf "${@[-1]}"
     else
-      duf
+      command duf
     fi
   }
 
-  alias df='_df'
+  alias df='_cli_duf_df'
 fi
 
 # ============================================================================ #

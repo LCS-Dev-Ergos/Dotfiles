@@ -26,10 +26,11 @@ _zfuncs_resolve_status() {
   local function_name="$1"
   local function_source="$2"
   if typeset -f "$function_name" >/dev/null 2>&1; then
+    # Stubs from lib/94-lazy-loader-core.zsh call _lazy_<id>_stub; the blog
+    # module's compatibility loader uses its own *_lazy_dispatch.
     local body="${functions[$function_name]-}"
-    if [[ "$body" == *'_lazy_loader_dispatch'* ||
-          "$body" == *'_lazy_dispatch'* ||
-          "$body" == *'_lazy_load_and_run'* ]]; then
+    if [[ "$body" == *'_lazy_'*'_stub '* ||
+          "$body" == *'_lazy_dispatch'* ]]; then
       REPLY="lazy"
     else
       REPLY="loaded"
@@ -39,19 +40,6 @@ _zfuncs_resolve_status() {
   else
     REPLY="missing"
   fi
-}
-
-# -----------------------------------------------------------------------------
-# _zfuncs_catalog_status
-# @internal
-# @description Prints whether a cataloged function is loaded, lazy, or missing.
-# @arg $1 string Function name to inspect.
-# @arg $2 path Source file associated with the function.
-# @stdout The resolved function state.
-# -----------------------------------------------------------------------------
-_zfuncs_catalog_status() {
-  _zfuncs_resolve_status "$@"
-  print -r -- "$REPLY"
 }
 
 # -----------------------------------------------------------------------------
@@ -162,7 +150,7 @@ function zfuncs() {
     return 1
   }
 
-  zmodload -i zsh/stat zsh/parameter 2>/dev/null || {
+  { zmodload -F zsh/stat b:zstat && zmodload -i zsh/parameter; } 2>/dev/null || {
     print -u2 "zfuncs: the zsh/stat and zsh/parameter modules are required"
     return 1
   }

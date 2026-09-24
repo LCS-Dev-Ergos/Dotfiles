@@ -19,6 +19,9 @@
 # Remove framework/plugin aliases before defining the canonical implementation.
 unalias reload 2>/dev/null
 
+# bak and epoch format timestamps in-process (EPOCHSECONDS, strftime).
+zmodload -F zsh/datetime b:strftime p:EPOCHSECONDS 2>/dev/null
+
 # -----------------------------------------------------------------------------
 # reload
 # @description Replaces the current Zsh process with a clean instance,
@@ -55,19 +58,16 @@ reload() {
 # @exitcode 1 If the argument is invalid or changing directory fails.
 # -----------------------------------------------------------------------------
 function up() {
-  local d=""
   local limit="${1:-1}"
 
-  if ! [[ "$limit" =~ ^[0-9]+$ ]]; then
-    echo "${C_RED}Error: Argument must be a positive integer.${C_RESET}" >&2
+  if [[ "$limit" != <-> ]]; then
+    echo "${C_RED}Error: Argument must be a non-negative integer.${C_RESET}" >&2
     return 1
   fi
+  (( limit > 0 )) || return 0
 
-  for ((i = 1; i <= limit; i++)); do
-    d="../$d"
-  done
-
-  if ! cd "$d"; then
+  # Repeat "../" limit times, e.g. 3 -> ../../../
+  if ! builtin cd -- "${(pl:limit*3::../:)}"; then
     echo "${C_RED}Error: Cannot go up $limit directories.${C_RESET}" >&2
     return 1
   fi
@@ -84,7 +84,7 @@ function mkcd() {
     echo "${C_YELLOW}Usage: mkcd <directory>${C_RESET}" >&2
     return 1
   fi
-  mkdir -p "$1" && cd "$1" || return 1
+  command mkdir -p -- "$1" && builtin cd -- "$1" || return 1
 }
 
 # -----------------------------------------------------------------------------
@@ -101,8 +101,10 @@ function bak() {
   fi
 
   if [[ -f "$1" ]]; then
-    local backup_file="${1}.$(date +'%Y-%m-%d_%H-%M-%S').bak"
-    if cp -p "$1" "$backup_file" 2>/dev/null; then
+    local stamp
+    strftime -s stamp '%Y-%m-%d_%H-%M-%S' "$EPOCHSECONDS"
+    local backup_file="${1}.${stamp}.bak"
+    if command cp -p -- "$1" "$backup_file" 2>/dev/null; then
       echo "${C_GREEN}Backup created: ${backup_file}${C_RESET}"
     else
       echo "${C_RED}Error: Failed to create backup.${C_RESET}" >&2
@@ -120,16 +122,12 @@ function bak() {
 # @noargs
 # -----------------------------------------------------------------------------
 function epoch() {
-  local ts=${EPOCHSECONDS:-$(date +%s)}
+  # zsh/datetime formats in-process, so the BSD/GNU `date` flag differences
+  # (-r EPOCH vs -d @EPOCH) never come into play.
+  local ts="$EPOCHSECONDS" human
+  strftime -s human '%a %b %e %H:%M:%S %Z %Y' "$ts"
   echo "Unix timestamp: $ts"
-  # On macOS BSD date supports `-r EPOCH`. If the user has GNU coreutils
-  # prepended to PATH, `date` becomes GNU date which needs `-d @EPOCH` instead.
-  # Probe `-r` once and pick the right flavor.
-  if date -r "$ts" >/dev/null 2>&1; then
-    echo "Human readable: $(date -r "$ts")"
-  else
-    echo "Human readable: $(date -d "@$ts")"
-  fi
+  echo "Human readable: $human"
 }
 
 # ============================================================================ #

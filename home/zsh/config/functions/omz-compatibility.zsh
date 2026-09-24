@@ -301,29 +301,34 @@ colored() {
   command env "${environment[@]}" "$@"
 }
 
-# -----------------------------------------------------------------------------
-# man
-# @description Runs man with colored terminal formatting.
-# @arg $@ string Manual page and arguments.
-# @exitcode 1 If man fails.
-# -----------------------------------------------------------------------------
-man() { colored man "$@"; }
+# The man wrappers only matter when man pages go through less: a MANPAGER
+# (bat or most, chosen in lib/50-tools.zsh) renders the page itself, and the
+# LESS_TERMCAP_* values would then only cost an extra `env` process per call.
+if [[ -z "${MANPAGER:-}" ]]; then
+  # ---------------------------------------------------------------------------
+  # man
+  # @description Runs man with colored terminal formatting.
+  # @arg $@ string Manual page and arguments.
+  # @exitcode 1 If man fails.
+  # ---------------------------------------------------------------------------
+  man() { colored man "$@"; }
 
-# -----------------------------------------------------------------------------
-# dman
-# @description Runs dman with colored terminal formatting.
-# @arg $@ string Manual page and arguments.
-# @exitcode 1 If dman fails.
-# -----------------------------------------------------------------------------
-dman() { colored dman "$@"; }
+  # ---------------------------------------------------------------------------
+  # dman
+  # @description Runs dman with colored terminal formatting.
+  # @arg $@ string Manual page and arguments.
+  # @exitcode 1 If dman fails.
+  # ---------------------------------------------------------------------------
+  dman() { colored dman "$@"; }
 
-# -----------------------------------------------------------------------------
-# debman
-# @description Runs debman with colored terminal formatting.
-# @arg $@ string Manual page and arguments.
-# @exitcode 1 If debman fails.
-# -----------------------------------------------------------------------------
-debman() { colored debman "$@"; }
+  # ---------------------------------------------------------------------------
+  # debman
+  # @description Runs debman with colored terminal formatting.
+  # @arg $@ string Manual page and arguments.
+  # @exitcode 1 If debman fails.
+  # ---------------------------------------------------------------------------
+  debman() { colored debman "$@"; }
+fi
 
 # -----------------------------------------------------------------------------
 # web_search

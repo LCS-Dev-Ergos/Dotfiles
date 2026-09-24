@@ -27,8 +27,12 @@
 # @exitcode 1 If the notes directory or file cannot be created.
 # -----------------------------------------------------------------------------
 function note() {
+  zmodload -F zsh/datetime b:strftime p:EPOCHSECONDS 2>/dev/null
   local notes_dir="${NOTES_DIR:-$HOME/.notes}"
-  local notes_file="$notes_dir/notes_$(date +'%Y-%m').md"
+  local month timestamp
+  strftime -s month '%Y-%m' "$EPOCHSECONDS"
+  strftime -s timestamp '%Y-%m-%d %H:%M:%S' "$EPOCHSECONDS"
+  local notes_file="$notes_dir/notes_${month}.md"
 
   # Create notes directory if it doesn't exist (private: notes may contain
   # sensitive information like tokens, credentials jotted down).
@@ -40,8 +44,6 @@ function note() {
   fi
   command chmod 700 "$notes_dir" 2>/dev/null || :
 
-  local timestamp="$(date +'%Y-%m-%d %H:%M:%S')"
-
   # Ensure file exists with restrictive perms before any append.
   if [[ ! -f "$notes_file" ]]; then
     (umask 077 && : >>"$notes_file") || {
@@ -51,18 +53,18 @@ function note() {
   fi
   command chmod 600 "$notes_file" 2>/dev/null || :
 
+  # Notes are written literally: `echo -e` would turn a typed `\n` or `\t`
+  # (Windows paths, regexes) into control characters.
+  local note_content
   if [[ $# -eq 0 ]]; then
     echo "${C_CYAN}Enter note (Ctrl+D to finish):${C_RESET}"
-    local note_content
-    note_content=$(cat)
-    if [[ -n "$note_content" ]]; then
-      echo -e "\n## $timestamp\n$note_content" >>"$notes_file"
-      echo "${C_GREEN}Note saved to $notes_file${C_RESET}"
-    fi
+    note_content=$(command cat)
+    [[ -n "$note_content" ]] || return 0
   else
-    echo -e "\n## $timestamp\n$*" >>"$notes_file"
-    echo "${C_GREEN}Note saved to $notes_file${C_RESET}"
+    note_content="$*"
   fi
+  print -r -- $'\n'"## $timestamp"$'\n'"$note_content" >>"$notes_file"
+  echo "${C_GREEN}Note saved to $notes_file${C_RESET}"
 }
 
 # -----------------------------------------------------------------------------
@@ -326,20 +328,15 @@ function cleanup() {
     "$HOME/.yarn/cache"
   )
 
-  # System temp roots: only user-owned entries, older than threshold.
-  for root in "${tmp_roots[@]}"; do
+  # Top-level, user-owned entries older than the threshold. -H follows a
+  # symlinked root: macOS /tmp is a link to /private/tmp, and without it find
+  # lists only the link itself, which -mindepth 1 then drops.
+  for root in "${tmp_roots[@]}" "${cache_roots[@]}"; do
     [[ -d "$root" ]] || continue
     while IFS= read -r -d '' item; do
       targets+=("$item")
-    done < <(find "$root" -mindepth 1 -maxdepth 1 -user "$USER" -mtime "+$min_age_days" -print0 2>/dev/null)
-  done
-
-  # User cache roots: top-level, user-owned entries older than the threshold.
-  for root in "${cache_roots[@]}"; do
-    [[ -d "$root" ]] || continue
-    while IFS= read -r -d '' item; do
-      targets+=("$item")
-    done < <(find "$root" -mindepth 1 -maxdepth 1 -user "$USER" -mtime "+$min_age_days" -print0 2>/dev/null)
+    done < <(command find -H "$root" -mindepth 1 -maxdepth 1 -user "$USER" \
+      -mtime "+$min_age_days" -print0 2>/dev/null)
   done
 
   if (( ${#targets[@]} == 0 )); then
@@ -404,6 +401,7 @@ function zshcache() {
   local dry_run=false
   local rebuild=false
   local quiet=false
+  local arg item
 
   for arg in "$@"; do
     case "$arg" in
@@ -436,8 +434,8 @@ function zshcache() {
     targets+=( "$ZSH/cache/.zcompdump-"* )
   fi
 
-  # Custom caches created by this config.
-  targets+=( "$xdg_cache/zsh"/* )
+  # Custom caches created by this config, the completion dump included.
+  targets+=( "$xdg_cache/zsh"/* "$xdg_cache/zsh"/.zcompdump* )
 
   # Broken symlinks in the zinit completions directory.
   local zinit_completions="${XDG_DATA_HOME:-$HOME/.local/share}/zinit/completions"
@@ -482,14 +480,16 @@ function zshcache() {
 
   if [[ "$rebuild" == true ]]; then
     autoload -Uz compinit
-    local _compdump="${ZSH_COMPDUMP:-${xdg_cache}/zsh/.zcompdump-${HOST}}"
+    local _compdump="${ZSH_COMPDUMP:-${xdg_cache}/zsh/.zcompdump}"
     local _insecure_mode="-i"
     [[ "${ZSH_DISABLE_COMPFIX:-false}" == true ]] && _insecure_mode="-u"
     command mkdir -p "${xdg_cache}/zsh" 2>/dev/null
     if compinit "$_insecure_mode" -d "$_compdump" 2>/dev/null; then
       # Update the stamp and signature so startup can use compinit -C.
       : >| "${xdg_cache}/zsh/compinit.last" 2>/dev/null
-      print -r -- "${_compdump}|${(j.:.)fpath}" >| "${xdg_cache}/zsh/compinit.sig" 2>/dev/null
+      local REPLY
+      ZSH_COMPDUMP="$_compdump" _zsh_compinit_signature
+      print -r -- "$REPLY" >| "${xdg_cache}/zsh/compinit.sig" 2>/dev/null
       # Compile the dump for faster -C startup; a stale .zwc is ignored by
       # zsh, so failure only costs the optimization.
       if [[ -f "$_compdump" ]] && zcompile "$_compdump" 2>/dev/null; then
@@ -563,7 +563,10 @@ function dshell() {
 
   if [[ -n "$container" ]]; then
     echo "${C_CYAN}Accessing shell in container: $container${C_RESET}"
-    docker exec -it "$container" sh -c 'bash || sh'
+    # Pick the shell by availability, not by exit status: `bash || sh` also
+    # started sh whenever the bash session merely ended with an error.
+    docker exec -it "$container" sh -c \
+      'if command -v bash >/dev/null 2>&1; then exec bash; else exec sh; fi'
   fi
 }
 
