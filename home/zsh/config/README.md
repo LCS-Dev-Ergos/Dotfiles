@@ -114,28 +114,37 @@ the flake's `llvm-darwin-toolchain` check; `get_toolchain_info` and
 
 ### Loading modules
 
-The normal loader sources `lib/*.zsh` in lexical order, then `functions/*.zsh`.
-A function file opts into deferred loading with a header marker:
+The normal loader sources `lib/*.zsh` in lexical order, then `functions/*.zsh`,
+and activates the prompt last. Modules are sourced at top level, never from a
+function, so their plain `typeset` declarations stay global. A function file
+opts into deferred loading with a header marker:
 
 ```zsh
 # zsh-load: deferred
 ```
 
+`ZSH_FAST_START=1` keeps the same loop but sources only the core listed in
+`_ZSH_FAST_START_MODULES` (initialization, history, vi mode, aliases,
+variables, PATH), skips the function bundles, and sets a static prompt. On
+HyDE, `20-zinit.zsh` and `30-prompt.zsh` step aside through their own guards,
+and the loop sources `conf.d/hyde/shell.zsh` in the plugin slot when HyDE owns
+the plugins.
+
 Current modules:
 
 | Module                    | Responsibility                                                      |
 | ------------------------- | ------------------------------------------------------------------- |
-| `00-initialization.zsh`   | Shell options, defer engine, VS Code integration, cache maintenance |
+| `00-initialization.zsh`   | Shell options, defer engine, VS Code integration, macOS rc handling |
 | `runtime-helpers.zsh`     | Colors, platform, mtime, permission checks, atomic cache writes     |
 | `10-history.zsh`          | Shared, deduplicated history                                        |
 | `20-zinit.zsh`            | Zinit, plugins, periodic compinit                                   |
 | `30-prompt.zsh`           | Prompt definitions; activation follows final PATH assembly          |
 | `40-vi-mode.zsh`          | Vi keymaps and cursor behavior                                      |
-| `50-tools.zsh`            | Atuin, fzf, zoxide, direnv, Yazi, Kitty, OrbStack, man/tldr         |
+| `50-tools.zsh`            | Atuin, fzf, zoxide, direnv (cached init), Yazi, Kitty, OrbStack     |
 | `60-aliases.zsh`          | Aliases and compilation shortcuts only                              |
 | `70-ai-tools.zsh`         | Fabric and credential-scoped AI command wrappers                    |
 | `75-variables.zsh`        | Language/application variables; no global compiler flags            |
-| `80-languages.zsh`        | Language managers and lazy runtime initialization                   |
+| `80-languages.zsh`        | Language managers, lazy runtimes, change-driven opam env hook       |
 | `85-completions.zsh`      | Cached generated completions                                        |
 | `90-path.zsh`             | Deterministic PATH rebuild with signed 24-hour cache                |
 | `94-lazy-loader-core.zsh` | Secure, auto-invalidating script stub generator                     |
@@ -143,8 +152,13 @@ Current modules:
 | `96-lazy-cpp-tools.zsh`   | On-demand competitive-programming tools                             |
 
 `ZSH_FAST_START=1` loads only the minimal core. Other useful toggles include
-`ZSH_DEFER_COMPLETIONS`, `ZSH_LAZY_SCRIPTS`, `ZSH_LAZY_CPP_TOOLS`,
-`ZSH_CUSTOM_COMPLETIONS`, and `ZSH_CACHE_AUTO`.
+`ZSH_DEFER_COMPLETIONS`, `ZSH_LAZY_SCRIPTS`, `ZSH_LAZY_CPP_TOOLS`, and
+`ZSH_CUSTOM_COMPLETIONS`.
+
+Every cache under `$XDG_CACHE_HOME/zsh` carries the key of what produced it
+(tool executable, scanned files, fpath directories, the PATH template), so a
+switch or an upgrade invalidates exactly the affected entries; no cache is
+wiped wholesale at startup. `zshcache --rebuild` remains the manual reset.
 
 Public shdoc metadata also generates completion specifications for custom
 commands. Generation is deferred and cached securely; pressing Tab only calls
@@ -220,6 +234,10 @@ and uses an atomic mkdir lock to prevent concurrent full runs.
   variables are the sole exception: their profile link must resolve into the
   immutable Nix store before `.zshenv` sources them.
 - Cache writes use user-only temporary files followed by atomic rename.
+- Tool init scripts (Starship, Atuin, fzf, zoxide, direnv) and the
+  completions ngrok and ng print are cached by `_zsh_cached_init`, keyed to
+  the symlink-resolved executable, and pass the same ownership and permission
+  checks before being sourced.
 - 1Password values are cached in non-exported shell variables and exposed only
   to the intended child command (`claude`, `gemini`, or `opencode`).
 - Fabric refuses pattern names that collide with commands/builtins and publishes

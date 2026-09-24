@@ -35,21 +35,22 @@ typeset -f _zsh_cache_is_fresh >/dev/null 2>&1 ||
 # +++++++++++++++++++++++ STATIC ENVIRONMENT MANAGERS ++++++++++++++++++++++++ #
 
 # --------------- Nix ---------------- #
-# This setup is platform-aware. It checks for standard Nix installation
-# paths, which can differ between multi-user and single-user setups.
-if [[ "$PLATFORM" == 'macOS' ]] || [[ "$PLATFORM" == 'Linux' ]]; then
-  # Standard path for multi-user Nix installations (recommended).
-  if [ -e '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh' ]; then
-    . '/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh'
-    # Fallback for single-user Nix installations.
-  elif [ -e "$HOME/.nix-profile/etc/profile.d/nix.sh" ]; then
-    . "$HOME/.nix-profile/etc/profile.d/nix.sh"
-  fi
-fi
+# The repository .zshenv sources the Nix daemon environment for every shell
+# type, guarded so a system initializer keeps ownership; nothing to do here.
 
 # ------- Homebrew / Linuxbrew ------- #
-# This logic is now strictly separated by platform to avoid incorrect detection.
-if [[ "$PLATFORM" == 'macOS' ]]; then
+# ~/.zshenv (zshenv-bootstrap) already exports the Apple Silicon prefix for
+# every shell. This covers the prefixes it does not handle (Intel macOS and
+# Linuxbrew) without prepending the same MANPATH/INFOPATH entries twice.
+if [[ -n "${HOMEBREW_PREFIX:-}" ]]; then
+  # Login shells run /etc/zprofile after ~/.zshenv, and its path_helper moves
+  # the system man pages ahead of Homebrew's. Put Homebrew's back in front,
+  # once, so `man` prefers the same (newer) tools that PATH does.
+  [[ -d "$HOMEBREW_PREFIX/share/man" ]] && manpath=(
+    "$HOMEBREW_PREFIX/share/man"
+    "${(@)manpath:#$HOMEBREW_PREFIX/share/man}"
+  )
+elif [[ "$PLATFORM" == 'macOS' ]]; then
   # On macOS, check for the Apple Silicon path first, then the Intel path.
   if [[ -x "/opt/homebrew/bin/brew" ]]; then # macOS Apple Silicon
     export HOMEBREW_PREFIX="/opt/homebrew"
@@ -89,6 +90,59 @@ export DUNE_CACHE_TRANSPORT=direct           # Faster cache access.
 # export OPAMYES=1  # Auto-confirm opam operations.
 
 [[ ! -r "$HOME/.opam/opam-init/init.zsh" ]] || source "$HOME/.opam/opam-init/init.zsh" >/dev/null 2>/dev/null
+
+# opam's shell hook runs `opam env` (about 30 ms) before every prompt. The
+# environment it computes only changes with the directory (local `_opam`
+# switches), the global switch recorded in the opam config, or OPAMSWITCH, so
+# the replacement below checks those with a single stat and calls opam only
+# when one of them moved. It keeps the hook's position among precmd hooks.
+if (( ${precmd_functions[(Ie)_opam_env_hook]} )); then
+  typeset -g _ZSH_OPAM_ENV_STAMP=""
+
+  # ---------------------------------------------------------------------------
+  # _zsh_opam_env_stamp
+  # @internal
+  # @description Describes the inputs of `opam env` for the current shell.
+  # @noargs
+  # @set REPLY string Directory, opam config mtime, and OPAMSWITCH.
+  # ---------------------------------------------------------------------------
+  _zsh_opam_env_stamp() {
+    local -a config_mtime
+    zstat -A config_mtime +mtime -- \
+      "${OPAMROOT:-$HOME/.opam}/config" 2>/dev/null || config_mtime=(0)
+    REPLY="$PWD|${config_mtime[1]}|${OPAMSWITCH-}"
+  }
+
+  # ---------------------------------------------------------------------------
+  # _zsh_opam_env_hook
+  # @internal
+  # @description Re-applies `opam env` when its inputs changed since the
+  # last run; the precmd replacement for opam's unconditional hook.
+  # @noargs
+  # ---------------------------------------------------------------------------
+  _zsh_opam_env_hook() {
+    local REPLY
+    _zsh_opam_env_stamp
+    [[ "$REPLY" == "$_ZSH_OPAM_ENV_STAMP" ]] && return 0
+    _ZSH_OPAM_ENV_STAMP="$REPLY"
+    _zsh_opam_env_apply
+  }
+
+  # ---------------------------------------------------------------------------
+  # _zsh_opam_env_apply
+  # @internal
+  # @description Evaluates `opam env` for the current directory and switch.
+  # @noargs
+  # ---------------------------------------------------------------------------
+  _zsh_opam_env_apply() {
+    eval "$(command opam env --shell=zsh --readonly 2>/dev/null </dev/null)"
+  }
+
+  if zmodload -F zsh/stat b:zstat 2>/dev/null; then
+    precmd_functions[${precmd_functions[(Ie)_opam_env_hook]}]=_zsh_opam_env_hook
+  fi
+  # The first run is scheduled at the end of this file.
+fi
 
 # +++++++++++++++++++++ LANGUAGES AND DEVELOPMENT TOOLS ++++++++++++++++++++++ #
 
@@ -161,7 +215,7 @@ else
       local found_java_home=""
       # Method 1: Debian, Ubuntu, or Fedora via update-alternatives.
       if command -v update-alternatives &>/dev/null && command -v java &>/dev/null; then
-        local java_path=$(readlink -f "$(which java)" 2>/dev/null)
+        local java_path="${commands[java]:A}"
         if [[ -n "$java_path" ]]; then
           found_java_home="${java_path%/bin/java}"
         fi
@@ -183,8 +237,8 @@ else
         export JAVA_HOME="$found_java_home"
         export PATH="$JAVA_HOME/bin:$PATH"
       else
-        echo "${C_YELLOW}⚠️ Warning: Unable to automatically determine JAVA_HOME and SDKMAN! is not installed.${C_RESET}"
-        echo "   ${C_YELLOW}Please install Java and/or SDKMAN!, or set JAVA_HOME manually.${C_RESET}"
+        print -u2 "${C_YELLOW}Warning: Unable to determine JAVA_HOME automatically, and SDKMAN! is not installed.${C_RESET}"
+        print -u2 "   ${C_YELLOW}Please install Java and/or SDKMAN!, or set JAVA_HOME manually.${C_RESET}"
       fi
     fi
 
@@ -217,8 +271,8 @@ if [[ -d "$HOME/.pyenv" ]]; then
     _pyenv_lazy_init() {
       [[ -n "${_PYENV_LAZY_INIT:-}" ]] && return 0
       _PYENV_LAZY_INIT=1
-      eval "$(command pyenv init -)" 2>/dev/null || echo "${C_YELLOW}Warning: pyenv init failed.${C_RESET}"
-      eval "$(command pyenv virtualenv-init -)" 2>/dev/null || echo "${C_YELLOW}Warning: pyenv virtualenv-init failed.${C_RESET}"
+      eval "$(command pyenv init -)" 2>/dev/null || print -u2 "${C_YELLOW}Warning: pyenv init failed.${C_RESET}"
+      eval "$(command pyenv virtualenv-init -)" 2>/dev/null || print -u2 "${C_YELLOW}Warning: pyenv virtualenv-init failed.${C_RESET}"
     }
 
     # -------------------------------------------------------------------------
@@ -334,37 +388,23 @@ fi
 # <<< Conda initialize <<<
 
 # ------------ Perl CPAN ------------- #
-# Only run if the local::lib directory exists. The eval output is a fixed set
-# of environment exports derived from the directory path, so cache it keyed to
-# the Perl executable instead of forking perl in every interactive shell.
-() {
-  local local_perl_dir="$HOME/.perl5"
-  [[ -d "$local_perl_dir" ]] || return 0
-  command -v perl >/dev/null 2>&1 || return 0
-
-  local perl_bin="${commands[perl]}"
-  local cache_file="${XDG_CACHE_HOME:-$HOME/.cache}/zsh/perl-local-lib.zsh"
-  local cache_header="# perl-bin: $perl_bin"
-  local cached_header=""
-  if _zsh_cache_is_fresh "$cache_file"; then
-    IFS= read -r cached_header < "$cache_file"
-    if [[ "$cached_header" == "$cache_header" &&
-          "$cache_file" -nt "$perl_bin" ]]; then
-      source "$cache_file"
-      return 0
-    fi
-  fi
-
-  local init_code
-  init_code="$(perl -I"$local_perl_dir/lib/perl5" \
-    -Mlocal::lib="$local_perl_dir" 2>/dev/null)" || return 0
-  [[ -n "$init_code" ]] || return 0
-  eval "$init_code" 2>/dev/null
-  {
-    print -r -- "$cache_header"
-    print -r -- "$init_code"
-  } | _zsh_cache_put "$cache_file" 2>/dev/null
-}
+# Static, idempotent equivalent of `eval "$(perl -Mlocal::lib=~/.perl5)"`.
+# The perl form prints only what the current environment still lacks, so its
+# output cannot be cached safely, and running it costs a perl start per shell.
+# Nested shells keep a single copy of each entry; 90-path.zsh places
+# ~/.perl5/bin in PATH.
+if [[ -d "$HOME/.perl5" ]]; then
+  () {
+    local root="$HOME/.perl5"
+    local -a libs=("${(@s/:/)PERL5LIB}") roots=("${(@s/:/)PERL_LOCAL_LIB_ROOT}")
+    libs=("$root/lib/perl5" "${(@)libs:#($root/lib/perl5|)}")
+    roots=("$root" "${(@)roots:#($root|)}")
+    export PERL5LIB="${(j/:/)libs}"
+    export PERL_LOCAL_LIB_ROOT="${(j/:/)roots}"
+    export PERL_MB_OPT="--install_base \"$root\""
+    export PERL_MM_OPT="INSTALL_BASE=$root"
+  }
+fi
 
 # -------------- rbenv --------------- #
 if [[ -d "$HOME/.rbenv" ]]; then
@@ -381,7 +421,7 @@ if [[ -d "$HOME/.rbenv" ]]; then
     _rbenv_lazy_init() {
       [[ -n "${_RBENV_LAZY_INIT:-}" ]] && return 0
       _RBENV_LAZY_INIT=1
-      eval "$(command rbenv init - zsh)" 2>/dev/null || echo "${C_YELLOW}Warning: rbenv init failed.${C_RESET}"
+      eval "$(command rbenv init - zsh)" 2>/dev/null || print -u2 "${C_YELLOW}Warning: rbenv init failed.${C_RESET}"
     }
 
     # -------------------------------------------------------------------------
@@ -398,7 +438,13 @@ if [[ -d "$HOME/.rbenv" ]]; then
 fi
 
 # ----- FNM (Fast Node Manager) ------ #
-if command -v fnm &>/dev/null; then
+# Node.js and npm defaults apply to every Node process started from the shell,
+# before and after the lazy fnm initialization below.
+export NPM_CONFIG_FUND=false                    # Disable funding messages.
+export NPM_CONFIG_AUDIT=false                   # Disable audit during install (run manually).
+export NODE_OPTIONS="--max-old-space-size=4096" # Increase V8 heap size.
+
+if (( $+commands[fnm] )); then
   # ---------------------------------------------------------------------------
   # _fnm_lazy_init
   # @internal
@@ -420,11 +466,6 @@ if command -v fnm &>/dev/null; then
     emulate -L zsh
     setopt noxtrace noverbose
 
-    # Node.js: npm optimization and memory settings.
-    export NPM_CONFIG_FUND=false                    # Disable funding messages.
-    export NPM_CONFIG_AUDIT=false                   # Disable audit during install (run manually).
-    export NODE_OPTIONS="--max-old-space-size=4096" # Increase V8 heap size.
-
     # Set a global default version only when no alias/default exists.
     local fnm_alias_default="${FNM_DIR:-$HOME/.local/share/fnm}/aliases/default"
     if [[ ! -e "$fnm_alias_default" ]]; then
@@ -444,7 +485,7 @@ if command -v fnm &>/dev/null; then
     # This sets FNM_MULTISHELL_PATH and adds fnm to PATH.
     local fnm_env_output
     fnm_env_output="$(command fnm env --use-on-cd --shell zsh 2>/dev/null)" || {
-      echo "${C_YELLOW}Warning: fnm env failed.${C_RESET}"
+      print -u2 "${C_YELLOW}Warning: fnm env failed.${C_RESET}"
       return 1
     }
 
@@ -457,7 +498,7 @@ if command -v fnm &>/dev/null; then
       return 0
     fi
 
-    echo "${C_YELLOW}Warning: fnm env failed.${C_RESET}"
+    print -u2 "${C_YELLOW}Warning: fnm env failed.${C_RESET}"
     return 1
   }
 
@@ -594,6 +635,29 @@ if command -v fnm &>/dev/null; then
 
     unfunction pi 2>/dev/null
     "$pi_bin" "$@"
+  }
+fi
+
+# ----------- Opam, first run ------------ #
+# variables.sh (sourced in the Opam section) already applied the global
+# switch, so the stamp is seeded and the first prompt skips opam. One
+# idle-time run still finishes what opam's own hook did there: it moves the
+# switch's bin to the front of PATH and records OPAM_LAST_ENV, which later
+# switch changes revert against. It is queued here, after _fnm_lazy_init,
+# because that task rebuilds PATH and would undo the order again. A start
+# directory inside a local switch keeps the synchronous first run, since the
+# global environment is wrong there.
+if (( ${precmd_functions[(Ie)_zsh_opam_env_hook]} && $+functions[_zsh_defer] )); then
+  () {
+    local dir="$PWD"
+    while [[ -n "$dir" ]]; do
+      [[ -d "$dir/_opam" ]] && return 0
+      dir="${dir%/*}"
+    done
+    local REPLY
+    _zsh_opam_env_stamp
+    _ZSH_OPAM_ENV_STAMP="$REPLY"
+    _zsh_defer _zsh_opam_env_apply
   }
 fi
 

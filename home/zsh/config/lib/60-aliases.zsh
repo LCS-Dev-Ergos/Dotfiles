@@ -50,7 +50,7 @@ cdf() {
   local target
   target=$(fzf --select-1 --exit-0)
   [[ -z "$target" ]] && return 1
-  cd -- "$(dirname -- "$target")"
+  builtin cd -- "${target:h}"
 }
 
 # ++++++++++++++++++++++++++++ DEVELOPMENT TOOLS +++++++++++++++++++++++++++++ #
@@ -137,6 +137,9 @@ alias clang-ultra-use="clang++ -std=c++23 -stdlib=libc++ $_CPP_LIB_FLAGS -O3 -ma
 alias qcompile="clang++ -std=c++23 -stdlib=libc++ $_CPP_LIB_FLAGS -O2 $_CC_INCLUDE_FLAG"
 alias qdebug="clang++ -std=c++23 -stdlib=libc++ $_CPP_LIB_FLAGS -g -O0 -Wall $_CC_INCLUDE_FLAG"
 
+# The flags are baked into the alias texts above; nothing reads them later.
+unset _CC_INCLUDE_FLAG _CPP_LIB_FLAGS
+
 # +++++++++++++++++++++++++++++++ GIT WORKFLOW +++++++++++++++++++++++++++++++ #
 
 alias gst="git status"
@@ -162,12 +165,15 @@ alias size-all="du -sh .[^.]* * 2>/dev/null"
 alias biggest="du -hs * | sort -hr | head -10"
 # Note: epoch function moved to functions/core.zsh
 alias ping="ping -c 5"
-alias reload="source ~/.zshrc"
-alias edit="$EDITOR ~/.zshrc"
+# `reload` is a function in functions/core.zsh: it re-executes Zsh instead of
+# re-sourcing .zshrc, which would duplicate hooks and deferred jobs. Fast
+# start loads no function bundles, so it keeps the plain alias.
+[[ "${ZSH_FAST_START:-}" == 1 ]] && alias reload='source ~/.zshrc'
+alias edit='${EDITOR:-nvim} ~/.zshrc'
 alias zshfix="zshcache --rebuild"
 alias fastfetch='~/.config/fastfetch/scripts/fastfetch-dynamic.sh'
 
-# Note: eza/bat/duf aliases moved to functions/aliases.zsh
+# eza/bat/duf aliases live in functions/cli-tools.zsh.
 
 # ++++++++++++++++++++++++++++++ kitty Terminal ++++++++++++++++++++++++++++++ #
 
@@ -196,11 +202,13 @@ alias kedit='$EDITOR ~/.config/kitty/kitty.conf'
 
 # -----------------------------------------------------------------------------
 # stitle
-# @description Sets the terminal window or tab title.
+# @description Sets the terminal window or tab title. The text is printed
+# literally: prompt expansion under PROMPT_SUBST would run any `$(...)` in a
+# title built from a directory or branch name.
 # @arg $@ string Title text.
 # -----------------------------------------------------------------------------
 function stitle() {
-  print -Pn "\e]2;${(V)*}\a"
+  print -rn -- $'\e]2;'"${(V)*}"$'\a'
 }
 
 # +++++++++++++++++++++++++++ THEFUCK INTEGRATION ++++++++++++++++++++++++++++ #
@@ -288,7 +296,8 @@ elif [[ "$PLATFORM" == 'Linux' ]]; then
   alias listening="netstat -tuln"
   alias openports="nmap -sT -O localhost"
   alias firewall="sudo ufw status"
-  alias ip="curl -s ifconfig.me"
+  # No `ip` alias: it would shadow iproute2's `ip`. `myip` reports the public
+  # address (functions/network.zsh).
   # shellcheck disable=SC2142
   alias localip="hostname -I | awk '{print \$1}'"
   alias path="echo \$PATH | tr ':' '\n'"
@@ -302,9 +311,7 @@ elif [[ "$PLATFORM" == 'Linux' ]]; then
 
   # ------- Arch Linux Specific -------- #
   if [[ "$ARCH_LINUX" == true ]]; then
-    # Note: eza aliases (ld, lt) moved to functions/aliases.zsh
-
-    # Other aliases for Arch.
+    # eza aliases (ldirs, lt) live in functions/cli-tools.zsh.
     command -v kitten >/dev/null 2>&1 && alias kssh='kitten ssh'
     command -v code >/dev/null 2>&1 && alias vc='code'
   fi

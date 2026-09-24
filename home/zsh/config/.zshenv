@@ -78,15 +78,27 @@ unset _nix_system_bin _nix_user_bin _nix_user_profile
   _zsh_startup_trace_mark ".zshenv:nix"
 
 # Platform detection - load HyDE environment variables on Arch Linux.
-# Only env.zsh is loaded here - shell configuration is deferred to .zshrc
-if [[ -f /etc/os-release ]]; then
-  source /etc/os-release
-  if [[ "$ID" == "arch" ]]; then
-    # HyDE configs stay in the XDG config dir even if we later move ZDOTDIR to $HOME.
-    local hyde_cfg_root="${XDG_CONFIG_HOME:-$HOME/.config}/zsh"
-    local hyde_env="${hyde_cfg_root}/conf.d/hyde/env.zsh"
-    [[ -r "$hyde_env" ]] && source "$hyde_env"
-  fi
+# Only env.zsh is loaded here - shell configuration is deferred to .zshrc.
+# /etc/arch-release is the same probe runtime-helpers.zsh uses; sourcing
+# /etc/os-release instead would leave NAME, ID, VERSION, ... behind as
+# globals in every shell, scripts included.
+if [[ -f /etc/arch-release ]]; then
+  # HyDE configs stay in the XDG config dir even if we later move ZDOTDIR to $HOME.
+  typeset _hyde_env="${XDG_CONFIG_HOME:-$HOME/.config}/zsh/conf.d/hyde/env.zsh"
+  [[ -r "$_hyde_env" ]] && source "$_hyde_env"
+  unset _hyde_env
+fi
+
+# Apple's /etc/zshrc spends a `locale` fork on every interactive shell for
+# settings this configuration owns anyway (history, key bindings, prompt);
+# lib/00-initialization.zsh keeps the rest of it without the fork. GLOBAL_RCS
+# must be decided here, before /etc/zshrc runs. Login shells still need
+# /etc/zprofile, whose path_helper builds the system PATH, so ~/.zprofile
+# turns the option off for them only after that. A symlinked /etc/zshrc is
+# nix-darwin's (programs.zsh), which is never skipped.
+if [[ "$OSTYPE" == darwin* && -o interactive && ! -o login &&
+      ! -L /etc/zshrc ]]; then
+  unsetopt GLOBAL_RCS
 fi
 
 # Keep Zsh's root control files and history in $HOME. Completion dumps and

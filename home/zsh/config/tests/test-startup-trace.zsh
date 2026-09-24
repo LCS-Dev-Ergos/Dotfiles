@@ -66,7 +66,6 @@ command env \
   HOME="$fixture_root/home" \
   XDG_CACHE_HOME="$fixture_root/cache" \
   ZDOTDIR="$test_root" \
-  ZSH_CACHE_AUTO=0 \
   ZSH_FAST_START=1 \
   ZSH_STARTUP_TRACE=1 \
   ZSH_STARTUP_TRACE_EXIT=1 \

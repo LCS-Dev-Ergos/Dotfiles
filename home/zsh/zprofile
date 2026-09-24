@@ -1,6 +1,12 @@
 # .zprofile - Executed only for login shells. Sets up basic environment.
 # shellcheck shell=zsh
 
+# /etc/zprofile (path_helper) has run by now; skip Apple's /etc/zshrc, as
+# ~/.zshenv does for non-login shells (see the GLOBAL_RCS note there).
+if [[ "$OSTYPE" == darwin* && -o interactive && ! -L /etc/zshrc ]]; then
+    unsetopt GLOBAL_RCS
+fi
+
 # -------- Export Fundamental Variables -------- #
 # Lets .zshrc know this file has already been executed.
 export ZPROFILE_HAS_RUN=true

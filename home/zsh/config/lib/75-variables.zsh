@@ -75,7 +75,7 @@ export SBT_OPTS="-Xmx3g -Xms512m -XX:+UseG1GC -XX:MaxMetaspaceSize=1g -XX:Reserv
   # Fallback to current Java if no 17 found.
   [[ -d "$sdkman_java/current" ]] && JAVA_HOME_17="$sdkman_java/current"
 }
-export JAVA_HOME_17
+[[ -n "${JAVA_HOME_17:-}" ]] && export JAVA_HOME_17
 
 # Wrapper function for scala commands to use Java 17.
 if [[ -n "$JAVA_HOME_17" ]]; then
@@ -113,7 +113,7 @@ fi
 export STARSHIP_CONFIG="$HOME/.config/starship/starship.toml"
 
 # Starship prompt cache directory.
-export STARSHIP_CACHE_DIR="$HOME/.cache/starship"
+export STARSHIP_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/starship"
 
 # ----------- Zsh Tooling ------------ #
 # Shared directory for standalone Zsh tools (not shell startup plugins).
@@ -133,6 +133,15 @@ export ZSH_BENCH_DIR="${ZSH_TOOLS_DIR}/zsh-bench"
 # a major Node change; pure JavaScript CLIs survive untouched.
 export NPM_CONFIG_PREFIX="${XDG_DATA_HOME:-$HOME/.local/share}/npm-global"
 
+# ---------------- Go ---------------- #
+# 90-path.zsh adds $GOPATH/bin once it exists. GOCACHE and GOMODCACHE keep
+# Go's own defaults (the platform user cache dir and $GOPATH/pkg/mod). This
+# does not probe for `go`: PATH is only final after 90-path.zsh.
+export GOPATH="$HOME/.go"
+
+# --------------- Bun ---------------- #
+export BUN_INSTALL="$HOME/.bun"
+
 # -------- OS-specific environment variables -------- #
 if [[ "$PLATFORM" == 'macOS' ]]; then
   # Keep compiler/linker selection project-local. `use_llvm`, `use_gnu`, and
@@ -140,9 +149,12 @@ if [[ "$PLATFORM" == 'macOS' ]]; then
 
   # Give terminal-launched Emacs the libgccjit paths it needs without leaking
   # LIBRARY_PATH into every compiler, build, hook, and child process.
-  local gcc_target_dir=(/opt/homebrew/opt/gcc/lib/gcc/current/gcc/*/*(N))
-  if (( ${#gcc_target_dir} )); then
+  () {
+    local -a gcc_target_dir=(/opt/homebrew/opt/gcc/lib/gcc/current/gcc/*/*(N))
+    (( ${#gcc_target_dir} )) || return 0
     typeset -g _EMACS_NATIVE_LIBRARY_PATH="${gcc_target_dir[1]}:/opt/homebrew/opt/gcc/lib/gcc/current:/opt/homebrew/opt/libgccjit/lib/gcc/current"
+  }
+  if [[ -n "${_EMACS_NATIVE_LIBRARY_PATH:-}" ]]; then
     # -------------------------------------------------------------------------
     # emacs
     # @description Runs Emacs with the Homebrew native library path.
@@ -153,15 +165,6 @@ if [[ "$PLATFORM" == 'macOS' ]]; then
     }
   fi
 
-  # GO Language.
-  # Note: PATH is handled by 90-path.zsh via $GOPATH/bin.
-  if command -v go >/dev/null 2>&1; then
-    export GOPATH="$HOME/.go"
-    # Go: Module and build cache optimization.
-    export GOCACHE="$HOME/Library/Caches/go-build"
-    export GOMODCACHE="$GOPATH/pkg/mod"
-  fi
-
   # Android Home for Platform Tools.
   export ANDROID_HOME="$HOME/Library/Android/Sdk"
 
@@ -169,17 +172,6 @@ if [[ "$PLATFORM" == 'macOS' ]]; then
   # gem tree per Ruby version; a global GEM_HOME overrides that and pools every
   # version's gems in one directory, which is how ~/.gem ended up holding
   # orphaned 2.6.0 and 3.4.0 trees after Homebrew moved Ruby to 4.x.
-
-  # Bun JavaScript runtime.
-  export BUN_INSTALL="$HOME/.bun"
-
-  # LCS.Data Volume.
-  if [[ ! -d "$LCS_Data" ]]; then
-    if [[ -t 1 ]] && [[ -z "${ZSH_SILENCE_LCS_DATA_WARN:-}" ]] && [[ -z "${LCS_DATA_WARNED:-}" ]]; then
-      echo "${C_YELLOW}⚠️ Warning: LCS.Data volume is not mounted${C_RESET}"
-      LCS_DATA_WARNED=1
-    fi
-  fi
 fi
 
 if [[ "$PLATFORM" == 'Linux' && "$ARCH_LINUX" == true ]]; then
@@ -192,26 +184,14 @@ if [[ "$PLATFORM" == 'Linux' && "$ARCH_LINUX" == true ]]; then
 
   # Docker Context for "Docker Desktop".
   export DOCKER_CONTEXT='default'
+fi
 
-  # Bun JavaScript runtime.
-  export BUN_INSTALL="$HOME/.bun"
-
-  # GO Language.
-  # Note: PATH is handled by 90-path.zsh via $GOPATH/bin.
-  if command -v go >/dev/null 2>&1; then
-    export GOPATH="$HOME/.go"
-    # Go: Module and build cache optimization.
-    export GOCACHE="$HOME/.cache/go-build"
-    export GOMODCACHE="$GOPATH/pkg/mod"
-  fi
-
-  # LCS.Data Volume.
-  if [[ ! -d "$LCS_Data" ]]; then
-    if [[ -t 1 ]] && [[ -z "${ZSH_SILENCE_LCS_DATA_WARN:-}" ]] && [[ -z "${LCS_DATA_WARNED:-}" ]]; then
-      echo "${C_YELLOW}⚠️ Warning: LCS.Data volume does not appear to be mounted in $LCS_Data${C_RESET}"
-      LCS_DATA_WARNED=1
-    fi
-  fi
+# LCS.Data volume: warn once per terminal session (exported LCS_DATA_WARNED
+# silences nested shells) when the shared volume is missing.
+if [[ -n "${LCS_Data:-}" && ! -d "$LCS_Data" && -t 2 &&
+      -z "${ZSH_SILENCE_LCS_DATA_WARN:-}" && -z "${LCS_DATA_WARNED:-}" ]]; then
+  print -u2 "${C_YELLOW}Warning: the LCS.Data volume is not mounted at $LCS_Data${C_RESET}"
+  export LCS_DATA_WARNED=1
 fi
 
 # --------------- Blog --------------- #

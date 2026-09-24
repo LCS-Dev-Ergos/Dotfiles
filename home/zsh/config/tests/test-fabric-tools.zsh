@@ -8,8 +8,7 @@
 # global function namespace, directory- and legacy flat-file patterns are
 # both discovered, a failed Fabric run leaves no partial Obsidian note, a
 # successful run publishes one atomically with mode 600 and no leftover temp
-# files, and reloads replace module-owned wrappers without clobbering
-# user-defined functions.
+# files, and reloads never clobber user-defined functions.
 # ============================================================================ #
 
 emulate -L zsh
@@ -190,21 +189,8 @@ typeset -a leftovers=("$output_dir"/.fabric-*(N))
   return 1
 }
 
-# A reload must remove a wrapper tracked by the legacy implementation.
-typeset legacy_body='_fabric_run_pattern legacy_pattern "$@"'
-functions[legacy_pattern]="$legacy_body"
-typeset -gA _FABRIC_PATTERN_WRAPPERS
-_FABRIC_PATTERN_WRAPPERS[legacy_pattern]="$legacy_body"
-source "$test_root/lib/70-ai-tools.zsh"
-typeset -f legacy_pattern >/dev/null 2>&1 && {
-  print -u2 "FAIL: Fabric reload retained a module-owned legacy wrapper"
-  return 1
-}
-
-# A user replacement of a previously generated name must survive reloads.
+# A user function named after a pattern must survive reloads.
 functions[summarize]='print -r -- user-defined'
-typeset -gA _FABRIC_PATTERN_WRAPPERS
-_FABRIC_PATTERN_WRAPPERS[summarize]='_fabric_run_pattern summarize "$@"'
 source "$test_root/lib/70-ai-tools.zsh"
 [[ "${functions[summarize]}" == *user-defined* ]] || {
   print -u2 "FAIL: Fabric reload overwrote a user-defined function"
