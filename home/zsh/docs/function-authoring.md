@@ -51,7 +51,7 @@ Choose the output class before choosing its presentation:
 The shared layer honors `ZSH_UI_STYLE=auto|plain|ansi|gum` and `NO_COLOR`.
 Use `_zsh_ui_log` for individual status lines, `_zsh_ui_heading` for a
 command's title banner, `_zsh_ui_section` for lightweight labels (a
-` · detail` suffix renders as secondary text), `_zsh_ui_card` for compact
+`· detail` suffix renders as secondary text), `_zsh_ui_card` for compact
 summaries (`key<TAB>value` lines become an aligned list), `_zsh_ui_table` for
 structured rows (`--align` for numeric columns, `--status` for state columns),
 `_zsh_ui_confirm` for destructive choices, and `_zsh_ui_spinner` only when

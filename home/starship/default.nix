@@ -1,9 +1,35 @@
-{ pkgs, ... }:
+{ lib, pkgs, ... }:
 let
+  toml = pkgs.formats.toml { };
+
+  # Starship runs `python --version` for every prompt in a Python project;
+  # through a pyenv shim that alone costs about 200 ms. The probe answers from
+  # pyvenv.cfg or the selected pyenv interpreter instead, and falls back to
+  # the plain names the TOML lists.
+  pythonVersion = pkgs.writeScript "starship-python-version" (
+    builtins.readFile ./scripts/python-version.sh
+  );
+
   # Parsed straight from the existing TOML rather than hand-transcribed
   # into a Nix attrset, since this config is large and any transcription
   # error would silently change prompt behaviour.
-  starshipSettings = builtins.fromTOML (builtins.readFile ./starship.toml);
+  sourceSettings = builtins.fromTOML (builtins.readFile ./starship.toml);
+  starshipSettings = lib.recursiveUpdate sourceSettings {
+    python.python_binary = [ "${pythonVersion}" ] ++ sourceSettings.python.python_binary;
+  };
+
+  # The TOML keeps its context behind a thin bar on the information line.
+  # kitty's shell integration erases the prompt on resize and lets Zsh redraw
+  # it, so there alone the context can sit right-aligned on a full-width line;
+  # 30-prompt.zsh selects this file when that holds.
+  contextBar = "([│ ](gray)";
+  kittySettings =
+    assert lib.assertMsg (lib.hasInfix contextBar starshipSettings.format)
+      "home/starship/starship.toml: the format no longer contains ${contextBar}, which the kitty variant replaces with $fill.";
+    starshipSettings
+    // {
+      format = builtins.replaceStrings [ contextBar ] [ "$fill(" ] starshipSettings.format;
+    };
 in
 {
   programs.starship = {
@@ -31,7 +57,7 @@ in
   # ~/.config/starship.toml instead. Mirroring the same generated file
   # here from the same settings keeps both resolution paths consistent while
   # retaining compatibility with that carefully migrated shell configuration.
-  xdg.configFile."starship/starship.toml".source =
-    (pkgs.formats.toml { }).generate "starship.toml"
-      starshipSettings;
+  xdg.configFile."starship/starship.toml".source = toml.generate "starship.toml" starshipSettings;
+  xdg.configFile."starship/starship-kitty.toml".source =
+    toml.generate "starship-kitty.toml" kittySettings;
 }
