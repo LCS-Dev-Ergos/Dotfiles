@@ -125,12 +125,15 @@ zsh_rebuild_path() {
 
   # Define the desired final order of directories in the PATH. FNM's default
   # alias links to the selected Node, so its bin costs no subprocess and beats
-  # the Nix fallback, while an activated multishell is still prepended ahead of
-  # this cache. Global npm CLIs follow from NPM_CONFIG_PREFIX (75-variables.zsh).
+  # the Nix fallback; this shell's multishell link comes first, as on a cache
+  # hit. Global npm CLIs follow from NPM_CONFIG_PREFIX (75-variables.zsh).
   local -a path_template
   if [[ "$PLATFORM" == 'macOS' ]]; then
     path_template=(
       # ----- DYNAMIC SHIMS (TOP PRIORITY) ------ #
+      # This shell's fnm link carries `fnm use`, so it must beat the default
+      # alias below, as it does when a cache hit prepends it.
+      "${FNM_MULTISHELL_PATH:+$FNM_MULTISHELL_PATH/bin}"
       "$HOME/.rbenv/shims"
       "$HOME/.pyenv/shims"
       "${FNM_DIR:-$HOME/.local/share/fnm}/aliases/default/bin"
@@ -145,9 +148,6 @@ zsh_rebuild_path() {
       "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/maven/current/bin"
       "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/kotlin/current/bin"
       "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/gradle/current/bin"
-
-      # ------ FNM (Current session only) ------- #
-      "${FNM_MULTISHELL_PATH:+$FNM_MULTISHELL_PATH/bin}"
 
       # ------------------ Nix ------------------ #
       # Declaratively managed tools win over duplicate Homebrew formulae.
@@ -208,6 +208,9 @@ zsh_rebuild_path() {
   elif [[ "$PLATFORM" == 'Linux' ]]; then
     path_template=(
       # ----- DYNAMIC SHIMS (TOP PRIORITY) ------ #
+      # This shell's fnm link carries `fnm use`, so it must beat the default
+      # alias below, as it does when a cache hit prepends it.
+      "${FNM_MULTISHELL_PATH:+$FNM_MULTISHELL_PATH/bin}"
       "$HOME/.rbenv/shims"
       "$HOME/.pyenv/shims"
       "${FNM_DIR:-$HOME/.local/share/fnm}/aliases/default/bin"
@@ -223,9 +226,6 @@ zsh_rebuild_path() {
       "$HOME/.cargo/bin"
       "$HOME/.juliaup/bin"
       
-      # ------ FNM (Current session only) ------- #
-      "${FNM_MULTISHELL_PATH:+$FNM_MULTISHELL_PATH/bin}"
-
       # ------------------ Nix ------------------ #
       # Declaratively managed tools win over system and Linuxbrew copies.
       # Language-version shims remain above Nix by deliberate user choice.
