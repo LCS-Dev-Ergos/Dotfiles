@@ -163,11 +163,11 @@ success_output="$(fabric-pattern summarize "Successful Note")" || {
   print -u2 "FAIL: successful Fabric run did not publish its note"
   return 1
 }
-rg -q '^pattern: summarize$' "$successful_note" || {
+grep -q '^pattern: summarize$' "$successful_note" || {
   print -u2 "FAIL: published note is missing Fabric frontmatter"
   return 1
 }
-rg -q '^mock response: --pattern summarize$' "$successful_note" || {
+grep -q '^mock response: --pattern summarize$' "$successful_note" || {
   print -u2 "FAIL: published note is missing the Fabric response"
   return 1
 }
