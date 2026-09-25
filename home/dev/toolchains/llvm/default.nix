@@ -35,7 +35,7 @@ in
       # CMake consumes ccache through its explicit compiler-launcher
       # variables; no compiler-name masquerade directory belongs in PATH.
       pkgs.ccache
-      llvmPackages.lldb
+      ccToolchain.lldb
     ]
     ++ lib.optionals isDarwin [
       darwinToolchain
