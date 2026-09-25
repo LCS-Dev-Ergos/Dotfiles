@@ -56,47 +56,11 @@ export MAVEN_OPTS="-Xmx3g -Xms512m -XX:+UseG1GC -XX:+TieredCompilation"
 export SBT_OPTS="-Xmx3g -Xms512m -XX:+UseG1GC -XX:MaxMetaspaceSize=1g -XX:ReservedCodeCacheSize=256m"
 
 # ---------- Scala Configs ----------- #
-# Scala: Use Java 17 LTS to avoid sun.misc.Unsafe warnings.
-# Dynamically find Java 17 installation via SDKMAN (no subshell fork).
-() {
-  local sdkman_java="${SDKMAN_DIR:-$HOME/.sdkman}/candidates/java"
-  # Try 'current' symlink for Java 17 if explicitly set.
-  if [[ -d "$sdkman_java/17-tem" ]]; then
-    JAVA_HOME_17="$sdkman_java/17-tem"
-    return
-  fi
-  # Find any Java 17.x installation (prefer Temurin, then any).
-  local -a java17_dirs
-  java17_dirs=("$sdkman_java"/17*(N-/))
-  if (( ${#java17_dirs} )); then
-    JAVA_HOME_17="${java17_dirs[1]}"
-    return
-  fi
-  # Fallback to current Java if no 17 found.
-  [[ -d "$sdkman_java/current" ]] && JAVA_HOME_17="$sdkman_java/current"
-}
-[[ -n "${JAVA_HOME_17:-}" ]] && export JAVA_HOME_17
-
-# Wrapper function for scala commands to use Java 17.
-if [[ -n "$JAVA_HOME_17" ]]; then
-  # ---------------------------------------------------------------------------
-  # scala
-  # @description Runs Scala with the configured Java 17 installation.
-  # @arg $@ string Arguments forwarded to scala.
-  # ---------------------------------------------------------------------------
-  scala() {
-    JAVA_HOME="$JAVA_HOME_17" command scala "$@"
-  }
-
-  # ---------------------------------------------------------------------------
-  # scalac
-  # @description Runs the Scala compiler with Java 17.
-  # @arg $@ string Arguments forwarded to scalac.
-  # ---------------------------------------------------------------------------
-  scalac() {
-    JAVA_HOME="$JAVA_HOME_17" command scalac "$@"
-  }
-fi
+# Coursier installs Scala, sbt and scala-cli as launchers that exec an
+# extracted archive by absolute path. Its default archive cache sits under
+# ~/Library/Caches (macOS) or ~/.cache, which cleaners empty, and every such
+# launcher then fails with exit 127; keep the archives with application data.
+export COURSIER_ARCHIVE_CACHE="${XDG_DATA_HOME:-$HOME/.local/share}/coursier/arc"
 
 # ----------- Clang-Format ----------- #
 # Clang-Format Configuration.

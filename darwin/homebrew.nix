@@ -37,9 +37,9 @@ _: {
   # activation scripts and Doom's separate `coreutils-prefixed` package,
   # never used interactively; `stow` has no Nix equivalent -- Home Manager's
   # declarative file placement replaced it. `codex` and `opencode` are absent
-  # for the same reason: both moved from Nix to npm global installs (see
-  # ~/.local/share/npm-global, already ahead of the Nix profile on PATH) so
-  # their fast-moving releases update directly, without a flake bump.
+  # for the same reason: both left Nix for installs that update themselves
+  # without a flake bump (Codex's standalone binary in ~/.local/bin, OpenCode
+  # in ~/.local/share/npm-global), both ahead of the Nix profile on PATH.
   #
   # Open font casks are also absent: nix-darwin installs CM Unicode, Fira Code,
   # the selected Nerd Font families, and Noto Sans Symbols 2. Apple SF fonts
@@ -50,6 +50,11 @@ _: {
   # was built upstream and copied by hand to /opt/homebrew/bin -- it is not
   # Homebrew-managed and `cleanup = "none"` would not touch it either way.
   # The `xcodes` cask (the GUI app) installed cleanly and is declared below.
+  #
+  # Also absent, owned by their own installers: `coursier` (Coursier's
+  # self-installed `cs` in ~/Library/Application Support/Coursier manages the
+  # Scala apps) and `openjdk@21` (SDKMAN owns the shell JDKs; the temurin@21
+  # cask stays as the system JDK that java_home and MATLAB find).
   #
   # Deliberate Homebrew holdouts: `gcc` (hdf5, open-mpi, libmatio and vips
   # need its gfortran at runtime, and emacs-plus's native-comp links against
@@ -111,7 +116,6 @@ _: {
       "clamav"
       "cmake"
       "cmake-docs"
-      "coursier"
       "cpanminus"
       "cronboard"
       "cunit"
@@ -162,10 +166,6 @@ _: {
       "ocrmypdf"
       "opam"
       "openssl@3"
-      {
-        name = "openjdk@21";
-        link = true;
-      }
       "pandoc"
       "pdfcpu"
       "perl"
