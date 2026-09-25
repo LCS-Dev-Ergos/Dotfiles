@@ -63,6 +63,56 @@ jobs:
       - name: Evaluate every flake output
         run: nix flake check --no-build --all-systems --show-trace
 
+      # GCC and LLVM must come from the binary cache: building GCC locally has
+      # failed on the workstation before. A nixpkgs update that leaves the
+      # selected releases unbuilt fails here, before anyone switches to it; a
+      # newer GCC in nixpkgs is only reported, since adopting it is a choice.
+      - name: Check that the C/C++ toolchain is prebuilt
+        shell: bash
+        run: |
+          status=0
+          for system in aarch64-darwin x86_64-linux; do
+            report="$(nix eval --raw --impure --expr "
+              let
+                pkgs = (builtins.getFlake (toString ./.)).inputs.nixpkgs.legacyPackages.$system;
+                inherit (pkgs) lib;
+                toolchain = import ./home/dev/toolchains/cc-toolchain.nix pkgs;
+                gccMajors = map (name: lib.toInt (lib.removePrefix \"gcc\" name)) (
+                  builtins.filter (name: builtins.match \"gcc[0-9]+\" name != null) (builtins.attrNames pkgs)
+                );
+                paths = [
+                  toolchain.gcc.cc
+                  toolchain.llvmPackages.clang-unwrapped
+                  toolchain.llvmPackages.lld
+                  toolchain.llvmPackages.compiler-rt
+                ];
+              in
+              lib.concatLines (
+                map (path: \"path \${path}\") paths
+                ++ [
+                  \"selected-gcc \${lib.versions.major toolchain.gcc.version}\"
+                  \"newest-gcc \${toString (lib.foldl' lib.max 0 gccMajors)}\"
+                ]
+              )")"
+            while read -r kind value; do
+              case "$kind" in
+                path)
+                  if ! nix path-info --store https://cache.nixos.org "$value" >/dev/null 2>&1; then
+                    echo "::error::$system: ${value#*-} is not in cache.nixos.org and would be built locally"
+                    status=1
+                  fi
+                  ;;
+                selected-gcc) selected="$value" ;;
+                newest-gcc)
+                  if (( value > selected )); then
+                    echo "::notice::$system: nixpkgs offers gcc$value; home/dev/toolchains/cc-toolchain.nix selects gcc$selected"
+                  fi
+                  ;;
+              esac
+            done <<<"$report"
+          done
+          exit "$status"
+
       # `nix flake check --no-build` stops at evaluation, so a check derivation
       # that evaluates cleanly still never runs. Build the ones that are cheap
       # enough for a runner; cpp-tools' checkPhase is its Zsh test suite.
