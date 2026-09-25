@@ -106,6 +106,8 @@ in
     pkgs.nix-tree
     pkgs.patch
     pkgs.pipes
+    # pdftotext and friends, for the ranger and nnn PDF previews.
+    pkgs.poppler-utils
     pkgs.procs
     pkgs.pstree
     pkgs.qpdf
