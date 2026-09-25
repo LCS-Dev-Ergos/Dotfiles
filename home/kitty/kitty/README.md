@@ -140,7 +140,7 @@ On Linux, shortcuts that use `Cmd` on macOS are mapped to `Super` (Windows key).
 | ----------------------- | ---------------------------- |
 | `Cmd+T`                 | New tab in current directory |
 | `Cmd+N`                 | New OS window                |
-| `Ctrl+Shift+T`          | New tab                      |
+| `Ctrl+Shift+T`          | New tab in current directory |
 | `Ctrl+Shift+Q`          | Close current tab            |
 | `Ctrl+Shift+Right/Left` | Navigate between tabs        |
 | `Ctrl+Shift+./,`        | Move tab forward/backward    |
@@ -351,7 +351,9 @@ Sessions are text-based configuration files (`.kitty-session`) that specify:
 #### Session Styling
 
 - **Session badge**: the purple pill at the left edge of the tab bar names the
-  active session (the host name when none is active)
+  active session. A tab outside any session shows the most recent session in a
+  dimmed pill, since the filter still lists it there; the host name appears
+  only before any session has been opened
 - **Tab filtering**: only tabs from the current session are displayed
   (`tab_bar_filter session:~ or session:^$`)
 
@@ -672,8 +674,8 @@ File: [`tab_bar.py`](tab_bar.py), loaded by `tab_bar_style custom`.
 - Titles are shortened to `tab_title_max_length` and to the space kitty gives
   each tab. A shell's directory title shrinks fish-style (`~/D/h/kitty`, then
   `…/kitty`); other paths lose their middle, other titles their end.
-- When the bar is crowded the badge shrinks to its icon, so tab 1 keeps its
-  title.
+- On a bar narrower than 60 cells the badge shows only its icon; otherwise
+  it keeps the full name whichever tab is active.
 - The battery is read from `pmset` (macOS, in a background thread) or
   `/sys/class/power_supply` (Linux) every 30 seconds.
 - A one-second timer redraws the bar only when the minute, the battery sample
