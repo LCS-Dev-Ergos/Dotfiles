@@ -9,7 +9,7 @@ on:
       - "home/**/*.nix"
       - "home/cli-tools/scripts/**"
       - "home/zsh/**"
-      - "home/cpp-tools/**"
+      - "home/dev/languages/cpp/**"
       - "hosts/**/*.nix"
       - "scripts/**"
       - "home/out-of-store-allowlist.tsv"
@@ -23,7 +23,7 @@ on:
       - "home/**/*.nix"
       - "home/cli-tools/scripts/**"
       - "home/zsh/**"
-      - "home/cpp-tools/**"
+      - "home/dev/languages/cpp/**"
       - "hosts/**/*.nix"
       - "scripts/**"
       - "home/out-of-store-allowlist.tsv"
@@ -72,7 +72,7 @@ jobs:
   darwin:
     name: Darwin check derivations
     # Pinned rather than macos-latest: the toolchain check links with LLD end
-    # to end only on an SDK LLD can read (see lld in home/cc-toolchain.nix),
+    # to end only on an SDK LLD can read (see lld in home/dev/toolchains/cc-toolchain.nix),
     # which the workstation's newer SDK does not. Moving the runner is a
     # decision about that coverage, not something a label change does silently.
     runs-on: macos-26

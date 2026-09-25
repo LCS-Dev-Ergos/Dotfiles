@@ -45,7 +45,7 @@ selects plain output. The older `CP_NO_GUM=1` override remains supported.
 Home Manager builds cpp-tools as a tested Nix package, installs the `cpptools`
 command, and exposes its immutable runtime modules at `~/.config/cpp-tools` for
 the custom Zsh lazy loader. Edit the repository source under
-`home/cpp-tools/cpp-tools`, then build or switch the flake; do not edit the live
+`home/dev/languages/cpp/cpp-tools`, then build or switch the flake; do not edit the live
 store-backed path.
 
 The package can also be built directly, including its regression suite:

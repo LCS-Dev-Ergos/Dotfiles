@@ -190,15 +190,15 @@
           pkgs = nixpkgs.legacyPackages.${system};
         in
         {
-          cpp-tools = pkgs.callPackage ./home/cpp-tools/package.nix { };
+          cpp-tools = pkgs.callPackage ./home/dev/languages/cpp/cpp-tools.nix { };
           default = self.packages.${system}.cpp-tools;
         }
         // nixpkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
           # The same arguments Home Manager passes, so this check builds the
           # exact derivation the profile deploys. `.#llvm-darwin-toolchain.check`
           # is the cc-toolchain-check command, runnable before a switch.
-          llvm-darwin-toolchain = pkgs.callPackage ./home/llvm/package.nix {
-            ccToolchain = import ./home/cc-toolchain.nix pkgs;
+          llvm-darwin-toolchain = pkgs.callPackage ./home/dev/toolchains/llvm/package.nix {
+            ccToolchain = import ./home/dev/toolchains/cc-toolchain.nix pkgs;
             inherit (darwinHost) homeDirectory;
           };
         }

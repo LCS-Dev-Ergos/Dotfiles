@@ -725,7 +725,7 @@ _devdoctor_version_coursier() {
 # @internal
 # @description Reports whether fnm has been activated in this shell. Its lazy
 # initializer only runs on the first fnm invocation, so a fresh shell serves
-# Node from the Nix fallback by design (home/cli-tools/default.nix).
+# Node from the Nix fallback by design (home/dev/languages/javascript).
 # @noargs
 # @exitcode 1 If no fnm multishell is active.
 # -----------------------------------------------------------------------------

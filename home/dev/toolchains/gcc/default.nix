@@ -3,15 +3,15 @@ let
   inherit (import ../cc-toolchain.nix pkgs) gcc;
 in
 {
-  # System-wide GCC, next to home/llvm, for whatever specifically wants GNU's
+  # System-wide GCC, next to ../llvm, for whatever specifically wants GNU's
   # g++ (bits/stdc++.h, PBDS, Competitive Programming toolchains) rather than
   # Clang. Nix is the source of truth for it, at the release
-  # home/cc-toolchain.nix selects; it supersedes Homebrew's copy, which stays
+  # ../cc-toolchain.nix selects; it supersedes Homebrew's copy, which stays
   # installed only because other formulae depend on it (see
   # darwin/homebrew.nix).
   #
   # On Darwin the `gcc` and `g++` names on PATH are the host drivers from
-  # home/llvm/package.nix, which run this same compiler, from the same file,
+  # ../llvm/package.nix, which run this same compiler, from the same file,
   # against the host SDK and Apple's linker, together with gcov and gcc-ar.
   # Every program of this wrapper is shadowed there, so on Darwin it adds only
   # its manual pages. On Linux this wrapper is the compiler itself.
