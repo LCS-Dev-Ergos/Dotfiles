@@ -6,11 +6,15 @@
 }:
 let
   isDarwin = pkgs.stdenv.hostPlatform.isDarwin;
+  # Versions and policy come from the one file every toolchain consumer reads.
+  ccToolchain = import ../cc-toolchain.nix pkgs;
+  inherit (ccToolchain) llvmPackages;
   # Keep the compiler-driver policy behind one package interface. The package
   # exposes the Clang and GCC drivers, the Apple linker shim and the clang-tools
   # at a higher profile priority than the generic aliases shipped by the stock
   # Clang and GCC wrappers.
   darwinToolchain = pkgs.callPackage ./package.nix {
+    inherit ccToolchain;
     inherit (config.home) homeDirectory;
   };
   # The profile path, not a store path: CC and CXX get recorded by whatever
@@ -24,23 +28,31 @@ in
   # System-wide C/C++ toolchain, replacing Homebrew's keg-only LLVM. On Darwin
   # the stock Nix wrappers target nixpkgs' own SDK and compatibility floor,
   # which is correct inside Nix builds but not for host-native work. The
-  # priority-5 driver package keeps LLVM 22 and GCC from Nix while compiling
+  # priority-5 driver package keeps LLVM and GCC from Nix while compiling
   # against the host's Apple SDK and linking with Apple's linker. The stock
   # Clang remains installed for its binutils (ar, nm, ranlib, strip, as).
   home = {
     packages =
-      lib.optionals isDarwin [ darwinToolchain ]
+      lib.optionals isDarwin [
+        darwinToolchain
+        # cc-toolchain-check refers to the result of the toolchain's check,
+        # so installing it makes every system build run that check on the
+        # host first: a toolchain that fails it is never deployed. Later it
+        # tells whether the verification still holds after an Xcode, SDK or
+        # macOS update, which Nix cannot see.
+        darwinToolchain.check
+      ]
       ++ [
         # CMake consumes ccache through its explicit compiler-launcher
         # variables; no compiler-name masquerade directory belongs in PATH.
         pkgs.ccache
-        pkgs.llvmPackages_22.clang
-        pkgs.llvmPackages_22.lld
-        pkgs.llvmPackages_22.lldb
+        llvmPackages.clang
+        llvmPackages.lld
+        llvmPackages.lldb
       ]
       # On Darwin the driver package ships clang-tools itself, run against the
       # host SDK instead of the stock wrappers' nixpkgs headers.
-      ++ lib.optionals (!isDarwin) [ pkgs.llvmPackages_22.clang-tools ];
+      ++ lib.optionals (!isDarwin) [ llvmPackages.clang-tools ];
 
     sessionVariables = {
       CC = "${profileBin}/clang";
@@ -49,7 +61,7 @@ in
     // lib.optionalAttrs isDarwin {
       # Rust and CMake can pass their own target after CC's defaults. Publish
       # the platform-standard policy as well so every host-native link agrees.
-      MACOSX_DEPLOYMENT_TARGET = darwinToolchain.darwinMinVersion;
+      MACOSX_DEPLOYMENT_TARGET = ccToolchain.darwinDeploymentTarget;
     };
 
     # Binaries link the Clang sanitizer and GCC runtimes through this stable
