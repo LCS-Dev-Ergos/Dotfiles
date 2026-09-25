@@ -230,6 +230,27 @@ runtime_output="$(_devdoctor_path_conflicts - cc)"
 command rm -f "$bin_dir/cc"
 rehash
 
+# The C/C++ toolchain check row carries the check's own verdict: verified is
+# ok, not verified for the host as it is now is unknown, and a check that
+# cannot run is broken. Each keeps the check's explanation as its detail.
+typeset verdict_registry="$fixture_root/verdict.tsv"
+print -- "cctoolchain\tC/C++ toolchain check\tany\t-\t-\tcc-toolchain-check\t-\t-\t-\t-\t-\talways\t-" >| "$verdict_registry"
+_dd_stub "$bin_dir/cc-toolchain-check" 'echo "verified: SDK 27.0 (26A425)"'
+rehash
+runtime_output="$(DEVDOCTOR_REGISTRY="$verdict_registry" devdoctor --json)" || true
+[[ "$runtime_output" == *'"label":"C/C++ toolchain check","state":"ok"'*'verified: SDK 27.0 (26A425)'* ]] ||
+  _dd_fail "a verified toolchain must be ok and name what was verified: $runtime_output"
+_dd_stub "$bin_dir/cc-toolchain-check" 'echo "not verified for this host (changed: sdk-build 26A425 -> 26A500); run cc-toolchain-check"; exit 1'
+runtime_output="$(DEVDOCTOR_REGISTRY="$verdict_registry" devdoctor --json)" || true
+[[ "$runtime_output" == *'"label":"C/C++ toolchain check","state":"unknown"'*'run cc-toolchain-check'* ]] ||
+  _dd_fail "a stale toolchain verification must be unknown and say how to renew it: $runtime_output"
+_dd_stub "$bin_dir/cc-toolchain-check" 'echo "cannot tell which SDK the drivers select: no macOS SDK found"; exit 2'
+runtime_output="$(DEVDOCTOR_REGISTRY="$verdict_registry" devdoctor --json)" || true
+[[ "$runtime_output" == *'"label":"C/C++ toolchain check","state":"broken"'*'no macOS SDK found'* ]] ||
+  _dd_fail "a toolchain check that cannot run must be broken: $runtime_output"
+command rm -f "$bin_dir/cc-toolchain-check"
+rehash
+
 # No managed runtime: a version shim must not be invoked (some download a
 # toolchain on first use). This holds independently of PATH precedence.
 typeset empty_registry="$fixture_root/empty-runtime.tsv"

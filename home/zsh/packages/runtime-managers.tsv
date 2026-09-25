@@ -5,6 +5,7 @@ cc	C (CC)	any	-	-	hook	hook	cc	-	-	-	always	version
 cxx	C++ (CXX)	any	-	-	hook	hook	c++	-	-	-	always	version
 clang	Clang	any	-	-	clang	clang --version	clang	-	-	-	always	version
 gcc	GCC driver	any	-	-	gcc	gcc --version	gcc	-	-	-	always	version
+cctoolchain	C/C++ toolchain check	macOS	-	-	cc-toolchain-check	-	-	-	-	-	always	-
 cmake	CMake	any	-	-	cmake	cmake --version	cmake	-	cmake	brew upgrade cmake	always	version
 ccache	ccache	any	-	-	ccache	ccache --version	ccache	-	-	-	always	version
 rustup	Rust	any	RUSTUP_HOME	~/.rustup,~/.cargo	rustup	rustc --version	rustc	rustup toolchain list	-	rustup update	always	version
