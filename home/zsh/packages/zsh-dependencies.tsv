@@ -49,8 +49,8 @@ optional	security	nmap	nmap	nmap	-	Advanced network diagnostics.
 optional	blog	hugo	hugo	hugo	-	Static-site builds for the blog workflow.
 optional	blog	rsync	rsync	rsync	-	Guarded Obsidian-to-Hugo synchronization.
 optional	containers	docker	-	docker	-	Container shell and development workflows.
-optional	toolchain	clang	llvm	clang	clang-wrapper	LLVM compiler selection.
-optional	toolchain	gcc	gcc	gcc	gcc-wrapper	GNU compiler selection.
+optional	toolchain	clang	llvm	clang	clang-wrapper|host-toolchain-llvm	LLVM compiler selection.
+optional	toolchain	gcc	gcc	gcc	gcc-wrapper|host-toolchain-llvm	GNU compiler selection.
 optional	toolchain	ccache	ccache	ccache	ccache	Compiler result caching and diagnostics.
 optional	toolchain	cmake	cmake	cmake	-	CMake-based project workflows.
 optional	toolchain	gtime|time	gnu-time	time	time	Detailed command timing where available.

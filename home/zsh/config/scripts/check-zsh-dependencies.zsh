@@ -312,7 +312,7 @@ for line in "${dependency_rows[@]}"; do
 
   package_hint="-"
   if [[ "$dependency_owner" == nix && "$nix_package" != - ]]; then
-    package_hint="Home Manager package $nix_package (switch to install)"
+    package_hint="Home Manager package ${nix_package//|/ or } (switch to install)"
   elif [[ "$dependency_owner" == arch ||
         ( "$dependency_owner" == nix && "$dependency_kernel" != Darwin ) ]]; then
     [[ "$arch_package" == - ]] || package_hint="pacman $arch_package"

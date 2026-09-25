@@ -29,30 +29,39 @@ in
   # the stock Nix wrappers target nixpkgs' own SDK and compatibility floor,
   # which is correct inside Nix builds but not for host-native work. The
   # priority-5 driver package keeps LLVM and GCC from Nix while compiling
-  # against the host's Apple SDK and linking with Apple's linker. The stock
-  # Clang remains installed for its binutils (ar, nm, ranlib, strip, as).
+  # against the host's Apple SDK and linking with Apple's linker.
   home = {
-    packages =
-      lib.optionals isDarwin [
-        darwinToolchain
-        # cc-toolchain-check refers to the result of the toolchain's check,
-        # so installing it makes every system build run that check on the
-        # host first: a toolchain that fails it is never deployed. Later it
-        # tells whether the verification still holds after an Xcode, SDK or
-        # macOS update, which Nix cannot see.
-        darwinToolchain.check
-      ]
-      ++ [
-        # CMake consumes ccache through its explicit compiler-launcher
-        # variables; no compiler-name masquerade directory belongs in PATH.
-        pkgs.ccache
-        llvmPackages.clang
-        llvmPackages.lld
-        llvmPackages.lldb
-      ]
-      # On Darwin the driver package ships clang-tools itself, run against the
-      # host SDK instead of the stock wrappers' nixpkgs headers.
-      ++ lib.optionals (!isDarwin) [ llvmPackages.clang-tools ];
+    packages = [
+      # CMake consumes ccache through its explicit compiler-launcher
+      # variables; no compiler-name masquerade directory belongs in PATH.
+      pkgs.ccache
+      llvmPackages.lldb
+    ]
+    ++ lib.optionals isDarwin [
+      darwinToolchain
+      # cc-toolchain-check refers to the result of the toolchain's check,
+      # so installing it makes every system build run that check on the
+      # host first: a toolchain that fails it is never deployed. Later it
+      # tells whether the verification still holds after an Xcode, SDK or
+      # macOS update, which Nix cannot see.
+      darwinToolchain.check
+      # The binutils (ar, nm, ranlib, strip, objdump, ...) and LLD of the
+      # drivers' own LLVM, without a second compiler: the stock Clang
+      # wrapper would add a clang built for nixpkgs' SDK, and its binutils
+      # came from nixpkgs' default LLVM rather than this one, a release
+      # behind the bitcode LTO objects carry. Unwrapped, they reference no
+      # Apple SDK. `as` stays Apple's (/usr/bin), which assembles for the
+      # host SDK like the rest of the policy. Priority 10 lets the drivers'
+      # `ld` shim and dsymutil win over the copies this package also ships.
+      (lib.setPrio 10 llvmPackages.bintools-unwrapped)
+    ]
+    # On Linux the stock wrappers are the toolchain: nixpkgs' glibc and
+    # headers are the host's there.
+    ++ lib.optionals (!isDarwin) [
+      llvmPackages.clang
+      llvmPackages.clang-tools
+      llvmPackages.lld
+    ];
 
     sessionVariables = {
       CC = "${profileBin}/clang";
