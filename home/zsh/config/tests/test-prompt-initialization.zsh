@@ -6,8 +6,7 @@
 # Verifies lib/30-prompt.zsh: sourcing the module does not activate the prompt
 # before the deferred load runs, the Starship init cache is keyed to its
 # executable's path, a valid cache is reused instead of re-running Starship,
-# the continuation prompt is left for prompt expansion to compute, and the
-# right-aligned kitty layout is chosen only where kitty redraws the prompt.
+# and the continuation prompt is left for prompt expansion to compute.
 # ============================================================================ #
 
 setopt errexit nounset pipefail
@@ -133,28 +132,7 @@ fi
   exit 1
 }
 
-# The right-aligned variant is only for kitty's own prompt redraw: a pane of a
-# multiplexer inherits kitty's variables but is re-wrapped by the multiplexer.
-_ksi_precmd() { :; }
-_prompt_layout() {
-  ( eval "$1"; _zsh_prompt_redrawn_by_kitty ) && print kitty || print one-line
-}
-typeset layout_case
-for layout_case in \
-    'TERM=xterm-kitty TMUX= ZELLIJ= STY= HERDR_ENV=:kitty' \
-    'TERM=xterm-kitty HERDR_ENV=1:one-line' \
-    'TERM=xterm-kitty TMUX=/tmp/tmux-1/default:one-line' \
-    'TERM=xterm-256color TMUX= HERDR_ENV=:one-line' \
-    'TERM=xterm-kitty TMUX= HERDR_ENV= KITTY_SHELL_INTEGRATION=no-prompt-mark:one-line' \
-    'TERM=xterm-kitty TMUX= HERDR_ENV=; unfunction _ksi_precmd:one-line'; do
-  [[ "$(_prompt_layout "${layout_case%:*}")" == "${layout_case##*:}" ]] || {
-    print -u2 "FAIL: wrong prompt layout for: ${layout_case%:*}"
-    exit 1
-  }
-done
-unfunction _ksi_precmd _prompt_layout
-
-print "PASS: deferred prompt init, executable-bound cache, trap and hook isolation, layout choice"
+print "PASS: deferred prompt init, executable-bound cache, trap and hook isolation"
 
 # ============================================================================ #
 # End of tests/test-prompt-initialization.zsh

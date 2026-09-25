@@ -2,7 +2,7 @@
 # +++++++++++++++++++++ STARSHIP ADVANCED CONFIGURATION ++++++++++++++++++++++ #
 # ============================================================================ #
 # Author: lcs-dev
-# Version: 3.1 - Context on the information line, input on the second
+# Version: 3.2 - One information line everywhere, input on the second
 # Last Updated: 2026-09-25
 # ============================================================================ #
 
@@ -12,11 +12,10 @@
 
 # One information line, then the input line. The first line carries location,
 # identity and repository state, then (after a thin bar, only when there is
-# any) the context: jobs, elapsed time, environments, toolchains, battery.
-# Nothing is padded to the terminal width here: a full-width line is text the
-# terminal re-wraps when it shrinks, which leaves duplicate headers behind.
-# home/starship/default.nix derives the kitty variant, which swaps the bar for
-# $fill because kitty erases the prompt on resize (see prompt-resize.md).
+# any) the context: jobs, elapsed time, environments and toolchains.
+# Nothing is padded to the terminal width: a full-width line is text the
+# terminal re-wraps when it shrinks, which leaves duplicate headers behind
+# (see home/zsh/docs/prompt-resize.md).
 format = """
 [╭─](gray)\
 $os\
@@ -105,8 +104,7 @@ $azure\
 $nats\
 $env_var\
 $crystal\
-$sudo\
-$battery)\
+$sudo)\
 $line_break\
 [╰─](gray)\
 $shell\
@@ -830,9 +828,11 @@ disabled = false
 style = 'bold blue'
 symbol = '󰡨 '
 format = '[$symbol$context]($style) '
-only_with_files = false
+# Only in a Docker project: OrbStack sets its own context as the current one,
+# which would otherwise show on every prompt.
+only_with_files = true
 detect_extensions = []
-detect_files = ['docker-compose.yml', 'docker-compose.yaml', 'Dockerfile']
+detect_files = ['compose.yml', 'compose.yaml', 'docker-compose.yml', 'docker-compose.yaml', 'Dockerfile']
 detect_folders = []
 
 [kubernetes]
@@ -949,8 +949,9 @@ style = 'blue bold'
 # ++++++++++++++++++++++++ SYSTEM STATUS & RESOURCES +++++++++++++++++++++++++ #
 # ──────────────────────────────────────────────────────────────────────────── #
 
+# The kitty tab bar shows the battery; the prompt does not repeat it.
 [battery]
-disabled = false
+disabled = true
 full_symbol = '󰁹 '
 charging_symbol = '󰂄 '
 discharging_symbol = '󰂃 '
