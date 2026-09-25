@@ -1,5 +1,6 @@
 _: {
   imports = [
+    ./beam
     ./cpp
     ./javascript
     ./nix
