@@ -440,14 +440,24 @@ _cp_format_ms() {
 # _cp_find_gxx
 # -----------------------------------------------------------------------------
 # Locate a working GNU g++. The plain name comes first: on this machine it is
-# the Nix-managed GCC, the source of truth, while versioned names belong to
-# Homebrew's copy that other formulae keep installed. A candidate counts only
-# if '--version' runs and identifies GNU, which rejects both broken launcher
-# shims and Apple's Clang answering to the g++ name.
+# the Nix-managed GCC, the source of truth. Versioned names follow, newest
+# release first, whichever releases PATH holds -- Homebrew's copy that other
+# formulae keep installed, or a distribution's side-by-side compilers -- so no
+# list of releases here can go stale. A candidate counts only if '--version'
+# runs and identifies GNU, which rejects both broken launcher shims and
+# Apple's Clang answering to the g++ name.
 # -----------------------------------------------------------------------------
 _cp_find_gxx() {
-  local cand cand_path banner
-  for cand in g++ g++-16 g++-15 g++-14 g++-13; do
+  emulate -L zsh
+  local cand cand_path banner dir
+  local -a versioned=()
+  # Read from the directories themselves rather than the command hash table,
+  # which misses a compiler installed after it was filled.
+  for dir in $path; do
+    versioned+=("$dir"/g++-<->(N*:t))
+  done
+  # Unique, then descending in numeric order: g++-17 before g++-9.
+  for cand in g++ ${(Onu)versioned}; do
     cand_path=$(command -v "$cand" 2>/dev/null) || continue
     banner=$("$cand_path" --version 2>/dev/null) || continue
     [[ "$banner" == *"Free Software Foundation"* ]] || continue

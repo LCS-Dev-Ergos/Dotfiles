@@ -374,6 +374,19 @@ _write_fake_compiler "$gxx_bin/g++" "g++ (GCC) Free Software Foundation"
 ) | read -r found_gxx
 _assert_eq "$gxx_bin/g++" "$found_gxx" "plain GNU g++ precedes versioned names"
 
+# Versioned names are discovered rather than listed: the newest release wins
+# in numeric order, including releases no list anticipated.
+_write_fake_compiler "$versioned_bin/g++-9" "g++-9 (GCC) Free Software Foundation"
+_write_fake_compiler "$versioned_bin/g++-17" "g++-17 (Homebrew GCC) Free Software Foundation"
+_write_fake_compiler "$gxx_bin/g++" "Apple clang version fake"
+(
+  PATH="$gxx_bin:$versioned_bin"
+  _cp_find_gxx
+) | read -r found_gxx
+_assert_eq "$versioned_bin/g++-17" "$found_gxx" "the newest versioned g++ is discovered"
+_write_fake_compiler "$gxx_bin/g++" "g++ (GCC) Free Software Foundation"
+command rm -f "$versioned_bin/g++-9" "$versioned_bin/g++-17"
+
 # A build directory caching a compiler that is gone, or one other than the
 # preferred g++, is recreated rather than reused.
 typeset stale_build="$test_tmp/stale-build"
