@@ -3,9 +3,11 @@ _: {
     ./beam
     ./bqn
     ./cpp
+    ./go
     ./javascript
     ./koka
     ./nix
+    ./prolog
     ./python
     ./shell
     ./unison

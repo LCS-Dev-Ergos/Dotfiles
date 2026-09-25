@@ -51,6 +51,13 @@ _: {
   # Homebrew-managed and `cleanup = "none"` would not touch it either way.
   # The `xcodes` cask (the GUI app) installed cleanly and is declared below.
   #
+  # `cmake`, `ninja`, `go`, `swi-prolog` and `fnm` moved to home/dev too
+  # (cmake-docs went with cmake). The rest of the language tooling stays
+  # here on purpose: pyenv, rbenv/ruby-build and opam update their version
+  # definitions faster in Homebrew; pkgconf, autoconf, automake and make serve
+  # their builds against Homebrew libraries; PHP and Perl install modules with
+  # pecl/cpanm; lua is an nmap dependency; mit-scheme has no Darwin package.
+  #
   # `erlang` and `gleam` are Nix-owned as well, with Elixir, on one OTP
   # release (home/dev/languages/beam).
   #
@@ -117,8 +124,6 @@ _: {
       "autoconf"
       "automake"
       "clamav"
-      "cmake"
-      "cmake-docs"
       "cpanminus"
       "cronboard"
       "cunit"
@@ -129,12 +134,10 @@ _: {
       "doxygen"
       "fabric-ai"
       "felixkratz/formulae/borders"
-      "fnm"
       "fzf-make"
       "gcc"
       "gdb"
       "global"
-      "go"
       "googletest"
       "graelo/tap/pumas"
       "graphviz"
@@ -161,7 +164,6 @@ _: {
       "mypy"
       "ncurses"
       "neovim"
-      "ninja"
       "nmap"
       "oci-cli"
       "ocrmypdf"
@@ -189,7 +191,6 @@ _: {
       "serkanyersen/dotstate/dotstate"
       "smartmontools"
       "sqlite"
-      "swi-prolog"
       "tcl-tk@8"
       "teamookla/speedtest/speedtest"
       "tesseract-lang"

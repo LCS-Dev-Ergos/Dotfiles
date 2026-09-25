@@ -52,9 +52,9 @@ optional	containers	docker	-	docker	-	Container shell and development workflows.
 optional	toolchain	clang	llvm	clang	clang-wrapper|host-toolchain-llvm	LLVM compiler selection.
 optional	toolchain	gcc	gcc	gcc	gcc-wrapper|host-toolchain-llvm	GNU compiler selection.
 optional	toolchain	ccache	ccache	ccache	ccache	Compiler result caching and diagnostics.
-optional	toolchain	cmake	cmake	cmake	-	CMake-based project workflows.
+optional	toolchain	cmake	cmake	cmake	cmake	CMake-based project workflows.
 optional	toolchain	gtime|time	gnu-time	time	time	Detailed command timing where available.
-optional	languages	fnm	fnm	fnm	-	Lazy Node.js version management.
+optional	languages	fnm	fnm	fnm	fnm	Lazy Node.js version management.
 optional	languages	pyenv	pyenv	pyenv	-	Lazy Python version management.
 optional	languages	rbenv	rbenv	rbenv	-	Lazy Ruby version management.
 optional	ai	fabric-ai	fabric-ai	aur:fabric-ai-bin	-	Fabric patterns and Obsidian note generation.
