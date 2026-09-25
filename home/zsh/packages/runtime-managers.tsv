@@ -11,6 +11,7 @@ fortran	Fortran	any	-	-	gfortran	gfortran --version	gfortran	-	gcc	brew upgrade 
 fpcupdeluxe	Free Pascal	macOS	-	~/.fpc-deluxe	dir:~/.fpc-deluxe	fpc -iV	fpc	-	-	-	always	version	systems
 gcc	GCC driver	any	-	-	gcc	gcc --version	gcc	-	-	-	always	version	systems
 go	Go	any	GOPATH	-	go	go version	go	-	go	brew upgrade go	always	version	systems
+mojo	Mojo	macOS	-	~/.miniforge3/envs/Mojo	file:~/.miniforge3/envs/Mojo/bin/mojo	~/.miniforge3/envs/Mojo/bin/mojo --version	-	-	-	conda env update -n Mojo -f home/dev/languages/mojo/environment.yml	always	version	systems
 rustup	Rust	any	RUSTUP_HOME	~/.rustup,~/.cargo	rustup	rustc --version	rustc	rustup toolchain list	-	rustup update	always	version	systems
 cctoolchain	Toolchain check	macOS	-	-	cc-toolchain-check	-	-	-	-	-	always	-	systems
 zig	Zig	any	-	-	zig	zig version	zig	-	-	-	always	version	systems
