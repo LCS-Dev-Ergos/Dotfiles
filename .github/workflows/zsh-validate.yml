@@ -67,7 +67,7 @@ jobs:
       # that evaluates cleanly still never runs. Build the ones that are cheap
       # enough for a runner; cpp-tools' checkPhase is its Zsh test suite.
       - name: Build the Linux check derivations
-        run: nix build --no-link --print-out-paths .#checks.x86_64-linux.cpp-tools
+        run: nix build --no-link --print-out-paths --print-build-logs .#checks.x86_64-linux.cpp-tools
 
   darwin:
     name: Darwin check derivations
@@ -87,7 +87,7 @@ jobs:
       # local `nix build --no-link` before switching.
       - name: Build the Darwin check derivations
         run: |
-          nix build --no-link --print-out-paths \
+          nix build --no-link --print-out-paths --print-build-logs \
             '.#checks.aarch64-darwin.cpp-tools' \
             '.#checks.aarch64-darwin.llvm-darwin-toolchain'
 
