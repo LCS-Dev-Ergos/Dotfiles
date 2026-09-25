@@ -3,16 +3,12 @@
 The Starship prompt keeps two lines: every piece of information on the first,
 the input on the second. The first line starts with identity, containers,
 directory and Git state; after a thin `│`, shown only when there is anything
-behind it, come jobs, elapsed command time, environments, Docker/Kubernetes,
-toolchains and low battery. The second line holds command failures and the
-input character. There is no clock and no right prompt (`right_format` is
-empty and Zsh's RPROMPT stays unset, which also saves a Starship process per
-prompt).
-
-Directly in kitty the context is right-aligned instead, with `$fill` taking
-the place of the bar. Home Manager generates that variant as
-`starship-kitty.toml` from the same TOML, and `30-prompt.zsh` selects it only
-where kitty itself repairs resizing; see [Resizing](#resizing).
+behind it, come jobs, elapsed command time, environments, Docker/Kubernetes
+and toolchains. The second line holds command failures and the input
+character. There is no clock, no battery (the kitty tab bar shows it) and no
+right prompt (`right_format` is empty and Zsh's RPROMPT stays unset, which
+also saves a Starship process per prompt). The layout is the same in every
+terminal and multiplexer.
 
 ## Reading the prompt
 
@@ -40,10 +36,12 @@ where kitty itself repairs resizing; see [Resizing](#resizing).
   when its last command succeeds. Successful pipelines remain quiet. The
   input arrow still reflects the shell's overall exit status, so it can be
   green beside a failed early stage when `pipefail` is off.
-- The context shows the number even for one background job, elapsed time
-  after two seconds, and battery only at 30% or below. Nix and Conda retain
-  their environment names. Docker continues showing non-default targets even
-  outside a project; it reads context locally without contacting the daemon.
+- The context shows the number even for one background job and elapsed time
+  after two seconds. Nix and Conda retain their environment names. Docker
+  shows its context only in a project with a Dockerfile or Compose file:
+  OrbStack makes its own context the current one, which would otherwise
+  appear on every prompt. It reads the context locally without contacting
+  the daemon.
 
 The former `custom.git_status` remains disabled as an opt-in fallback. To
 restore its line metrics, disable `git_status` and enable `custom.git_status`;
@@ -61,8 +59,8 @@ in the official [Starship configuration reference](https://starship.rs/config/).
 [Jetpack](https://starship.rs/presets/jetpack) takes inspiration from it and
 Spaceship. The useful overlap here is contextual information, clear command
 status and compact Git state. Jetpack also includes a clock and Git line
-metrics, and hides `main`/`master`; those choices are not used here, and
-`$fill` only appears in the kitty variant. Keep the existing chevron/vi-mode semantics and palette.
+metrics, hides `main`/`master` and right-aligns with `$fill`; those choices
+are not used here. Keep the existing chevron/vi-mode semantics and palette.
 Geometry's asynchronous renderer and extra information on empty Enter would
 require new shell behavior and are not part of this refinement.
 
@@ -101,21 +99,16 @@ Oh My Posh document the same limit), and `TRAPWINCH` with `zle reset-prompt`
 runs too late to help. A custom renderer that tracked the header itself was
 explored and dropped as too fragile.
 
-Two facts make a single information line workable anyway:
+What keeps a single information line workable is that nothing is padded to
+the terminal width. `$fill` turns the first line into width-long text that
+re-wraps on every shrink. Without it the line is as long as its content,
+typically 40 to 90 cells, so resizes that stay at least that wide leave no
+trace. Narrower than the line itself, the old duplicates remain possible.
 
-- **Nothing is padded to the terminal width.** `$fill` turns the first line
-  into width-long text that re-wraps on every shrink. Without it the line is
-  as long as its content, typically 40 to 90 cells, so resizes that stay at
-  least that wide leave no trace. Narrower than the line itself, the old
-  duplicates remain possible.
-- **kitty repairs the rest.** With its shell integration marking the prompt
-  (`at_prompt` in `kitten @ ls`), kitty erases the prompt on resize and lets
-  ZLE redraw it. There, and only there, `starship-kitty.toml` right-aligns the
-  context with `$fill`. `_zsh_prompt_redrawn_by_kitty` requires
-  `TERM=xterm-kitty`, loaded `_ksi_*` functions, no `no-prompt-mark`, and no
-  multiplexer: tmux, herdr and zellij panes inherit kitty's variables but are
-  re-wrapped by the multiplexer, and herdr panes run with
-  `TERM=xterm-256color`. VS Code and other terminals get the TOML's layout.
+kitty's shell integration can erase the prompt on resize and let ZLE redraw
+it, which made a right-aligned `$fill` variant safe directly in kitty. It was
+dropped: the right-aligned context added nothing, and one layout behaves the
+same in kitty, tmux, herdr and VS Code.
 
 Measured on 2026-09-25 (Zsh 5.9.2, Starship 1.26.0, tmux 3.7c, kitty 0.49.1):
 

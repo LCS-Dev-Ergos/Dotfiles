@@ -111,24 +111,6 @@ _zsh_load_starship_init() {
 }
 
 # -----------------------------------------------------------------------------
-# _zsh_prompt_redrawn_by_kitty
-# @internal
-# @description Succeeds when this shell runs directly in kitty with prompt
-# marking on. kitty then erases the prompt on resize and lets ZLE redraw it,
-# so a full-width first line cannot leave re-wrapped copies behind. A pane of
-# tmux, herdr or zellij is re-wrapped by the multiplexer instead, even though
-# it inherits kitty's environment.
-# @noargs
-# @exitcode 1 If any other terminal, or a multiplexer, draws the prompt.
-# -----------------------------------------------------------------------------
-_zsh_prompt_redrawn_by_kitty() {
-  [[ "$TERM" == xterm-kitty ]] || return 1
-  [[ -z "${TMUX-}${ZELLIJ-}${STY-}${HERDR_ENV-}" ]] || return 1
-  [[ "${KITTY_SHELL_INTEGRATION-}" != *no-prompt-mark* ]] || return 1
-  (( ${+functions[_ksi_deferred_init]} || ${+functions[_ksi_precmd]} ))
-}
-
-# -----------------------------------------------------------------------------
 # _init_starship_prompt
 # @internal
 # @description Initializes Starship with the transient-prompt technique (same
@@ -152,15 +134,6 @@ _init_starship_prompt() {
     zle -F "$_tp_fd"
     exec {_tp_fd}<&-
     _tp_fd=0
-  fi
-
-  # Home Manager also generates starship-kitty.toml, which right-aligns the
-  # context with $fill. Use it only where kitty repairs resize reflow; a
-  # config selected by hand (any other file name) is left alone.
-  local kitty_config="${STARSHIP_CONFIG:h}/starship-kitty.toml"
-  if [[ "${STARSHIP_CONFIG:t}" == starship.toml && -r "$kitty_config" ]] &&
-      _zsh_prompt_redrawn_by_kitty; then
-    export STARSHIP_CONFIG="$kitty_config"
   fi
 
   local starship_bin="${commands[starship]-}"
@@ -191,8 +164,8 @@ _init_starship_prompt() {
 
   # Store original prompts from Starship.
   typeset -g _tp_prompt_orig="$PROMPT"
-  # Both layouts keep everything in `format` (right_format is empty), so
-  # skip the second Starship process Starship's RPROMPT would start per prompt.
+  # Everything lives in `format` (right_format is empty), so skip the second
+  # Starship process Starship's RPROMPT would start per prompt.
   typeset -g _tp_rprompt_orig=
 
   # ---------------------------------------------------------------------------

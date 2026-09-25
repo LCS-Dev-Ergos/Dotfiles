@@ -63,6 +63,8 @@ class PromptResizeTest(unittest.TestCase):
             root = Path(directory)
             work = root / "PROMPT_PROBE"
             work.mkdir()
+            # The Docker context only shows in a Docker project.
+            (work / "Dockerfile").touch()
             env = {
                 key: os.environ[key]
                 for key in ("PATH", "LANG", "LC_ALL", "TERMINFO_DIRS", "TMPDIR")
