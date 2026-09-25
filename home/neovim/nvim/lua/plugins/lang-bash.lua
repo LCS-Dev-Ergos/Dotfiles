@@ -2,10 +2,10 @@
 -- BASH / SH / ZSH
 --
 -- The LSP (bash-language-server) comes from Mason. shfmt and shellcheck are
--- installed system-wide by home/cli-tools (Nix) and already on PATH, so only
--- bash-language-server needs Mason to manage it. Shellcheck stays off by
--- default and runs on demand via <leader>cs, since it's noisy against zsh's
--- non-POSIX syntax.
+-- installed system-wide by Nix (home/doom, home/dev/languages/shell) and
+-- already on PATH, so only bash-language-server needs Mason to manage it.
+-- Shellcheck stays off by default and runs on demand via <leader>cs, since
+-- it's noisy against zsh's non-POSIX syntax.
 -- =====-----------------------------------------------------------------=====
 
 return {

@@ -303,7 +303,7 @@ export CARGO_INCREMENTAL=1
 # Conservative C/C++ defaults: keep them tool-friendly and non-invasive.
 # Avoid global optimization flags here; project build files should own those.
 
-# Baseline CC/CXX come from home/llvm through Home Manager's session variables,
+# Baseline CC/CXX come from home/dev/toolchains/llvm through Home Manager's session variables,
 # so every managed shell receives immutable compiler paths. On Darwin, the
 # priority-5 drivers also cover tools that ignore CC/CXX and invoke a generic
 # compiler name directly. `use_llvm`/`use_gnu` can still override the active

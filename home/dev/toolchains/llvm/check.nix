@@ -191,7 +191,7 @@ in
   # The deployment target has a floor, asserted at evaluation, and this
   # ceiling: what is built here has to run here.
   version_at_least "$macos_version" ${deploymentTarget} ||
-    fail "macOS $macos_version is older than the deployment target ${deploymentTarget} in home/cc-toolchain.nix"
+    fail "macOS $macos_version is older than the deployment target ${deploymentTarget} in home/dev/toolchains/cc-toolchain.nix"
 
   # ----- Compiler policy ----- #
   grep -Fq -- '-apple-macosx${deploymentTarget}.0' <<<"$diagnostics" ||
@@ -347,7 +347,7 @@ in
   # ----- LLD ----- #
   # Which linker a -fuse-ld=lld link gets depends on the SDK version, so both
   # outcomes are exercised on every host through views on either side of
-  # home/cc-toolchain.nix's lld.newestSdkMajor. Until September 2026 only the
+  # home/dev/toolchains/cc-toolchain.nix's lld.newestSdkMajor. Until September 2026 only the
   # host SDK decided, and the LLD path first ran on a macOS 26 CI runner.
   lld_sdk="$PWD/lld-sdk/MacOSX.sdk"
   apple_sdk="$PWD/apple-sdk/MacOSX.sdk"
@@ -396,7 +396,7 @@ in
     # Tripwire: LLD still rejects this SDK, for the known reason. Once it
     # reads it, the fallback is dead weight and the ceiling has to rise.
     if lld_output="$($bin/cc -fuse-ld=lld --ld-path=${ld64Lld} smoke.c -o smoke-lld 2>&1)"; then
-      fail "LLD ${llvmVersion} now reads SDK $host_sdk_version; raise lld.newestSdkMajor in home/cc-toolchain.nix"
+      fail "LLD ${llvmVersion} now reads SDK $host_sdk_version; raise lld.newestSdkMajor in home/dev/toolchains/cc-toolchain.nix"
     fi
     grep -Eq 'could not load TAPI file|unknown architecture' <<<"$lld_output" || {
       printf '%s\n' "$lld_output" >&2
