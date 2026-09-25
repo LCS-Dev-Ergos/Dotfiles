@@ -6,11 +6,11 @@ cc	C (CC)	any	-	-	hook	hook	cc	-	-	-	always	version	systems
 cxx	C++ (CXX)	any	-	-	hook	hook	c++	-	-	-	always	version	systems
 ccache	ccache	any	-	-	ccache	ccache --version	ccache	-	-	-	always	version	systems
 clang	Clang	any	-	-	clang	clang --version	clang	-	-	-	always	version	systems
-cmake	CMake	any	-	-	cmake	cmake --version	cmake	-	cmake	brew upgrade cmake	always	version	systems
+cmake	CMake	any	-	-	cmake	cmake --version	cmake	-	-	-	always	version	systems
 fortran	Fortran	any	-	-	gfortran	gfortran --version	gfortran	-	gcc	brew upgrade gcc	always	version	systems
 fpcupdeluxe	Free Pascal	macOS	-	~/.fpc-deluxe	dir:~/.fpc-deluxe	fpc -iV	fpc	-	-	-	always	version	systems
 gcc	GCC driver	any	-	-	gcc	gcc --version	gcc	-	-	-	always	version	systems
-go	Go	any	GOPATH	-	go	go version	go	-	go	brew upgrade go	always	version	systems
+go	Go	any	GOPATH	-	go	go version	go	-	-	-	always	version	systems
 mojo	Mojo	macOS	-	~/.miniforge3/envs/Mojo	file:~/.miniforge3/envs/Mojo/bin/mojo	~/.miniforge3/envs/Mojo/bin/mojo --version	-	-	-	conda env update -n Mojo -f home/dev/languages/mojo/environment.yml	always	version	systems
 rustup	Rust	any	RUSTUP_HOME	~/.rustup,~/.cargo	rustup	rustc --version	rustc	rustup toolchain list	-	rustup update	always	version	systems
 cctoolchain	Toolchain check	macOS	-	-	cc-toolchain-check	-	-	-	-	-	always	-	systems
@@ -36,7 +36,7 @@ ghcup	Haskell	any	-	~/.ghcup	ghcup	ghc --numeric-version	ghc	ghcup list -t ghc -
 koka	Koka	any	-	-	koka	koka --version	koka	-	-	-	always	version	functional
 scheme	MIT Scheme	any	-	-	mit-scheme	mit-scheme --version	mit-scheme	-	mit-scheme	brew upgrade mit-scheme	always	version	functional
 opam	OCaml	any	OPAMROOT	~/.opam	opam	ocaml -version	ocaml	opam switch list -s	-	opam update	always	version	functional
-prolog	Prolog	any	-	-	swipl	swipl --version	swipl	-	swi-prolog	brew upgrade swi-prolog	always	version	functional
+prolog	Prolog	any	-	-	swipl	swipl --version	swipl	-	-	-	always	version	functional
 racket	Racket	any	-	-	racket	racket --version	racket	-	racket	brew upgrade racket	always	version	functional
 unison	Unison	any	-	-	ucm	ucm --version	ucm	-	-	-	always	version	functional
 juliaup	Julia	any	-	~/.juliaup	juliaup	julia --version	julia	-	-	juliaup update	always	version	science
