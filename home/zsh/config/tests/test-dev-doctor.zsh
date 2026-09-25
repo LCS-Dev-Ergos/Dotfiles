@@ -127,6 +127,9 @@ if [ "$1" = "--version" ]; then echo "Homebrew 9.9.9"; fi
 '
 
 typeset registry="$fixture_root/runtime-managers.tsv"
+# The row for the other platform must be skipped wherever the suite runs.
+typeset other_platform=Linux
+[[ "$OSTYPE" == linux* ]] && other_platform=macOS
 {
   print -- "# id\tlabel\tplatform\troot_var\troot_default\tprobe\tversion_cmd\tlanguage_bin\tmanaged_list\tformula\tupdate_hint\tactivation"
   print -- "ok_mgr\tOK Manager\tany\tDD_OK_ROOT\t-\tokmgr\tokmgr --version\toklang\tokmgr list\t-\tokmgr update\talways"
@@ -136,7 +139,7 @@ typeset registry="$fixture_root/runtime-managers.tsv"
   print -- "absent_mgr\tAbsent Manager\tany\t-\t-\tdd-no-such-command\t-\t-\t-\t-\t-\talways"
   print -- "session_mgr\tSession Manager\tany\tDD_SESSION_ROOT\t-\tsessionmgr\tsessionmgr --version\tsessionlang\tsessionmgr list\t-\t-\tsession"
   print -- "brew_mgr\tBrew Manager\tany\t-\t-\tbrewlang\tbrewlang --version\t-\t-\tbrewformula\tbrew upgrade brewformula\talways"
-  print -- "elsewhere_mgr\tElsewhere Manager\tLinux\t-\t-\tokmgr\t-\t-\t-\t-\t-\talways"
+  print -- "elsewhere_mgr\tElsewhere Manager\t$other_platform\t-\t-\tokmgr\t-\t-\t-\t-\t-\talways"
 } >| "$registry"
 
 export DD_OK_ROOT="$ok_root"
@@ -279,7 +282,7 @@ json_output="$(devdoctor --all --json)" || status_code=$?
   _dd_fail "--all must include managers that are not installed"
 
 [[ "$json_output" != *'elsewhere_mgr'* ]] ||
-  _dd_fail "a Linux-only row must be skipped on this platform"
+  _dd_fail "a $other_platform-only row must be skipped on this platform"
 
 # A stale PATH entry and a duplicated binary are both reported as conflicts.
 [[ "$json_output" == *'"kind":"stale entry"'*"never-created"* ]] ||
