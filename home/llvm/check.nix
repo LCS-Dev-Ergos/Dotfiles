@@ -28,8 +28,9 @@ in
   bin=${toolchain}/bin
   otool=${cctools}/bin/otool
   lipo=${cctools}/bin/lipo
-  # As in a deployed profile: helpers such as dsymutil are found by name.
-  export PATH="$bin:$PATH"
+  # As in a deployed profile: helpers such as dsymutil are found by name, and
+  # -fuse-ld=lld finds ld64.lld from the separate lld package.
+  export PATH="$bin:${lld}/bin:$PATH"
 
   fail() {
     echo "FAIL: $*" >&2
