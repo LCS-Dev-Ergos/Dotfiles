@@ -194,9 +194,11 @@
           default = self.packages.${system}.cpp-tools;
         }
         // nixpkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
-          # The same homeDirectory Home Manager passes, so this check builds the
-          # exact derivation the profile deploys.
+          # The same arguments Home Manager passes, so this check builds the
+          # exact derivation the profile deploys. `.#llvm-darwin-toolchain.check`
+          # is the cc-toolchain-check command, runnable before a switch.
           llvm-darwin-toolchain = pkgs.callPackage ./home/llvm/package.nix {
+            ccToolchain = import ./home/cc-toolchain.nix pkgs;
             inherit (darwinHost) homeDirectory;
           };
         }
