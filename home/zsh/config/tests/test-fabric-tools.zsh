@@ -174,8 +174,8 @@ grep -q '^mock response: --pattern summarize$' "$successful_note" || {
 
 typeset note_mode
 note_mode="$(
-  command stat -f '%Lp' "$successful_note" 2>/dev/null ||
-    command stat -c '%a' "$successful_note"
+  command stat -c '%a' "$successful_note" 2>/dev/null ||
+    command stat -f '%Lp' "$successful_note"
 )"
 [[ "$note_mode" == 600 ]] || {
   print -u2 "FAIL: published Fabric note permissions are not 600"

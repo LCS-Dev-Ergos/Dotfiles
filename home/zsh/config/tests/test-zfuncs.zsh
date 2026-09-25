@@ -246,8 +246,8 @@ listing="$(zfuncs)"
 
 chmod 666 "$fixture_root/cache/zsh/zfuncs/catalog-v1"
 zfuncs >/dev/null
-[[ "$(command stat -f '%Lp' "$fixture_root/cache/zsh/zfuncs/catalog-v1" 2>/dev/null ||
-       command stat -c '%a' "$fixture_root/cache/zsh/zfuncs/catalog-v1")" == 600 ]] || {
+[[ "$(command stat -c '%a' "$fixture_root/cache/zsh/zfuncs/catalog-v1" 2>/dev/null ||
+       command stat -f '%Lp' "$fixture_root/cache/zsh/zfuncs/catalog-v1")" == 600 ]] || {
   print -u2 "FAIL: insecure local catalog was not rebuilt with mode 600"
   return 1
 }

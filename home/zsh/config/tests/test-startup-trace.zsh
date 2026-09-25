@@ -36,8 +36,8 @@ _zsh_startup_trace_write
   print -u2 "FAIL: startup trace did not create its TSV report"
   return 1
 }
-[[ "$(command stat -f '%Lp' "$trace_file" 2>/dev/null ||
-       command stat -c '%a' "$trace_file")" == 600 ]] || {
+[[ "$(command stat -c '%a' "$trace_file" 2>/dev/null ||
+       command stat -f '%Lp' "$trace_file")" == 600 ]] || {
   print -u2 "FAIL: startup trace report does not have mode 600"
   return 1
 }
