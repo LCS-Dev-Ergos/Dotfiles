@@ -26,15 +26,18 @@ perl	Perl	any	-	-	perl	hook	perl	-	perl	brew upgrade perl	always	version	scripti
 php	PHP	any	-	-	php	php --version	php	-	php	brew upgrade php	always	version	scripting
 pyenv	Python	any	PYENV_ROOT	~/.pyenv	pyenv	pyenv version-name	python3	pyenv versions --bare	-	pyenv install -l	always	python3 --version	scripting
 rbenv	Ruby	any	RBENV_ROOT	~/.rbenv	rbenv	rbenv version-name	ruby	rbenv versions --bare	-	rbenv install -l	always	ruby --version	scripting
+bqn	BQN	any	-	-	bqn	bqn --version	bqn	-	-	-	always	version	functional
 sbcl	Common Lisp	any	-	-	sbcl	sbcl --version	sbcl	-	-	-	always	version	functional
 elixir	Elixir	any	-	-	elixir	elixir --short-version	elixir	-	-	-	always	version	functional
 erlang	Erlang	any	-	-	erl	hook	erl	-	-	-	always	version	functional
 gleam	Gleam	any	-	-	gleam	gleam --version	gleam	-	-	-	always	version	functional
 ghcup	Haskell	any	-	~/.ghcup	ghcup	ghc --numeric-version	ghc	ghcup list -t ghc -c installed -r	-	ghcup upgrade	always	version	functional
+koka	Koka	any	-	-	koka	koka --version	koka	-	-	-	always	version	functional
 scheme	MIT Scheme	any	-	-	mit-scheme	mit-scheme --version	mit-scheme	-	mit-scheme	brew upgrade mit-scheme	always	version	functional
 opam	OCaml	any	OPAMROOT	~/.opam	opam	ocaml -version	ocaml	opam switch list -s	-	opam update	always	version	functional
 prolog	Prolog	any	-	-	swipl	swipl --version	swipl	-	swi-prolog	brew upgrade swi-prolog	always	version	functional
 racket	Racket	any	-	-	racket	racket --version	racket	-	racket	brew upgrade racket	always	version	functional
+unison	Unison	any	-	-	ucm	ucm --version	ucm	-	-	-	always	version	functional
 juliaup	Julia	any	-	~/.juliaup	juliaup	julia --version	julia	-	-	juliaup update	always	version	science
 elan	Lean	any	ELAN_HOME	~/.elan	elan	lean --version	lean	elan toolchain list	-	elan update	always	version	science
 dotnet	.NET SDK	any	-	-	dotnet	dotnet --version	dotnet	-	-	-	always	version	apps
