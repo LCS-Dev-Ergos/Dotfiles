@@ -9,5 +9,10 @@
   # profile on PATH, so their releases update directly instead of through a
   # flake bump. scripts/opencode-update.sh is retained but no longer wired
   # into any module.
-  home.packages = [ pkgs.nodejs_24 ];
+  # fnm, the per-project Node version manager, is Nix-owned too; the Node
+  # versions it installs live in its own data directory, not in the store.
+  home.packages = [
+    pkgs.fnm
+    pkgs.nodejs_24
+  ];
 }
