@@ -77,15 +77,24 @@ let
   };
 in
 lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
-  # The old bootstrap script installed this exact, checksum-verified font as a
-  # regular user file. Home Manager now owns the same asset; force is limited
-  # to that known generated target so the first migration can replace it.
-  home.file."Library/Fonts/sketchybar-app-font.ttf" = {
-    source = sketchybarAppFont;
-    force = true;
+  home = {
+    # The old bootstrap script installed this exact, checksum-verified font as a
+    # regular user file. Home Manager now owns the same asset; force is limited
+    # to that known generated target so the first migration can replace it.
+    file."Library/Fonts/sketchybar-app-font.ttf" = {
+      source = sketchybarAppFont;
+      force = true;
+    };
+
+    packages = [ sketchybar ];
+
+    # The initial user-service migration pins its closure until a complete
+    # Home Manager activation takes over garbage-collection ownership.
+    activation.retireSketchybarBootstrapRoot = lib.hm.dag.entryAfter [ "setupLaunchAgents" ] ''
+      run rm -f ${lib.escapeShellArg "${config.xdg.stateHome}/sketchybar/bootstrap-gcroot"}
+    '';
   };
 
-  home.packages = [ sketchybar ];
   launchd.agents.sketchybar = {
     enable = true;
     config = {
@@ -108,12 +117,6 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
       ProcessType = "Interactive";
     };
   };
-
-  # The initial user-service migration pins its closure until a complete
-  # Home Manager activation takes over garbage-collection ownership.
-  home.activation.retireSketchybarBootstrapRoot = lib.hm.dag.entryAfter [ "setupLaunchAgents" ] ''
-    run rm -f ${lib.escapeShellArg "${config.xdg.stateHome}/sketchybar/bootstrap-gcroot"}
-  '';
 
   xdg.configFile."sketchybar".source = sketchybarConfig;
 }
