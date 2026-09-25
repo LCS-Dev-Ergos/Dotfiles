@@ -34,19 +34,20 @@ outer.right = 12            # right_padding: 12
 
 # Startup - Initialize Sketchybar.
 after-startup-command = [
-    'exec-and-forget sketchybar'
+    'exec-and-forget @sketchybar@'
 ]
 
-# Trigger Sketchybar updates on workspace change.
+# Trigger Sketchybar updates on workspace change. @sketchybar@ is replaced with
+# the Nix-installed binary by home/aerospace/default.nix.
 exec-on-workspace-change = [
-    '/opt/homebrew/bin/bash', '-c',
-    '/opt/homebrew/bin/sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE'
+    '/bin/bash', '-c',
+    '@sketchybar@ --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE'
 ]
 
 # Trigger Sketchybar updates on window focus change.
 after-window-focus-change = [
-    '/opt/homebrew/bin/bash', '-c',
-    '/opt/homebrew/bin/sketchybar --trigger aerospace_windows_change'
+    '/bin/bash', '-c',
+    '@sketchybar@ --trigger aerospace_windows_change'
 ]
 
 # Mouse behavior (move mouse to focused window/monitor).
