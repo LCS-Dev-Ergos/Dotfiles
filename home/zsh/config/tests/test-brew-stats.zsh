@@ -218,7 +218,8 @@ _test_brew_failure 2 'brew_stats:' -- --nope
 typeset default_output="$(brew_stats)"
 _test_contains "$default_output" 'pkg-large' \
   "default report omitted pkg-large"
-_test_contains "$default_output" '200.0 KB' \
+# Allocation includes filesystem-specific directory blocks (ext4 adds 4 KB).
+_test_contains "$default_output" "${formula_large_line%%[[:space:]]*}.0 KB" \
   "default report changed pkg-large's allocated size"
 _test_contains "$default_output" "caskA" \
   "default report omitted the canonical cask"
