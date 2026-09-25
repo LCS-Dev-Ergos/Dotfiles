@@ -18,6 +18,9 @@ let
   # zshdeps reads that column for its install hints, so we check it against
   # what this configuration really installs; a rename or a package moving
   # between owners then fails the build instead of leaving a stale hint.
+  # "a|b" names alternatives, one per host where the owner differs (the
+  # Darwin C/C++ drivers replace the stock compiler wrappers); any one of
+  # them being installed satisfies the row.
   registryRows = builtins.filter (line: line != "" && !lib.hasPrefix "#" line) (
     lib.splitString "\n" (builtins.readFile ./packages/zsh-dependencies.tsv)
   );
@@ -25,7 +28,9 @@ let
     map (row: builtins.elemAt (lib.splitString "\t" row) 5) registryRows
   );
   installedNames = map lib.getName config.home.packages;
-  unownedNames = lib.filter (name: !builtins.elem name installedNames) registryNixNames;
+  unownedNames = lib.filter (
+    spec: !lib.any (name: builtins.elem name installedNames) (lib.splitString "|" spec)
+  ) registryNixNames;
 in
 {
   # Keep file placement independent from programs.zsh. On Darwin, nix-darwin
