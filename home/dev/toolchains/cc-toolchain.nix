@@ -3,6 +3,13 @@
 # this file alone: the llvm and gcc modules beside it and the flake's
 # toolchain check all read it, and none of them keeps a default of its own.
 pkgs: {
+  # Both must be prebuilt in cache.nixos.org for aarch64-darwin and
+  # x86_64-linux: building GCC locally has failed here before. CI checks it on
+  # every change, and reports when nixpkgs offers a newer GCC than this one.
+  # Before raising either, this must list paths for both systems (add
+  # `--system x86_64-linux` for the second):
+  #   nix path-info --store https://cache.nixos.org --eval-store auto \
+  #     --inputs-from . nixpkgs#gcc17.cc
   llvmPackages = pkgs.llvmPackages_22;
   gcc = pkgs.gcc16;
 
