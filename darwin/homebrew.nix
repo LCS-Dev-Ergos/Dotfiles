@@ -26,8 +26,8 @@ _: {
   # television, tex-fmt, tmux, tree, universal-ctags, uv, w3m, wget, yazi,
   # zoxide.
   #
-  # llvm/lld left for a real bug, not just ownership -- see home/llvm. `rust`
-  # was never declared here to begin with (a pre-migration leftover).
+  # llvm/lld left for a real bug, not just ownership -- see home/dev/toolchains/llvm.
+  # `rust` was never declared here to begin with (a pre-migration leftover).
   # cleanup = "none" leaves all retired formulae installed until the Nix
   # replacements have been activated and a dependency-aware manual cleanup is
   # confirmed. The unused Darwin ueberzugpp installation is retired rather
@@ -54,9 +54,9 @@ _: {
   # Deliberate Homebrew holdouts: `gcc` (hdf5, open-mpi, libmatio and vips
   # need its gfortran at runtime, and emacs-plus's native-comp links against
   # its libgccjit -- Nix's GCC still wins on PATH for interactive/project
-  # use, see home/gcc), `neovim` (binary ownership is a separate decision
-  # from Home Manager deploying its config), and GUI apps in general. `zsh`
-  # stays declared only until the Nix login shell (users.users.<name>.shell)
+  # use, see home/dev/toolchains/gcc), `neovim` (binary ownership is a separate
+  # decision from Home Manager deploying its config), and GUI apps in general.
+  # `zsh` stays declared only until the Nix login shell (users.users.<name>.shell)
   # has soaked through real sessions; remove it here and uninstall manually
   # afterwards.
   homebrew = {

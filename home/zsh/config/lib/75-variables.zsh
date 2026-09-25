@@ -121,7 +121,7 @@ export ZSH_TOOLS_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/zsh/tools"
 export ZSH_BENCH_DIR="${ZSH_TOOLS_DIR}/zsh-bench"
 
 # --------------- Ruby --------------- #
-# No RUBY_CONFIGURE_OPTS: the compiler behind CC (home/llvm) builds against the
+# No RUBY_CONFIGURE_OPTS: the compiler behind CC (home/dev/toolchains/llvm) builds against the
 # host macOS SDK, which carries zlib, readline and libffi itself, and
 # ruby-build supplies openssl, libyaml and gmp from Homebrew on its own.
 

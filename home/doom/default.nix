@@ -76,7 +76,6 @@ in
     pkgs.pyright
     pkgs.sbcl
     pkgs.shfmt
-    pkgs.zig
     nosetestsCompat
   ]
   ++ lib.optionals pkgs.stdenv.hostPlatform.isDarwin [

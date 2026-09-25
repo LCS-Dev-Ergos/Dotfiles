@@ -7,20 +7,16 @@ _: {
     ./bat
     ./btop
     ./cava
-    ./clang-format
     ./cli-tools
-    ./cpp-tools
+    ./dev
     ./doom
     ./fastfetch
     ./fish
-    ./gcc
     ./ghostty
     ./git
     ./herdr
     ./kitty
     ./lazygit
-    ./lldb
-    ./llvm
     ./neofetch
     ./neovim
     ./nnn

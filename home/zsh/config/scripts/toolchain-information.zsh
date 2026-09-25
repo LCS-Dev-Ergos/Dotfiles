@@ -449,8 +449,8 @@ get_toolchain_info() {
 # source against one of them -- pyenv, rbenv, node-gyp, cargo build scripts,
 # opam -- then behaves differently depending on which compiler is active,
 # usually by silently omitting a feature rather than by failing. The host
-# drivers from home/llvm build against the host SDK, so they should report no
-# divergence at all.
+# drivers from home/dev/toolchains/llvm build against the host SDK, so they
+# should report no divergence at all.
 typeset -ga _TOOLCHAIN_SDK_HEADERS=(
   "zlib.h:compression (Python zlib, Ruby zlib, git)"
   "bzlib.h:compression (Python bz2)"

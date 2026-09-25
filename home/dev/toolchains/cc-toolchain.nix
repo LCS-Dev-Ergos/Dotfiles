@@ -1,7 +1,7 @@
 # The C/C++ toolchain every host, module and check uses, chosen in one place.
 # Upgrading LLVM or GCC, or moving the macOS deployment target, is an edit to
-# this file alone: home/llvm, home/gcc and the flake's toolchain check all read
-# it, and none of them keeps a default of its own to fall back to.
+# this file alone: the llvm and gcc modules beside it and the flake's
+# toolchain check all read it, and none of them keeps a default of its own.
 pkgs: {
   llvmPackages = pkgs.llvmPackages_22;
   gcc = pkgs.gcc16;

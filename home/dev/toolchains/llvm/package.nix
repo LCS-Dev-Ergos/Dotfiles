@@ -1,5 +1,5 @@
 {
-  # home/cc-toolchain.nix applied to pkgs. Deliberately not named after a
+  # home/dev/toolchains/cc-toolchain.nix applied to pkgs. Deliberately not named after a
   # package set attribute: callPackage would silently fill `llvmPackages` or
   # `gcc` with nixpkgs' defaults, whereas a missing `ccToolchain` fails.
   ccToolchain,
@@ -903,16 +903,15 @@ let
 in
 assert lib.assertMsg stdenv.hostPlatform.isDarwin "The Darwin host toolchain requires macOS";
 assert lib.assertMsg (ccToolchain.lld.llvm == llvmMajor) ''
-  home/cc-toolchain.nix selects LLVM ${llvmMajor}, but lld.newestSdkMajor
+  home/dev/toolchains/cc-toolchain.nix selects LLVM ${llvmMajor}, but lld.newestSdkMajor
   (${lldNewestSdkMajor}) was established for LLD ${ccToolchain.lld.llvm}.
   Set lld.llvm to "${llvmMajor}" once the ceiling is re-established for the
   new release: the toolchain check fails when LLD reads a host SDK above the
   ceiling, and the macOS CI runner links with LLD against the SDK below it.'';
-assert lib.assertMsg (
-  builtins.match "[0-9]+[.][0-9]+" deploymentTarget != null
-) "home/cc-toolchain.nix: darwinDeploymentTarget must be MAJOR.MINOR, not ${deploymentTarget}.";
+assert lib.assertMsg (builtins.match "[0-9]+[.][0-9]+" deploymentTarget != null)
+  "home/dev/toolchains/cc-toolchain.nix: darwinDeploymentTarget must be MAJOR.MINOR, not ${deploymentTarget}.";
 # The relocated runtimes are nixpkgs builds with nixpkgs' floor as their own
 # deployment target; linking them into anything older warns on every link.
 assert lib.assertMsg (lib.versionAtLeast deploymentTarget stdenv.hostPlatform.darwinMinVersion)
-  "home/cc-toolchain.nix: darwinDeploymentTarget ${deploymentTarget} is below nixpkgs' floor ${stdenv.hostPlatform.darwinMinVersion}.";
+  "home/dev/toolchains/cc-toolchain.nix: darwinDeploymentTarget ${deploymentTarget} is below nixpkgs' floor ${stdenv.hostPlatform.darwinMinVersion}.";
 toolchain

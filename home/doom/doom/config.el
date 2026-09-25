@@ -386,7 +386,7 @@ Falls back to FILE unqualified (PATH lookup) if the switch cannot be resolved."
 ;;
 ;; Requires: (debugger +lsp) in init.el
 ;; Install debug adapters:
-;;   C/C++/Rust: lldb-dap comes from our own LLVM 22 now (home/llvm), not brew
+;;   C/C++/Rust: lldb-dap comes from our own LLVM 22 now (home/dev/toolchains/llvm), not brew
 ;;   Python:     pip install debugpy
 ;;   Java:       jdtls bundles java-debug automatically
 (after! dap-mode
