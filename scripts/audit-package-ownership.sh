@@ -492,7 +492,9 @@ while IFS= read -r path_entry; do
       "$(path_provider "$candidate")" "$candidate" \
       >>"$temp_root/path-candidates-unsorted"
   done
-done < <(printf '%s' "$PATH" | tr ':' '\n')
+# The trailing newline matters: without it `read` drops the last PATH entry,
+# and a trailing empty component (an implicit ".") would go unnoticed.
+done < <(printf '%s\n' "$PATH" | tr ':' '\n')
 sort -t $'\t' -k1,1 -k2,2n "$temp_root/path-candidates-unsorted" \
   >"$temp_root/path-candidates"
 

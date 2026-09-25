@@ -28,13 +28,20 @@ if [[ -z "$home_dir" || ! -d "$home_dir" ]]; then
 fi
 config_root="${XDG_CONFIG_HOME:-$home_dir/.config}"
 allowed_prefixes=()
-find_command=""
 issues=0
 repo_links=0
 
-# ++++++++++++++++++++++++++++ FIND COMMAND SETUP ++++++++++++++++++++++++++++ #
+# +++++++++++++++++++++++++++ PREREQUISITE CHECKS ++++++++++++++++++++++++++++ #
 
-for required_command in awk git readlink realpath; do
+# Empty arrays under `set -u` need Bash 4.4; macOS still ships 3.2 as
+# /bin/bash.
+if ((BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 4))); then
+  printf 'audit-live-config requires Bash 4.4 or newer (found %s).\n' \
+    "$BASH_VERSION" >&2
+  exit 2
+fi
+
+for required_command in awk find git readlink realpath; do
   if ! command -v "$required_command" >/dev/null 2>&1; then
     printf 'audit-live-config requires %s.\n' "$required_command" >&2
     exit 2
@@ -47,21 +54,6 @@ if [[ ! -r "$allowlist" ]]; then
   exit 2
 fi
 
-# GNU find is standard on Linux and is installed as gfind by the declared
-# Darwin findutils formula. Bounded traversal avoids walking large application
-# databases that are unrelated to Home Manager's configuration links.
-if command -v gfind >/dev/null 2>&1; then
-  find_command="$(command -v gfind)"
-elif command -v find >/dev/null 2>&1 &&
-  find_command="$(command -v find)" &&
-  ! "$find_command" . --version >/dev/null 2>&1; then
-  echo 'audit-live-config requires GNU find (the Darwin flake declares findutils).' >&2
-  exit 2
-fi
-if [[ -z "$find_command" ]]; then
-  printf 'audit-live-config requires GNU find.\n' >&2
-  exit 2
-fi
 
 while IFS= read -r module; do
   allowed_prefixes+=("${module%/*}")
@@ -147,7 +139,9 @@ inspect_link() {
 if [[ -d "$config_root" ]]; then
   while IFS= read -r -d '' link; do
     inspect_link "$link"
-  done < <("$find_command" "$config_root" -maxdepth 4 -type l -print0)
+  # Bounded traversal skips large application databases that hold no Home
+  # Manager links. -maxdepth, -type l and -print0 are in both GNU and BSD find.
+  done < <(find "$config_root" -maxdepth 4 -type l -print0)
 fi
 
 # Home Manager also owns a small number of dotfiles directly below HOME. Shell

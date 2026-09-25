@@ -87,10 +87,10 @@ scan() {
 # credentials embedded in a URL; ordinary environment-variable references do
 # not trigger the scan.
 scan 'private-key material' \
-  '-----BEGIN (?:OPENSSH|RSA|EC|DSA|PGP) PRIVATE KEY-----' \
+  '-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?-----' \
   '*'
 scan 'provider-token literal' \
-  '(?i)(?:github_pat_[A-Za-z0-9_]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{20,}|(?<![A-Za-z0-9])sk-(?:proj-)?[A-Za-z0-9_-]{32,})' \
+  '(?:(?i:github_pat_[A-Za-z0-9_]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{20,})|(?<![A-Za-z0-9])sk-(?:proj-|ant-)?[A-Za-z0-9_-]{32,}|glpat-[A-Za-z0-9_-]{20,}|(?<![A-Z0-9])(?:AKIA|ASIA)[A-Z0-9]{16}(?![A-Z0-9])|AIza[A-Za-z0-9_-]{35}|npm_[A-Za-z0-9]{36})' \
   '*'
 scan 'credential literal assignment' \
   '(?i)(?:api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|password)\s*[=:]\s*"(?!\s*(?:"|REDACTED|CHANGEME|EXAMPLE))[^"]{8,}"' \

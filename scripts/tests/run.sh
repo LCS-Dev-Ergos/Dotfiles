@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
-# Focused regression tests for repository-level Bash policy checks.
+# ============================================================================ #
+# +++++++++++++++++++++++++ SCRIPT REGRESSION TESTS ++++++++++++++++++++++++++ #
+# ============================================================================ #
+# Focused regression tests for the repository-level Bash policy checks and the
+# pinned-input updater. Nothing here touches the network or the Nix store.
+#
+# Usage:
+#   bash scripts/tests/run.sh
+#
+# ============================================================================ #
 
 set -euo pipefail
 IFS=$'\n\t'
@@ -76,6 +85,10 @@ expect_status 'duplicate package policy fixture' 1 \
   env PACKAGE_OWNERSHIP_POLICY_FILE="$policy_fixture" \
   bash "$repo_root/scripts/check-package-ownership-policy.sh"
 
+expect_status 'missing package policy is an environment error' 2 \
+  env PACKAGE_OWNERSHIP_POLICY_FILE="$temp_root/no-such-policy.tsv" \
+  bash "$repo_root/scripts/check-package-ownership-policy.sh"
+
 fixture_repo="$temp_root/secret-fixture"
 mkdir -p "$fixture_repo/scripts"
 cp "$repo_root/scripts/check-declared-secrets.sh" "$fixture_repo/scripts/"
@@ -88,6 +101,14 @@ expect_status 'clean secret fixture' 0 \
 printf '%s%s\n' '-----BEGIN OPENSSH ' 'PRIVATE KEY-----' \
   >"$fixture_repo/private-key.txt"
 expect_status 'private-key secret fixture' 1 \
+  bash "$fixture_repo/scripts/check-declared-secrets.sh"
+
+# PKCS#8 keys carry no algorithm word; cloud keys have no "sk-" style prefix.
+printf '%s%s\n' '-----BEGIN ' 'PRIVATE KEY-----' >"$fixture_repo/private-key.txt"
+expect_status 'unlabelled PKCS#8 key fixture' 1 \
+  bash "$fixture_repo/scripts/check-declared-secrets.sh"
+printf 'id = "%s%s"\n' 'AKIA' 'Q3EXAMPLEKEY7Z2B' >"$fixture_repo/private-key.txt"
+expect_status 'cloud access-key fixture' 1 \
   bash "$fixture_repo/scripts/check-declared-secrets.sh"
 
 printf '%s\n' 'ordinary text' >"$fixture_repo/private-key.txt"
@@ -346,3 +367,6 @@ if ! grep -qx 'flake update --flake .* commit-pin git-pin gitlab-pin query-pin t
 fi
 
 printf 'Script regression tests passed.\n'
+
+# ============================================================================ #
+# End of tests/run.sh.

@@ -27,7 +27,7 @@ policy_file="${PACKAGE_OWNERSHIP_POLICY_FILE:-$repo_root/home/package-ownership-
 
 if [[ ! -r "$policy_file" ]]; then
   printf 'Package ownership policy is missing: %s\n' "$policy_file" >&2
-  exit 1
+  exit 2
 fi
 
 if ! command -v awk >/dev/null 2>&1; then
