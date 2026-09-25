@@ -71,7 +71,11 @@ jobs:
 
   darwin:
     name: Darwin check derivations
-    runs-on: macos-latest
+    # Pinned rather than macos-latest: the toolchain check links with LLD end
+    # to end only on an SDK LLD can read (see lld in home/cc-toolchain.nix),
+    # which the workstation's newer SDK does not. Moving the runner is a
+    # decision about that coverage, not something a label change does silently.
+    runs-on: macos-26
 
     steps:
       - name: Check out repository
