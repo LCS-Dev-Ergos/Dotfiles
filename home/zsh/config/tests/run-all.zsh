@@ -226,6 +226,10 @@ _verify_python_tests() {
     command env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
       -s "$suite" -p 'test_*.py' -q || return 1
   done
+  command env PYTHONDONTWRITEBYTECODE=1 python3 \
+    "$verify_config_dir/tests/python/test-prompt-context.py" || return 1
+  command env PYTHONDONTWRITEBYTECODE=1 python3 \
+    "$verify_config_dir/tests/python/test-zle-lifecycle.py" || return 1
 }
 
 # -----------------------------------------------------------------------------
@@ -251,6 +255,17 @@ _verify_fast_start() {
      fi'
 }
 
+# -----------------------------------------------------------------------------
+# _verify_prompt_resize
+# @internal
+# @description Exercises Starship and ZLE through real tmux pane resizes.
+# Requires Python 3; the test reports a skip when tmux or Starship is absent.
+# @noargs
+# -----------------------------------------------------------------------------
+_verify_prompt_resize() {
+  command python3 "$verify_config_dir/tests/python/test-prompt-resize.py"
+}
+
 _zsh_ui_heading \
   "Zsh verification" \
   "${(U)verify_mode} suite · read-only repository checks"
@@ -264,6 +279,7 @@ _verify_step "Zsh regressions" _verify_zsh_tests
 
 if [[ "$verify_mode" == full ]]; then
   _verify_step "Python regressions" _verify_python_tests
+  _verify_step "Prompt resize integration" _verify_prompt_resize
   _verify_step "Fast-start smoke test" _verify_fast_start
 fi
 

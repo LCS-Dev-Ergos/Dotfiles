@@ -70,15 +70,62 @@ _zsh_starship_init_filter() {
 # _zsh_load_starship_init
 # @internal
 # @description Loads cached Starship init code when it belongs to the selected
-# executable, otherwise regenerates and atomically replaces the cache.
+# executable, otherwise regenerates and atomically replaces the cache. Adapts
+# its keymap widget to Zsh's hook list so reloads do not nest Starship wrappers.
 # @arg $1 path Absolute path to the selected Starship executable.
 # @exitcode 1 If Starship initialization or cache evaluation fails.
 # -----------------------------------------------------------------------------
 _zsh_load_starship_init() {
-  _zsh_cached_init -f _zsh_starship_init_filter starship "$1" init zsh || {
+  autoload -Uz add-zle-hook-widget
+  local -i had_keymap=0 init_result=1
+  if (( ${+widgets[zle-keymap-select]} )); then
+    zle -A zle-keymap-select _zsh_saved_keymap_select
+    had_keymap=1
+    zle -D zle-keymap-select
+  fi
+  # Starship's generated wrapper uses this global; an earlier init must not
+  # make a new wrapper call itself. Restore the shared dispatcher afterwards.
+  local __starship_preserved_zle_keymap_select=
+  {
+    if _zsh_cached_init -f _zsh_starship_init_filter starship "$1" init zsh; then
+      init_result=0
+    else
+      init_result=$?
+    fi
+  } always {
+    if (( had_keymap )); then
+      zle -A _zsh_saved_keymap_select zle-keymap-select
+      zle -D _zsh_saved_keymap_select
+    else
+      zle -D zle-keymap-select 2>/dev/null || true
+    fi
+  }
+  (( init_result == 0 )) || {
     print -u2 "Warning: Starship init failed"
     return 1
   }
+  if (( $+functions[starship_zle-keymap-select] )); then
+    add-zle-hook-widget keymap-select starship_zle-keymap-select || return 1
+  fi
+  return 0
+}
+
+# -----------------------------------------------------------------------------
+# _zsh_prompt_redrawn_by_kitty
+# @internal
+# @description Succeeds when this shell runs directly in kitty with prompt
+# marking on. kitty then erases the prompt on resize and lets ZLE redraw it,
+# so a full-width first line cannot leave re-wrapped copies behind. A pane of
+# tmux, herdr or zellij is re-wrapped by the multiplexer instead, even though
+# it inherits kitty's environment.
+# @noargs
+# @exitcode 1 If any other terminal, or a multiplexer, draws the prompt.
+# -----------------------------------------------------------------------------
+_zsh_prompt_redrawn_by_kitty() {
+  [[ "$TERM" == xterm-kitty ]] || return 1
+  [[ -z "${TMUX-}${ZELLIJ-}${STY-}${HERDR_ENV-}" ]] || return 1
+  [[ "${KITTY_SHELL_INTEGRATION-}" != *no-prompt-mark* ]] || return 1
+  (( ${+functions[_ksi_deferred_init]} || ${+functions[_ksi_precmd]} ))
 }
 
 # -----------------------------------------------------------------------------
@@ -99,6 +146,23 @@ _init_starship_prompt() {
 
   setopt PROMPT_SUBST
 
+  # A reload can happen before the one-shot callback runs. Unregister before
+  # closing; resetting the variable alone would leak its descriptor/handler.
+  if (( ${_tp_fd:-0} )); then
+    zle -F "$_tp_fd"
+    exec {_tp_fd}<&-
+    _tp_fd=0
+  fi
+
+  # Home Manager also generates starship-kitty.toml, which right-aligns the
+  # context with $fill. Use it only where kitty repairs resize reflow; a
+  # config selected by hand (any other file name) is left alone.
+  local kitty_config="${STARSHIP_CONFIG:h}/starship-kitty.toml"
+  if [[ "${STARSHIP_CONFIG:t}" == starship.toml && -r "$kitty_config" ]] &&
+      _zsh_prompt_redrawn_by_kitty; then
+    export STARSHIP_CONFIG="$kitty_config"
+  fi
+
   local starship_bin="${commands[starship]-}"
   _zsh_load_starship_init "$starship_bin" || return 1
 
@@ -113,6 +177,7 @@ _init_starship_prompt() {
   # Newline variable: empty on first prompt, "\n" after first command.
   # Embedded in PROMPT for dynamic spacing.
   typeset -g _tp_newline=
+  typeset -gi _tp_seen_prompt=0
 
   # Master switch for transient prompt (1=enabled, 0=disabled).
   typeset -gi _tp_enabled=1
@@ -126,7 +191,9 @@ _init_starship_prompt() {
 
   # Store original prompts from Starship.
   typeset -g _tp_prompt_orig="$PROMPT"
-  typeset -g _tp_rprompt_orig="$RPROMPT"
+  # Both layouts keep everything in `format` (right_format is empty), so
+  # skip the second Starship process Starship's RPROMPT would start per prompt.
+  typeset -g _tp_rprompt_orig=
 
   # ---------------------------------------------------------------------------
   # _tp_set_prompt
@@ -149,8 +216,10 @@ _init_starship_prompt() {
   # descriptor callback so the full prompt returns before the next command.
   # @noargs
   # ---------------------------------------------------------------------------
-  zle -N zle-line-finish _tp_zle_line_finish
+  add-zle-hook-widget line-finish _tp_zle_line_finish || return 1
   _tp_zle_line_finish() {
+    # Hooks may also be called by setup/diagnostic code outside the editor.
+    zle || return 0
     # Skip if transient prompt is disabled.
     (( _tp_enabled )) || return 0
 
@@ -160,7 +229,10 @@ _init_starship_prompt() {
     # Open /dev/null and register callback. The fd becomes readable immediately,
     # so the callback fires on the next event loop iteration.
     sysopen -r -o cloexec -u _tp_fd /dev/null || return 0
-    zle -F $_tp_fd _tp_restore_prompt
+    zle -F $_tp_fd _tp_restore_prompt || {
+      _tp_restore_prompt "$_tp_fd"
+      return 0
+    }
 
     # Apply transient prompt and refresh display.
     # zle check ensures we're in line editor context.
@@ -209,10 +281,11 @@ _init_starship_prompt() {
   # @arg $1 integer File descriptor passed by the zle -F callback.
   # ---------------------------------------------------------------------------
   _tp_restore_prompt() {
-    # Close and unregister fd.
+    # Ignore a stale callback and unregister before closing the descriptor.
     local fd=$1
-    exec {fd}>&-
+    (( fd == _tp_fd && fd > 0 )) || return 0
     zle -F $fd
+    exec {fd}<&-
     _tp_fd=0
 
     [[ "$PROMPT" == "$_tp_transient" ]] || return 0
@@ -263,36 +336,22 @@ _init_starship_prompt() {
   # _tp_precmd
   # @internal
   # @description Sets _tp_newline and the transient chevron color before each
-  # prompt and puts the full prompt back in place of the transient one. On
-  # its first call it redefines itself (and TRAPINT) so the very first prompt
-  # skips the leading newline, while later calls apply the normal
-  # skip-on-clear newline logic.
+  # prompt and restores the full prompt. The first prompt and screen-clearing
+  # commands omit the leading newline. Cancellation is handled by ZLE's
+  # line-finish/send-break widgets; the caller's SIGINT handler stays intact.
   # @noargs
   # ---------------------------------------------------------------------------
   _tp_precmd() {
-    # Every precmd hook still sees the finished command's status.
-    (( $? )) && _tp_char_color=red || _tp_char_color=green
-    TRAPINT() {
-      zle && _tp_zle_line_finish
-      return $(( 128 + $1 ))
-    }
-
-    # After first run, redefine with newline logic.
-    _tp_precmd() {
-      (( $? )) && _tp_char_color=red || _tp_char_color=green
-      TRAPINT() {
-        zle && _tp_zle_line_finish
-        return $(( 128 + $1 ))
-      }
-
-      if (( _tp_skip_newline )); then
-        _tp_newline=
-        _tp_skip_newline=0
-      else
-        _tp_newline=$'\n'
-      fi
-      _tp_set_prompt
-    }
+    local -i command_result=$?
+    (( command_result )) && _tp_char_color=red || _tp_char_color=green
+    if (( _tp_seen_prompt && ! _tp_skip_newline )); then
+      _tp_newline=$'\n'
+    else
+      _tp_newline=
+    fi
+    _tp_seen_prompt=1
+    _tp_skip_newline=0
+    _tp_set_prompt
   }
 
   # ---------------------------------------------------------------------------
