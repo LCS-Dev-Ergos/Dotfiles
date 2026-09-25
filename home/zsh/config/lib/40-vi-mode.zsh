@@ -45,20 +45,21 @@ KEYTIMEOUT=1
 
 # +++++++++++++++++++++++++++++++ CURSOR SHAPE +++++++++++++++++++++++++++++++ #
 
+typeset -gi _VI_LAST_CURSOR=-1
+
 # -----------------------------------------------------------------------------
 # _vi_set_cursor
 # @internal
-# @description Sets the terminal cursor shape via a DECSCUSR escape sequence;
-# skipped in VS Code's integrated terminal, which has limited cursor support.
-# @arg $1 integer Cursor shape number (1-6; see the table above).
+# @description Sets DECSCUSR only when the shape changes on a real terminal.
+# Skips dumb terminals and the existing VS Code injection compatibility case.
+# @arg $1 integer Cursor shape number (0 for terminal default, otherwise 1-6).
 # -----------------------------------------------------------------------------
-if [[ -n "$VSCODE_INJECTION" ]]; then
-  _vi_set_cursor() { :; }
-else
-  _vi_set_cursor() {
-    printf '\e[%d q' "$1"
-  }
-fi
+_vi_set_cursor() {
+  [[ -t 1 && "${TERM:-dumb}" != dumb && -z "${VSCODE_INJECTION:-}" ]] || return 0
+  [[ "$1" == [0-6] && "$1" != "$_VI_LAST_CURSOR" ]] || return 0
+  printf '\e[%d q' "$1"
+  _VI_LAST_CURSOR=$1
+}
 
 # -----------------------------------------------------------------------------
 # _vi_cursor_for_keymap
@@ -87,51 +88,29 @@ _vi_cursor_for_keymap() {
 # @noargs
 # -----------------------------------------------------------------------------
 _vi_line_init() {
-  zle -K viins
+  # main is already linked to viins by bindkey -v. Relinking it on each new
+  # line triggers Starship's keymap hook and renders the prompt a second time.
+  [[ "$KEYMAP" == (main|viins) ]] || zle -K viins
   _vi_cursor_for_keymap
 }
 
-# Capture the existing zle-keymap-select widget (e.g., Starship's) before
-# overwriting it on reload, so _vi_keymap_select can chain to it below.
-typeset -g _VI_PREV_KEYMAP_SELECT=
-typeset -gi _VI_IN_KEYMAP=0
-
-() {
-  local keyName="zle-keymap-select"
-  # Check if a previous zle-keymap-select widget exists.
-  if [[ -n "${widgets[$keyName]-}" ]]; then
-    typeset prev="${widgets[$keyName]#user:}"
-    # Prevent self-reference loops.
-    [[ "$prev" != "_vi_keymap_select" ]] && _VI_PREV_KEYMAP_SELECT="$prev"
-  fi
-}
-
 # -----------------------------------------------------------------------------
-# _vi_keymap_select
+# _vi_line_finish
 # @internal
-# @description Updates the cursor shape on vi keymap transitions and chains to
-# whatever zle-keymap-select widget (e.g. Starship's) was previously bound,
-# guarding against self-reentrant recursion.
+# @description Restores the terminal's default cursor before running a command
+# or leaving the editor, so vi command mode does not leak into other programs.
 # @noargs
 # -----------------------------------------------------------------------------
-_vi_keymap_select() {
-  # Prevent recursion when prev chains back into us.
-  if ((_VI_IN_KEYMAP)); then
-    _vi_cursor_for_keymap
-    return
-  fi
-
-  _VI_IN_KEYMAP=1
-  # Chain to previous widget (if it exists).
-  [[ -n "$_VI_PREV_KEYMAP_SELECT" ]] && "$_VI_PREV_KEYMAP_SELECT" "$@"
-  _VI_IN_KEYMAP=0
-
-  _vi_cursor_for_keymap
+_vi_line_finish() {
+  _vi_set_cursor 0
 }
 
-# Register vi mode widgets.
-zle -N zle-line-init _vi_line_init
-zle -N zle-keymap-select _vi_keymap_select
+# Zsh owns the hook list: existing widgets are preserved, registration is
+# idempotent, and Starship can share keymap-select without wrapper recursion.
+autoload -Uz add-zle-hook-widget
+add-zle-hook-widget line-init _vi_line_init || return 1
+add-zle-hook-widget line-finish _vi_line_finish || return 1
+add-zle-hook-widget keymap-select _vi_cursor_for_keymap || return 1
 
 # +++++++++++++++++++++++++++++++ KEYBINDINGS ++++++++++++++++++++++++++++++++ #
 
@@ -145,10 +124,17 @@ zle -N zle-keymap-select _vi_keymap_select
 # @noargs
 # -----------------------------------------------------------------------------
 _vi_copy_cwd() {
+  setopt localoptions pipefail
   if (( $+functions[clipcopy] )); then
-    print -rn -- "$PWD" | clipcopy
+    print -rn -- "$PWD" | clipcopy || {
+      zle -M "Clipboard copy failed"
+      return 1
+    }
   elif (( $+commands[pbcopy] )); then
-    print -rn -- "$PWD" | pbcopy
+    print -rn -- "$PWD" | pbcopy || {
+      zle -M "Clipboard copy failed"
+      return 1
+    }
   else
     zle -M "No clipboard tool available"
     return 1
