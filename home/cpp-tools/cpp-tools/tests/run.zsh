@@ -390,7 +390,7 @@ print -rl -- "CMAKE_CXX_COMPILER:FILEPATH=$versioned_bin/g++-16" \
   "CMAKE_TOOLCHAIN_FILE:FILEPATH=$workspace/Algorithms/gcc-toolchain.cmake" \
   >| "$stale_build/CMakeCache.txt"
 rebuild_reason=$(
-  PATH="$gxx_bin:$versioned_bin:/usr/bin:/bin"
+  PATH="$gxx_bin:$versioned_bin:${commands[grep]:h}:${commands[head]:h}:${commands[cut]:h}:/usr/bin:/bin"
   _cppconf_rebuild_reason_for_toolchain "$stale_build" "$workspace/Algorithms/gcc-toolchain.cmake"
 )
 _assert_contains "$rebuild_reason" "not the preferred" "non-preferred cached g++ triggers a rebuild"
@@ -399,7 +399,7 @@ print -rl -- "CMAKE_CXX_COMPILER:FILEPATH=$gxx_bin/g++" \
   "CMAKE_TOOLCHAIN_FILE:FILEPATH=$workspace/Algorithms/gcc-toolchain.cmake" \
   >| "$stale_build/CMakeCache.txt"
 rebuild_reason=$(
-  PATH="$gxx_bin:$versioned_bin:/usr/bin:/bin"
+  PATH="$gxx_bin:$versioned_bin:${commands[grep]:h}:${commands[head]:h}:${commands[cut]:h}:/usr/bin:/bin"
   _cppconf_rebuild_reason_for_toolchain "$stale_build" "$workspace/Algorithms/gcc-toolchain.cmake"
 )
 _assert_eq "" "$rebuild_reason" "the preferred cached g++ is kept"
