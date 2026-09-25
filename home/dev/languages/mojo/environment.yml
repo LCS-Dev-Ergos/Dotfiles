@@ -1,0 +1,16 @@
+# Mojo lives in its own Conda environment rather than in Nix: nixpkgs has no
+# package, and Modular publishes it on a Conda channel. max-core adds the
+# GPU (Metal) and layout libraries that Mojo's GPU examples import.
+#
+# Create:  conda env create -f home/dev/languages/mojo/environment.yml
+# Update:  conda env update -n Mojo -f home/dev/languages/mojo/environment.yml
+# Use:     conda activate Mojo
+name: Mojo
+channels:
+  - https://conda.modular.com/max/
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.13
+  - mojo=1.1.0
+  - max-core=26.6.0
