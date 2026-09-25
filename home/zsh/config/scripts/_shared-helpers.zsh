@@ -362,6 +362,104 @@ _zsh_ui_heading() {
 }
 
 # -----------------------------------------------------------------------------
+# _zsh_ui_app_header
+# @internal
+# @description Prints the title bar of a report-style tool. Styled output draws
+# a rounded box: the tool name as a reverse-video badge, the title beside it
+# and context on the right, then a secondary line with its own right-aligned
+# note. Plain output is "TAG · Title" and the subtitle, like _zsh_ui_heading.
+# @arg $1 string Tool name shown as the badge.
+# @arg $2 string Title.
+# @arg $3 string Optional subtitle, under the title.
+# @arg $4 string Optional context, right-aligned on the title line.
+# @arg $5 string Optional note, right-aligned on the subtitle line.
+# -----------------------------------------------------------------------------
+_zsh_ui_app_header() {
+  emulate -L zsh
+  local -a parts=()
+  local part
+  for part in "$@"; do
+    _zsh_ui_sanitize_text "$part"
+    parts+=("$REPLY")
+  done
+  local tag="${parts[1]:-}" title="${parts[2]:-}" subtitle="${parts[3]:-}"
+  local context="${parts[4]:-}" note="${parts[5]:-}"
+
+  _zsh_ui_resolve_mode || return $?
+  local mode="$REPLY"
+  _zsh_ui_set_palette "$mode"
+
+  if [[ "$mode" == plain ]]; then
+    print -r -- "${tag:+$tag · }$title"
+    [[ -z "$subtitle" ]] || print -r -- "$subtitle"
+    return 0
+  fi
+
+  _zsh_ui_width 120
+  local -i inner=$(( REPLY - 4 ))
+  local badge=" ${(U)tag} "
+  local -i indent=$(( ${(m)#badge} + 2 ))
+  local border="$_ZSH_UI_BORDER" reset="$_ZSH_UI_RESET"
+
+  # Context yields to the title, then the title yields to the frame.
+  local -i room=$(( inner - indent - ${(m)#title} - 2 ))
+  (( ${(m)#context} > room )) && context=""
+  _zsh_ui_truncate "$title" $(( inner - indent ))
+  title="$REPLY"
+  room=$(( inner - indent - ${(m)#subtitle} - 2 ))
+  (( ${(m)#note} > room )) && note=""
+  _zsh_ui_truncate "$subtitle" $(( inner - indent ))
+  subtitle="$REPLY"
+
+  local -i gap1=$(( inner - indent - ${(m)#title} - ${(m)#context} ))
+  local -i gap2=$(( inner - indent - ${(m)#subtitle} - ${(m)#note} ))
+  print -r -- "${border}╭${(pl:$(( inner + 2 ))::─:)}╮${reset}"
+  print -r -- "${border}│${reset} ${_ZSH_UI_ACCENT}"$'\e[7m'"${badge}${reset}"\
+"  ${_ZSH_UI_BOLD}${title}${reset}${(l:$gap1:: :)}${_ZSH_UI_MUTED}${context}${reset}"\
+" ${border}│${reset}"
+  print -r -- "${border}│${reset} ${(l:$indent:: :)}${_ZSH_UI_MUTED}${subtitle}${reset}"\
+"${(l:$gap2:: :)}${_ZSH_UI_MUTED}${note}${reset} ${border}│${reset}"
+  print -r -- "${border}╰${(pl:$(( inner + 2 ))::─:)}╯${reset}"
+}
+
+# -----------------------------------------------------------------------------
+# _zsh_ui_status_glyph
+# @internal
+# @description Stores a one-cell marker for a status word in REPLY and its
+# palette color in reply[1]: a filled dot for healthy states, a triangle or
+# diamond for ones worth a look, a cross for failures, and a hollow dot for
+# informational ones. Plain output uses ASCII markers.
+# @arg $1 string Status word.
+# -----------------------------------------------------------------------------
+_zsh_ui_status_glyph() {
+  emulate -L zsh
+  local word="${(L)1}"
+  _zsh_ui_status_style "$word"
+  local color="$REPLY"
+  _zsh_ui_resolve_mode || return $?
+  if [[ "$REPLY" == plain ]]; then
+    case "$word" in
+      broken|error|fail|failed|missing) REPLY="x" ;;
+      outdated|shadowed|unknown|warn|warning) REPLY="!" ;;
+      dormant|unused|absent|disabled|inactive) REPLY="-" ;;
+      *) REPLY="*" ;;
+    esac
+    reply=("")
+    return 0
+  fi
+  case "$word" in
+    broken|error|fail|failed|missing) REPLY="✖" ;;
+    outdated) REPLY="▲" ;;
+    shadowed) REPLY="◆" ;;
+    unknown|warn|warning) REPLY="?" ;;
+    dormant) REPLY="◐" ;;
+    unused|absent|disabled|inactive) REPLY="○" ;;
+    *) REPLY="●" ;;
+  esac
+  reply=("$color")
+}
+
+# -----------------------------------------------------------------------------
 # _zsh_ui_section
 # @internal
 # @description Prints a section label. A " · " suffix, such as a count, is

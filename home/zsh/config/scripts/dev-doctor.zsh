@@ -23,9 +23,11 @@
 # Registry:
 #   packages/runtime-managers.tsv, one tab-separated row per manager:
 #     id label platform root_var root_default probe version_cmd language_bin
-#     managed_list formula update_hint activation runtime_cmd
+#     managed_list formula update_hint activation runtime_cmd group
 #   runtime_cmd is optional for older registries: "-" skips it, "version"
 #   reuses the active-version probe, otherwise it is a local startup command.
+#   group is optional too: one of the ids in _DEVDOCTOR_GROUPS, which set the
+#   report's sections and their order; rows without one land in "other".
 #   Only audited, non-interactive commands belong here; no install or update.
 #   activation is "always" when the manager keeps its shims on PATH for every
 #   shell, or "session" when it has to be activated per shell (fnm, conda).
@@ -59,6 +61,22 @@ unset _devdoctor_helpers_dir
 
 typeset -g _DEVDOCTOR_SCRIPT_DIR="${${(%):-%N}:A:h}"
 typeset -g _DEVDOCTOR_ZSH_ROOT="${_DEVDOCTOR_SCRIPT_DIR:h:h}"
+
+# Report sections in display order; a registry row names one by id and rows
+# are sorted by label inside it.
+typeset -ga _DEVDOCTOR_GROUPS=(
+  platform systems jvm scripting functional science apps other
+)
+typeset -gA _DEVDOCTOR_GROUP_TITLE=(
+  platform   "Platform"
+  systems    "Systems & C/C++"
+  jvm        "JVM"
+  scripting  "Scripting"
+  functional "Functional, Logic & Array"
+  science    "Science & Proof"
+  apps       "App Platforms"
+  other      "Other"
+)
 
 # +++++++++++++++++++++++++++++ GENERIC HELPERS ++++++++++++++++++++++++++++++ #
 
@@ -342,7 +360,7 @@ _devdoctor_load_registry() {
   while IFS= read -r line || [[ -n "$line" ]]; do
     [[ -z "$line" || "$line" == \#* ]] && continue
     fields=("${(@ps:\t:)line}")
-    if (( ${#fields[@]} != 12 && ${#fields[@]} != 13 )); then
+    if (( ${#fields[@]} < 12 || ${#fields[@]} > 14 )); then
       _zsh_ui_log error "Malformed registry row: ${fields[1]:-$line}"
       (( errors++ ))
       continue
@@ -356,6 +374,11 @@ _devdoctor_load_registry() {
     fi
     if [[ -n "${_devdoctor_row[$fields[1]]-}" ]]; then
       _zsh_ui_log error "Duplicate manager id: $fields[1]"
+      (( errors++ ))
+      continue
+    fi
+    if [[ -n "${fields[14]-}" && -z "${_DEVDOCTOR_GROUP_TITLE[$fields[14]]-}" ]]; then
+      _zsh_ui_log error "Invalid group '$fields[14]' for '$fields[1]'."
       (( errors++ ))
       continue
     fi
@@ -394,6 +417,7 @@ _devdoctor_load_registry() {
 # @set dd_hint string Suggested update command.
 # @set dd_activation string "always" or "session".
 # @set dd_runtime string Runtime startup command, "version", or "-".
+# @set dd_group string Report group id; "other" when the row has none.
 # -----------------------------------------------------------------------------
 _devdoctor_unpack_row() {
   emulate -L zsh
@@ -410,6 +434,7 @@ _devdoctor_unpack_row() {
   dd_hint="$fields[11]"
   dd_activation="$fields[12]"
   dd_runtime="${fields[13]:--}"
+  dd_group="${fields[14]:-other}"
 }
 
 # ++++++++++++++++++++++++++++ MANAGER OVERRIDES +++++++++++++++++++++++++++++ #
@@ -868,6 +893,9 @@ _devdoctor_active_version() {
     *)
       local -a argv_parts=(${=spec})
       (( ${#argv_parts} )) || { REPLY=""; return 1; }
+      # A runtime outside PATH (a Conda environment, say) is named by path.
+      _devdoctor_expand "$argv_parts[1]"
+      argv_parts[1]="$REPLY"
       (( $+commands[$argv_parts[1]] )) || [[ -x "$argv_parts[1]" ]] || { REPLY=""; return 127; }
       raw="$(_devdoctor_run_timeout "${DEVDOCTOR_TIMEOUT:-5}" \
         "${argv_parts[@]}" 2>/dev/null)" || { local rc=$?; REPLY=""; return $rc; }
@@ -939,7 +967,7 @@ _devdoctor_check_one() {
   setopt localoptions no_aliases extendedglob
 
   local dd_id dd_label dd_root_var dd_root_default dd_probe dd_version
-  local dd_lang_bin dd_managed dd_formula dd_hint dd_activation dd_runtime
+  local dd_lang_bin dd_managed dd_formula dd_hint dd_activation dd_runtime dd_group
   _devdoctor_unpack_row "${_devdoctor_row[$1]}"
 
   if [[ "$dd_id" == cc || "$dd_id" == cxx ]]; then
@@ -1315,6 +1343,167 @@ _devdoctor_state_rank() {
 }
 
 # -----------------------------------------------------------------------------
+# _devdoctor_order_rows
+# @internal
+# @description Orders report rows by group, in _DEVDOCTOR_GROUPS order, and by
+# label inside each group, ignoring case.
+# @arg $@ string Rows: id, label, state, active, origin, detail, group.
+# @set reply array The ordered rows.
+# -----------------------------------------------------------------------------
+_devdoctor_order_rows() {
+  emulate -L zsh
+  local -A by_group=()
+  local row group
+  local -a fields members
+  for row in "$@"; do
+    fields=("${(@ps:\t:)row}")
+    by_group[$fields[7]]+="${fields[2]}"$'\x1f'"${row}"$'\n'
+  done
+  reply=()
+  for group in "${_DEVDOCTOR_GROUPS[@]}"; do
+    [[ -n "${by_group[$group]-}" ]] || continue
+    members=("${(@f)${by_group[$group]%$'\n'}}")
+    for row in "${(@oi)members}"; do
+      reply+=("${row#*$'\x1f'}")
+    done
+  done
+}
+
+# -----------------------------------------------------------------------------
+# _devdoctor_group_rule
+# @internal
+# @description Prints a group heading: the title, a rule to the report width
+# and a right-aligned note.
+# @arg $1 string Group title.
+# @arg $2 string Note, such as the row count.
+# @arg $3 integer Report width.
+# -----------------------------------------------------------------------------
+_devdoctor_group_rule() {
+  emulate -L zsh
+  local title="$1" note="$2"
+  local -i width="$3"
+  local -i fill=$(( width - ${(m)#title} - ${(m)#note} - 4 ))
+  (( fill < 2 )) && fill=2
+  print -r -- " ${_ZSH_UI_HEADING}${title}${_ZSH_UI_RESET} "\
+"${_ZSH_UI_BORDER}${(pl:$fill::─:)}${_ZSH_UI_RESET} "\
+"${_ZSH_UI_MUTED}${note}${_ZSH_UI_RESET}"
+}
+
+# -----------------------------------------------------------------------------
+# _devdoctor_render_styled
+# @internal
+# @description Renders the report as grouped status lines: a colored marker,
+# the label, its registry id for --only, the active version, where the binary
+# comes from, and a detail that leads with the state whenever it is not ok.
+# Each line fits the terminal by shortening its detail.
+# @arg $1 integer Report width.
+# @arg $@ string Ordered rows: id, label, state, active, origin, detail, group.
+# -----------------------------------------------------------------------------
+_devdoctor_render_styled() {
+  emulate -L zsh
+  local -i width="$1"
+  shift
+  local reset="$_ZSH_UI_RESET" muted="$_ZSH_UI_MUTED"
+
+  local -i w_label=0 w_id=0 w_active=0 w_origin=0
+  local -A group_count=()
+  local row
+  local -a f
+  for row in "$@"; do
+    f=("${(@ps:\t:)row}")
+    (( ${(m)#f[2]} > w_label )) && w_label=${(m)#f[2]}
+    (( ${(m)#f[1]} > w_id )) && w_id=${(m)#f[1]}
+    (( ${(m)#f[4]} > w_active )) && w_active=${(m)#f[4]}
+    (( ${(m)#f[5]} > w_origin )) && w_origin=${(m)#f[5]}
+    (( group_count[$f[7]]++ ))
+  done
+  (( w_active > 18 )) && w_active=18
+
+  local current="" glyph color text detail cell
+  local -i room
+  for row in "$@"; do
+    f=("${(@ps:\t:)row}")
+    if [[ "$f[7]" != "$current" ]]; then
+      [[ -z "$current" ]] || print -r -- ""
+      current="$f[7]"
+      _devdoctor_group_rule "${_DEVDOCTOR_GROUP_TITLE[$current]:-$current}" \
+        "${group_count[$current]}" "$width"
+    fi
+
+    _zsh_ui_status_glyph "$f[3]"
+    glyph="$REPLY" color="${reply[1]}"
+    text="   ${color}${glyph}${reset}  ${f[2]}${(l:$(( w_label - ${(m)#f[2]} )):: :)}"
+    text+="  ${muted}${f[1]}${reset}${(l:$(( w_id - ${(m)#f[1]} )):: :)}"
+    _zsh_ui_truncate "$f[4]" "$w_active"
+    cell="$REPLY"
+    [[ "$cell" == - ]] && cell="${muted}—${reset}"
+    text+="  ${cell}${(l:$(( w_active - ${(m)#REPLY} )):: :)}"
+    cell="$f[5]"
+    [[ "$cell" == - ]] && cell="${muted}—${reset}"
+    text+="  ${cell}${(l:$(( w_origin - ${(m)#f[5]} )):: :)}"
+
+    detail="${f[6]}"
+    _zsh_ui_short_path "$detail"
+    detail="$REPLY"
+    room=$(( width - 13 - w_label - w_id - w_active - w_origin ))
+    (( room < 12 )) && room=12
+    if [[ "$f[3]" == ok ]]; then
+      # The marker already says the runtime starts; keep only real detail.
+      [[ "$detail" == "runtime starts" ]] && detail=""
+      _zsh_ui_truncate "$detail" "$room"
+      text+="  ${muted}${REPLY}${reset}"
+    else
+      _zsh_ui_truncate "${detail:+ · $detail}" $(( room - ${#f[3]} ))
+      text+="  ${color}${f[3]}${reset}${muted}${REPLY}${reset}"
+    fi
+    print -r -- "$text"
+  done
+}
+
+# -----------------------------------------------------------------------------
+# _devdoctor_render_conflicts
+# @internal
+# @description Renders PATH conflicts as marked lines under their own heading:
+# a shadowed binary is informational, anything else needs action.
+# @arg $1 integer Report width.
+# @arg $@ string Conflicts: kind, subject, detail.
+# -----------------------------------------------------------------------------
+_devdoctor_render_conflicts() {
+  emulate -L zsh
+  local -i width="$1"
+  shift
+  local reset="$_ZSH_UI_RESET" muted="$_ZSH_UI_MUTED"
+  local -i w_kind=0 w_subject=0
+  local row
+  local -a f
+  for row in "$@"; do
+    f=("${(@ps:\t:)row}")
+    (( ${(m)#f[1]} > w_kind )) && w_kind=${(m)#f[1]}
+    (( ${(m)#f[2]} > w_subject )) && w_subject=${(m)#f[2]}
+  done
+  # The subject is a path; it may take half the line, the detail the rest.
+  (( w_subject > width / 2 )) && w_subject=$(( width / 2 ))
+
+  print -r -- ""
+  _devdoctor_group_rule "PATH conflicts" "$#" "$width"
+  local state marker subject
+  for row in "$@"; do
+    f=("${(@ps:\t:)row}")
+    state="outdated"
+    [[ "$f[1]" == "shadowed binary" ]] && state="shadowed"
+    _zsh_ui_status_glyph "$state"
+    marker="${reply[1]}${REPLY}${reset}"
+    _zsh_ui_short_path "${f[2]}"
+    _zsh_ui_truncate "$REPLY" "$w_subject"
+    subject="$REPLY"
+    _zsh_ui_short_path "${f[3]:-}"
+    _zsh_ui_truncate "$REPLY" $(( width - 10 - w_kind - w_subject ))
+    print -r -- "   ${marker}  ${f[1]}${(l:$(( w_kind - ${(m)#f[1]} )):: :)}"\
+"  ${subject}${(l:$(( w_subject - ${(m)#subject} )):: :)}  ${muted}${REPLY}${reset}"
+  done
+}
+
+# -----------------------------------------------------------------------------
 # _devdoctor_fanout
 # @internal
 # @description Probes every requested manager concurrently, writing one record
@@ -1493,7 +1682,7 @@ devdoctor() {
     local -i worst=0
     local record label state active origin detail
     local dd_id dd_label dd_root_var dd_root_default dd_probe dd_version
-    local dd_lang_bin dd_managed dd_formula dd_hint dd_activation dd_runtime
+    local dd_lang_bin dd_managed dd_formula dd_hint dd_activation dd_runtime dd_group
     local -a lang_bins=()
     local -a managed_winner_bins=()
     local -a manager_roots=()
@@ -1530,19 +1719,27 @@ devdoctor() {
       _devdoctor_state_rank "$state"
       (( REPLY > worst )) && worst=$REPLY
 
-      rows+=("${id}"$'\t'"${label}"$'\t'"${(U)state}"$'\t'"${active}"$'\t'"${origin}"$'\t'"${detail}")
-
-      if (( want_json )); then
-        local json_line="{"
-        _devdoctor_json_escape "$id";     json_line+="\"id\":\"$REPLY\","
-        _devdoctor_json_escape "$label";  json_line+="\"label\":\"$REPLY\","
-        _devdoctor_json_escape "$state";  json_line+="\"state\":\"$REPLY\","
-        _devdoctor_json_escape "$active"; json_line+="\"active\":\"$REPLY\","
-        _devdoctor_json_escape "$origin"; json_line+="\"origin\":\"$REPLY\","
-        _devdoctor_json_escape "$detail"; json_line+="\"detail\":\"$REPLY\"}"
-        json_rows+=("$json_line")
-      fi
+      rows+=("${id}"$'\t'"${label}"$'\t'"${state}"$'\t'"${active}"$'\t'"${origin}"$'\t'"${detail}"$'\t'"${dd_group}")
     done
+
+    _devdoctor_order_rows "${rows[@]}"
+    rows=("${reply[@]}")
+
+    if (( want_json )); then
+      local -a jf
+      for record in "${rows[@]}"; do
+        jf=("${(@ps:\t:)record}")
+        local json_line="{"
+        _devdoctor_json_escape "$jf[1]"; json_line+="\"id\":\"$REPLY\","
+        _devdoctor_json_escape "$jf[2]"; json_line+="\"label\":\"$REPLY\","
+        _devdoctor_json_escape "$jf[3]"; json_line+="\"state\":\"$REPLY\","
+        _devdoctor_json_escape "$jf[4]"; json_line+="\"active\":\"$REPLY\","
+        _devdoctor_json_escape "$jf[5]"; json_line+="\"origin\":\"$REPLY\","
+        _devdoctor_json_escape "$jf[6]"; json_line+="\"detail\":\"$REPLY\","
+        _devdoctor_json_escape "$jf[7]"; json_line+="\"group\":\"$REPLY\"}"
+        json_rows+=("$json_line")
+      done
+    fi
 
     local -a conflicts=()
     conflicts=(${(f)"$(_devdoctor_path_conflicts "${(j:,:)managed_winner_bins}" "${(@u)lang_bins}")"})
@@ -1584,49 +1781,89 @@ devdoctor() {
     fi
 
     _shared_detect_platform
-    local plural_rows="s"
+    local -A state_counts=()
+    local -A seen_groups=()
+    for record in "${rows[@]}"; do
+      local -a rf=("${(@ps:\t:)record}")
+      (( state_counts[$rf[3]]++ ))
+      seen_groups[$rf[7]]=1
+    done
+    local plural_rows="s" plural_groups="s"
     (( ${#rows} == 1 )) && plural_rows=""
-    _shared_banner "Development Environment" \
-      "$(_shared_platform_pretty) · ${#rows} manager${plural_rows}"
+    (( ${#seen_groups} == 1 )) && plural_groups=""
+    local context="$(_shared_platform_pretty)"
+    local os_version="" arch="${CPUTYPE:-$(command uname -m 2>/dev/null)}"
+    if [[ "$SHARED_PLATFORM" == macOS ]] && (( $+commands[sw_vers] )); then
+      os_version="$(command sw_vers -productVersion 2>/dev/null)"
+    fi
+    context+="${os_version:+ $os_version}${arch:+ · $arch}"
+    zmodload -F zsh/datetime b:strftime 2>/dev/null
+    local stamp=""
+    (( $+builtins[strftime] )) && strftime -s stamp '%Y-%m-%d %H:%M' $EPOCHSECONDS
+    _zsh_ui_app_header devdoctor "Development Environment" \
+      "${#rows} runtime${plural_rows} in ${#seen_groups} group${plural_groups}" \
+      "$context" "$stamp"
+    print -r -- ""
 
+    local -a tally=() tally_styled=()
+    local counted
+    for counted in ok outdated dormant unused shadowed unknown broken absent; do
+      (( ${state_counts[$counted]:-0} )) || continue
+      tally+=("${state_counts[$counted]} ${counted}")
+      _zsh_ui_status_glyph "$counted"
+      tally_styled+=("${reply[1]}${REPLY}${_ZSH_UI_RESET} ${state_counts[$counted]} ${counted}")
+    done
+
+    _zsh_ui_resolve_mode
+    if [[ "$REPLY" == plain ]]; then
+      if (( ${#rows} )); then
+        local -a plain_rows=()
+        for record in "${rows[@]}"; do
+          local -a pf=("${(@ps:\t:)record}")
+          plain_rows+=("${_DEVDOCTOR_GROUP_TITLE[$pf[7]]:-$pf[7]}"$'\t'"$pf[1]"$'\t'"$pf[2]"$'\t'"${(U)pf[3]}"$'\t'"$pf[4]"$'\t'"$pf[5]"$'\t'"$pf[6]")
+        done
+        _zsh_ui_table --status 4 \
+          $'GROUP\tID\tRUNTIME\tSTATE\tACTIVE\tORIGIN\tDETAIL' "${plain_rows[@]}"
+      else
+        _zsh_ui_log warn "No managers matched the selection."
+      fi
+      if (( ${#conflicts} )); then
+        print -r -- ""
+        _shared_section "PATH conflicts · ${#conflicts}"
+        _zsh_ui_table --status 1 $'KIND\tSUBJECT\tDETAIL' "${conflicts[@]}"
+      fi
+      print -r -- ""
+      if (( ${#tally} )); then
+        case "$worst" in
+          0) _zsh_ui_log ok "${(j:, :)tally}." ;;
+          1) _zsh_ui_log warn "${(j:, :)tally}; review the flagged entries." ;;
+          *) _zsh_ui_log error "${(j:, :)tally}; review the flagged entries." ;;
+        esac
+      fi
+      (( want_updates )) ||
+        _zsh_ui_log info "Run 'devdoctor --updates' for native update checks."
+      return $worst
+    fi
+
+    _zsh_ui_width 120
+    local -i width=$REPLY
     if (( ${#rows} )); then
-      _zsh_ui_table --status 3 \
-        $'ID\tMANAGER\tSTATE\tACTIVE\tORIGIN\tDETAIL' "${rows[@]}"
+      _devdoctor_render_styled "$width" "${rows[@]}"
     else
       _zsh_ui_log warn "No managers matched the selection."
     fi
+    (( ${#conflicts} )) && _devdoctor_render_conflicts "$width" "${conflicts[@]}"
 
-    if (( ${#conflicts} )); then
-      print -r -- ""
-      _shared_section "PATH conflicts · ${#conflicts}"
-      _zsh_ui_table --status 1 $'KIND\tSUBJECT\tDETAIL' "${conflicts[@]}"
-    fi
-
-    # One line that answers "is anything wrong?" without reading the table.
-    local -A state_counts=()
-    local -a tally=()
-    local counted
-    for record in "${rows[@]}"; do
-      counted="${${(@ps:\t:)record}[3]}"
-      (( state_counts[$counted]++ ))
-    done
-    for counted in OK OUTDATED DORMANT UNUSED SHADOWED UNKNOWN BROKEN ABSENT; do
-      (( ${state_counts[$counted]:-0} )) &&
-        tally+=("${state_counts[$counted]} ${(L)counted}")
-    done
+    # One line that answers "is anything wrong?" without reading the report.
+    local hint="devdoctor --updates checks for new releases"
+    (( want_updates )) && hint="update sources checked"
+    local summary="  ${(j:   :)tally_styled}"
+    _zsh_ui_text_width "$summary"
+    local -i gap=$(( width - REPLY - ${(m)#hint} - 1 ))
+    (( gap < 3 )) && { hint=""; gap=0; }
     print -r -- ""
-    if (( ${#tally} )); then
-      case "$worst" in
-        0) _zsh_ui_log ok "${(j:, :)tally}." ;;
-        1) _zsh_ui_log warn "${(j:, :)tally}; review the flagged entries." ;;
-        *) _zsh_ui_log error "${(j:, :)tally}; review the flagged entries." ;;
-      esac
-    fi
-
-    if (( ! want_updates )); then
-      _zsh_ui_log info "Run 'devdoctor --updates' for native update checks."
-    fi
-
+    print -r -- "${_ZSH_UI_BORDER}${(pl:$width::─:)}${_ZSH_UI_RESET}"
+    print -r -- "${summary}${(l:$gap:: :)}${_ZSH_UI_MUTED}${hint}${_ZSH_UI_RESET}"
     return $worst
   } always {
     command rm -rf -- "$work" 2>/dev/null
