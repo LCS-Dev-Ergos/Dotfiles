@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
-# Report or advance flake inputs pinned in flake.nix by tag or commit.
+# ============================================================================ #
+# +++++++++++++++++++++++++++ PINNED INPUT UPDATER +++++++++++++++++++++++++++ #
+# ============================================================================ #
+# Reports or advances the flake inputs that flake.nix pins by tag or commit.
 #
 # Usage:
 #   scripts/update-pinned-inputs.sh --check [input...]
@@ -24,6 +27,8 @@
 #
 # Exit status: 0 nothing to do or applied, 1 updates available (--check),
 # 2 usage, environment, or resolution error.
+#
+# ============================================================================ #
 
 set -euo pipefail
 IFS=$'\n\t'
@@ -34,6 +39,8 @@ export LC_ALL=C
 export GIT_TERMINAL_PROMPT=0
 export GIT_HTTP_LOW_SPEED_LIMIT=1000
 export GIT_HTTP_LOW_SPEED_TIME=30
+
+# +++++++++++++++++++++++++ USAGE & ARGUMENT PARSING +++++++++++++++++++++++++ #
 
 usage='usage: update-pinned-inputs.sh --check|--apply [input...]'
 die() {
@@ -51,6 +58,14 @@ case "$1" in
 *) die "unknown option: $1 ($usage)" ;;
 esac
 shift
+
+# +++++++++++++++++++++++++++ PREREQUISITE CHECKS ++++++++++++++++++++++++++++ #
+
+# Empty arrays under `set -u` need Bash 4.4; macOS still ships 3.2 as
+# /bin/bash.
+if ((BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 4))); then
+  die "requires Bash 4.4 or newer (found $BASH_VERSION)"
+fi
 
 for required_command in awk cat cp git grep mktemp nix rm sed; do
   command -v "$required_command" >/dev/null 2>&1 ||
@@ -87,6 +102,8 @@ if [[ "$operation" == --apply ]]; then
   fi
 fi
 
+# +++++++++++++++++++++++++++ WORKSPACE & CLEANUP ++++++++++++++++++++++++++++ #
+
 if ! tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/update-pinned-inputs.XXXXXX")"; then
   die 'unable to create a temporary directory'
 fi
@@ -103,6 +120,8 @@ trap cleanup EXIT
 trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
+
+# +++++++++++++++++++++++++++++++ URL PARSING ++++++++++++++++++++++++++++++++ #
 
 commit_pattern='^[0-9a-f]{40}$'
 tag_pattern='^v?[0-9]+(\.[0-9]+)*$'
@@ -214,6 +233,8 @@ change_link() {
   esac
 }
 
+# +++++++++++++++++++++++++++++ INPUT DISCOVERY ++++++++++++++++++++++++++++++ #
+
 # Evaluating the inputs attribute, rather than scanning the text, makes the
 # listing independent of layout and of where each input is written. Names
 # and URLs containing whitespace are dropped here so they cannot split lines.
@@ -278,6 +299,8 @@ else
   done
 fi
 ((${#targets[@]} > 0)) || die 'no tag- or commit-pinned inputs found in flake.nix'
+
+# ++++++++++++++++++++++++++++++++ RESOLUTION ++++++++++++++++++++++++++++++++ #
 
 # Prints "latest<TAB>note" for one input. The whole ls-remote reply is
 # captured before parsing: a reader that stops early kills ls-remote with
@@ -380,6 +403,8 @@ if [[ "$operation" == --check ]]; then
   exit 1
 fi
 
+# ++++++++++++++++++++++++++++++++++ APPLY +++++++++++++++++++++++++++++++++++ #
+
 # Rewrite into a scratch copy first. Each quoted URL is matched literally and
 # must occur exactly once, so a URL that is built by interpolation, or written
 # twice, aborts before the real file is touched.
@@ -429,3 +454,6 @@ git -C "$repo_root" diff --stat -- flake.nix flake.lock
 printf -v joined '%s ' "${updated[@]}"
 printf 'Updated %s. Review, build, then commit and switch when ready.\n' \
   "${joined% }"
+
+# ============================================================================ #
+# End of update-pinned-inputs.sh.
