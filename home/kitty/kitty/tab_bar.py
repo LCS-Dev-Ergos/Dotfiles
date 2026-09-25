@@ -9,20 +9,19 @@
 #   tabs    index, an icon for the foreground process, the title, and markers
 #           for bell, failed command, activity, progress, zoom and window
 #           count; the active tab is a rounded pill in the theme's tab colors
-#   status  active layout, battery, date and a clock pill, dropped from the
-#           least useful end when the bar gets narrow
+#   status  active layout, load, free disk, battery and a memory pill (date
+#           and clock can be switched back on), dropped from the least useful
+#           end when the bar gets narrow
 #
 # Every color comes from the loaded theme (tab colors plus the 16 ANSI slots),
 # so switching the theme (or `kitten @ set-colors`) restyles the bar as well.
 #
 # =====------------------------------------------------------------------===== #
 
-import datetime
 import os
 import re
 import socket
 import subprocess
-import threading
 import time
 from typing import NamedTuple
 
@@ -61,6 +60,9 @@ ICON_FAILED = chr(0xF0159)  # md-close_circle
 ICON_LAYOUT = chr(0xF0574)  # md-view_quilt
 ICON_DATE = chr(0xF00ED)  # md-calendar
 ICON_CLOCK = chr(0xF0150)  # md-clock_outline
+ICON_MEMORY = chr(0xF035B)  # md-memory
+ICON_LOAD = chr(0xF04C5)  # md-speedometer
+ICON_DISK = chr(0xF02CA)  # md-harddisk
 ICON_PROCESS = chr(0xF0C8B)  # md-application_brackets
 ICON_SHELL = chr(0xF120)  # fa-terminal
 
@@ -106,9 +108,23 @@ MODE_LABELS = {"__sequence__": "KEYS", "__visual_select__": "SELECT"}
 
 REFRESH_SECONDS = 1.0  # how often the status is checked; redraws only on change
 BATTERY_TTL = 30.0  # seconds between battery samples
+MEMORY_TTL = 5.0  # seconds between memory samples
+LOAD_TTL = 5.0  # seconds between load average samples
+DISK_TTL = 60.0  # seconds between free space samples
+PROBE_TIMEOUT = 10.0  # seconds before a stuck probe command is killed
+DISK_PATH = os.path.expanduser("~")  # the volume whose free space is shown
 BADGE_MAX = 20  # cells for the session or mode label
 COMPACT_BADGE_BELOW = 60  # bar width, in cells, under which the badge is icon-only
 STATUS_GAP = 2  # minimum blank cells between the last tab and the status
+
+# Status segments. Turning one off keeps its code and skips its sampling.
+SHOW_LAYOUT = True
+SHOW_LOAD = True
+SHOW_DISK = True
+SHOW_BATTERY = True
+SHOW_MEMORY = True
+SHOW_DATE = False
+SHOW_CLOCK = False
 
 # =====----- Palette ----------------------------------------------------===== #
 
@@ -357,117 +373,133 @@ def _draw_tab_body(
     _draw(screen, cap_right, bg, pal.bar)
 
 
-# =====----- Status -----------------------------------------------------===== #
+# =====----- Samplers ---------------------------------------------------===== #
 
 
-class Segment(NamedTuple):
-    icon: str
-    text: str
-    icon_fg: int
-    priority: int  # the lowest goes first when space runs out
+class Sampler:
+    """The latest result of a probe, refreshed at most every ttl seconds.
+
+    A probe reads its answer directly, or, given a command, parses that
+    command's output. The command runs in the background and is only polled
+    here, so drawing never waits for it. A thread is no alternative: kitty's
+    Python threads get little time between events, and one waiting on a probe
+    can stall for seconds. A segment stays hidden until its first result.
+    """
+
+    def __init__(self, probe, ttl: float, command: list[str] | None = None) -> None:
+        self._probe = probe
+        self._ttl = ttl
+        self._command = command
+        self._process = None
+        self._taken = float("-inf")
+        self.value = None
+
+    def get(self):
+        now = time.monotonic()
+        if self._process is not None:
+            if self._process.poll() is not None:
+                output = self._process.communicate()[0]
+                self._process = None
+                self._update(self._probe, output)
+            elif now - self._taken > PROBE_TIMEOUT:
+                self._process.kill()
+        elif now - self._taken >= self._ttl:
+            self._taken = now
+            if self._command is None:
+                self._update(self._probe)
+            else:
+                try:
+                    self._process = subprocess.Popen(
+                        self._command,
+                        stdin=subprocess.DEVNULL,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.DEVNULL,
+                        text=True,
+                    )
+                except OSError:
+                    self.value = None
+        return self.value
+
+    def _update(self, probe, *args) -> None:
+        try:
+            self.value = probe(*args)
+        except Exception:  # noqa: BLE001
+            # A failing probe only hides its segment; the bar must keep drawing.
+            self.value = None
 
 
-def _battery_segment(pal: Palette) -> Segment | None:
-    sample = _battery()
-    if sample is None:
+def _size(num_bytes: float) -> str:
+    gib = num_bytes / 2**30
+    if gib >= 1000:
+        return f"{gib / 1024:.1f}T"
+    return f"{gib:.1f}G" if gib < 100 else f"{gib:.0f}G"
+
+
+def _parse_macos_memory(output: str) -> tuple[str, int]:
+    # vm_stat's report, then sysctl's hw.memsize and pressure level.
+    *vm_stat, total, pressure = output.splitlines()
+    vm_stat = "\n".join(vm_stat)
+    page = int(re.search(r"page size of (\d+) bytes", vm_stat).group(1))
+    pages = {
+        key.strip('"'): int(value)
+        for key, value in re.findall(r"^(.+?):\s+(\d+)\.$", vm_stat, re.MULTILINE)
+    }
+    # Activity Monitor's "Memory Used": app memory (anonymous pages the system
+    # cannot purge), wired memory, and what the compressor holds. Cached
+    # files count as free, since macOS drops them as soon as it needs room.
+    used = page * (
+        pages["Anonymous pages"]
+        - pages["Pages purgeable"]
+        + pages["Pages wired down"]
+        + pages["Pages occupied by compressor"]
+    )
+    # The kernel's own verdict (1 normal, 2 warning, 4 critical) says more than
+    # a percentage: memory that is full but not under pressure is fine on macOS.
+    return _memory_label(used, int(total)), {2: 1, 4: 2}.get(int(pressure), 0)
+
+
+def _read_linux_memory() -> tuple[str, int]:
+    info = {}
+    with open("/proc/meminfo") as f:
+        for line in f:
+            key, _, rest = line.partition(":")
+            info[key] = int(rest.split()[0]) * 1024
+    total = info["MemTotal"]
+    used = total - info["MemAvailable"]
+    ratio = used / total
+    return _memory_label(used, total), 2 if ratio >= 0.9 else 1 if ratio >= 0.8 else 0
+
+
+def _memory_label(used: int, total: int) -> str:
+    return f"{_size(used)} used · {_size(total - used)} free"
+
+
+def _read_load() -> tuple[str, int]:
+    # The one-minute load average, judged against the number of cores.
+    load = os.getloadavg()[0]
+    per_core = load / (os.cpu_count() or 1)
+    return f"{load:.1f}", 2 if per_core >= 1.0 else 1 if per_core >= 0.7 else 0
+
+
+def _read_disk() -> tuple[str, int]:
+    st = os.statvfs(DISK_PATH)
+    free = st.f_bavail * st.f_frsize
+    ratio = free / (st.f_blocks * st.f_frsize)
+    return f"{_size(free)} free", 2 if ratio < 0.05 else 1 if ratio < 0.15 else 0
+
+
+def _parse_pmset(output: str) -> tuple[int, bool] | None:
+    # " -InternalBattery-0 (id=...)\t85%; charging; 1:02 remaining ..."
+    match = re.search(r"InternalBattery.*?(\d+)%;\s*([^;]+)", output)
+    if not match:
         return None
-    percent, charging = sample
-    if charging:
-        icon, color = ICON_BATTERY_CHARGING, pal.ok
-    elif percent <= 10:
-        icon, color = ICON_BATTERY_LOW, pal.error
-    else:
-        icon = ICON_BATTERY_LEVELS[min(9, (percent - 1) // 10)]
-        color = pal.error if percent <= 20 else pal.warn if percent <= 35 else pal.text
-    return Segment(icon, f"{percent}%", color, 2)
-
-
-def _status_segments(draw_data: DrawData, pal: Palette) -> list[Segment]:
-    segments = []
-    tm = get_boss().os_window_map.get(draw_data.os_window_id)
-    tab = tm.active_tab if tm else None
-    if tab is not None and len(tab) > 1:
-        # The layout only matters once a tab is split.
-        segments.append(Segment(ICON_LAYOUT, tab.current_layout.name, pal.info, 0))
-    battery = _battery_segment(pal)
-    if battery:
-        segments.append(battery)
-    now = datetime.datetime.now()
-    segments.append(Segment(ICON_DATE, now.strftime("%a %d %b"), pal.muted, 1))
-    segments.append(Segment(ICON_CLOCK, now.strftime("%H:%M"), pal.text, 3))
-    return segments
-
-
-def _status_width(segments: list[Segment]) -> int:
-    # Plain segments end with a separator; the clock at the end is a pill.
-    body = sum(_width(s.icon) + 1 + _width(s.text) for s in segments)
-    return body + _width(SEPARATOR) * (len(segments) - 1) + 2
-
-
-def _draw_status(draw_data: DrawData, screen: Screen, pal: Palette) -> None:
-    segments = _status_segments(draw_data, pal)
-    # Keep the last cell free: after the last tab kitty clears from the cursor
-    # to the end of the line, so anything drawn there would be erased.
-    available = screen.columns - 1 - screen.cursor.x - STATUS_GAP
-    while segments and _status_width(segments) > available:
-        segments.remove(min(segments, key=lambda s: s.priority))
-    if not segments:
-        return
-
-    start = screen.columns - 1 - _status_width(segments)
-    _draw(screen, " " * (start - screen.cursor.x), pal.bar, pal.bar)
-    *plain, clock = segments
-    for segment in plain:
-        _draw(screen, segment.icon, segment.icon_fg, pal.bar)
-        _draw(screen, f" {segment.text}", pal.text, pal.bar)
-        _draw(screen, SEPARATOR, pal.muted, pal.bar)
-    _draw(screen, CAP_LEFT, pal.surface, pal.bar)
-    _draw(screen, clock.icon, clock.icon_fg, pal.surface)
-    _draw(screen, f" {clock.text}", pal.text, pal.surface, bold=True)
-    _draw(screen, CAP_RIGHT, pal.surface, pal.bar)
-
-
-# =====----- Battery ----------------------------------------------------===== #
-
-_battery_state = {"sample": None, "taken": float("-inf"), "probing": False}
-
-
-def _battery() -> tuple[int, bool] | None:
-    """Last battery sample as (percent, charging), refreshed in the background."""
-    now = time.monotonic()
-    if now - _battery_state["taken"] >= BATTERY_TTL and not _battery_state["probing"]:
-        _battery_state["taken"] = now
-        if is_macos:
-            # pmset takes a few milliseconds; keep it off the render thread.
-            _battery_state["probing"] = True
-            threading.Thread(
-                target=_probe_pmset, name="tab-bar-battery", daemon=True
-            ).start()
-        else:
-            _battery_state["sample"] = _read_sysfs_battery()
-    return _battery_state["sample"]
-
-
-def _probe_pmset() -> None:
-    sample = None
-    try:
-        output = subprocess.run(
-            ["/usr/bin/pmset", "-g", "batt"], capture_output=True, text=True, timeout=5
-        ).stdout
-        # " -InternalBattery-0 (id=...)\t85%; charging; 1:02 remaining ..."
-        match = re.search(r"InternalBattery.*?(\d+)%;\s*([^;]+)", output)
-        if match:
-            state = match.group(2).strip().lower()
-            on_power = "AC Power" in output or state in (
-                "charging",
-                "finishing charge",
-                "charged",
-            )
-            sample = (int(match.group(1)), on_power)
-    except (OSError, subprocess.SubprocessError):
-        pass
-    _battery_state["sample"] = sample
-    _battery_state["probing"] = False
+    state = match.group(2).strip().lower()
+    on_power = "AC Power" in output or state in (
+        "charging",
+        "finishing charge",
+        "charged",
+    )
+    return int(match.group(1)), on_power
 
 
 def _read_sysfs_battery() -> tuple[int, bool] | None:
@@ -488,6 +520,113 @@ def _read_sysfs_battery() -> tuple[int, bool] | None:
     return None
 
 
+# macOS answers through vm_stat, sysctl and pmset; Linux reads /proc and /sys.
+if is_macos:
+    _memory = Sampler(
+        _parse_macos_memory,
+        MEMORY_TTL,
+        [
+            "/bin/sh",
+            "-c",
+            "/usr/bin/vm_stat && /usr/sbin/sysctl -n hw.memsize kern.memorystatus_vm_pressure_level",
+        ],
+    )
+    _battery = Sampler(_parse_pmset, BATTERY_TTL, ["/usr/bin/pmset", "-g", "batt"])
+else:
+    _memory = Sampler(_read_linux_memory, MEMORY_TTL)
+    _battery = Sampler(_read_sysfs_battery, BATTERY_TTL)
+_load = Sampler(_read_load, LOAD_TTL)
+_disk = Sampler(_read_disk, DISK_TTL)
+
+
+# =====----- Status -----------------------------------------------------===== #
+
+
+class Segment(NamedTuple):
+    icon: str
+    text: str
+    icon_fg: int
+    priority: int  # the lowest goes first when space runs out
+
+
+def _sampled_segment(
+    sampler: Sampler, icon: str, fg: int, priority: int, pal: Palette
+) -> Segment | None:
+    sample = sampler.get()
+    if sample is None:
+        return None
+    text, severity = sample
+    return Segment(icon, text, (fg, pal.warn, pal.error)[severity], priority)
+
+
+def _battery_segment(pal: Palette) -> Segment | None:
+    sample = _battery.get()
+    if sample is None:
+        return None
+    percent, charging = sample
+    if charging:
+        icon, color = ICON_BATTERY_CHARGING, pal.ok
+    elif percent <= 10:
+        icon, color = ICON_BATTERY_LOW, pal.error
+    else:
+        icon = ICON_BATTERY_LEVELS[min(9, (percent - 1) // 10)]
+        color = pal.error if percent <= 20 else pal.warn if percent <= 35 else pal.text
+    return Segment(icon, f"{percent}%", color, 4)
+
+
+def _status_segments(draw_data: DrawData, pal: Palette) -> list[Segment]:
+    """The enabled segments, left to right; the last one is drawn as a pill."""
+    segments = []
+    if SHOW_LAYOUT:
+        tm = get_boss().os_window_map.get(draw_data.os_window_id)
+        tab = tm.active_tab if tm else None
+        if tab is not None and len(tab) > 1:
+            # The layout only matters once a tab is split.
+            segments.append(Segment(ICON_LAYOUT, tab.current_layout.name, pal.info, 2))
+    if SHOW_LOAD:
+        segments.append(_sampled_segment(_load, ICON_LOAD, pal.info, 3, pal))
+    if SHOW_DISK:
+        segments.append(_sampled_segment(_disk, ICON_DISK, pal.info, 0, pal))
+    if SHOW_BATTERY:
+        segments.append(_battery_segment(pal))
+    if SHOW_MEMORY:
+        segments.append(_sampled_segment(_memory, ICON_MEMORY, pal.info, 5, pal))
+    if SHOW_DATE:
+        segments.append(Segment(ICON_DATE, time.strftime("%a %d %b"), pal.muted, 1))
+    if SHOW_CLOCK:
+        segments.append(Segment(ICON_CLOCK, time.strftime("%H:%M"), pal.text, 6))
+    return [s for s in segments if s is not None]
+
+
+def _status_width(segments: list[Segment]) -> int:
+    # Plain segments end with a separator; the last one is a pill.
+    body = sum(_width(s.icon) + 1 + _width(s.text) for s in segments)
+    return body + _width(SEPARATOR) * (len(segments) - 1) + 2
+
+
+def _draw_status(draw_data: DrawData, screen: Screen, pal: Palette) -> None:
+    segments = _status_segments(draw_data, pal)
+    # Keep the last cell free: after the last tab kitty clears from the cursor
+    # to the end of the line, so anything drawn there would be erased.
+    available = screen.columns - 1 - screen.cursor.x - STATUS_GAP
+    while segments and _status_width(segments) > available:
+        segments.remove(min(segments, key=lambda s: s.priority))
+    if not segments:
+        return
+
+    start = screen.columns - 1 - _status_width(segments)
+    _draw(screen, " " * (start - screen.cursor.x), pal.bar, pal.bar)
+    *plain, last = segments
+    for segment in plain:
+        _draw(screen, segment.icon, segment.icon_fg, pal.bar)
+        _draw(screen, f" {segment.text}", pal.text, pal.bar)
+        _draw(screen, SEPARATOR, pal.muted, pal.bar)
+    _draw(screen, CAP_LEFT, pal.surface, pal.bar)
+    _draw(screen, last.icon, last.icon_fg, pal.surface)
+    _draw(screen, f" {last.text}", pal.text, pal.surface, bold=True)
+    _draw(screen, CAP_RIGHT, pal.surface, pal.bar)
+
+
 # =====----- Refresh ----------------------------------------------------===== #
 
 # A fresh token on every (re)load, so a config reload replaces the timer the
@@ -498,11 +637,18 @@ _last_signature = None
 
 def _tick(timer_id: int | None) -> None:
     # Everything the status shows that can change without kitty noticing:
-    # the minute, the battery sample, and the macOS secure input state.
+    # the samples, the minute when a date or clock is shown, and the macOS
+    # secure input state. Disabled segments are not sampled at all.
     global _last_signature
+    samplers = (
+        (SHOW_LOAD, _load),
+        (SHOW_DISK, _disk),
+        (SHOW_BATTERY, _battery),
+        (SHOW_MEMORY, _memory),
+    )
     signature = (
-        time.strftime("%Y%m%d%H%M"),
-        _battery(),
+        *(sampler.get() for shown, sampler in samplers if shown),
+        time.strftime("%Y%m%d%H%M") if SHOW_DATE or SHOW_CLOCK else None,
         cocoa_is_secure_input_enabled(),
     )
     if signature != _last_signature:
@@ -551,7 +697,7 @@ def draw_tab(
 
     # kitty first calls draw_tab only to measure each tab (for_layout). The
     # status is drawn on the real pass, and the returned end excludes it, so
-    # clicking the clock does not select the last tab.
+    # clicking the status does not select the last tab.
     if horizontal and is_last and not extra_data.for_layout:
         _draw_status(draw_data, screen, pal)
     screen.cursor.bold = False
