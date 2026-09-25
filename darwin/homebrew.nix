@@ -21,10 +21,10 @@ _: {
   # fswatch, fzf, gawk, gh, git, git-delta, git-filter-repo, glab, glow,
   # gnu-sed, gnu-tar, gnu-time, gpatch, gum, jolt, jq, just, just-lsp,
   # lazydocker, lazygit, lld, llmfit, llvm, nnn, node, nowplaying-cli,
-  # nushell, oh-my-posh, pipes-sh, procs, pstree, qpdf, ripgrep, ruff, sesh,
-  # sevenzip, shellcheck, sketchybar, starship, switchaudio-osx, tealdeer,
-  # television, tex-fmt, tmux, tree, universal-ctags, uv, w3m, wget, yazi,
-  # zoxide.
+  # nushell, oh-my-posh, pipes-sh, poppler, procs, pstree, qpdf, ripgrep,
+  # ruff, sesh, sevenzip, shellcheck, sketchybar, starship, switchaudio-osx,
+  # tealdeer, television, tex-fmt, tmux, tree, universal-ctags, uv, w3m, wget,
+  # yazi, zoxide. bzip2 needs no owner: macOS ships it in /usr/bin.
   #
   # llvm/lld left for a real bug, not just ownership -- see home/dev/toolchains/llvm.
   # `rust` was never declared here to begin with (a pre-migration leftover).

@@ -20,7 +20,15 @@
     enable = true;
     # Homebrew owns the signed application bundle; Home Manager owns config.
     package = null;
-    settings = (builtins.fromTOML (builtins.readFile ./aerospace.toml)) // {
+    # AeroSpace runs its callbacks without the login PATH, so the SketchyBar
+    # triggers name the binary from the Home Manager profile.
+    settings =
+      (builtins.fromTOML (
+        builtins.replaceStrings [ "@sketchybar@" ] [ "${config.home.profileDirectory}/bin/sketchybar" ] (
+          builtins.readFile ./aerospace.toml
+        )
+      ))
+      // {
       start-at-login = false;
     };
     launchd.enable = false;
