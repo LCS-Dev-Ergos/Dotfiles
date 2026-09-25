@@ -647,7 +647,7 @@ brew install fzf
 File: [`tab_bar.py`](tab_bar.py), loaded by `tab_bar_style custom`.
 
 ```text
- (demo)  (1 [] ~/Dotfiles²)  2 N nvim kitty.conf  3 [] cargo build² 42% []      [] tall | 100% | Thu 24 Sep  (23:58)
+ (demo)  (1 [] ~/Dotfiles²)  2 N nvim kitty.conf  3 [] cargo build² 42% []   [] tall | 4.6 | 283G free | 100% | ([] 13.3G used · 2.7G free)
 ```
 
 ### Layout
@@ -663,9 +663,14 @@ File: [`tab_bar.py`](tab_bar.py), loaded by `tab_bar_style custom`.
   ctrl+c does not count), unseen activity (yellow dot), progress reported with
   OSC 9;4, macOS Secure Input (lock), zoom (stack layout hiding other windows),
   and a superscript window count.
-- **Status**: the active layout (only when the tab is split), battery, date,
-  and a clock pill. When space runs out the layout goes first, then the date,
-  then the battery.
+- **Status**: the active layout (only when the tab is split), the one-minute
+  load average, free space on the home volume, battery, and a memory pill
+  (used and free). Load, disk and memory turn yellow or red under strain: load
+  against the core count, disk below 15% and 5% free, memory by the kernel's
+  pressure level on macOS and by percentage on Linux. When space runs out the
+  disk goes first, then the layout, the load and the battery.
+- Date and clock are still implemented but off. Each segment has a `SHOW_*`
+  switch at the top of `tab_bar.py`; the last enabled one becomes the pill.
 
 ### Implementation Notes
 
@@ -676,15 +681,18 @@ File: [`tab_bar.py`](tab_bar.py), loaded by `tab_bar_style custom`.
   `…/kitty`); other paths lose their middle, other titles their end.
 - On a bar narrower than 60 cells the badge shows only its icon; otherwise
   it keeps the full name whichever tab is active.
-- The battery is read from `pmset` (macOS, in a background thread) or
-  `/sys/class/power_supply` (Linux) every 30 seconds.
-- A one-second timer redraws the bar only when the minute, the battery sample
-  or the Secure Input state changes. A config reload replaces the timer
-  instead of adding a second one.
+- On macOS memory comes from `vm_stat` and `sysctl` every 5 seconds (used as
+  Activity Monitor counts it: app, wired and compressed memory) and the
+  battery from `pmset` every 30. These commands run in the background and are
+  polled, never waited for; Linux reads `/proc/meminfo` and
+  `/sys/class/power_supply` directly. Load and disk are plain system calls.
+- A one-second timer redraws the bar only when a sample, the minute (while
+  date or clock is shown) or the Secure Input state changes. A config reload
+  replaces the timer instead of adding a second one.
 - Glyph codepoints are listed by Nerd Font name at the top of the file.
 
 ---
 
-**Last Updated**: 2026-09-24
+**Last Updated**: 2026-09-25
 **Author**: LCS.Dev
 **Optimized by**: Claude (Anthropic)
