@@ -163,8 +163,8 @@ typeset cache_file="$fixture_root/cache/zsh/completions/_custom-functions-v1"
   print -u2 "FAIL: generated completion cache was not created"
   return 1
 }
-[[ "$(command stat -f '%Lp' "$cache_file" 2>/dev/null ||
-       command stat -c '%a' "$cache_file")" == 600 ]] || {
+[[ "$(command stat -c '%a' "$cache_file" 2>/dev/null ||
+       command stat -f '%Lp' "$cache_file")" == 600 ]] || {
   print -u2 "FAIL: generated completion cache does not have mode 600"
   return 1
 }
@@ -227,8 +227,8 @@ captured_nomatch=-1
 
 chmod 666 "$cache_file"
 _zsh_load_custom_completions
-[[ "$(command stat -f '%Lp' "$cache_file" 2>/dev/null ||
-       command stat -c '%a' "$cache_file")" == 600 ]] || {
+[[ "$(command stat -c '%a' "$cache_file" 2>/dev/null ||
+       command stat -f '%Lp' "$cache_file")" == 600 ]] || {
   print -u2 "FAIL: insecure completion cache was not rebuilt safely"
   return 1
 }
