@@ -29,8 +29,8 @@
         )
       ))
       // {
-      start-at-login = false;
-    };
+        start-at-login = false;
+      };
     launchd.enable = false;
   };
 
