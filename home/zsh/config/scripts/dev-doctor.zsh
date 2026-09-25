@@ -9,9 +9,10 @@
 # language binaries.
 #
 # Scope:
-#   C/C++ driver startup is checked here, including CC/CXX overrides. Use
-#   `get_toolchain_info` for detailed vendors/wrappers and the Nix toolchain
-#   check for compile, link and runtime compatibility.
+#   C/C++ driver startup is checked here, including CC/CXX overrides, and on
+#   macOS whether the Nix toolchain check (`cc-toolchain-check`, which covers
+#   compile, link and runtime compatibility) still holds for the SDK in use.
+#   Use `get_toolchain_info` for detailed vendors/wrappers.
 #
 # Two tiers:
 #   Local (default)  Presence, active version, runtime startup, PATH shadowing.
@@ -523,6 +524,39 @@ _devdoctor_version_flutter() {
   _devdoctor_run_timeout "${DEVDOCTOR_TIMEOUT:-5}" \
     "$sdk/bin/cache/dart-sdk/bin/dart" --version >/dev/null || return $?
   command sed -n 's/.*"flutterVersion"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$metadata"
+}
+
+# -----------------------------------------------------------------------------
+# _devdoctor_verdict_cctoolchain
+# @internal
+# @description Asks the Nix C/C++ toolchain check whether it has verified the
+# drivers against the SDK, linker and macOS in use now. An Xcode, Command Line
+# Tools or macOS update changes those without rebuilding anything, so the
+# verification the last system build performed can go stale unnoticed; this
+# row is where that shows.
+# @set REPLY string The check's one-line verdict.
+# @exitcode 0 If verified, 1 if not verified for this host, 2 if the check
+# could not run.
+# -----------------------------------------------------------------------------
+_devdoctor_verdict_cctoolchain() {
+  emulate -L zsh
+  local output
+  local -i status_code=0
+  output="$(_devdoctor_run_timeout "${DEVDOCTOR_TIMEOUT:-5}" \
+    cc-toolchain-check --status 2>&1)" || status_code=$?
+  _devdoctor_first_line "$output"
+  case $status_code in
+    0) return 0 ;;
+    1) return 1 ;;
+    124|137)
+      REPLY="status probe timed out"
+      return 1
+      ;;
+    *)
+      [[ -n "$REPLY" ]] || REPLY="status probe failed (exit $status_code)"
+      return 2
+      ;;
+  esac
 }
 
 # -----------------------------------------------------------------------------
@@ -1051,6 +1085,21 @@ _devdoctor_check_one() {
     [[ "$language_path" == /nix/store/* ]] && detail+=" (store-pinned)"
   elif [[ "$state" == ok && "$dd_id" == flutter ]]; then
     detail="cached Flutter version; bundled Dart starts"
+  fi
+
+  # A row whose health is a verdict of its own, rather than a startup probe,
+  # reports it through _devdoctor_verdict_<id>: 0 keeps the row ok, 1 makes it
+  # unknown and anything else broken, with REPLY as the detail.
+  if [[ "$state" == ok ]] && (( $+functions[_devdoctor_verdict_$dd_id] )); then
+    local -i verdict=0
+    REPLY=""
+    "_devdoctor_verdict_$dd_id" || verdict=$?
+    case $verdict in
+      0) ;;
+      1) state="unknown" ;;
+      *) state="broken" ;;
+    esac
+    [[ -n "$REPLY" ]] && detail="$REPLY"
   fi
 
   _devdoctor_clean_field "${active:--}"
