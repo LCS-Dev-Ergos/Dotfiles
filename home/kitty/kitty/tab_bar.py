@@ -30,6 +30,7 @@ from kitty.boss import get_boss
 from kitty.constants import is_macos
 from kitty.fast_data_types import Screen, add_timer, get_options, remove_timer, wcswidth
 from kitty.rgb import alpha_blend
+from kitty.session import most_recent_session
 from kitty.tab_bar import DrawData, ExtraData, TabAccessor, TabBarData, as_rgb
 from kitty.utils import color_as_int
 
@@ -106,7 +107,7 @@ MODE_LABELS = {"__sequence__": "KEYS", "__visual_select__": "SELECT"}
 REFRESH_SECONDS = 1.0  # how often the status is checked; redraws only on change
 BATTERY_TTL = 30.0  # seconds between battery samples
 BADGE_MAX = 20  # cells for the session or mode label
-MIN_FIRST_TAB = 12  # cells tab 1 keeps before the badge shrinks to its icon
+COMPACT_BADGE_BELOW = 60  # bar width, in cells, under which the badge is icon-only
 STATUS_GAP = 2  # minimum blank cells between the last tab and the status
 
 # =====----- Palette ----------------------------------------------------===== #
@@ -228,33 +229,51 @@ def _draw_pill(
 _hostname = ""
 
 
-def _badge(os_window_id: int) -> tuple[str, str, bool]:
-    """Return (icon, label, is_mode) for the badge at the left edge."""
+def _badge(os_window_id: int) -> tuple[str, str, str]:
+    """Return (icon, label, kind) for the badge; kind is mode, session,
+    recent or host."""
     global _hostname
     boss = get_boss()
     mode = boss.mappings.current_keyboard_mode_name
     if mode:
-        return ICON_MODE, MODE_LABELS.get(mode) or mode.upper(), True
+        return ICON_MODE, MODE_LABELS.get(mode) or mode.upper(), "mode"
+    # Same rule kitty uses for the active session: the focused window's
+    # session, else the one its tab was created in.
     tm = boss.os_window_map.get(os_window_id)
-    active = tm.active_tab if tm else None
-    session = active.active_session_name if active else ""
+    tab = tm.active_tab if tm else None
+    window = tab.active_window if tab else None
+    session = (window.created_in_session_name if window else "") or (
+        tab.created_in_session_name if tab else ""
+    )
     if session:
-        return ICON_SESSION, session, False
+        return ICON_SESSION, session, "session"
+    # A tab outside any session (a plain new_tab, the startup tab) still shows
+    # under `tab_bar_filter session:~`; name the session it is listed with.
+    recent = most_recent_session()
+    if recent:
+        return ICON_SESSION, recent, "recent"
     if not _hostname:
         _hostname = socket.gethostname().split(".")[0] or "kitty"
-    return ICON_HOST, _hostname, False
+    return ICON_HOST, _hostname, "host"
 
 
-def _draw_badge(screen: Screen, draw_data: DrawData, pal: Palette, room: int) -> None:
-    icon, label, is_mode = _badge(draw_data.os_window_id)
-    text = f"{icon} {_fit(label, BADGE_MAX)}"
-    # The badge is drawn inside tab 1's share of the bar. When kitty squeezes
-    # the tabs, keep only the icon so the first tab can still show its title.
-    if room - (_width(text) + 4) < MIN_FIRST_TAB:
-        text = icon
+def _draw_badge(screen: Screen, draw_data: DrawData, pal: Palette) -> None:
+    icon, label, kind = _badge(draw_data.os_window_id)
+    # The badge sits inside tab 1's share of the bar, and that share shrinks
+    # whenever another tab is active. Sizing it from the whole bar instead
+    # keeps the name steady across tab switches; only a narrow bar drops it.
+    text = (
+        icon
+        if screen.columns < COMPACT_BADGE_BELOW
+        else f"{icon} {_fit(label, BADGE_MAX)}"
+    )
     _draw(screen, " ", pal.bar, pal.bar)
-    bg = pal.mode if is_mode else pal.session
-    _draw_pill(screen, text, pal.on_accent, bg, pal.bar)
+    if kind == "recent":
+        # Dimmed: this tab is not part of the session, only listed with it.
+        _draw_pill(screen, text, pal.session, pal.surface, pal.bar)
+    else:
+        bg = pal.mode if kind == "mode" else pal.session
+        _draw_pill(screen, text, pal.on_accent, bg, pal.bar)
     _draw(screen, " ", pal.bar, pal.bar)
 
 
@@ -525,7 +544,7 @@ def draw_tab(
     horizontal = draw_data.tab_bar_edge in ("top", "bottom")
 
     if horizontal and index == 1:
-        _draw_badge(screen, draw_data, pal, max_tab_length)
+        _draw_badge(screen, draw_data, pal)
     room = max_tab_length - (screen.cursor.x - before)
     _draw_tab_body(draw_data, screen, tab, room, index, pal)
     end = screen.cursor.x
