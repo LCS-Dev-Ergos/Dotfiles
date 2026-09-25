@@ -191,7 +191,8 @@ function zbench() {
 # -----------------------------------------------------------------------------
 # fnm_clean
 # @description Removes stale fnm multishell symlinks while preserving
-# active sessions.
+# active sessions, by the rule shells apply on start
+# (_fnm_multishell_is_stale in lib/80-languages.zsh).
 # @option --all Remove active-session symlinks too.
 # @option -n | --dry-run Preview removals without changing files.
 # @option --quiet Suppress informational output.
@@ -202,7 +203,7 @@ function fnm_clean() {
   emulate -L zsh
   setopt noxtrace noverbose nullglob
 
-  local fnm_state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/fnm_multishells"
+  local fnm_state_dir REPLY
   local remove_all=0
   local dry_run=0
   local quiet=0
@@ -217,8 +218,9 @@ function fnm_clean() {
         cat <<'EOF'
 Usage: fnm_clean [--all] [--dry-run|-n] [--quiet]
 
-Default behavior removes only orphan fnm multishell symlinks.
-Use --all to remove every symlink in the fnm multishell state directory.
+Default behavior removes only orphan fnm multishell symlinks: those of
+shells that are gone, and links fnm named itself once unused for 7 days.
+Use --all to remove every symlink in the fnm multishell directory.
 EOF
         return 0
         ;;
@@ -230,6 +232,13 @@ EOF
   done
 
   (( quiet )) || _zsh_ui_load || return 1
+
+  if (( ! $+functions[_fnm_multishell_is_stale] )); then
+    echo "fnm_clean: fnm helpers from lib/80-languages.zsh are not loaded" >&2
+    return 1
+  fi
+  _fnm_multishell_dir
+  fnm_state_dir="$REPLY"
 
   if [[ ! -d "$fnm_state_dir" ]]; then
     (( quiet )) || _zsh_ui_log info \
@@ -246,24 +255,13 @@ EOF
   (( quiet )) || _zsh_ui_section "fnm multishell cleanup"
 
   local removed=0 skipped=0 failed=0
-  local link base pid
+  local link
   local -a preview_rows=()
 
   for link in "${links[@]}"; do
-    if (( ! remove_all )); then
-      # Keep current shell session symlink when available.
-      if [[ -n "${FNM_MULTISHELL_PATH:-}" && "$link" == "$FNM_MULTISHELL_PATH" ]]; then
-        ((skipped++))
-        continue
-      fi
-
-      # fnm multishell names are "<pid>_<timestamp>"; keep running PIDs.
-      base="${link:t}"
-      pid="${base%%_*}"
-      if [[ "$pid" == <-> ]] && kill -0 "$pid" 2>/dev/null; then
-        ((skipped++))
-        continue
-      fi
+    if (( ! remove_all )) && ! _fnm_multishell_is_stale "$link"; then
+      ((skipped++))
+      continue
     fi
 
     if (( dry_run )); then
@@ -284,19 +282,19 @@ EOF
       (( ${#preview_rows[@]} )) &&
         _zsh_ui_table $'Action\tPath' "${preview_rows[@]}"
       _zsh_ui_log ok \
-        "Dry run: $removed candidates, $skipped active sessions preserved."
+        "Dry run: $removed candidates, $skipped links kept."
     fi
     return 0
   fi
 
   if (( failed > 0 )); then
     (( quiet )) || _zsh_ui_log warn \
-      "Removed $removed; preserved $skipped active; $failed failed."
+      "Removed $removed; kept $skipped; $failed failed."
     return 1
   fi
 
   (( quiet )) || _zsh_ui_log ok \
-    "Removed $removed stale links; preserved $skipped active sessions."
+    "Removed $removed stale links; kept $skipped."
   return 0
 }
 
