@@ -67,7 +67,7 @@ jobs:
       # failed on the workstation before. A nixpkgs update that leaves the
       # selected releases unbuilt fails here, before anyone switches to it; a
       # newer GCC in nixpkgs is only reported, since adopting it is a choice.
-      - name: Check that the C/C++ toolchain is prebuilt
+      - name: Check that the pinned toolchains are prebuilt and current
         shell: bash
         run: |
           status=0
@@ -77,9 +77,13 @@ jobs:
                 pkgs = (builtins.getFlake (toString ./.)).inputs.nixpkgs.legacyPackages.$system;
                 inherit (pkgs) lib;
                 toolchain = import ./home/dev/toolchains/cc-toolchain.nix pkgs;
-                gccMajors = map (name: lib.toInt (lib.removePrefix \"gcc\" name)) (
-                  builtins.filter (name: builtins.match \"gcc[0-9]+\" name != null) (builtins.attrNames pkgs)
+                # Highest N among the attributes named <prefix>N.
+                newest = prefix: lib.foldl' lib.max 0 (
+                  map (name: lib.toInt (lib.removePrefix prefix name)) (
+                    builtins.filter (name: builtins.match \"\${prefix}[0-9]+\" name != null) (builtins.attrNames pkgs)
+                  )
                 );
+                go = builtins.head (import ./home/dev/languages/go/default.nix { inherit pkgs; }).home.packages;
                 paths = [
                   toolchain.gcc.cc
                   toolchain.llvmPackages.clang-unwrapped
@@ -91,7 +95,11 @@ jobs:
                 map (path: \"path \${path}\") paths
                 ++ [
                   \"selected-gcc \${lib.versions.major toolchain.gcc.version}\"
-                  \"newest-gcc \${toString (lib.foldl' lib.max 0 gccMajors)}\"
+                  \"newest-gcc \${toString (newest \"gcc\")}\"
+                  \"selected-llvm \${lib.versions.major toolchain.llvmPackages.llvm.version}\"
+                  \"newest-llvm \${toString (newest \"llvmPackages_\")}\"
+                  \"selected-go \${lib.versions.minor go.version}\"
+                  \"newest-go \${toString (newest \"go_1_\")}\"
                 ]
               )")"
             while read -r kind value; do
@@ -102,10 +110,22 @@ jobs:
                     status=1
                   fi
                   ;;
-                selected-gcc) selected="$value" ;;
+                selected-gcc) selected_gcc="$value" ;;
                 newest-gcc)
-                  if (( value > selected )); then
-                    echo "::notice::$system: nixpkgs offers gcc$value; home/dev/toolchains/cc-toolchain.nix selects gcc$selected"
+                  if (( value > selected_gcc )); then
+                    echo "::notice::$system: nixpkgs offers gcc$value; home/dev/toolchains/cc-toolchain.nix selects gcc$selected_gcc"
+                  fi
+                  ;;
+                selected-llvm) selected_llvm="$value" ;;
+                newest-llvm)
+                  if (( value > selected_llvm )); then
+                    echo "::notice::$system: nixpkgs offers llvmPackages_$value; home/dev/toolchains/cc-toolchain.nix selects llvmPackages_$selected_llvm (re-verify the LLD SDK ceiling before bumping)"
+                  fi
+                  ;;
+                selected-go) selected_go="$value" ;;
+                newest-go)
+                  if (( value > selected_go )); then
+                    echo "::notice::$system: nixpkgs offers go_1_$value; home/dev/languages/go selects go_1_$selected_go"
                   fi
                   ;;
               esac
