@@ -1,32 +1,42 @@
-# id	label	platform	root_var	root_default	probe	version_cmd	language_bin	managed_list	formula	update_hint	activation	runtime_cmd
-nix	Nix	any	-	-	nix	nix --version	-	-	-	nix flake update	always	-
-brew	Homebrew	any	HOMEBREW_PREFIX	-	brew	brew --version	-	-	-	brew upgrade	always	-
-cc	C (CC)	any	-	-	hook	hook	cc	-	-	-	always	version
-cxx	C++ (CXX)	any	-	-	hook	hook	c++	-	-	-	always	version
-clang	Clang	any	-	-	clang	clang --version	clang	-	-	-	always	version
-gcc	GCC driver	any	-	-	gcc	gcc --version	gcc	-	-	-	always	version
-cctoolchain	C/C++ toolchain check	macOS	-	-	cc-toolchain-check	-	-	-	-	-	always	-
-cmake	CMake	any	-	-	cmake	cmake --version	cmake	-	cmake	brew upgrade cmake	always	version
-ccache	ccache	any	-	-	ccache	ccache --version	ccache	-	-	-	always	version
-rustup	Rust	any	RUSTUP_HOME	~/.rustup,~/.cargo	rustup	rustc --version	rustc	rustup toolchain list	-	rustup update	always	version
-ghcup	Haskell	any	-	~/.ghcup	ghcup	ghc --numeric-version	ghc	ghcup list -t ghc -c installed -r	-	ghcup upgrade	always	version
-opam	OCaml	any	OPAMROOT	~/.opam	opam	ocaml -version	ocaml	opam switch list -s	-	opam update	always	version
-sdkman	SDKMAN	any	SDKMAN_DIR	~/.sdkman	file:~/.sdkman/bin/sdkman-init.sh	hook	java	hook	-	sdk upgrade	always	java --version
-pyenv	Python	any	PYENV_ROOT	~/.pyenv	pyenv	pyenv version-name	python3	pyenv versions --bare	-	pyenv install -l	always	python3 --version
-rbenv	Ruby	any	RBENV_ROOT	~/.rbenv	rbenv	rbenv version-name	ruby	rbenv versions --bare	-	rbenv install -l	always	ruby --version
-fnm	Node	any	FNM_DIR	~/.local/share/fnm	fnm	hook	node	fnm list	-	fnm install --lts	session	node --version
-conda	Conda	any	-	-	hook	hook	-	hook	-	conda update -n base conda	session	-
-coursier	Scala	any	-	-	hook	hook	scala	-	-	cs update	always	scala version --offline --scala-version
-elan	Lean	any	ELAN_HOME	~/.elan	elan	lean --version	lean	elan toolchain list	-	elan update	always	version
-juliaup	Julia	any	-	~/.juliaup	juliaup	julia --version	julia	-	-	juliaup update	always	version
-alire	Ada	any	-	~/.alire	alr	alr --version	-	-	-	alr toolchain --select	always	-
-fpcupdeluxe	Free Pascal	macOS	-	~/.fpc-deluxe	dir:~/.fpc-deluxe	fpc -iV	fpc	-	-	-	always	version
-go	Go	any	GOPATH	-	go	go version	go	-	go	brew upgrade go	always	version
-racket	Racket	any	-	-	racket	racket --version	racket	-	racket	brew upgrade racket	always	version
-gleam	Gleam	any	-	-	gleam	gleam --version	gleam	-	gleam	brew upgrade gleam	always	version
-erlang	Erlang	any	-	-	erl	hook	erl	-	erlang	brew upgrade erlang	always	version
-perl	Perl	any	-	-	perl	hook	perl	-	perl	brew upgrade perl	always	version
-dotnet	.NET SDK	any	-	-	dotnet	dotnet --version	dotnet	-	-	-	always	version
-bun	Bun	any	-	-	bun	bun --version	bun	-	-	-	always	version
-android	Android adb	any	-	-	adb	adb version	adb	-	-	-	always	version
-flutter	Flutter SDK	any	-	-	flutter	hook	flutter	-	-	flutter upgrade	always	version
+# id	label	platform	root_var	root_default	probe	version_cmd	language_bin	managed_list	formula	update_hint	activation	runtime_cmd	group
+brew	Homebrew	any	HOMEBREW_PREFIX	-	brew	brew --version	-	-	-	brew upgrade	always	-	platform
+nix	Nix	any	-	-	nix	nix --version	-	-	-	nix flake update	always	-	platform
+alire	Ada	any	-	~/.alire	alr	alr --version	-	-	-	alr toolchain --select	always	-	systems
+cc	C (CC)	any	-	-	hook	hook	cc	-	-	-	always	version	systems
+cxx	C++ (CXX)	any	-	-	hook	hook	c++	-	-	-	always	version	systems
+ccache	ccache	any	-	-	ccache	ccache --version	ccache	-	-	-	always	version	systems
+clang	Clang	any	-	-	clang	clang --version	clang	-	-	-	always	version	systems
+cmake	CMake	any	-	-	cmake	cmake --version	cmake	-	cmake	brew upgrade cmake	always	version	systems
+fortran	Fortran	any	-	-	gfortran	gfortran --version	gfortran	-	gcc	brew upgrade gcc	always	version	systems
+fpcupdeluxe	Free Pascal	macOS	-	~/.fpc-deluxe	dir:~/.fpc-deluxe	fpc -iV	fpc	-	-	-	always	version	systems
+gcc	GCC driver	any	-	-	gcc	gcc --version	gcc	-	-	-	always	version	systems
+go	Go	any	GOPATH	-	go	go version	go	-	go	brew upgrade go	always	version	systems
+rustup	Rust	any	RUSTUP_HOME	~/.rustup,~/.cargo	rustup	rustc --version	rustc	rustup toolchain list	-	rustup update	always	version	systems
+cctoolchain	Toolchain check	macOS	-	-	cc-toolchain-check	-	-	-	-	-	always	-	systems
+zig	Zig	any	-	-	zig	zig version	zig	-	-	-	always	version	systems
+sdkman	Java	any	SDKMAN_DIR	~/.sdkman	file:~/.sdkman/bin/sdkman-init.sh	hook	java	hook	-	sdk upgrade	always	java --version	jvm
+kotlin	Kotlin	any	SDKMAN_DIR	~/.sdkman	kotlin	kotlin -version	kotlin	-	-	sdk upgrade kotlin	always	version	jvm
+maven	Maven	any	SDKMAN_DIR	~/.sdkman	mvn	mvn --version	mvn	-	-	sdk upgrade maven	always	version	jvm
+coursier	Scala	any	-	-	hook	hook	scala	-	-	cs update	always	scala version --offline --scala-version	jvm
+bun	Bun	any	-	-	bun	bun --version	bun	-	-	-	always	version	scripting
+conda	Conda	any	-	-	hook	hook	-	hook	-	conda update -n base conda	session	-	scripting
+lua	Lua	any	-	-	lua	lua -v	lua	-	lua	brew upgrade lua	always	version	scripting
+fnm	Node	any	FNM_DIR	~/.local/share/fnm	fnm	hook	node	fnm list	-	fnm install --lts	session	node --version	scripting
+perl	Perl	any	-	-	perl	hook	perl	-	perl	brew upgrade perl	always	version	scripting
+php	PHP	any	-	-	php	php --version	php	-	php	brew upgrade php	always	version	scripting
+pyenv	Python	any	PYENV_ROOT	~/.pyenv	pyenv	pyenv version-name	python3	pyenv versions --bare	-	pyenv install -l	always	python3 --version	scripting
+rbenv	Ruby	any	RBENV_ROOT	~/.rbenv	rbenv	rbenv version-name	ruby	rbenv versions --bare	-	rbenv install -l	always	ruby --version	scripting
+sbcl	Common Lisp	any	-	-	sbcl	sbcl --version	sbcl	-	-	-	always	version	functional
+erlang	Erlang	any	-	-	erl	hook	erl	-	erlang	brew upgrade erlang	always	version	functional
+gleam	Gleam	any	-	-	gleam	gleam --version	gleam	-	gleam	brew upgrade gleam	always	version	functional
+ghcup	Haskell	any	-	~/.ghcup	ghcup	ghc --numeric-version	ghc	ghcup list -t ghc -c installed -r	-	ghcup upgrade	always	version	functional
+scheme	MIT Scheme	any	-	-	mit-scheme	mit-scheme --version	mit-scheme	-	mit-scheme	brew upgrade mit-scheme	always	version	functional
+opam	OCaml	any	OPAMROOT	~/.opam	opam	ocaml -version	ocaml	opam switch list -s	-	opam update	always	version	functional
+prolog	Prolog	any	-	-	swipl	swipl --version	swipl	-	swi-prolog	brew upgrade swi-prolog	always	version	functional
+racket	Racket	any	-	-	racket	racket --version	racket	-	racket	brew upgrade racket	always	version	functional
+juliaup	Julia	any	-	~/.juliaup	juliaup	julia --version	julia	-	-	juliaup update	always	version	science
+elan	Lean	any	ELAN_HOME	~/.elan	elan	lean --version	lean	elan toolchain list	-	elan update	always	version	science
+dotnet	.NET SDK	any	-	-	dotnet	dotnet --version	dotnet	-	-	-	always	version	apps
+android	Android adb	any	-	-	adb	adb version	adb	-	-	-	always	version	apps
+flutter	Flutter SDK	any	-	-	flutter	hook	flutter	-	-	flutter upgrade	always	version	apps
+swift	Swift	any	-	-	swift	swift --version	swift	-	-	-	always	version	apps

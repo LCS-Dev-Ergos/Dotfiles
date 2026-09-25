@@ -91,6 +91,13 @@ The optional thirteenth registry column, `runtime_cmd`, declares a local
 startup probe. `version` reuses the existing version command; `-` leaves the
 check at manager level. Other values are commands split into arguments,
 without shell evaluation. Legacy twelve-column registries still load.
+
+The optional fourteenth column, `group`, places the row in a report section:
+`platform`, `systems`, `jvm`, `scripting`, `functional`, `science`, `apps` or
+`other` (the default), shown in that order with rows sorted by label. The
+styled report is a title bar plus one line per runtime with a colored state
+marker; plain output (`ZSH_UI_STYLE=plain`, or a pipe) stays a single
+untruncated table with a `GROUP` column, and `--json` adds a `group` field.
 Python, Ruby, Java and Scala are started separately from their managers;
 Scala reports its default Scala version using the offline version command.
 Erlang reports the OTP release from a running VM.

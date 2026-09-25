@@ -50,7 +50,10 @@ Choose the output class before choosing its presentation:
 
 The shared layer honors `ZSH_UI_STYLE=auto|plain|ansi|gum` and `NO_COLOR`.
 Use `_zsh_ui_log` for individual status lines, `_zsh_ui_heading` for a
-command's title banner, `_zsh_ui_section` for lightweight labels (a
+command's title banner, `_zsh_ui_app_header` for the boxed title bar of a
+full-screen report such as devdoctor (a reverse-video tool badge, context on
+the right), `_zsh_ui_status_glyph` for a one-cell state marker and its
+color, `_zsh_ui_section` for lightweight labels (a
 `· detail` suffix renders as secondary text), `_zsh_ui_card` for compact
 summaries (`key<TAB>value` lines become an aligned list), `_zsh_ui_table` for
 structured rows (`--align` for numeric columns, `--status` for state columns),

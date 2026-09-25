@@ -496,6 +496,45 @@ tab_output="$(DEVDOCTOR_REGISTRY="$tab_registry" devdoctor --json)" || true
 [[ "$tab_output" == *'"active":"weird injected value"'* ]] ||
   _dd_fail "a tab in probe output was not neutralised: $tab_output"
 
+# Rows are reported by group, in the fixed group order, then by label; a row
+# without a group lands in "other", and an unknown group is refused.
+typeset group_registry="$fixture_root/grouped.tsv"
+{
+  print -- "zeta_mgr\tZeta\tany\t-\t-\tokmgr\t-\t-\t-\t-\t-\talways\t-\tscripting"
+  print -- "late_mgr\tLate\tany\t-\t-\tokmgr\t-\t-\t-\t-\t-\talways"
+  print -- "alpha_mgr\talpha\tany\t-\t-\tokmgr\t-\t-\t-\t-\t-\talways\t-\tscripting"
+  print -- "base_mgr\tBase\tany\t-\t-\tokmgr\t-\t-\t-\t-\t-\talways\t-\tplatform"
+} >| "$group_registry"
+typeset group_output
+group_output="$(DEVDOCTOR_REGISTRY="$group_registry" devdoctor --json)" || true
+[[ "$group_output" == *'"id":"base_mgr"'*'"group":"platform"'*'"id":"alpha_mgr"'*'"id":"zeta_mgr"'*'"group":"scripting"'*'"id":"late_mgr"'*'"group":"other"'* ]] ||
+  _dd_fail "rows are not ordered by group and label: $group_output"
+group_output="$(DEVDOCTOR_REGISTRY="$group_registry" devdoctor 2>&1)" || true
+[[ "$group_output" == *$'\n'"Platform "*$'\n'"Scripting "*"alpha_mgr"*$'\n'"Scripting "*"zeta_mgr"*$'\n'"Other "* ]] ||
+  _dd_fail "the plain report does not follow the group order: $group_output"
+
+typeset bad_group_registry="$fixture_root/bad-group.tsv"
+{ print -- "odd_mgr\tOdd\tany\t-\t-\tokmgr\t-\t-\t-\t-\t-\talways\t-\tnowhere" } >| "$bad_group_registry"
+typeset -i bad_group_status=0
+DEVDOCTOR_REGISTRY="$bad_group_registry" devdoctor >/dev/null 2>&1 || bad_group_status=$?
+(( bad_group_status == 2 )) ||
+  _dd_fail "an unknown group must be refused, got $bad_group_status"
+
+# The styled report draws the title bar, one heading per group and a marker
+# per row, all inside the terminal width.
+typeset styled_output
+styled_output="$(COLUMNS=72 ZSH_UI_STYLE=ansi \
+  DEVDOCTOR_REGISTRY="$group_registry" devdoctor 2>&1)" || true
+[[ "$styled_output" == *'╭'*'DEVDOCTOR'*'Development Environment'*'╯'* &&
+   "$styled_output" == *'Platform'*'─'*'Scripting'*'Other'* &&
+   "$styled_output" == *'●'* ]] ||
+  _dd_fail "the styled report lost its header, groups or markers"
+typeset styled_line
+for styled_line in "${(@f)styled_output}"; do
+  _zsh_ui_text_width "$styled_line"
+  (( REPLY <= 72 )) || _dd_fail "a styled line overflows 72 columns: $styled_line"
+done
+
 export PATH="$original_path"
 rehash
 print -r -- "PASS: manager states, PATH conflicts, update signals, and timeouts"
