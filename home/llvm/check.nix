@@ -1,36 +1,107 @@
-# Smoke tests for the host toolchain, run as `passthru.tests.default`. Every
-# case compiles, links and runs a real binary; the diagnostics it inspects are
-# the contract the drivers promise, not incidental output.
+# Smoke tests for the host toolchain, as the program cc-toolchain-check-run.
+# The same script runs as the flake check (passthru.tests.default), inside
+# every Darwin system build that deploys the toolchain, and by hand against the
+# live host through `cc-toolchain-check`. Every case compiles, links and runs a
+# real binary; the diagnostics it inspects are the contract the drivers
+# promise, not incidental output.
+#
+# Nothing here assumes a particular host SDK. Decisions that depend on the SDK
+# version are exercised through SDK views on both sides of each threshold, and
+# the host SDK then runs one side end to end.
 {
   appleLinker,
   cctools,
   clangRuntime,
-  darwinMinVersion,
+  coreutils,
+  deploymentTarget,
+  fingerprintFunctions,
   gccFixincludes,
   gccRuntime,
   gccTarget,
   gccVersion,
   hostArch,
+  hostSdkFunctions,
   lib,
   lld,
   lldNewestSdkMajor,
+  llvmVersion,
+  nixpkgsMinVersion,
   runtimeDir,
+  runtimeShell,
+  storeDir,
+  toolPath,
   toolchain,
 }:
 let
   relocated = runtimeDir != null;
+  gccMajor = lib.versions.major gccVersion;
+  # A runtime availability check is emitted only above the deployment target.
+  availabilityProbe = toString (lib.toInt (lib.versions.major deploymentTarget) + 1);
+  # Any versioned triple other than the default target will do; nixpkgs' own
+  # floor is one every SDK the drivers accept still supports.
+  olderTarget = lib.versions.major nixpkgsMinVersion;
+  lldAboveCeiling = toString (lib.toInt lldNewestSdkMajor + 1);
+  ld64Lld = "${lld}/bin/ld64.lld";
 in
 ''
+  #!${runtimeShell}
   set -euo pipefail
-  export HOME="$TMPDIR"
-  cd "$TMPDIR"
+
+  fingerprint_file=
+  case "''${1-}" in
+    --fingerprint-to)
+      fingerprint_file="''${2:?--fingerprint-to needs a path}"
+      [[ "$fingerprint_file" == /* ]] || fingerprint_file="$PWD/$fingerprint_file"
+      ;;
+    "") ;;
+    *)
+      echo "usage: cc-toolchain-check-run [--fingerprint-to FILE]" >&2
+      exit 2
+      ;;
+  esac
+
+  # One known environment, by hand as inside a Nix build: of the caller's
+  # variables only TMPDIR and the SDK selection the drivers honour survive, and
+  # a store SDK exported by a Nix build environment is dropped the way the
+  # drivers drop it (a case below checks that they do). LC_ALL keeps bash off
+  # the CoreFoundation locale lookup that crashes it under the Nix build user.
+  if [[ "''${CC_TOOLCHAIN_CHECK_SCRUBBED-}" != 1 ]]; then
+    kept=()
+    for variable in SDKROOT DEVELOPER_DIR; do
+      value="''${!variable-}"
+      if [[ -n "$value" && "$value" != ${storeDir}/* ]]; then
+        kept+=("$variable=$value")
+      fi
+    done
+    exec ${coreutils}/bin/env -i CC_TOOLCHAIN_CHECK_SCRUBBED=1 LC_ALL=C \
+      TMPDIR="''${TMPDIR:-/tmp}" "''${kept[@]}" "$0" "$@"
+  fi
+
+  ${hostSdkFunctions}
+  ${fingerprintFunctions}
 
   bin=${toolchain}/bin
   otool=${cctools}/bin/otool
   lipo=${cctools}/bin/lipo
-  # As in a deployed profile: helpers such as dsymutil are found by name, and
-  # -fuse-ld=lld finds ld64.lld from the separate lld package.
-  export PATH="$bin:${lld}/bin:$PATH"
+  # As in a deployed profile, helpers such as dsymutil are found by name; but
+  # only the package's own, so nothing else on PATH can stand in for part of
+  # the toolchain. LLD included: a -fuse-ld=lld link that works here needs no
+  # ld64.lld beyond the one the drivers name.
+  export PATH="$bin:${toolPath}"
+
+  work="$(mktemp -d "''${TMPDIR:-/tmp}/cc-toolchain-check.XXXXXX")"
+  # shellcheck disable=SC2317 # invoked through the EXIT trap
+  finish() {
+    local status=$?
+    if (( status == 0 )); then
+      rm -rf "$work"
+    else
+      echo "cc-toolchain-check: build artifacts kept in $work" >&2
+    fi
+  }
+  trap finish EXIT
+  cd "$work"
+  export HOME="$work"
 
   fail() {
     echo "FAIL: $*" >&2
@@ -51,58 +122,91 @@ in
     fi
   }
 
+  # Succeeds when the dotted version $1 is at least $2.
+  version_at_least() {
+    local -a have want
+    local index
+    IFS=. read -ra have <<<"$1"
+    IFS=. read -ra want <<<"$2"
+    for ((index = 0; index < ''${#have[@]} || index < ''${#want[@]}; index++)); do
+      (( 10#''${have[index]:-0} > 10#''${want[index]:-0} )) && return 0
+      (( 10#''${have[index]:-0} < 10#''${want[index]:-0} )) && return 1
+    done
+    return 0
+  }
+
   check_build_version() {
-    local binary="$1" expected_sdk="''${2-$sdk_version}" load_commands
+    local binary="$1" expected_sdk="''${2-$host_sdk_version}" load_commands
     load_commands="$($otool -l "$binary")"
-    grep -Eq "minos[[:space:]]+${darwinMinVersion}([.]0)?$" <<<"$load_commands" ||
-      fail "$binary does not target macOS ${darwinMinVersion}"
+    grep -Eq "minos[[:space:]]+${deploymentTarget}([.]0)?$" <<<"$load_commands" ||
+      fail "$binary does not target macOS ${deploymentTarget}"
     grep -Eq "sdk[[:space:]]+''${expected_sdk//./[.]}([.]0)?$" <<<"$load_commands" ||
       fail "$binary was not linked against SDK $expected_sdk"
   }
 
-  for program in cc c++ clang clang++ cpp ld dsymutil gcc g++ clangd clang-tidy; do
+  # Creates at $1 a view of the host SDK whose SDKSettings.json declares
+  # version $2. Headers and stubs still come from the host: a view tests SDK
+  # selection and metadata, not compatibility with an older SDK.
+  make_sdk_view() {
+    local entry
+    mkdir -p "$1"
+    for entry in "$host_sdk"/*; do
+      [[ "''${entry##*/}" == SDKSettings.json ]] || ln -s "$entry" "$1/"
+    done
+    sed -E 's/"Version"[[:space:]]*:[[:space:]]*"[0-9.]+"/"Version":"'"$2"'"/' \
+      "$host_sdk/SDKSettings.json" > "$1/SDKSettings.json"
+  }
+
+  for program in cc c++ clang clang++ cpp ld dsymutil gcc g++ gcc-ar-${gccMajor} clangd clang-tidy; do
     [[ -x "$bin/$program" ]] || fail "missing $program"
   done
 
-  # ----- Compiler policy ----- #
+  # ----- Host ----- #
   printf '%s\n' 'int main(void) { return 0; }' > smoke.c
-  diagnostics="$($bin/cc -### -c smoke.c 2>&1)"
-  grep -Fq -- '-apple-macosx${darwinMinVersion}.0' <<<"$diagnostics" ||
-    fail "the native triple does not target macOS ${darwinMinVersion}"
-  host_sdk="$(sed -n 's/.*"-isysroot" "\([^"]*\)".*/\1/p' <<<"$diagnostics")"
-  host_sdk="''${host_sdk%%$'\n'*}"
-  [[ -r "$host_sdk/SDKSettings.json" ]] || fail "no host SDK in: $diagnostics"
-  # The build environment exports Nix's own SDK; the driver must not take it.
-  [[ "$host_sdk" != /nix/store/* ]] || fail "the driver selected a store SDK"
-  sdk_settings="$(<"$host_sdk/SDKSettings.json")"
-  [[ "$sdk_settings" =~ \"Version\":\"([0-9.]+)\" ]] || fail "unreadable SDK version"
-  sdk_version="''${BASH_REMATCH[1]}"
+  diagnostics="$($bin/cc -### -c smoke.c 2>&1)" || fail "cc -### fails: $diagnostics"
+  sysroot_pattern='"-isysroot" "([^"]*)"'
+  [[ "$diagnostics" =~ $sysroot_pattern ]] || fail "no host SDK in: $diagnostics"
+  host_sdk="''${BASH_REMATCH[1]}"
+  [[ "$host_sdk" != ${storeDir}/* ]] || fail "the driver selected a store SDK"
+  read_sdk_version "$host_sdk" || fail "cannot read the SDK version of $host_sdk"
+  host_sdk_version="$sdk_version"
+  sdk_major="''${host_sdk_version%%.*}"
+  # Tripwire: SDKSettings.json and the SDK's SystemVersion.plist are separate
+  # Apple files. When they disagree, SDKSettings.json has changed shape under
+  # the parser every driver shares, and the SDK version the linker writes into
+  # binaries could be wrong.
+  plist_value "$host_sdk/System/Library/CoreServices/SystemVersion.plist" ProductVersion ||
+    fail "$host_sdk has no readable SystemVersion.plist"
+  [[ "$REPLY" == "$host_sdk_version" ]] ||
+    fail "$host_sdk: SDKSettings.json declares $host_sdk_version, SystemVersion.plist $REPLY"
+  plist_value /System/Library/CoreServices/SystemVersion.plist ProductVersion ||
+    fail "cannot read the running macOS version"
+  macos_version="$REPLY"
+  apple_linker_version || fail "cannot read the version of Apple's linker"
+  linker_version="$REPLY"
+  lld_route="LLD ${llvmVersion}"
+  (( sdk_major <= ${lldNewestSdkMajor} )) || lld_route="Apple's linker"
+  echo "cc-toolchain-check: macOS $macos_version, SDK $host_sdk_version at $host_sdk, $linker_version; -fuse-ld=lld links with $lld_route"
+
+  # The deployment target has a floor, asserted at evaluation, and this
+  # ceiling: what is built here has to run here.
+  version_at_least "$macos_version" ${deploymentTarget} ||
+    fail "macOS $macos_version is older than the deployment target ${deploymentTarget} in home/cc-toolchain.nix"
+
+  # ----- Compiler policy ----- #
+  grep -Fq -- '-apple-macosx${deploymentTarget}.0' <<<"$diagnostics" ||
+    fail "the native triple does not target macOS ${deploymentTarget}"
 
   grep -Fq -- '${appleLinker}' <<<"$($bin/cc -### smoke.c -o smoke 2>&1)" ||
     fail "a native link does not use the Apple linker shim"
   if grep -Fq -- '${appleLinker}' <<<"$($bin/cc --ld-path=/usr/bin/ld -### smoke.c -o smoke 2>&1)"; then
     fail "an explicit --ld-path was overridden"
   fi
-  # LLD is honoured for an SDK it can read and replaced by Apple's linker for
-  # one it cannot, which must stay true: once LLD reads the host SDK, the
-  # fallback is dead weight and lldNewestSdkMajor has to rise.
-  lld_link="$($bin/cc -fuse-ld=lld -### smoke.c -o smoke 2>&1)"
-  if (( ''${sdk_version%%.*} > ${lldNewestSdkMajor} )); then
-    grep -Fq -- '${appleLinker}' <<<"$lld_link" ||
-      fail "an LLD request against SDK $sdk_version did not fall back"
-    quiet $bin/cc -fuse-ld=lld smoke.c -o smoke-lld-fallback
-    ./smoke-lld-fallback
-    if $bin/cc --ld-path=${lld}/bin/ld64.lld smoke.c -o smoke-lld >/dev/null 2>&1; then
-      fail "LLD now reads SDK $sdk_version; raise lldNewestSdkMajor in package.nix"
-    fi
-  elif grep -Fq -- '${appleLinker}' <<<"$lld_link"; then
-    fail "an explicit -fuse-ld=lld was overridden"
-  fi
 
   quiet $bin/cc -Werror=unused-command-line-argument --target=wasm32 -c smoke.c -o smoke.wasm.o
   quiet $bin/cc -Werror=unused-command-line-argument -fsyntax-only smoke.c
   quiet $bin/cc -Werror=unused-command-line-argument -E smoke.c -o smoke.i
-  quiet $bin/cc -Werror --target=${hostArch}-apple-macos14 -c smoke.c -o versioned-target.o
+  quiet $bin/cc -Werror --target=${hostArch}-apple-macos${olderTarget} -c smoke.c -o versioned-target.o
   $bin/cc -cc1 -version >/dev/null || fail "-cc1 is not passed through"
   [[ "$(printf '%s\n' '#define VALUE 42' 'VALUE' | $bin/cpp -P | tr -d '[:space:]')" == 42 ]] ||
     fail "cpp does not read standard input"
@@ -138,16 +242,10 @@ in
   check_build_version smoke-ld
 
   # An SDK view with distinct metadata exercises override policy even on a
-  # host with only one SDK installed. Headers and stubs still come from the
-  # host: this tests SDK selection/metadata, not older-SDK compatibility.
+  # host with only one SDK installed.
   alternate_sdk="$PWD/alternate SDK/MacOSX.sdk"
-  alternate_version="$(( ''${sdk_version%%.*} + 1 )).0"
-  mkdir -p "$alternate_sdk"
-  for entry in "$host_sdk"/*; do
-    [[ "''${entry##*/}" == SDKSettings.json ]] || ln -s "$entry" "$alternate_sdk/"
-  done
-  sed -E 's/"Version"[[:space:]]*:[[:space:]]*"[0-9.]+"/"Version":"'"$alternate_version"'"/' \
-    "$host_sdk/SDKSettings.json" > "$alternate_sdk/SDKSettings.json"
+  alternate_version="$(( sdk_major + 1 )).0"
+  make_sdk_view "$alternate_sdk" "$alternate_version"
 
   for compiler in cc gcc; do
     for spelling in isysroot separate equals; do
@@ -167,14 +265,15 @@ in
   done
 
   # SDKROOT must select the same SDK before and after the Apple fallback.
-  for arch in arm64 x86_64; do
-    trace="$(SDKROOT="$alternate_sdk" $bin/cc -arch "$arch" -### -c smoke.c 2>&1)"
+  for arch in ${hostArch} x86_64; do
+    trace="$(SDKROOT="$alternate_sdk" $bin/cc -arch "$arch" -### -c smoke.c 2>&1)" ||
+      fail "-arch $arch does not resolve: $trace"
     grep -Fq -- "\"-isysroot\" \"$alternate_sdk\"" <<<"$trace" ||
       fail "SDKROOT was not honoured for $arch"
     grep -Fq -- "-target-sdk-version=$alternate_version" <<<"$trace" ||
       fail "SDKROOT metadata differs for $arch"
   done
-  quiet env SDKROOT="$alternate_sdk" $bin/cc -arch arm64 -arch x86_64 smoke.c -o sdk-universal
+  quiet env SDKROOT="$alternate_sdk" $bin/cc -arch ${hostArch} -arch x86_64 smoke.c -o sdk-universal
   check_build_version sdk-universal "$alternate_version"
   ./sdk-universal
 
@@ -182,6 +281,18 @@ in
   quiet env SDKROOT="$host_sdk" $bin/ld -arch ${hostArch} \
     -syslibroot "$alternate_sdk" -lSystem smoke.o -o sdk-direct-ld
   check_build_version sdk-direct-ld "$alternate_version"
+
+  # The developer directory's SDK always states its version, so an unreadable
+  # one is a changed format and the linker refuses to guess the metadata.
+  broken_developer_dir="$PWD/broken developer dir"
+  mkdir -p "$broken_developer_dir/SDKs"
+  make_sdk_view "$broken_developer_dir/SDKs/MacOSX.sdk" unparsable
+  printf '{"DisplayName":"macOS"}\n' > "$broken_developer_dir/SDKs/MacOSX.sdk/SDKSettings.json"
+  if linker_output="$(env -u SDKROOT DEVELOPER_DIR="$broken_developer_dir" $bin/ld -arch ${hostArch} -lSystem smoke.o -o sdk-unknown 2>&1)"; then
+    fail "the linker guessed the version of an SDK it cannot read"
+  fi
+  grep -Fq 'cannot read the SDK version' <<<"$linker_output" ||
+    fail "an unreadable developer SDK failed for another reason: $linker_output"
 
   # zlib is one of the libraries nixpkgs' SDK strips; reaching it, in C++ and
   # with the SDK named explicitly the way CMake does, is the point of using
@@ -196,9 +307,19 @@ in
   ./sdk-cc
   quiet $bin/c++ -std=c++23 -isysroot "$host_sdk" sdk.cc -lz -o sdk-sysroot
   ./sdk-sysroot
-  quiet env \
-    DEVELOPER_DIR=/nix/store/00000000000000000000000000000000-apple-sdk \
-    SDKROOT=/nix/store/00000000000000000000000000000000-apple-sdk/SDKs/MacOSX.sdk \
+
+  # A Nix build environment exports its own SDK; the drivers must ignore it
+  # and select what they would with neither variable set.
+  trace="$(env -u SDKROOT -u DEVELOPER_DIR $bin/cc -### -c smoke.c 2>&1)" ||
+    fail "cc -### fails without SDKROOT and DEVELOPER_DIR: $trace"
+  [[ "$trace" =~ $sysroot_pattern ]] || fail "no default SDK in: $trace"
+  default_sdk="''${BASH_REMATCH[1]}"
+  store_sdk=${storeDir}/00000000000000000000000000000000-apple-sdk
+  trace="$(env DEVELOPER_DIR="$store_sdk" SDKROOT="$store_sdk/SDKs/MacOSX.sdk" \
+    $bin/cc -### -c smoke.c 2>&1)" || fail "a store SDK environment breaks the driver: $trace"
+  grep -Fq -- "\"-isysroot\" \"$default_sdk\"" <<<"$trace" ||
+    fail "a store SDK in the environment displaced the default SDK: $trace"
+  quiet env DEVELOPER_DIR="$store_sdk" SDKROOT="$store_sdk/SDKs/MacOSX.sdk" \
     $bin/c++ -std=c++23 sdk.cc -lz -o sdk-store-environment
   ./sdk-store-environment
 
@@ -209,9 +330,9 @@ in
 
   printf '%s\n' \
     '#include <stdio.h>' \
-    'int main(void) { if (__builtin_available(macOS 27, *)) puts("27"); return 0; }' \
+    'int main(void) { if (__builtin_available(macOS ${availabilityProbe}, *)) puts("${availabilityProbe}"); return 0; }' \
     > available.c
-  quiet $bin/cc -arch arm64 -arch x86_64 available.c -o universal
+  quiet $bin/cc -arch ${hostArch} -arch x86_64 available.c -o universal
   [[ "$($lipo -archs universal)" == *x86_64* ]] || fail "the universal binary lacks x86_64"
   ./universal >/dev/null
 
@@ -222,6 +343,66 @@ in
     $otool -L asan | grep -Fq '${runtimeDir}/clang/libclang_rt.asan_osx_dynamic.dylib' ||
       fail "the sanitizer runtime is not referenced through the stable directory"
   ''}
+
+  # ----- LLD ----- #
+  # Which linker a -fuse-ld=lld link gets depends on the SDK version, so both
+  # outcomes are exercised on every host through views on either side of
+  # home/cc-toolchain.nix's lld.newestSdkMajor. Until September 2026 only the
+  # host SDK decided, and the LLD path first ran on a macOS 26 CI runner.
+  lld_sdk="$PWD/lld-sdk/MacOSX.sdk"
+  apple_sdk="$PWD/apple-sdk/MacOSX.sdk"
+  make_sdk_view "$lld_sdk" ${lldNewestSdkMajor}.0
+  make_sdk_view "$apple_sdk" ${lldAboveCeiling}.0
+
+  trace="$(SDKROOT="$lld_sdk" $bin/cc -fuse-ld=lld -### smoke.c -o smoke 2>&1)" ||
+    fail "-fuse-ld=lld against SDK ${lldNewestSdkMajor} does not resolve: $trace"
+  grep -Fq -- '"${ld64Lld}"' <<<"$trace" ||
+    fail "-fuse-ld=lld against SDK ${lldNewestSdkMajor} does not link with LLD ${llvmVersion}: $trace"
+  fallback_trace="$(SDKROOT="$apple_sdk" $bin/cc -fuse-ld=lld -### smoke.c -o smoke 2>&1)" ||
+    fail "-fuse-ld=lld against SDK ${lldAboveCeiling} does not resolve: $fallback_trace"
+  default_trace="$(SDKROOT="$apple_sdk" $bin/cc -### smoke.c -o smoke 2>&1)" ||
+    fail "a link against SDK ${lldAboveCeiling} does not resolve: $default_trace"
+  # Identical up to the name of Clang's temporary object file.
+  temporary_object='s|"[^"]*/smoke-[0-9a-f]+[.]o"|"smoke.o"|g'
+  [[ "$(sed -E "$temporary_object" <<<"$fallback_trace")" == \
+    "$(sed -E "$temporary_object" <<<"$default_trace")" ]] ||
+    fail "-fuse-ld=lld against SDK ${lldAboveCeiling} is not an ordinary link with Apple's linker"
+  # The caller's own linker path is never replaced, whichever side of the
+  # ceiling and whichever order the two flags come in.
+  for sdk in "$lld_sdk" "$apple_sdk"; do
+    for linker_flags in "-fuse-ld=lld --ld-path=/usr/bin/ld" "--ld-path=/usr/bin/ld -fuse-ld=lld"; do
+      # shellcheck disable=SC2086 # two flags per case
+      trace="$(SDKROOT="$sdk" $bin/cc $linker_flags -### smoke.c -o smoke 2>&1)" ||
+        fail "$linker_flags does not resolve: $trace"
+      if grep -Fq -e '${appleLinker}' -e '${ld64Lld}' <<<"$trace"; then
+        fail "$linker_flags was overridden against ''${sdk%/*}"
+      fi
+    done
+  done
+
+  # The host SDK takes one of the two paths end to end.
+  if (( sdk_major <= ${lldNewestSdkMajor} )); then
+    quiet $bin/cc -fuse-ld=lld smoke.c -o smoke-lld
+    ./smoke-lld
+    check_build_version smoke-lld
+    quiet $bin/cc -fuse-ld=lld -flto=thin -O2 increment.c lto-main.c -o lto-lld
+    ./lto-lld
+  else
+    quiet $bin/cc -fuse-ld=lld smoke.c -o smoke-lld-fallback
+    ./smoke-lld-fallback
+    check_build_version smoke-lld-fallback
+    quiet $bin/cc -fuse-ld=lld -flto=thin -O2 increment.c lto-main.c -o lto-lld-fallback
+    ./lto-lld-fallback
+    # Tripwire: LLD still rejects this SDK, for the known reason. Once it
+    # reads it, the fallback is dead weight and the ceiling has to rise.
+    if lld_output="$($bin/cc -fuse-ld=lld --ld-path=${ld64Lld} smoke.c -o smoke-lld 2>&1)"; then
+      fail "LLD ${llvmVersion} now reads SDK $host_sdk_version; raise lld.newestSdkMajor in home/cc-toolchain.nix"
+    fi
+    grep -Eq 'could not load TAPI file|unknown architecture' <<<"$lld_output" || {
+      printf '%s\n' "$lld_output" >&2
+      fail "LLD ${llvmVersion} rejects SDK $host_sdk_version for an unexpected reason"
+    }
+  fi
 
   # ----- GCC ----- #
   printf '%s\n' \
@@ -285,10 +466,11 @@ in
   }
   while IFS= read -r header; do
     case "$header" in
-      # Wraps Apple's availability macros in __has_attribute(availability),
-      # a test the SDK already performs and GCC passes (checked below).
+      # Tripwire, reviewed header by header: wraps Apple's availability
+      # macros in __has_attribute(availability), a test the SDK already
+      # performs and GCC passes (checked below).
       AvailabilityInternal.h) ;;
-      *) fail "fixincludes now rewrites $header from SDK $sdk_version; decide whether GCC needs that fix" ;;
+      *) fail "fixincludes now rewrites $header from SDK $host_sdk_version; decide whether GCC needs that fix" ;;
     esac
   done < <(cd "$fixed_headers" && find . -type f | sed 's|^[.]/||' | sort)
   [[ "$(printf '%s\n' '#if __has_attribute(availability)' yes '#endif' | $bin/gcc -E -P -x c - | tr -d '[:space:]')" == yes ]] ||
@@ -316,7 +498,7 @@ in
   # A GCC LTO static library needs GCC's own archiver, under the versioned
   # name CMake asks for first.
   quiet $bin/gcc -flto -O2 -c increment.c -o increment-lto.o
-  quiet $bin/gcc-ar-${lib.versions.major gccVersion} rcs libincrement.a increment-lto.o
+  quiet $bin/gcc-ar-${gccMajor} rcs libincrement.a increment-lto.o
   quiet $bin/gcc -flto -O2 lto-main.c -L. -lincrement -o gcc-lto
   ./gcc-lto
 
@@ -334,5 +516,8 @@ in
   $bin/clang-tidy --quiet '-checks=-*,bugprone-use-after-move' sdk.cc >/dev/null 2>&1 ||
     fail "clang-tidy could not parse a C++ file"
 
-  touch "$out"
+  if [[ -n "$fingerprint_file" ]]; then
+    fingerprint "$host_sdk" > "$fingerprint_file"
+  fi
+  echo "cc-toolchain-check: every check passed"
 ''
