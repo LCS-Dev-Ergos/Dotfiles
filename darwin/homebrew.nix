@@ -51,6 +51,9 @@ _: {
   # Homebrew-managed and `cleanup = "none"` would not touch it either way.
   # The `xcodes` cask (the GUI app) installed cleanly and is declared below.
   #
+  # `erlang` and `gleam` are Nix-owned as well, with Elixir, on one OTP
+  # release (home/dev/languages/beam).
+  #
   # Also absent, owned by their own installers: `coursier` (Coursier's
   # self-installed `cs` in ~/Library/Application Support/Coursier manages the
   # Scala apps) and `openjdk@21` (SDKMAN owns the shell JDKs; the temurin@21
@@ -124,14 +127,12 @@ _: {
       "djvulibre"
       "dolphie"
       "doxygen"
-      "erlang"
       "fabric-ai"
       "felixkratz/formulae/borders"
       "fnm"
       "fzf-make"
       "gcc"
       "gdb"
-      "gleam"
       "global"
       "go"
       "googletest"
