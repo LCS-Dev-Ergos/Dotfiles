@@ -1,7 +1,6 @@
 #!/bin/bash
 
-# Substituted by Home Manager: Yabai remains a macOS integration formula,
-# while jq is supplied by the immutable Nix user environment.
+# Substituted by Home Manager with the Nix store paths of yabai and jq.
 YABAI_PATH="@yabai@"
 JQ_PATH="@jq@"
 
