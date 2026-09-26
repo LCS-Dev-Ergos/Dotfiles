@@ -3,21 +3,32 @@
 # =====----- Yabai Configuration file -----------------------------------===== #
 
 # =====----- Scripting Addition -----------------------------------------===== #
-# For this to work you must configure sudo such that
-# it will be able to run the command without password
+# nix-darwin's services.yabai writes /etc/sudoers.d/yabai for this exact
+# binary, so loading the scripting addition needs no password.
 
 sudo yabai --load-sa
-yabai -m signal --add event=dock_did_restart action="sudo yabai --load-sa"
+yabai -m signal --add label="load_sa" event=dock_did_restart action="sudo yabai --load-sa"
 # Absolute path: yabai runs under launchd, whose PATH lacks the Nix profile.
-yabai -m signal --add event=window_focused action="/etc/profiles/per-user/$USER/bin/sketchybar --trigger window_focus"
-# yabai -m signal --add label="flash_focus"     \
-#                       event="window_focused"  \
-#                       action="yabai -m window \$YABAI_WINDOW_ID --opacity 0.9 &&           \
-#                       sleep \$(yabai -m config window_opacity_duration) && yabai -m window \
-#                       \$YABAI_WINDOW_ID --opacity 0.0"
+yabai -m signal --add label="sketchybar_focus" event=window_focused \
+    action="/etc/profiles/per-user/$USER/bin/sketchybar --trigger window_focus"
+
+# Closing, minimizing or hiding the focused window can leave no window focused, so
+# keyboard commands would have nothing to act on. Focus the window under the
+# mouse, or else the first tiled window of the space. Space switches go
+# through ~/.config/yabai/space.sh, which focuses a window itself.
+FOCUS_FALLBACK="yabai -m query --windows --window >/dev/null 2>&1 \
+    || yabai -m window --focus mouse >/dev/null 2>&1 \
+    || yabai -m window --focus first >/dev/null 2>&1 || true"
+yabai -m signal --add label="focus_after_destroy" event=window_destroyed active=yes action="$FOCUS_FALLBACK"
+yabai -m signal --add label="focus_after_minimize" event=window_minimized active=yes action="$FOCUS_FALLBACK"
+yabai -m signal --add label="focus_after_quit" event=application_terminated active=yes action="$FOCUS_FALLBACK"
+yabai -m signal --add label="focus_after_hide" event=application_hidden active=yes action="$FOCUS_FALLBACK"
 
 # =====----- Aspect Customization ---------------------------------------===== #
 
+# ease_out_cubic spreads the motion over the whole animation. Steeper curves
+# (quint, expo) finish almost at once and then hold yabai's static snapshot of
+# the window until the real one replaces it, which reads as a delay.
 yabai -m config external_bar all:40:0 \
     mouse_follows_focus off \
     focus_follows_mouse off \
@@ -28,8 +39,8 @@ yabai -m config external_bar all:40:0 \
     active_window_opacity 1.0 \
     normal_window_opacity 0.975 \
     window_opacity_duration 0.1 \
-    window_animation_duration 0.15 \
-    window_animation_easing ease_out_quint \
+    window_animation_duration 0.2 \
+    window_animation_easing ease_out_cubic \
     insert_feedback_color 0xff565f89 \
     auto_balance off \
     split_type auto \
@@ -44,38 +55,42 @@ yabai -m config external_bar all:40:0 \
     right_padding 12 \
     window_gap 12
 
-# +++++++++++++++++++++++++++++++ Custom Rules +++++++++++++++++++++++++++++++ #
-yabai -m rule --add app="kitty" opacity=0.9875
+# bsp, stack or float
+yabai -m config layout bsp
 
 # =====----- End Aspect Customization -----------------------------------===== #
 
 # =====----- Disabling Rules --------------------------------------------===== #
 
-# Exclude problematic apps from being managed. The list is a regular
-# expression: escape metacharacters in app names (the "+" of Logi Options+).
-EXCLUDED_APPS="1Password|Activity Monitor|Alfred|App Store|Archive Utility|Audio MIDI Setup|BetterDisplay| \
-               |Calculator|CleanMyMac|Company Portal|Dictionary|DDPM|Finder|Google Drive|LocalSend|Logi Options\+| \
-               |Microsoft OneDrive|Photo Booth|Python|Software Update|Steam|Sudoku|Superwhisper| \
-               |System Preferences|System Settings|Preview|Tailscale|TextEdit|The Unarchiver|Transmission|VLC"
+# Rule values are extended regular expressions. Long ones are built by
+# concatenation: a backslash-newline inside quotes would splice the next
+# line's indentation into the pattern.
 
-yabai -m rule --add app="^($EXCLUDED_APPS)$" manage=off
+# Exclude problematic apps and small utilities from being managed. Escape
+# metacharacters in app names (the "+" of Logi Options+).
+EXCLUDED_APPS="1Password|Activity Monitor|Alfred|App Store|Archive Utility|Audio MIDI Setup"
+EXCLUDED_APPS="$EXCLUDED_APPS|BetterDisplay|Calculator|CleanMyMac|Company Portal|DDPM|Dictionary"
+EXCLUDED_APPS="$EXCLUDED_APPS|Digital Color Meter|Finder|Google Drive|Installer|LocalSend|Logi Options\+"
+EXCLUDED_APPS="$EXCLUDED_APPS|Microsoft OneDrive|Photo Booth|Preview|Python|Screen Sharing|Screenshot"
+EXCLUDED_APPS="$EXCLUDED_APPS|Software Update|Steam|Stickies|Sudoku|Superwhisper|System Settings"
+EXCLUDED_APPS="$EXCLUDED_APPS|Tailscale|TextEdit|The Unarchiver|Transmission|VLC"
 
-# Exclude Finder specific windows from being managed
-yabai -m rule --add label="Finder" app="^Finder$" title="^(Finder|Co(py|nnect)|Move|Info|Pref)" manage=off
+yabai -m rule --add label="Excluded apps" app="^($EXCLUDED_APPS)$" manage=off
 
-# Exclude "Settings" specific windows from being managed
-yabai -m rule --add label="Settings" app="^.*$" title=".*Settings?.*" manage=off
+# Settings windows of any app, matched on the whole title so that documents
+# such as AppSettings.cs stay tiled.
+yabai -m rule --add label="Settings" app="^.*$" title="^(.+ )?Settings?$" manage=off
 
 # Exclude Safari specific windows from being managed
 yabai -m rule --add label="Safari" app="^Safari$" \
     title="^(General|(Tab|Password|Website|Extension)s|AutoFill|Se(arch|curity)|Privacy|Advance)$" manage=off
 
 # Exclude "About This Mac" specific windows from being managed
-yabai -m rule --add label="About This Mac" app="System Information" title="About This Mac" manage=off
+yabai -m rule --add label="About This Mac" app="^System Information$" title="^About This Mac$" manage=off
 
-# Exclune "Neural DSP Plugins"
+# Exclude "Neural DSP Plugins"
 NEURAL_DSP="Archetype Tim Henson X|Archetype Petrucci X"
-yabai -m rule --add app="^(${NEURAL_DSP})$" manage=off
+yabai -m rule --add label="Neural DSP" app="^(${NEURAL_DSP})$" manage=off
 
 # ++++++++++++++++++++++++++ Custom Developed Apps +++++++++++++++++++++++++++ #
 # QT Clustering App - MAP
@@ -87,48 +102,71 @@ yabai -m rule --add label="MAP Clustering" \
 # ++++++++++++++++++++++++++++++ JetBrains IDEs ++++++++++++++++++++++++++++++ #
 
 # Exclude JetBrains IDEs specific windows from being managed
-JETBRAINS_IDEs="CLion|CLion-EAP|DataGrip|DataGrip-EAP|GoLand-EAP|IntelliJ IDEA|IntelliJ IDEA EAP|IntelliJ IDEA-EAP| \
-                PhpStorm|PhpStorm-EAP|PyCharm|PyCharm-EAP|RustRover|RustRover-EAP|WebStorm|WebStorm-EAP"
+JETBRAINS_IDES="CLion|CLion-EAP|DataGrip|DataGrip-EAP|GoLand-EAP|IntelliJ IDEA|IntelliJ IDEA EAP"
+JETBRAINS_IDES="$JETBRAINS_IDES|IntelliJ IDEA-EAP|PhpStorm|PhpStorm-EAP|PyCharm|PyCharm-EAP"
+JETBRAINS_IDES="$JETBRAINS_IDES|RustRover|RustRover-EAP|WebStorm|WebStorm-EAP"
 
-yabai -m rule --add \
-    app="^($JETBRAINS_IDEs)$" \
-    title="^(.*Commands?.*|.*Configurations?.*|.*Debug.*|.*Delete.*|.*devices?.*| \
-             |.*Errors?.*|.*Files?.*|.*Installations?.*|.*Interpretes?.*|.*JetBrains.*| \
-             |.*Licenses?.*|.*Lines?.*|.*Log.*|.*Move.*|.*Plugins?.*|.*Projects?.*|.*Rename.*| \
-             |.*Resources?.*|.*Tip of the Day.*|.*Updates?.*|.*Welcome.*)$" \
+JETBRAINS_DIALOGS=".*Commands?.*|.*Configurations?.*|.*Debug.*|.*Delete.*|.*devices?.*"
+JETBRAINS_DIALOGS="$JETBRAINS_DIALOGS|.*Errors?.*|.*Files?.*|.*Installations?.*|.*Interpretes?.*"
+JETBRAINS_DIALOGS="$JETBRAINS_DIALOGS|.*JetBrains.*|.*Licenses?.*|.*Lines?.*|.*Log.*|.*Move.*"
+JETBRAINS_DIALOGS="$JETBRAINS_DIALOGS|.*Plugins?.*|.*Projects?.*|.*Rename.*|.*Resources?.*"
+JETBRAINS_DIALOGS="$JETBRAINS_DIALOGS|.*Tip of the Day.*|.*Updates?.*|.*Welcome.*"
+
+yabai -m rule --add label="JetBrains" \
+    app="^($JETBRAINS_IDES)$" \
+    title="^($JETBRAINS_DIALOGS)$" \
     manage=off
 
-# ++++++++++++++++++++++++++++++ Android Studio ++++++++++=+++++++++++++++++++ #
+# ++++++++++++++++++++++++++++++ Android Studio ++++++++++++++++++++++++++++++ #
+ANDROID_STUDIO_DIALOGS=".*About.*|.*Add?.*|.*Android.*|.*Commits?.*|.*Configurations?.*"
+ANDROID_STUDIO_DIALOGS="$ANDROID_STUDIO_DIALOGS|.*Convert.*|.*Debug.*|.*Delete.*|.*Device.*"
+ANDROID_STUDIO_DIALOGS="$ANDROID_STUDIO_DIALOGS|.*devices?.*|.*Directory.*|.*Errors?.*|.*Files?.*"
+ANDROID_STUDIO_DIALOGS="$ANDROID_STUDIO_DIALOGS|.*Git.*|.*Gradle.*|.*Icons?.*|.*Injections?.*"
+ANDROID_STUDIO_DIALOGS="$ANDROID_STUDIO_DIALOGS|.*Inspections?.*|.*Installations?.*|.*JetBrains.*"
+ANDROID_STUDIO_DIALOGS="$ANDROID_STUDIO_DIALOGS|.*Languages?.*|.*Lines?.*|.*Log.*|.*Move.*"
+ANDROID_STUDIO_DIALOGS="$ANDROID_STUDIO_DIALOGS|.*Plugins?.*|.*Process?.*|.*Projects?.*|.*Provide?.*"
+ANDROID_STUDIO_DIALOGS="$ANDROID_STUDIO_DIALOGS|.*Rename.*|.*Resources?.*|.*SDK.*|.*Select?.*"
+ANDROID_STUDIO_DIALOGS="$ANDROID_STUDIO_DIALOGS|.*Studio.*|.*Tip of the Day.*|.*Updates?.*|.*Welcome.*"
+
 yabai -m rule --add \
     label="Android Studio" \
     app="^.*Android Studio.*$" \
-    title="^(.*About.*|.*Add?.*|.*Android.*|.*Commits?.*|.*Configurations?.*| \
-             |.*Convert.*|.*Debug.*|.*Delete.*|.*Device.*|.*devices?.*|.*Directory.*| \
-             |.*Errors?.*|.*Files?.*|.*Git.*|.*Gradle.*|.*Icons?.*|.*Injections?.*| \
-             |.*Inspections?.*|.*Installations?.*|.*JetBrains.*|.*Languages?.*| \
-             |.*Lines?.*|.*Log.*|.*Move.*|.*Plugins?.*|.*Process?.*|.*Projects?.*| \
-             |.*Provide?.*|.*Rename.*|.*Resources?.*|.*SDK.*|.*Select?.*|.*Studio.*| \
-             |.*Tip of the Day.*|.*Updates?.*|.*Welcome.*)$" \
+    title="^($ANDROID_STUDIO_DIALOGS)$" \
     manage=off
 
 # ++++++++++++++++++++++++++++++++ DataSpell +++++++++++++++++++++++++++++++++ #
+DATASPELL_DIALOGS=".*Commands?.*|.*Configurations?.*|.*Console.*|.*Data.*|.*DataSpell.*"
+DATASPELL_DIALOGS="$DATASPELL_DIALOGS|.*Debug.*|.*Delete.*|.*devices?.*|.*Errors?.*|.*Files?.*"
+DATASPELL_DIALOGS="$DATASPELL_DIALOGS|.*Installations?.*|.*JetBrains.*|.*Jupyter.*|.*Licenses?.*"
+DATASPELL_DIALOGS="$DATASPELL_DIALOGS|.*Lines?.*|.*Log.*|.*Manage.*|.*Move.*|.*Notebook.*"
+DATASPELL_DIALOGS="$DATASPELL_DIALOGS|.*Plugins?.*|.*Projects?.*|.*Python.*|.*Rename.*|.*Packages?.*"
+DATASPELL_DIALOGS="$DATASPELL_DIALOGS|.*Resources?.*|.*Settings.*|.*Tip of the Day.*|.*Updates?.*"
+DATASPELL_DIALOGS="$DATASPELL_DIALOGS|.*Welcome.*"
+
 yabai -m rule --add \
     label="DataSpell" \
     app="^.*DataSpell.*$" \
-    title="^(.*Commands?.*|.*Configurations?.*|.*Console.*|.*Data.*| \
-             |.*DataSpell.*|.*Debug.*|.*Delete.*|.*devices?.*|.*Errors?.*| \
-             |.*Files?.*|.*Installations?.*|.*JetBrains.*|.*Jupyter.*| \
-             |.*Licenses?.*|.*Lines?.*|.*Log.*|.*Manage.*|.*Move.*|.*Notebook.*| \
-             |.*Plugins?.*|.*Projects?.*|.*Python.*|.*Rename.*|.*Packages?.*| \
-             |.*Resources?.*|.*Settings.*|.*Tip of the Day.*|.*Updates?.*|.*Welcome.*)$" \
+    title="^($DATASPELL_DIALOGS)$" \
     manage=off
 
+# The dialog patterns above also match main editor windows whose project or
+# file name contains one of their words (LogParser.cpp, MyAndroidApp). Main
+# windows are titled "project – file" with an en dash, which no dialog uses;
+# later rules win, so these are tiled again.
+yabai -m rule --add \
+    label="JetBrains main windows" \
+    app="^($JETBRAINS_IDES|.*Android Studio.*|.*DataSpell.*)$" \
+    title="^.+ – .+$" \
+    manage=on
+
 # +++++++++++++++++++++++++++++++++ Eclipse ++++++++++++++++++++++++++++++++++ #
+ECLIPSE_DIALOGS=".*Configuration.*|.*Errors?.*|.*Install.*|.*Import.*|.*Marketplace.*"
+ECLIPSE_DIALOGS="$ECLIPSE_DIALOGS|.*Preferences.*|.*Problems?.*|.*Projects?.*|.*Resources?.*"
+
 yabai -m rule --add \
     label="Eclipse" \
     app="^.*Eclipse.*$" \
-    title="^(.*Configuration.*|.*Errors?.*|.*Install.*|.*Import.*|.*Marketplace.*|.*Preferences.* \
-             |.*Problems?.*|.*Projects?.*|.*Resources?.*)$" \
+    title="^($ECLIPSE_DIALOGS)$" \
     manage=off
 
 # +++++++++++++++++++++++++++++ Other Exclusions +++++++++++++++++++++++++++++ #
@@ -140,18 +178,20 @@ yabai -m rule --add label="VNC Viewer" \
 
 # Exclude GIMP transient/context dialogs (About / Welcome, etc.).
 GIMP_APP="GIMP|GIMP-2\\..*|GNU Image Manipulation Program"
+GIMP_DIALOGS=".*About.*|.*Change.*|.*Close.*|.*Create.*|.*Embedded.*|.*Export.*|.*Merge.*"
+GIMP_DIALOGS="$GIMP_DIALOGS|.*Quit.*|.*Save.*|.*Spaces?.*|.*Welcome.*|.*Working.*"
 yabai -m rule --add label="GIMP Popups" \
     app="^(${GIMP_APP})$" \
-    title="^(.*About.*|.*Change.*|.*Close.*|.*Create.*|.*Embedded.*|.*Export.*|.*Merge.* \
-             |.*Quit.*|.*Save.*|.*Spaces?.*|.*Welcome.*|.*Working.*)$" \
+    title="^($GIMP_DIALOGS)$" \
     manage=off
 
 # Exclude Godot Editor transient/context dialogs (About / Welcome, etc.).
 GODOT_APP="Godot"
+GODOT_DIALOGS=".*Create.*|.*Confirm.*|.*DEBUG.*|.*New.*|.*Node.*|.*Please.*|.*Preview.*"
+GODOT_DIALOGS="$GODOT_DIALOGS|.*Project.*|.*Quit.*|.*Save.*|.*Scene.*|.*Settings.*"
 yabai -m rule --add label="Godot Popups" \
     app="^(${GODOT_APP})$" \
-    title="^(.*Create.*|.*Confirm.*|.*DEBUG.*|.*New.*|.*Node.*|.*Please.*|.*Preview.* \
-             .*Project.*|.*Quit.*|.*Save.*|.*Scene.*|.*Settings.*)$" \
+    title="^($GODOT_DIALOGS)$" \
     manage=off
 
 # Exclude Rancher Desktop/OrbStack preference windows from tiling.
@@ -172,24 +212,10 @@ yabai -m rule --add \
     title="^(save|Save|Vault)$" \
     manage=off
 
+# Rules only reach windows created after them; apply them to the windows that
+# were already open when yabai (re)started.
+yabai -m rule --apply
+
 # =====----- End Disabling Rules ----------------------------------------===== #
 
-# =====----- Other Stuff ------------------------------------------------===== #
-# - bsp, stack or float
-yabai -m config layout bsp
 echo "yabai configuration loaded..."
-
-# +++++++++++++++++++++++++++++++ Border Style +++++++++++++++++++++++++++++++ #
-
-# borders style=round                 \
-#         width=5.0                   \
-#         hidpi=off                   \
-#         blur_radius=100             \
-#         background_color=0x993c3836 \
-#         active_color="gradient(top_left=0xfffe8019,bottom_right=0xffcc241d,top_right=0xfffb4934,bottom_left=0xfffabd2f)" \
-#         blacklist="JetBrains-Toolbox,CLion,CLion-Nova,IntelliJ IDEA Ultimate,
-#                    PyCharm Professional Edition,GoLand,WebStorm,DataGrip,PhpStorm,
-#                    Rider,RustRover-EAP" \
-#         inactive_color=0xE63c3836       \
-
-# =====----- End Other Stuff --------------------------------------------===== #
