@@ -1,0 +1,246 @@
+#!/usr/bin/env zsh
+# shellcheck shell=zsh
+# ============================================================================ #
+#!             ██╗      ██████╗███████╗    ███████╗███████╗██╗  ██╗
+#!             ██║     ██╔════╝██╔════╝    ╚══███╔╝██╔════╝██║  ██║
+#!             ██║     ██║     ███████╗      ███╔╝ ███████╗███████║
+#!             ██║     ██║     ╚════██║     ███╔╝  ╚════██║██╔══██║
+#!             ███████╗╚██████╗███████║    ███████╗███████║██║  ██║
+#!             ╚══════╝ ╚═════╝╚══════╝    ╚══════╝╚══════╝╚═╝  ╚═╝
+# ============================================================================ #
+# ++++++++++++++++++++++++++++ ZSH CONFIGURATION +++++++++++++++++++++++++++++ #
+# ============================================================================ #
+#
+# Personal interactive Zsh configuration with modular architecture.
+# This is the main loader that sources individual configuration modules.
+#
+# ARCHITECTURE:
+#   1. lib/*.zsh load in lexical order; the numeric prefix is the dependency
+#      order. ZSH_FAST_START=1 keeps only the core listed below.
+#   2. functions/*.zsh follow. A bundle whose header carries the
+#      `# zsh-load: deferred` marker is sourced once the shell is idle.
+#   3. The prompt activates last, after 90-path.zsh has fixed PATH.
+#   HyDE (Arch) integration lives in the modules' own guards plus the single
+#   hook in the module loop below.
+#
+# Consult the README.md for further details on the design philosophy,
+# module breakdown, and usage tips.
+#
+# ============================================================================ #
+
+# -----------------------------------------------------------------------------
+# Configuration directory: robustly determine the configuration directory.
+# We look for the 'lib' directory to confirm we have the right place: first
+# ZDOTDIR, then the XDG location, then paths relative to the resolved file.
+# `config/` beside it is the layout of both the repository (home/shells/zsh) and its
+# store copy, so a checkout's zshrc finds its own tree. $HOME/.config/zsh is
+# the last resort.
+# -----------------------------------------------------------------------------
+if [[ -n "$ZDOTDIR" && -d "$ZDOTDIR/lib" ]]; then
+    ZSH_CONFIG_DIR="$ZDOTDIR"
+elif [[ -d "$HOME/.config/zsh/lib" ]]; then
+    ZSH_CONFIG_DIR="$HOME/.config/zsh"
+elif [[ -d "${${(%):-%x}:A:h}/lib" ]]; then
+    ZSH_CONFIG_DIR="${${(%):-%x}:A:h}"
+elif [[ -d "${${(%):-%x}:A:h}/config/lib" ]]; then
+    ZSH_CONFIG_DIR="${${(%):-%x}:A:h}/config"
+elif [[ -d "${${(%):-%x}:A:h}/.config/zsh/lib" ]]; then
+    ZSH_CONFIG_DIR="${${(%):-%x}:A:h}/.config/zsh"
+else
+    ZSH_CONFIG_DIR="$HOME/.config/zsh"
+fi
+
+if [[ "${ZSH_STARTUP_TRACE:-0}" == "1" ]] &&
+  (( ! $+functions[_zsh_startup_trace_mark] )); then
+    source "$ZSH_CONFIG_DIR/startup-trace.zsh"
+fi
+(( $+functions[_zsh_startup_trace_mark] )) &&
+    _zsh_startup_trace_mark ".zshrc:entry"
+
+# Debug: Uncomment to troubleshoot configuration directory detection.
+# echo "ZSH_CONFIG_DIR=$ZSH_CONFIG_DIR HYDE_ENABLED=${HYDE_ENABLED:-not set}"
+
+# -----------------------------------------------------------------------------
+# Fast start: the minimal core, without plugins, prompt engines, language
+# managers, or function bundles. Enable with: ZSH_FAST_START=1
+# -----------------------------------------------------------------------------
+typeset -ga _ZSH_FAST_START_MODULES=(
+    00-initialization 10-history 40-vi-mode 60-aliases 75-variables 90-path
+)
+
+# On HyDE systems, load user preferences FIRST to determine which modules to
+# use. This allows user.zsh to set HYDE_ZSH_NO_PLUGINS and HYDE_ZSH_PROMPT.
+if [[ "$HYDE_ENABLED" == "1" && "${ZSH_FAST_START:-}" != "1" ]]; then
+    if [[ -f "$HOME/.hyde.zshrc" ]]; then
+        source "$HOME/.hyde.zshrc"
+    elif [[ -f "$HOME/.user.zsh" ]]; then
+        source "$HOME/.user.zsh"
+    elif [[ -f "$ZSH_CONFIG_DIR/user.zsh" ]]; then
+        source "$ZSH_CONFIG_DIR/user.zsh"
+    fi
+fi
+
+# ++++++++++++++++++++++++++++ LOAD CORE MODULES +++++++++++++++++++++++++++++ #
+
+# Modules are sourced at top level on purpose: inside a function, their plain
+# `typeset` declarations would become locals and vanish.
+typeset _zsh_rc_file
+typeset -a _zsh_rc_modules=("$ZSH_CONFIG_DIR"/lib/*.zsh(N))
+if (( ${#_zsh_rc_modules} == 0 )); then
+    print -u2 "Warning: No Zsh configuration modules found in $ZSH_CONFIG_DIR/lib/"
+    print -u2 "    Please check your ZSH_CONFIG_DIR setting."
+fi
+
+for _zsh_rc_file in "${_zsh_rc_modules[@]}"; do
+    if [[ "${ZSH_FAST_START:-}" == "1" ]] &&
+        (( ! ${_ZSH_FAST_START_MODULES[(Ie)${_zsh_rc_file:t:r}]} )); then
+        continue
+    fi
+    source "$_zsh_rc_file"
+    (( $+functions[_zsh_startup_trace_mark] )) &&
+        _zsh_startup_trace_mark "module:${_zsh_rc_file:t}"
+
+    # HyDE: unless HYDE_ZSH_NO_PLUGINS=1, its shell.zsh owns Oh-My-Zsh (and,
+    # with HYDE_ZSH_PROMPT=1, the prompt) in the slot of 20-zinit.zsh, whose
+    # guard makes it a no-op in that case. 30-prompt.zsh has the matching
+    # guard for the prompt.
+    if [[ "${_zsh_rc_file:t}" == 20-zinit.zsh && "$HYDE_ENABLED" == "1" &&
+          "${HYDE_ZSH_NO_PLUGINS}" != "1" &&
+          -r "$ZSH_CONFIG_DIR/conf.d/hyde/shell.zsh" ]]; then
+        source "$ZSH_CONFIG_DIR/conf.d/hyde/shell.zsh"
+    fi
+done
+(( $+functions[_zsh_startup_trace_mark] )) &&
+    _zsh_startup_trace_mark "modules:ready"
+
+if [[ "${ZSH_FAST_START:-}" == "1" ]]; then
+    PROMPT='%F{cyan}%n@%m%f:%F{yellow}%~%f %(?.%F{green}.%F{red})%#%f '
+    RPROMPT='%F{240}%D{%H:%M:%S}%f'
+    unset _zsh_rc_file _zsh_rc_modules
+    (( $+functions[_zsh_startup_trace_arm] )) && _zsh_startup_trace_arm
+    return 0
+fi
+
+# -----------------------------------------------------------------------------
+# Function file loader helpers
+# -----------------------------------------------------------------------------
+typeset -ga _ZSH_HEAVY_FUNCTION_FILES=()
+: "${ZSH_FUNCTION_MARKER_SCAN_LINES:=12}"
+
+# Keep startup hot path small by deferring heavy helper bundles until the shell
+# is idle after the first prompt.
+_zsh_source_function_file() {
+    local file="$1"
+    if [[ -r "$file" ]]; then
+        # Parse function bundles with aliases disabled so definitions stay
+        # deterministic regardless of interactive aliases (ls/rm/cat, etc.).
+        () {
+            setopt localoptions no_aliases
+            source "$file"
+        }
+        local -i source_status=$?
+        (( $+functions[_zsh_startup_trace_mark] )) &&
+            _zsh_startup_trace_mark "function:${file:t}"
+        return $source_status
+    fi
+    print -u2 "Warning: Cannot read function file: $file"
+    return 1
+}
+
+_zsh_queue_function_file() {
+    local file="$1"
+    local line
+    local -i lines_seen=0
+    while IFS= read -r line && (( lines_seen++ < ZSH_FUNCTION_MARKER_SCAN_LINES )); do
+        if [[ "$line" == "# zsh-load: deferred" ]]; then
+            _ZSH_HEAVY_FUNCTION_FILES+=("$file")
+            return 0
+        fi
+    done < "$file"
+    _zsh_source_function_file "$file"
+}
+
+_zsh_load_heavy_functions() {
+    local file
+    for file in "${_ZSH_HEAVY_FUNCTION_FILES[@]}"; do
+        _zsh_source_function_file "$file"
+    done
+    _ZSH_HEAVY_FUNCTION_FILES=()
+    unfunction _zsh_load_heavy_functions 2>/dev/null
+}
+
+_zsh_schedule_heavy_functions() {
+    (( ${#_ZSH_HEAVY_FUNCTION_FILES[@]} )) || return 0
+    if typeset -f _zsh_defer >/dev/null 2>&1; then
+        _zsh_defer _zsh_load_heavy_functions
+    else
+        _zsh_load_heavy_functions
+    fi
+}
+
+# ++++++++++++++++++++++++++++ LOAD FUNCTION FILES +++++++++++++++++++++++++++ #
+
+# Every mode, HyDE's included: bundles that duplicate what Oh-My-Zsh provides
+# (omz-compatibility.zsh) step aside on their own.
+typeset -a _zsh_rc_functions=("$ZSH_CONFIG_DIR"/functions/*.zsh(N))
+if (( ${#_zsh_rc_functions} == 0 )); then
+    print -u2 "Warning: No function files found in $ZSH_CONFIG_DIR/functions/"
+    print -u2 "    ZSH_CONFIG_DIR=$ZSH_CONFIG_DIR"
+    print -u2 "    Please check if the functions directory exists and contains .zsh files."
+else
+    for _zsh_rc_file in "${_zsh_rc_functions[@]}"; do
+        _zsh_queue_function_file "$_zsh_rc_file"
+    done
+    _zsh_schedule_heavy_functions
+fi
+(( $+functions[_zsh_startup_trace_mark] )) &&
+    _zsh_startup_trace_mark "functions:ready"
+
+# Activate the prompt only after 90-path.zsh has selected the definitive tool
+# locations. This prevents cached init code from pinning a shadowed executable.
+if (( $+functions[_zsh_init_prompt_system] )); then
+    _zsh_init_prompt_system
+    (( $+functions[_zsh_startup_trace_mark] )) &&
+        _zsh_startup_trace_mark "prompt:ready"
+fi
+
+# +++++++++++++++++++++++++++++ EXTERNAL SCRIPTS +++++++++++++++++++++++++++++ #
+
+# Load Competitive Programming tools (eager load only if lazy disabled).
+if [[ "${ZSH_LAZY_CPP_TOOLS:-1}" != "1" ]]; then
+    [[ -f "$HOME/.config/cpp-tools/competitive.sh" ]] \
+        && source "$HOME/.config/cpp-tools/competitive.sh"
+fi
+
+# Load custom ZSH scripts from ~/.config/zsh/scripts/.
+# The (N) glob qualifier suppresses errors if no files match.
+if [[ "${ZSH_LAZY_SCRIPTS:-1}" != "1" ]]; then
+    if [[ -d "$ZSH_CONFIG_DIR/scripts" ]]; then
+        () {
+            setopt localoptions noxtrace noverbose
+            local script
+            for script in "$ZSH_CONFIG_DIR/scripts"/*.zsh(N); do
+                case "${script:t}" in
+                    check-zsh-dependencies.zsh|\
+                    generate-zsh-completions.zsh|\
+                    install-shdoc.zsh)
+                        continue
+                        ;;
+                esac
+                [[ -r "$script" ]] && source "$script"
+            done
+        }
+    fi
+fi
+
+unset _zsh_rc_file _zsh_rc_modules _zsh_rc_functions
+
+(( $+functions[_zsh_startup_trace_mark] )) &&
+    _zsh_startup_trace_mark "startup:configured"
+(( $+functions[_zsh_startup_trace_arm] )) && _zsh_startup_trace_arm
+
+return 0
+
+# Module inventory and architecture live in README.md to avoid duplicated docs.
+# ============================================================================ #
+# End of ~/.zshrc

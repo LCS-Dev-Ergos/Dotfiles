@@ -7,8 +7,8 @@ on:
       - "flake.lock"
       - "darwin/**/*.nix"
       - "home/**/*.nix"
-      - "home/cli-tools/scripts/**"
-      - "home/zsh/**"
+      - "home/cli/cli-tools/scripts/**"
+      - "home/shells/zsh/**"
       - "home/dev/languages/cpp/**"
       - "hosts/**/*.nix"
       - "scripts/**"
@@ -21,8 +21,8 @@ on:
       - "flake.lock"
       - "darwin/**/*.nix"
       - "home/**/*.nix"
-      - "home/cli-tools/scripts/**"
-      - "home/zsh/**"
+      - "home/cli/cli-tools/scripts/**"
+      - "home/shells/zsh/**"
       - "home/dev/languages/cpp/**"
       - "hosts/**/*.nix"
       - "scripts/**"
@@ -57,7 +57,7 @@ jobs:
             bash scripts/check-package-ownership-policy.sh
             bash scripts/check-declared-secrets.sh
             bash scripts/tests/run.sh
-            shellcheck scripts/*.sh scripts/tests/*.sh home/cli-tools/scripts/*.sh
+            shellcheck scripts/*.sh scripts/tests/*.sh home/cli/cli-tools/scripts/*.sh
           '
 
       - name: Evaluate every flake output
@@ -196,14 +196,14 @@ jobs:
 
       - name: Install pinned shdoc
         run: |
-          zsh home/zsh/config/scripts/install-shdoc.zsh
+          zsh home/shells/zsh/config/scripts/install-shdoc.zsh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           "$HOME/.local/bin/shdoc" --version
 
       - name: Check dependency contract
         run: |
-          home/zsh/config/scripts/check-zsh-dependencies.zsh \
+          home/shells/zsh/config/scripts/check-zsh-dependencies.zsh \
             --required --check-manifests
 
       - name: Run complete verification suite
-        run: home/zsh/config/tests/run-all.zsh --full
+        run: home/shells/zsh/config/tests/run-all.zsh --full

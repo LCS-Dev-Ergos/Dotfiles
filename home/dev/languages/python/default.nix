@@ -1,6 +1,6 @@
 { pkgs, ... }:
 {
-  # Interpreters come from pyenv (home/zsh/config/lib/80-languages.zsh) and
+  # Interpreters come from pyenv (home/shells/zsh/config/lib/80-languages.zsh) and
   # project environments from Conda; these are the project and lint tools that
   # work across all of them.
   home.packages = [ pkgs.ruff ];

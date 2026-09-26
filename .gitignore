@@ -2,13 +2,13 @@
 
 # Optional local mirrors. Nix uses pinned flake inputs for these assets, so
 # activation never depends on the ignored directories being present.
-home/alacritty/themes
-home/tmux/plugins/
-home/bat/syntaxes/cmd-help-sublime-syntax
+home/terminals/alacritty/themes
+home/multiplexers/tmux/plugins/
+home/cli/bat/syntaxes/cmd-help-sublime-syntax
 
 # Specific Tools Configurations
-home/yazi/flavors/tokyo-night.yazi/
-home/kitty/kitty/theme.conf
+home/file-managers/yazi/flavors/tokyo-night.yazi/
+home/terminals/kitty/kitty/theme.conf
 
 # Ignore Claude AI configuration files, except the checked-in project rules.
 # Rules encode repository constraints (build before switch, out-of-store
@@ -76,13 +76,13 @@ home/kitty/kitty/theme.conf
 # Zsh-specific runtime artifacts. Source-adjacent bytecode is no longer
 # generated, but these patterns keep legacy or manual zcompile output out of Git.
 *.zwc
-home/zsh/zshrc.zwc
-home/zsh/zshenv-bootstrap.zwc
-home/zsh/zprofile.zwc
-home/zsh/config/**/*.zwc
-home/zsh/config/.zsh_history
-home/zsh/config/.zcompdump*
-home/zsh/config/.zcompdump-*
+home/shells/zsh/zshrc.zwc
+home/shells/zsh/zshenv-bootstrap.zwc
+home/shells/zsh/zprofile.zwc
+home/shells/zsh/config/**/*.zwc
+home/shells/zsh/config/.zsh_history
+home/shells/zsh/config/.zcompdump*
+home/shells/zsh/config/.zcompdump-*
 
 # Temporary files
 .tmp.driveupload
@@ -106,8 +106,8 @@ downloads/
 eggs/
 .eggs/
 lib/
-!home/zsh/config/lib/
-!home/zsh/config/lib/00-initialization.zsh
+!home/shells/zsh/config/lib/
+!home/shells/zsh/config/lib/00-initialization.zsh
 lib64/
 parts/
 sdist/

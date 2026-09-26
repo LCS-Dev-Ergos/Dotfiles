@@ -38,10 +38,11 @@ nix-darwin declares that inventory of taps, formulae and casks. Nix owns the
 portable command-line baseline and the development toolchains that benefit
 from reproducibility, and Home Manager owns application configuration.
 
-Home Manager manages everything under `home/zsh/`. On macOS the login shell is
-the Nix `zsh`, set through `users.users.<name>.shell` and recorded as the
-generation-stable `/run/current-system/sw/bin/zsh`. Homebrew's `zsh` remains
-declared, and every stock macOS shell stays in `/etc/shells` for recovery.
+Home Manager manages everything under `home/shells/zsh/`. On macOS the login
+shell is the Nix `zsh`, set through `users.users.<name>.shell` and recorded as
+the generation-stable `/run/current-system/sw/bin/zsh`. Homebrew's `zsh`
+remains declared, and every stock macOS shell stays in `/etc/shells` for
+recovery.
 
 Activation sets `homebrew.onActivation.cleanup = "none"`: a switch installs
 missing declarations and never uninstalls an undeclared package.
@@ -181,16 +182,26 @@ Dotfiles/
     ├── linux.nix              # Linux and Wayland application imports
     ├── out-of-store-allowlist.tsv
     ├── package-ownership-allowlist.tsv
-    ├── git/                   # One directory per application, each with its own default.nix
-    ├── zsh/
-    └── ...                    # kitty, neovim, tmux, starship, fish, nushell and others
+    ├── cli/                   # bat, btop, cli-tools, git, lazygit, tealdeer
+    ├── desktop/               # Window managers and bars (platform-only modules)
+    ├── dev/                   # Toolchains and per-language tooling
+    ├── editors/               # neovim, doom, zed, vscode
+    ├── file-managers/         # yazi, ranger, nnn, ueberzugpp
+    ├── multiplexers/          # tmux, zellij, herdr
+    ├── ricing/                # fastfetch, neofetch, cava
+    ├── shells/                # zsh, fish, nushell, starship, oh-my-posh, atuin
+    └── terminals/             # kitty, ghostty, wezterm, alacritty
 ```
 
 Module conventions:
 
-- One directory per application, with its own `default.nix`. Nix glue and the
-  application's configuration files live together instead of mirroring the
-  layout of `$HOME`.
+- Modules are grouped by category, one directory per application with its own
+  `default.nix`. Nix glue and the application's configuration files live
+  together instead of mirroring the layout of `$HOME`.
+- A category's `default.nix` imports only cross-platform modules and is
+  imported by `home/common.nix`. Platform-only modules are imported one by one
+  from `home/darwin.nix` or `home/linux.nix`, so `desktop/` has no
+  `default.nix`.
 - Platform differences are gated inside the shared module with
   `lib.mkIf pkgs.stdenv.hostPlatform.isDarwin` or
   `pkgs.stdenv.hostPlatform.isLinux`, never duplicated per configuration.
@@ -215,7 +226,7 @@ nix develop .#ci --command bash -euo pipefail -c '
   shellcheck scripts/*.sh scripts/tests/*.sh
 '
 nix flake check --no-build --all-systems --show-trace
-home/zsh/config/tests/run-all.zsh --full
+home/shells/zsh/config/tests/run-all.zsh --full
 git diff --check
 ```
 
