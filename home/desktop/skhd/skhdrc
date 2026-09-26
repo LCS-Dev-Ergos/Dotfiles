@@ -10,73 +10,45 @@ lalt - k : yabai -m window --focus north || yabai -m display --focus north
 lalt - l : yabai -m window --focus east  || yabai -m display --focus east
 
 # Space navigation (four spaces per display): lalt - {1, 2, 3, 4, ...}
-# Uses a script for navigating between spaces
+# ~/.config/yabai/space.sh fades the space in and focuses its frontmost window.
 # Mapping for 10 spaces (1-10)
-lalt - 1 : ~/.config/skhd/focus_space.sh 1
-lalt - 2 : ~/.config/skhd/focus_space.sh 2
-lalt - 3 : ~/.config/skhd/focus_space.sh 3
-lalt - 4 : ~/.config/skhd/focus_space.sh 4
-lalt - 5 : ~/.config/skhd/focus_space.sh 5
-lalt - 6 : ~/.config/skhd/focus_space.sh 6
-lalt - 7 : ~/.config/skhd/focus_space.sh 7
-lalt - 8 : ~/.config/skhd/focus_space.sh 8
-lalt - 9 : ~/.config/skhd/focus_space.sh 9
-lalt - 0 : ~/.config/skhd/focus_space.sh 10
+lalt - 1 : ~/.config/yabai/space.sh focus 1
+lalt - 2 : ~/.config/yabai/space.sh focus 2
+lalt - 3 : ~/.config/yabai/space.sh focus 3
+lalt - 4 : ~/.config/yabai/space.sh focus 4
+lalt - 5 : ~/.config/yabai/space.sh focus 5
+lalt - 6 : ~/.config/yabai/space.sh focus 6
+lalt - 7 : ~/.config/yabai/space.sh focus 7
+lalt - 8 : ~/.config/yabai/space.sh focus 8
+lalt - 9 : ~/.config/yabai/space.sh focus 9
+lalt - 0 : ~/.config/yabai/space.sh focus 10
 
 # Previous/next space via the scripting addition (no macOS slide animation),
 # wrapping around at the ends. Replaces the native Mission Control shortcuts.
-ctrl - left  : yabai -m space --focus prev || yabai -m space --focus last
-ctrl - right : yabai -m space --focus next || yabai -m space --focus first
+ctrl - left  : ~/.config/yabai/space.sh focus prev
+ctrl - right : ~/.config/yabai/space.sh focus next
 
 # ============================================================================ #
 # =====----- MOVE WINDOWS BETWEEN SPACES --------------------------------===== #
 
-# Move window to specific spaces: shift + lalt - {1, 2, 3, 4, ... 0}
-shift + lalt - 1 : SPACES=($(yabai -m query --displays --display | jq '.spaces[]')) && [[ -n $SPACES[1] ]] \
-                  && (yabai -m window --space $SPACES[1] && yabai -m space --focus $SPACES[1])
-shift + lalt - 2 : SPACES=($(yabai -m query --displays --display | jq '.spaces[]')) && [[ -n $SPACES[2] ]] \
-                  && (yabai -m window --space $SPACES[2] && yabai -m space --focus $SPACES[2])
-shift + lalt - 3 : SPACES=($(yabai -m query --displays --display | jq '.spaces[]')) && [[ -n $SPACES[3] ]] \
-                  && (yabai -m window --space $SPACES[3] && yabai -m space --focus $SPACES[3])
-shift + lalt - 4 : SPACES=($(yabai -m query --displays --display | jq '.spaces[]')) && [[ -n $SPACES[4] ]] \
-                  && (yabai -m window --space $SPACES[4] && yabai -m space --focus $SPACES[4])
-shift + lalt - 5 : SPACES=($(yabai -m query --displays --display | jq '.spaces[]')) && [[ -n $SPACES[5] ]] \
-                  && (yabai -m window --space $SPACES[5] && yabai -m space --focus $SPACES[5])
-shift + lalt - 6 : SPACES=($(yabai -m query --displays --display | jq '.spaces[]')) && [[ -n $SPACES[6] ]] \
-                  && (yabai -m window --space $SPACES[6] && yabai -m space --focus $SPACES[6])
-shift + lalt - 7 : SPACES=($(yabai -m query --displays --display | jq '.spaces[]')) && [[ -n $SPACES[7] ]] \
-                  && (yabai -m window --space $SPACES[7] && yabai -m space --focus $SPACES[7])
-shift + lalt - 8 : SPACES=($(yabai -m query --displays --display | jq '.spaces[]')) && [[ -n $SPACES[8] ]] \
-                  && (yabai -m window --space $SPACES[8] && yabai -m space --focus $SPACES[8])
-shift + lalt - 9 : SPACES=($(yabai -m query --displays --display | jq '.spaces[]')) && [[ -n $SPACES[9] ]] \
-                  && (yabai -m window --space $SPACES[9] && yabai -m space --focus $SPACES[9])
-shift + lalt - 0 : SPACES=($(yabai -m query --displays --display | jq '.spaces[]')) && [[ -n $SPACES[10] ]] \
-                  && (yabai -m window --space $SPACES[10] && yabai -m space --focus $SPACES[10])
+# Send the focused window to a space and follow it: shift + lalt - {1, ..., 0}
+shift + lalt - 1 : ~/.config/yabai/space.sh move 1
+shift + lalt - 2 : ~/.config/yabai/space.sh move 2
+shift + lalt - 3 : ~/.config/yabai/space.sh move 3
+shift + lalt - 4 : ~/.config/yabai/space.sh move 4
+shift + lalt - 5 : ~/.config/yabai/space.sh move 5
+shift + lalt - 6 : ~/.config/yabai/space.sh move 6
+shift + lalt - 7 : ~/.config/yabai/space.sh move 7
+shift + lalt - 8 : ~/.config/yabai/space.sh move 8
+shift + lalt - 9 : ~/.config/yabai/space.sh move 9
+shift + lalt - 0 : ~/.config/yabai/space.sh move 10
 
-# Move window to the next/previous space
-shift + cmd - right : \
-    CURRENT_WINDOW_ID=$(yabai -m query --windows --window | jq '.id'); \
-    CURRENT_SPACE=$(yabai -m query --spaces --space | jq '.index'); \
-    NEXT_SPACE=$(yabai -m query --spaces | jq -r --argjson CURRENT "$CURRENT_SPACE" '.[] | select(.index == ($CURRENT + 1)) | .index'); \
-    if [ -n "$NEXT_SPACE" ]; then \
-        yabai -m window --space $NEXT_SPACE; \
-        yabai -m space --focus $NEXT_SPACE; \
-        yabai -m window --focus $CURRENT_WINDOW_ID; \
-    fi
-
-shift + cmd - left : \
-    CURRENT_WINDOW_ID=$(yabai -m query --windows --window | jq '.id'); \
-    CURRENT_SPACE=$(yabai -m query --spaces --space | jq '.index'); \
-    PREV_SPACE=$(yabai -m query --spaces | jq -r --argjson CURRENT "$CURRENT_SPACE" '.[] | select(.index == ($CURRENT - 1)) | .index'); \
-    if [ -n "$PREV_SPACE" ]; then \
-        yabai -m window --space $PREV_SPACE; \
-        yabai -m space --focus $PREV_SPACE; \
-        yabai -m window --focus $CURRENT_WINDOW_ID; \
-    fi
-
-# Additional shortcuts for moving windows
-shift + lalt - n : yabai -m window --space next && yabai -m space --focus next
-shift + lalt - p : yabai -m window --space prev && yabai -m space --focus prev
+# Send the focused window to the previous/next space and follow it, wrapping
+# around
+shift + cmd - left  : ~/.config/yabai/space.sh move prev
+shift + cmd - right : ~/.config/yabai/space.sh move next
+shift + lalt - p : ~/.config/yabai/space.sh move prev
+shift + lalt - n : ~/.config/yabai/space.sh move next
 
 # ============================================================================ #
 # =====----- WINDOW MANIPULATION ----------------------------------------===== #
