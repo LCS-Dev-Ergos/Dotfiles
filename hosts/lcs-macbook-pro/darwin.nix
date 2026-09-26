@@ -75,7 +75,8 @@ in
     primaryUser = username;
 
     # These values were captured from `defaults read` on the live system and
-    # confirmed as intentional customizations: Dock, Finder, and trackpad.
+    # confirmed as intentional customizations: Dock, Finder, and trackpad,
+    # plus responsiveness tuning (animation durations and key repeat).
     # Other non-stock values found in that audit (dark mode and an auto-hidden
     # menu bar) remain deliberately undeclared because they were not confirmed.
     #
@@ -126,7 +127,24 @@ in
       _dotfiles_ensure_default com.apple.dock show-recents bool false 0 Dock
       _dotfiles_ensure_default com.apple.dock expose-group-apps bool true 1 Dock
       _dotfiles_ensure_default com.apple.dock minimize-to-application bool true 1 Dock
-      _dotfiles_ensure_default com.apple.dock mru-spaces bool true 1 Dock
+      # Off: yabai and the skhd space bindings address spaces by index, which
+      # macOS would otherwise reorder by recent use.
+      _dotfiles_ensure_default com.apple.dock mru-spaces bool false 0 Dock
+
+      # Responsiveness: remove pure waiting delays, shorten (not disable)
+      # animations so the UI stays animated but feels snappier.
+      _dotfiles_ensure_default com.apple.dock autohide-delay float 0 0 Dock
+      _dotfiles_ensure_default com.apple.dock autohide-time-modifier float 0.35 0.35 Dock
+      _dotfiles_ensure_default com.apple.dock expose-animation-duration float 0.15 0.15 Dock
+      _dotfiles_ensure_default com.apple.dock mineffect string scale scale Dock
+
+      # Global-domain keys are read at app launch; KeyRepeat and
+      # InitialKeyRepeat need a logout. 2 and 15 are the fastest values the
+      # Keyboard settings pane itself offers.
+      _dotfiles_ensure_default NSGlobalDomain KeyRepeat int 2 2 ""
+      _dotfiles_ensure_default NSGlobalDomain InitialKeyRepeat int 15 15 ""
+      _dotfiles_ensure_default NSGlobalDomain NSWindowResizeTime float 0.1 0.1 ""
+      _dotfiles_ensure_default NSGlobalDomain NSToolbarTitleViewRolloverDelay float 0 0 ""
 
       _dotfiles_ensure_default com.apple.finder ShowPathbar bool true 1 Finder
       _dotfiles_ensure_default com.apple.finder ShowStatusBar bool false 0 Finder
