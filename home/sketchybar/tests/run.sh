@@ -22,6 +22,8 @@ chmod +x "$test_dir/brew"
 cc=${CC:-clang}
 "$cc" -std=c2x -O0 "$root/tests/brew_check.c" -o "$test_dir/brew-test"
 "$test_dir/brew-test" "$test_dir/brew"
+"$cc" -std=c2x -O0 -Wall -Wextra -pedantic "$root/tests/providers.c" -o "$test_dir/providers"
+"$test_dir/providers"
 
 "${LUA:-lua}" "$root/tests/widgets.lua" "$root/sketchybar"
 "${PYTHON:-python3}" "$root/tests/media_test.py"

@@ -30,9 +30,9 @@
 #define NETWORK_H
 
 #include <errno.h>
-#include <math.h>
 #include <net/if.h>
 #include <net/if_mib.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/select.h>
@@ -66,6 +66,7 @@ enum unit { UNIT_BPS, UNIT_KBPS, UNIT_MBPS };
  * for delta calculations, and computed upload/download speeds with units.
  */
 struct network {
+  char             ifname[IFNAMSIZ];  /**< Name of the monitored interface. */
   uint32_t         row;       /**< Kernel MIB row index for the interface. */
   struct ifmibdata data;      /**< Raw interface statistics from the kernel. */
   struct timeval   tv_nm1;    /**< Timestamp of the previous sample. */
@@ -92,20 +93,49 @@ struct network {
 [[nodiscard]] static inline int ifdata(uint32_t net_row, struct ifmibdata* data) {
   if (!data) return -1;
 
-  static size_t  size          = sizeof(struct ifmibdata);
-  static int32_t data_option[] = {CTL_NET,      PF_LINK, NETLINK_GENERIC,
-                                  IFMIB_IFDATA, 0,       IFDATA_GENERAL};
-  data_option[4]               = net_row;
+  // sysctl() writes the returned length back, so the size is per call.
+  size_t  size          = sizeof(struct ifmibdata);
+  int32_t data_option[] = {CTL_NET, PF_LINK, NETLINK_GENERIC, IFMIB_IFDATA, (int32_t)net_row,
+                           IFDATA_GENERAL};
 
   int result = sysctl(data_option, 6, data, &size, NULL, 0);
   return (result < 0) ? -1 : 0;
 }
 
 /**
+ * @brief Finds the kernel MIB row of a named interface.
+ *
+ * @param ifname Interface name to look for (e.g., "en0").
+ * @param row    Receives the row index on success.
+ * @param data   Receives the interface statistics of that row on success.
+ * @return true if the interface exists, false otherwise.
+ */
+[[nodiscard]] static inline bool network_find_row(
+    const char* ifname, uint32_t* row, struct ifmibdata* data) {
+  static int count_option[]  = {CTL_NET, PF_LINK, NETLINK_GENERIC, IFMIB_SYSTEM, IFMIB_IFCOUNT};
+  uint32_t   interface_count = 0;
+  size_t     size            = sizeof(uint32_t);
+
+  if (sysctl(count_option, 5, &interface_count, &size, NULL, 0) < 0) {
+    fprintf(stderr, "Error getting the number of interfaces: %s\n", strerror(errno));
+    return false;
+  }
+
+  for (uint32_t i = 0; i < interface_count; i++) {
+    if (ifdata(i, data) < 0) continue;
+    if (strcmp(data->ifmd_name, ifname) == 0) {
+      *row = i;
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * @brief Initializes a network structure for a named interface.
  *
- * Iterates over all system network interfaces to locate the one matching
- * @p ifname, then captures an initial timestamp and MIB data.
+ * Locates the interface among the system network interfaces, then captures an
+ * initial timestamp and MIB data.
  *
  * @param net    Pointer to the network structure to initialize.
  * @param ifname The name of the network interface to monitor (e.g., "en0").
@@ -113,32 +143,17 @@ struct network {
  *
  * @note The caller must ensure @p net and @p ifname are valid pointers.
  */
-[[nodiscard]] static inline int network_init(struct network* net, char* ifname) {
+[[nodiscard]] static inline int network_init(struct network* net, const char* ifname) {
   if (!net || !ifname) return -1;
 
   memset(net, 0, sizeof(struct network));
-
-  static int count_option[]  = {CTL_NET, PF_LINK, NETLINK_GENERIC, IFMIB_SYSTEM, IFMIB_IFCOUNT};
-  uint32_t   interface_count = 0;
-  size_t     size            = sizeof(uint32_t);
-
-  if (sysctl(count_option, 5, &interface_count, &size, NULL, 0) < 0) {
-    fprintf(stderr, "Error getting the number of interfaces: %s\n", strerror(errno));
+  if (strlen(ifname) >= sizeof(net->ifname)) {
+    fprintf(stderr, "Interface name '%s' is too long\n", ifname);
     return -1;
   }
+  strcpy(net->ifname, ifname);
 
-  bool interface_found = false;
-  for (uint32_t i = 0; i < interface_count; i++) {
-    if (ifdata(i, &net->data) < 0) continue;
-
-    if (strcmp(net->data.ifmd_name, ifname) == 0) {
-      net->row        = i;
-      interface_found = true;
-      break;
-    }
-  }
-
-  if (!interface_found) {
+  if (!network_find_row(net->ifname, &net->row, &net->data)) {
     fprintf(stderr, "Interface '%s' not found\n", ifname);
     return -1;
   }
@@ -151,11 +166,35 @@ struct network {
 }
 
 /**
+ * @brief Scales a byte rate to the largest unit that keeps it readable.
+ *
+ * @param bytes_per_second Measured rate; non-positive values read as zero.
+ * @param value            Receives the rate in the chosen unit.
+ * @param unit             Receives the chosen unit.
+ */
+static inline void network_scale(double bytes_per_second, int* value, enum unit* unit) {
+  if (bytes_per_second < 1e3) {
+    *unit  = UNIT_BPS;
+    *value = bytes_per_second > 0 ? (int)bytes_per_second : 0;
+  } else if (bytes_per_second < 1e6) {
+    *unit  = UNIT_KBPS;
+    *value = (int)(bytes_per_second / 1e3);
+  } else {
+    *unit  = UNIT_MBPS;
+    *value = (int)(bytes_per_second / 1e6);
+  }
+}
+
+/**
  * @brief Updates network throughput statistics.
  *
  * Captures the current time and interface byte counters, computes the time
  * delta since the last call, and derives upload and download speeds. Results
  * are stored in the @p net structure with automatic unit scaling.
+ *
+ * A sample only becomes the new baseline when it cannot be turned into a rate:
+ * after a long sleep, when the kernel renumbered the interface rows, or when
+ * the interface counters restarted from zero.
  *
  * @param net Pointer to the network structure to update.
  *
@@ -179,9 +218,16 @@ static inline void network_update(struct network* net) {
   uint64_t ibytes_nm1 = net->data.ifmd_data.ifi_ibytes;
   uint64_t obytes_nm1 = net->data.ifmd_data.ifi_obytes;
 
-  // Get new data.
-  if (ifdata(net->row, &net->data) < 0) {
-    fprintf(stderr, "Error getting interface data\n");
+  // Get new data; the row may belong to another interface after a renumbering.
+  if (ifdata(net->row, &net->data) < 0 || strcmp(net->data.ifmd_name, net->ifname) != 0) {
+    if (!network_find_row(net->ifname, &net->row, &net->data)) {
+      fprintf(stderr, "Error getting interface data for '%s'\n", net->ifname);
+    }
+    return;
+  }
+
+  // Counters restart when an interface is recreated; a rate needs two samples.
+  if (net->data.ifmd_data.ifi_ibytes < ibytes_nm1 || net->data.ifmd_data.ifi_obytes < obytes_nm1) {
     return;
   }
 
@@ -200,33 +246,8 @@ static inline void network_update(struct network* net) {
   double delta_ibytes = (double)(net->data.ifmd_data.ifi_ibytes - ibytes_nm1) / time_scale;
   double delta_obytes = (double)(net->data.ifmd_data.ifi_obytes - obytes_nm1) / time_scale;
 
-  // Avoid log of negative or zero values.
-  double exponent_ibytes = (delta_ibytes > 0) ? log10(delta_ibytes) : 0;
-  double exponent_obytes = (delta_obytes > 0) ? log10(delta_obytes) : 0;
-
-  // Set units for download (incoming bytes).
-  if (exponent_ibytes < 3) {
-    net->down_unit = UNIT_BPS;
-    net->down      = (int)delta_ibytes;
-  } else if (exponent_ibytes < 6) {
-    net->down_unit = UNIT_KBPS;
-    net->down      = (int)(delta_ibytes / 1000.0);
-  } else {  // exponent_ibytes < 9
-    net->down_unit = UNIT_MBPS;
-    net->down      = (int)(delta_ibytes / 1000000.0);
-  }
-
-  // Set units for upload (outgoing bytes).
-  if (exponent_obytes < 3) {
-    net->up_unit = UNIT_BPS;
-    net->up      = (int)delta_obytes;
-  } else if (exponent_obytes < 6) {
-    net->up_unit = UNIT_KBPS;
-    net->up      = (int)(delta_obytes / 1000.0);
-  } else {  // exponent_obytes < 9
-    net->up_unit = UNIT_MBPS;
-    net->up      = (int)(delta_obytes / 1000000.0);
-  }
+  network_scale(delta_ibytes, &net->down, &net->down_unit);
+  network_scale(delta_obytes, &net->up, &net->up_unit);
 }
 
 #endif /* NETWORK_H */
