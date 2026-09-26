@@ -47,16 +47,18 @@ static const int CLICK_DELAY_MICROSECONDS = 150000; // 150ms
 /**
  * @brief Initializes Accessibility API access.
  *
- * Prompts the user for Accessibility permissions if not already granted
- * and verifies that the current process is trusted.
+ * Verifies that the current process is trusted and, when @p prompt is set,
+ * asks the user for Accessibility permissions if they are missing.
  *
+ * @param prompt Whether an untrusted process shows the permission dialog.
  * @return true if the process has Accessibility privileges, false otherwise.
  *
- * @note On macOS, this may trigger a system permission dialog on first use.
+ * @note Only clicks prompt. Listing runs on every application switch and
+ *       would otherwise raise the dialog again each time.
  */
-[[nodiscard]] static bool ax_init() {
+[[nodiscard]] static bool ax_init(bool prompt) {
   const void* keys[]   = {kAXTrustedCheckOptionPrompt};
-  const void* values[] = {kCFBooleanTrue};
+  const void* values[] = {prompt ? kCFBooleanTrue : kCFBooleanFalse};
 
   CFDictionaryRef options = CFDictionaryCreate(
       kCFAllocatorDefault, keys, values, sizeof(keys) / sizeof(*keys), &kCFCopyStringDictionaryKeyCallBacks,
@@ -257,11 +259,12 @@ static void ax_print_menu_options(AXUIElementRef app) {
     if (!name_ref || !owner_ref || !owner_pid_ref || !layer_ref || !bounds_ref)
       continue;
 
-    long long int layer = 0;
-    CFNumberGetValue(layer_ref, CFNumberGetType(layer_ref), &layer);
+    // Read both numbers at a fixed width instead of their stored CFNumber type.
+    int layer = 0;
+    CFNumberGetValue(layer_ref, kCFNumberIntType, &layer);
 
-    uint64_t owner_pid = 0;
-    CFNumberGetValue(owner_pid_ref, CFNumberGetType(owner_pid_ref), &owner_pid);
+    pid_t owner_pid = 0;
+    CFNumberGetValue(owner_pid_ref, kCFNumberSInt32Type, &owner_pid);
 
     if (layer != MENU_BAR_LAYER)
       continue;
@@ -459,7 +462,7 @@ int main(int argc, char** argv) {
     exit(0);
   }
 
-  if (!ax_init()) {
+  if (!ax_init(strcmp(argv[1], "-s") == 0)) {
     fprintf(stderr, "Error initializing accessibility APIs\n");
     return 1;
   }
