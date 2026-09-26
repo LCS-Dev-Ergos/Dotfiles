@@ -154,6 +154,9 @@ in
       # Off: yabai and the skhd space bindings address spaces by index, which
       # macOS would otherwise reorder by recent use.
       _dotfiles_ensure_default com.apple.dock mru-spaces bool false 0 Dock
+      # "Displays have separate Spaces" (spans-displays false), which yabai
+      # needs to manage each display's spaces. It takes effect after a logout.
+      _dotfiles_ensure_default com.apple.spaces spans-displays bool false 0 ""
 
       # Responsiveness: remove pure waiting delays, shorten (not disable)
       # animations so the UI stays animated but feels snappier.
