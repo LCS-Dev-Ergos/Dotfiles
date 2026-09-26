@@ -1,4 +1,12 @@
 # =====----- Skhd Configuration file ------------------------------------===== #
+#
+# Modifiers are chosen to stay clear of application shortcuts: lalt (right
+# Option still types the Italian layout's special characters), ctrl + lalt and
+# ctrl + shift + cmd. shift + cmd and shift + ctrl are left to applications
+# (text selection, kitty and tmux tabs and scrolling).
+#
+# Space bindings go through ~/.config/yabai/space.sh, which fades in the
+# windows of the space it switches to and focuses one of them.
 
 # ============================================================================ #
 # =====----- WINDOW AND SPACE NAVIGATION --------------------------------===== #
@@ -9,9 +17,8 @@ lalt - j : yabai -m window --focus south || yabai -m display --focus south
 lalt - k : yabai -m window --focus north || yabai -m display --focus north
 lalt - l : yabai -m window --focus east  || yabai -m display --focus east
 
-# Space navigation (four spaces per display): lalt - {1, 2, 3, 4, ...}
-# ~/.config/yabai/space.sh fades the space in and focuses its frontmost window.
-# Mapping for 10 spaces (1-10)
+# Space navigation by mission-control index, as SketchyBar numbers them:
+# lalt - {1, 2, ..., 9, 0}, with 0 for space 10
 lalt - 1 : ~/.config/yabai/space.sh focus 1
 lalt - 2 : ~/.config/yabai/space.sh focus 2
 lalt - 3 : ~/.config/yabai/space.sh focus 3
@@ -24,9 +31,14 @@ lalt - 9 : ~/.config/yabai/space.sh focus 9
 lalt - 0 : ~/.config/yabai/space.sh focus 10
 
 # Previous/next space via the scripting addition (no macOS slide animation),
-# wrapping around at the ends. Replaces the native Mission Control shortcuts.
+# wrapping around at the ends. Replaces the native Mission Control shortcuts,
+# which are disabled.
 ctrl - left  : ~/.config/yabai/space.sh focus prev
 ctrl - right : ~/.config/yabai/space.sh focus next
+
+# Cycle through the windows of a stack, wrapping around
+lalt - n : yabai -m window --focus stack.next || yabai -m window --focus stack.first
+lalt - p : yabai -m window --focus stack.prev || yabai -m window --focus stack.last
 
 # ============================================================================ #
 # =====----- MOVE WINDOWS BETWEEN SPACES --------------------------------===== #
@@ -44,9 +56,9 @@ shift + lalt - 9 : ~/.config/yabai/space.sh move 9
 shift + lalt - 0 : ~/.config/yabai/space.sh move 10
 
 # Send the focused window to the previous/next space and follow it, wrapping
-# around
-shift + cmd - left  : ~/.config/yabai/space.sh move prev
-shift + cmd - right : ~/.config/yabai/space.sh move next
+# around: ctrl + lalt - {left, right} or shift + lalt - {p, n}
+ctrl + lalt - left  : ~/.config/yabai/space.sh move prev
+ctrl + lalt - right : ~/.config/yabai/space.sh move next
 shift + lalt - p : ~/.config/yabai/space.sh move prev
 shift + lalt - n : ~/.config/yabai/space.sh move next
 
@@ -72,20 +84,15 @@ lalt - r : yabai -m space --rotate 90
 lalt - x : yabai -m space --mirror x-axis
 lalt - y : yabai -m space --mirror y-axis
 
-# Float / unfloat window and center
-lalt - t : yabai -m window --toggle float;\
-           yabai -m window --grid 4:4:1:1:2:2
+# Float / unfloat window and center it (the grid only applies when floating)
+lalt - t : yabai -m window --toggle float --grid 4:4:1:1:2:2
 
 # Toggle desktop padding
 lalt - a : yabai -m space --toggle padding; yabai -m space --toggle gap
 
-# Toggle parent window zoom
-lalt - d : yabai -m window --focus mouse && \
-           yabai -m window --toggle zoom-parent
-
-# Toggle window fullscreen zoom
-lalt - f : yabai -m window --focus mouse && \
-           yabai -m window --toggle zoom-fullscreen
+# Toggle parent zoom / fullscreen zoom of the focused window
+lalt - d : yabai -m window --toggle zoom-parent
+lalt - f : yabai -m window --toggle zoom-fullscreen
 
 # Increase, decrease gap in the active space
 lalt - g : yabai -m space --gap rel:20
@@ -97,20 +104,20 @@ shift + lalt - f : yabai -m window --toggle native-fullscreen
 # ============================================================================ #
 # =====----- MOVE WINDOWS WITHIN LAYOUT ---------------------------------===== #
 
-# Warp window in direction
-shift + cmd - h : yabai -m window --warp west
-shift + cmd - j : yabai -m window --warp south
-shift + cmd - k : yabai -m window --warp north
-shift + cmd - l : yabai -m window --warp east
+# Warp window in direction: shift + lalt - {h, j, k, l}
+shift + lalt - h : yabai -m window --warp west
+shift + lalt - j : yabai -m window --warp south
+shift + lalt - k : yabai -m window --warp north
+shift + lalt - l : yabai -m window --warp east
 
 # ============================================================================ #
 # =====----- STACKS AND INSERTION ---------------------------------------===== #
 
-# Add active window to the stack in direction: shift + ctrl - {h, j, k, l}
-shift + ctrl - h : yabai -m window west --stack $(yabai -m query --windows --window | jq -r '.id')
-shift + ctrl - j : yabai -m window south --stack $(yabai -m query --windows --window | jq -r '.id')
-shift + ctrl - k : yabai -m window north --stack $(yabai -m query --windows --window | jq -r '.id')
-shift + ctrl - l : yabai -m window east --stack $(yabai -m query --windows --window | jq -r '.id')
+# Stack the focused window onto its neighbour: ctrl + shift + cmd - {h, j, k, l}
+ctrl + shift + cmd - h : yabai -m window west --stack $(yabai -m query --windows --window | jq -r '.id')
+ctrl + shift + cmd - j : yabai -m window south --stack $(yabai -m query --windows --window | jq -r '.id')
+ctrl + shift + cmd - k : yabai -m window north --stack $(yabai -m query --windows --window | jq -r '.id')
+ctrl + shift + cmd - l : yabai -m window east --stack $(yabai -m query --windows --window | jq -r '.id')
 
 # Set insertion point for the container: shift + ctrl + lalt - {h, j, k, l, s}
 shift + ctrl + lalt - h : yabai -m window --insert west
@@ -140,10 +147,11 @@ ctrl + lalt + cmd - l : yabai -m window --resize right:-20:0
 # Toggle sketchybar
 shift + lalt - space : sketchybar --bar hidden=toggle
 
-# Stop/Start/Restart yabai
-ctrl + alt - q : yabai --stop-service
-ctrl + alt - s : yabai --start-service
-ctrl + alt - r : yabai --restart-service
+# Stop/Start/Restart yabai. It runs as nix-darwin's org.nixos.yabai agent:
+# yabai --start-service would install and start a second, unmanaged one.
+ctrl + lalt - q : launchctl bootout "gui/$(id -u)/org.nixos.yabai"
+ctrl + lalt - s : launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/org.nixos.yabai.plist"
+ctrl + lalt - r : launchctl kickstart -k "gui/$(id -u)/org.nixos.yabai"
 
 # Change desktop layout
 ctrl + lalt - a : yabai -m space --layout bsp
