@@ -1,9 +1,9 @@
 { pkgs, lib, ... }:
 {
-  # yabai is a macOS-only tiling window manager with no Home Manager
-  # module (neither programs.yabai nor services.yabai exist), so this is
-  # gated to Darwin and linked raw -- yabairc is yabai's own shell-based
-  # config DSL, no safe Nix parser regardless.
+  # yabai itself runs as nix-darwin's services.yabai (darwin/window-manager.nix),
+  # which reads this file from its default location. Home Manager has no yabai
+  # module, and yabairc is yabai's own shell-based config DSL with no safe Nix
+  # parser, so it is gated to Darwin and linked raw.
   xdg.configFile."yabai/yabairc" = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     source = ./yabairc;
     executable = true;

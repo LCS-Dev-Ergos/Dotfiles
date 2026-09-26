@@ -1,20 +1,16 @@
 { pkgs, lib, ... }:
 {
-  # Not using services.skhd.enable: that would have Home Manager create
-  # and manage its own launchd agent for skhd, which could conflict with
-  # however skhd is already being started (Homebrew services or manual).
-  # Only the config is Nix-managed here, matching yabai's treatment;
-  # skhd's own hotkey DSL has no safe Nix parser regardless.
+  # skhd itself runs as nix-darwin's services.skhd (darwin/window-manager.nix),
+  # which reads this file from its default location. skhd's own hotkey DSL
+  # has no safe Nix parser, so the config stays a plain file.
   xdg.configFile = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     "skhd/skhdrc".source = ./skhdrc;
     "skhd/focus_space.sh" = {
-      # jq is a real Nix package, so its store path is substituted via
-      # lib.getExe. yabai has no nixpkgs derivation at all (see
-      # home/yabai/default.nix) and is Homebrew-only, so its path is the
-      # fixed Apple Silicon Homebrew prefix instead of a store reference.
+      # Both store paths are substituted via lib.getExe. pkgs.yabai is the
+      # signed fork release from darwin/window-manager.nix.
       source = pkgs.replaceVars ./focus_space.sh {
         jq = lib.getExe pkgs.jq;
-        yabai = "/opt/homebrew/bin/yabai";
+        yabai = lib.getExe pkgs.yabai;
       };
       executable = true;
     };

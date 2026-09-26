@@ -119,8 +119,6 @@ _: {
     ];
 
     brews = [
-      "asmvik/formulae/skhd"
-      "asmvik/formulae/yabai"
       "autoconf"
       "automake"
       "clamav"
