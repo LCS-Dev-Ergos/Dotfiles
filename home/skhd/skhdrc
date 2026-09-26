@@ -23,6 +23,11 @@ lalt - 8 : ~/.config/skhd/focus_space.sh 8
 lalt - 9 : ~/.config/skhd/focus_space.sh 9
 lalt - 0 : ~/.config/skhd/focus_space.sh 10
 
+# Previous/next space via the scripting addition (no macOS slide animation),
+# wrapping around at the ends. Replaces the native Mission Control shortcuts.
+ctrl - left  : yabai -m space --focus prev || yabai -m space --focus last
+ctrl - right : yabai -m space --focus next || yabai -m space --focus first
+
 # ============================================================================ #
 # =====----- MOVE WINDOWS BETWEEN SPACES --------------------------------===== #
 
