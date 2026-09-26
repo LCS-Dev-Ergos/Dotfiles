@@ -26,8 +26,10 @@ modes uninstall whatever is installed but undeclared, and the Homebrew
 inventory here is deliberately incomplete during the migration.
 
 **Never duplicate a Home Manager module per host.** Gate platform
-differences inside the shared `home/<app>/` module with
+differences inside the shared `home/<category>/<app>/` module with
 `lib.mkIf pkgs.stdenv.hostPlatform.isDarwin` / `hostPlatform.isLinux`.
+A category's `default.nix` imports only cross-platform modules;
+platform-only ones go in `home/darwin.nix` or `home/linux.nix`.
 
 **Never derive `dotfilesRoot` from the flake path.** The flake is
 store-copied; deriving it there makes writable configs read-only. Host

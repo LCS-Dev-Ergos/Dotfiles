@@ -7,9 +7,9 @@ _: {
   # `lib.mkIf pkgs.stdenv.hostPlatform.isLinux`, so a module stays correct on its own even
   # if it is ever imported from somewhere other than this file.
   imports = [
-    ./hypr
-    ./hyprdots
-    ./ueberzugpp
-    ./vscode
+    ./desktop/hypr
+    ./desktop/hyprdots
+    ./editors/vscode
+    ./file-managers/ueberzugpp
   ];
 }
