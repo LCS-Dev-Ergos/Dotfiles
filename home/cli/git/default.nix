@@ -4,6 +4,13 @@
   pkgs,
   ...
 }:
+let
+  email = "xtremexspc@gmail.com";
+
+  # Public half of the 1Password SSH signing key; safe to declare. Shared by
+  # user.signingkey and the allowed signers file used to verify signatures.
+  signingKey = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDK1I9uQPx0oLehDTvI7S1fyhKKM26mkT27vZvfaSJWtvNW1UxJ3durrtKzzq13RQM9sL6+9b1JtMlRUqNDIHBrZrgA6I3Ji+bNpLroNrlUauCVkPbxrMwT8DHq2Mq6/YtgK3kGMS20xmP4zO18cVk1nCLAugi2r9QCyOq+olSSOUdWen5hnyMYWFcHBh1HQOR7Mj/ZbwDaIVPgN7Zg65pblKshiNU4soBUSAZyJCr2543gzjOPvPHj7DQjM0rjL3Zitm0NZeZn2+TOrkE4uoGugFkMiWd5Xe1jBTATd0wp72AYdYhLcA2/jK/hX++rKTsOJkdDHxblbqhtGU05cUr9VPpcFbS7TkDoek/tT2mifhSlRveYezrxjIRXMKgTSlUR+1PS82byUDB5egMBtFk++y81hfTYCLmFV8UWJFYpVvwO/0hsvnCYIQ5s8nDFMqReXJOprgFk6f7wGsPJh5bwc9ioPq5+cap9405BGHjLNeG22Zi5eEj3rh9D67LmKzXU4z8hWkf1y/oGpY60sdd65klkvWOX3QYiBd8iCS2OtVCf7d/M8M2B7eXMo3zthUTT7cyQdJoPXZoKe44CUYd5lEJUl6qZOuhToHfBZChVtl0oISRGQJ1r+whv4C6fsNqAgP76QGe9yng9IsKTDpSFrKMlNlJ05RJnyR5wkypswQ==";
+in
 {
   programs = {
     git = {
@@ -18,7 +25,7 @@
         {
           user = {
             name = "LCS-Dev";
-            email = "xtremexspc@gmail.com";
+            inherit email;
           };
 
           "credential \"https://github.com\"".username = "LCS-Dev-Ergos";
@@ -142,10 +149,16 @@
           ];
 
           # SSH signing uses the 1Password application, not private key
-          # material in the Nix store. The public key is safe to declare.
-          user.signingkey = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQDK1I9uQPx0oLehDTvI7S1fyhKKM26mkT27vZvfaSJWtvNW1UxJ3durrtKzzq13RQM9sL6+9b1JtMlRUqNDIHBrZrgA6I3Ji+bNpLroNrlUauCVkPbxrMwT8DHq2Mq6/YtgK3kGMS20xmP4zO18cVk1nCLAugi2r9QCyOq+olSSOUdWen5hnyMYWFcHBh1HQOR7Mj/ZbwDaIVPgN7Zg65pblKshiNU4soBUSAZyJCr2543gzjOPvPHj7DQjM0rjL3Zitm0NZeZn2+TOrkE4uoGugFkMiWd5Xe1jBTATd0wp72AYdYhLcA2/jK/hX++rKTsOJkdDHxblbqhtGU05cUr9VPpcFbS7TkDoek/tT2mifhSlRveYezrxjIRXMKgTSlUR+1PS82byUDB5egMBtFk++y81hfTYCLmFV8UWJFYpVvwO/0hsvnCYIQ5s8nDFMqReXJOprgFk6f7wGsPJh5bwc9ioPq5+cap9405BGHjLNeG22Zi5eEj3rh9D67LmKzXU4z8hWkf1y/oGpY60sdd65klkvWOX3QYiBd8iCS2OtVCf7d/M8M2B7eXMo3zthUTT7cyQdJoPXZoKe44CUYd5lEJUl6qZOuhToHfBZChVtl0oISRGQJ1r+whv4C6fsNqAgP76QGe9yng9IsKTDpSFrKMlNlJ05RJnyR5wkypswQ==";
+          # material in the Nix store.
+          user.signingkey = signingKey;
           gpg.format = "ssh";
-          "gpg \"ssh\"".program = "/Applications/1Password.app/Contents/MacOS/op-ssh-sign";
+          "gpg \"ssh\"" = {
+            program = "/Applications/1Password.app/Contents/MacOS/op-ssh-sign";
+            # Without it, `git log --show-signature`, `git verify-commit` and
+            # GUI clients fail with "gpg.ssh.allowedSignersFile needs to be
+            # configured and exist for ssh signature verification".
+            allowedSignersFile = "${config.xdg.configHome}/git/allowed_signers";
+          };
           commit.gpgsign = true;
         })
 
@@ -200,5 +213,13 @@
   home.file.".gitconfig" = {
     source = config.xdg.configFile."git/config".source;
     force = true;
+  };
+
+  # Maps the signing identity to its public key (ssh-keygen ALLOWED SIGNERS
+  # format), restricted to the git namespace.
+  xdg.configFile."git/allowed_signers" = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
+    text = ''
+      ${email} namespaces="git" ${signingKey}
+    '';
   };
 }
