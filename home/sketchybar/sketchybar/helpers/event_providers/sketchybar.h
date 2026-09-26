@@ -13,7 +13,7 @@
  *  - Automatic bootstrap port resolution and caching
  *  - Safe message formatting with quote handling
  *  - Connection recovery on delivery failure
- *  - Thread-safe global port caching
+ *  - Process-wide port caching for single-threaded providers
  *
  * Typical usage:
  *  1. Call sketchybar("--add event <name>") to register an event
@@ -30,7 +30,7 @@
 #define SKETCHYBAR_H
 
 #include <bootstrap.h>
-#include <mach/arm/kern_return.h>
+#include <mach/kern_return.h>
 #include <mach/mach.h>
 #include <mach/mach_port.h>
 #include <mach/message.h>
@@ -87,18 +87,11 @@ static mach_port_t g_mach_port = 0;
  *
  * @return A valid Mach port on success, 0 on failure.
  *
- * @note The returned port is a send right that must not be deallocated
- *       by the caller; it is cached in @ref g_mach_port.
+ * @note The returned port is a send right owned by the caller; @ref sketchybar
+ *       caches it in @ref g_mach_port and releases it before a new lookup.
  * @warning If BAR_NAME exceeds 256 characters, the lookup fails.
  */
 [[nodiscard]] static inline mach_port_t mach_get_bs_port() {
-  mach_port_name_t task = mach_task_self();
-
-  mach_port_t bs_port;
-  if (task_get_special_port(task, TASK_BOOTSTRAP_PORT, &bs_port) != KERN_SUCCESS) {
-    return 0;
-  }
-
   const char* name = getenv("BAR_NAME");
   if (!name) name = "sketchybar";
 
@@ -118,9 +111,28 @@ static mach_port_t g_mach_port = 0;
     return 0;
   }
 
-  mach_port_t port;
-  if (bootstrap_look_up(bs_port, buffer, &port) != KERN_SUCCESS) return 0;
-  return port;
+  mach_port_name_t task = mach_task_self();
+  mach_port_t      bs_port;
+  if (task_get_special_port(task, TASK_BOOTSTRAP_PORT, &bs_port) != KERN_SUCCESS) {
+    return 0;
+  }
+
+  // task_get_special_port returns a new send right on every call.
+  mach_port_t   port   = 0;
+  kern_return_t result = bootstrap_look_up(bs_port, buffer, &port);
+  mach_port_deallocate(task, bs_port);
+  return result == KERN_SUCCESS ? port : 0;
+}
+
+/**
+ * @brief Replaces the cached SketchyBar port with a fresh lookup.
+ *
+ * Releases the previous send right first, so a restarted SketchyBar does not
+ * leave one dead port name behind per reconnection.
+ */
+static inline void mach_refresh_port() {
+  if (g_mach_port) mach_port_deallocate(mach_task_self(), g_mach_port);
+  g_mach_port = mach_get_bs_port();
 }
 
 /**
@@ -249,7 +261,7 @@ static inline void sketchybar(const char* message) {
   if (!g_mach_port) g_mach_port = mach_get_bs_port();
 
   if (!mach_send_message(g_mach_port, formatted_message, length)) {
-    g_mach_port = mach_get_bs_port();  // Try to get the port again
+    mach_refresh_port();  // SketchyBar may have restarted under a new port.
     if (!mach_send_message(g_mach_port, formatted_message, length)) {
       // No sketchybar instance running, exit.
       exit(0);

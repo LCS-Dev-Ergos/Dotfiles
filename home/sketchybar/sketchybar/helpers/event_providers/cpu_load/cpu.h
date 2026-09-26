@@ -76,6 +76,44 @@ static inline void cpu_init(struct cpu* cpu) {
 }
 
 /**
+ * @brief Derives load percentages from two tick samples.
+ *
+ * Nice time is user-space work at a lower priority and is counted as user
+ * load, as Activity Monitor does. Unsigned subtraction keeps the deltas
+ * correct across a 32-bit counter wrap.
+ *
+ * @param cpu      Structure whose load fields receive the result.
+ * @param previous Earlier tick sample.
+ * @param current  Later tick sample.
+ */
+static inline void cpu_compute_load(struct cpu* cpu, const host_cpu_load_info_data_t* previous,
+                                    const host_cpu_load_info_data_t* current) {
+  uint32_t delta_user = (current->cpu_ticks[CPU_STATE_USER] - previous->cpu_ticks[CPU_STATE_USER])
+                        + (current->cpu_ticks[CPU_STATE_NICE]
+                           - previous->cpu_ticks[CPU_STATE_NICE]);
+
+  uint32_t delta_system =
+      current->cpu_ticks[CPU_STATE_SYSTEM] - previous->cpu_ticks[CPU_STATE_SYSTEM];
+
+  uint32_t delta_idle = current->cpu_ticks[CPU_STATE_IDLE] - previous->cpu_ticks[CPU_STATE_IDLE];
+
+  // Calculate the total delta to avoid division by zero.
+  uint64_t delta_total = (uint64_t)delta_system + delta_user + delta_idle;
+
+  if (delta_total > 0) {
+    // Safely convert to double before division.
+    cpu->user_load  = (int)(((double)delta_user / (double)delta_total) * 100.0);
+    cpu->sys_load   = (int)(((double)delta_system / (double)delta_total) * 100.0);
+    cpu->total_load = cpu->user_load + cpu->sys_load;
+  } else {
+    // Avoid division by zero.
+    cpu->user_load  = 0;
+    cpu->sys_load   = 0;
+    cpu->total_load = 0;
+  }
+}
+
+/**
  * @brief Updates CPU statistics and recomputes load percentages.
  *
  * Queries the Mach kernel for current CPU tick counters, computes the delta
@@ -91,6 +129,8 @@ static inline void cpu_init(struct cpu* cpu) {
 static inline void cpu_update(struct cpu* cpu) {
   if (!cpu) return;
 
+  // host_statistics() uses the count as input capacity and output size.
+  cpu->count = HOST_CPU_LOAD_INFO_COUNT;
   kern_return_t error =
       host_statistics(cpu->host, HOST_CPU_LOAD_INFO, (host_info_t)&cpu->load, &cpu->count);
 
@@ -100,29 +140,7 @@ static inline void cpu_update(struct cpu* cpu) {
   }
 
   if (cpu->has_prev_load) {
-    uint32_t delta_user =
-        cpu->load.cpu_ticks[CPU_STATE_USER] - cpu->prev_load.cpu_ticks[CPU_STATE_USER];
-
-    uint32_t delta_system =
-        cpu->load.cpu_ticks[CPU_STATE_SYSTEM] - cpu->prev_load.cpu_ticks[CPU_STATE_SYSTEM];
-
-    uint32_t delta_idle =
-        cpu->load.cpu_ticks[CPU_STATE_IDLE] - cpu->prev_load.cpu_ticks[CPU_STATE_IDLE];
-
-    // Calculate the total delta to avoid division by zero.
-    uint32_t delta_total = delta_system + delta_user + delta_idle;
-
-    if (delta_total > 0) {
-      // Safely convert to double before division.
-      cpu->user_load  = (int)(((double)delta_user / (double)delta_total) * 100.0);
-      cpu->sys_load   = (int)(((double)delta_system / (double)delta_total) * 100.0);
-      cpu->total_load = cpu->user_load + cpu->sys_load;
-    } else {
-      // Avoid division by zero.
-      cpu->user_load  = 0;
-      cpu->sys_load   = 0;
-      cpu->total_load = 0;
-    }
+    cpu_compute_load(cpu, &cpu->prev_load, &cpu->load);
   }
 
   cpu->prev_load     = cpu->load;
