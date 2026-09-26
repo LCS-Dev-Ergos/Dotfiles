@@ -1,0 +1,335 @@
+diff --git a/src/bar_manager.c b/src/bar_manager.c
+index 66e4f74..0ce704b 100644
+--- a/src/bar_manager.c
++++ b/src/bar_manager.c
+@@ -10,6 +10,16 @@
+ #include "mouse.h"
+ #include "media.h"
+ #include "app_windows.h"
++#include "display_layout.h"
++
++// Coalesce display notifications: a wake produces several CoreGraphics
++// callbacks, and each rebuild recreates every bar and item window.
++#define DISPLAY_RECONCILE_QUIET_NS (150 * NSEC_PER_MSEC)
++#define DISPLAY_WAKE_SETTLE_NS (6 * NSEC_PER_SEC)
++
++static struct display_layout g_display_layout;
++static uint64_t g_display_generation = 0;
++static uint64_t g_display_settle_until = 0;
+ 
+ extern void forced_front_app_event();
+ 
+@@ -620,6 +630,7 @@ void bar_manager_begin(struct bar_manager* bar_manager) {
+     }
+   }
+ 
++  display_layout_read(&g_display_layout);
+   bar_manager->active_displays = 0;
+   for (int i = 0; i < bar_manager->bar_count; i++) {
+     bar_manager->active_displays |= 1 << bar_manager->bars[i]->adid;
+@@ -752,19 +763,101 @@ void bar_manager_custom_events_trigger(struct bar_manager* bar_manager, char* na
+ }
+ 
+ void bar_manager_display_resized(struct bar_manager* bar_manager, uint32_t did) {
+-  bar_manager_display_changed(bar_manager);
++  bar_manager_schedule_display_reconcile(bar_manager, DISPLAY_RECONCILE_QUIET_NS);
+ }
+ 
+ void bar_manager_display_moved(struct bar_manager* bar_manager, uint32_t did) {
+-  bar_manager_display_changed(bar_manager);
++  bar_manager_schedule_display_reconcile(bar_manager, DISPLAY_RECONCILE_QUIET_NS);
+ }
+ 
+ void bar_manager_display_removed(struct bar_manager* bar_manager, uint32_t did) {
+-  bar_manager_display_changed(bar_manager);
++  bar_manager_schedule_display_reconcile(bar_manager, DISPLAY_RECONCILE_QUIET_NS);
+ }
+ 
+ void bar_manager_display_added(struct bar_manager* bar_manager, uint32_t did) {
+-  bar_manager_display_changed(bar_manager);
++  bar_manager_schedule_display_reconcile(bar_manager, DISPLAY_RECONCILE_QUIET_NS);
++}
++
++// Runs after the notification burst instead of inside the CoreGraphics
++// callback, which WindowServer waits on while it reconfigures the displays.
++void bar_manager_schedule_display_reconcile(struct bar_manager* bar_manager, uint64_t delay) {
++  uint64_t generation = ++g_display_generation;
++  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, delay),
++                 dispatch_get_main_queue(), ^{
++    if (generation != g_display_generation) return;
++    struct event event = { NULL, DISPLAY_RECONCILE };
++    event_post(&event);
++  });
++}
++
++static void bar_manager_move_windows_to_origin(struct bar_manager* bar_manager) {
++  for (uint32_t i = 0; i < bar_manager->bar_count; i++) {
++    struct bar* bar = bar_manager->bars[i];
++    bar->window.needs_move = true;
++    for (uint32_t j = 0; j < bar_manager->bar_item_count; j++) {
++      struct bar_item* bar_item = bar_manager->bar_items[j];
++      if (bar->adid < 1 || bar->adid > bar_item->num_windows) continue;
++      struct window* window = bar_item->windows[bar->adid - 1];
++      if (window) window->needs_move = true;
++    }
++  }
++}
++
++static void bar_manager_reconcile(struct bar_manager* bar_manager, bool unlocked) {
++  if (bar_manager->sleeps) return;
++  g_display_generation++;
++
++  uint64_t start = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
++  bool settling = start < g_display_settle_until;
++  struct display_layout layout;
++  display_layout_read(&layout);
++
++  enum display_reconcile action = display_reconcile_decide(&g_display_layout,
++                                                           &layout,
++                                                           bar_manager->bar_count > 0,
++                                                           settling,
++                                                           !unlocked
++                                                           && display_session_locked());
++  const char* outcome = "waiting";
++  if (action == DISPLAY_RECONCILE_WAIT) {
++    // A transient layout gets one more look when the settle period ends.
++    if (settling) {
++      bar_manager_schedule_display_reconcile(bar_manager,
++                                             g_display_settle_until - start);
++    }
++  } else if (action == DISPLAY_RECONCILE_KEEP) {
++    g_display_settle_until = 0;
++    outcome = "unchanged, refresh left to unlock";
++  } else if (action == DISPLAY_RECONCILE_REFRESH) {
++    g_display_settle_until = 0;
++    outcome = "unchanged, refreshed";
++    // WindowServer may relocate windows while a display is reprobed.
++    bar_manager_move_windows_to_origin(bar_manager);
++    bar_manager_handle_display_change(bar_manager);
++    bar_manager_handle_space_change(bar_manager, false);
++    bar_manager->needs_ordering = true;
++    bar_manager_refresh(bar_manager, true);
++    animator_renew_display_link(&bar_manager->animator);
++  } else {
++    g_display_settle_until = 0;
++    outcome = "changed, rebuilt";
++    bar_manager_display_changed(bar_manager);
++  }
++
++  uint64_t end = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
++  time_t now = time(NULL);
++  char stamp[32];
++  strftime(stamp, sizeof(stamp), "%Y-%m-%d %H:%M:%S", localtime(&now));
++  fprintf(stderr, "%s sketchybar: displays %s (%u active%s) in %llu ms\n",
++                  stamp,
++                  outcome,
++                  layout.count,
++                  settling ? ", settling" : "",
++                  (end - start) / NSEC_PER_MSEC                         );
++}
++
++void bar_manager_reconcile_displays(struct bar_manager* bar_manager) {
++  bar_manager_reconcile(bar_manager, false);
+ }
+ 
+ void bar_manager_display_changed(struct bar_manager* bar_manager) {
+@@ -1024,19 +1117,24 @@ void bar_manager_handle_system_will_sleep(struct bar_manager* bar_manager) {
+ void bar_manager_handle_system_woke(struct bar_manager* bar_manager) {
+   if (bar_manager->sleeps) {
+     bar_manager->sleeps = false;
+-
+-    // Sometimes the system wake notification precedes the display layout
+-    // changes, so we queue a second wake event slightly later.
+-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_LOW, 0), ^{
+-      usleep(500000);
+-      dispatch_async(dispatch_get_main_queue(), ^{
+-        struct event event = { NULL, SYSTEM_WOKE };
+-        event_post(&event);
+-      });
+-    });
++    g_display_settle_until = clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
++                             + DISPLAY_WAKE_SETTLE_NS;
+   }
+ 
+-  bar_manager_display_changed(bar_manager);
++  // Display reconfiguration callbacks after the wake postpone this check.
++  bar_manager_schedule_display_reconcile(bar_manager, DISPLAY_RECONCILE_QUIET_NS);
++  bar_manager_custom_events_trigger(bar_manager,
++                                    COMMAND_SUBSCRIBE_SYSTEM_WOKE,
++                                    NULL                          );
++}
++
++void bar_manager_handle_screen_unlocked(struct bar_manager* bar_manager) {
++  if (bar_manager->sleeps) {
++    bar_manager_handle_system_woke(bar_manager);
++    return;
++  }
++
++  bar_manager_reconcile(bar_manager, true);
+   bar_manager_custom_events_trigger(bar_manager,
+                                     COMMAND_SUBSCRIBE_SYSTEM_WOKE,
+                                     NULL                          );
+diff --git a/src/bar_manager.h b/src/bar_manager.h
+index 95d124a..0c7f624 100644
+--- a/src/bar_manager.h
++++ b/src/bar_manager.h
+@@ -117,6 +117,9 @@ void bar_manager_handle_front_app_switch(struct bar_manager* bar_manager, char*
+ void bar_manager_handle_space_change(struct bar_manager* bar_manager, bool forced);
+ void bar_manager_handle_display_change(struct bar_manager* bar_manager);
+ void bar_manager_handle_system_woke(struct bar_manager* bar_manager);
++void bar_manager_handle_screen_unlocked(struct bar_manager* bar_manager);
++void bar_manager_schedule_display_reconcile(struct bar_manager* bar_manager, uint64_t delay);
++void bar_manager_reconcile_displays(struct bar_manager* bar_manager);
+ void bar_manager_handle_system_will_sleep(struct bar_manager* bar_manager);
+ void bar_manager_handle_volume_change(struct bar_manager* bar_manager, float volume);
+ void bar_manager_handle_wifi_change(struct bar_manager* bar_manager, char* ssid);
+diff --git a/src/display_layout.h b/src/display_layout.h
+new file mode 100644
+index 0000000..fcbb250
+--- /dev/null
++++ b/src/display_layout.h
+@@ -0,0 +1,90 @@
++#pragma once
++#include <CoreGraphics/CoreGraphics.h>
++#include <stdbool.h>
++#include <string.h>
++
++// The display topology the bar windows were built for. Wake and hot-plug
++// notifications arrive in bursts, mostly for a topology that ends up
++// unchanged; comparing snapshots lets SketchyBar keep its windows instead of
++// recreating every bar and item window for each notification.
++#define DISPLAY_LAYOUT_MAX 16
++
++struct display_layout {
++  uint32_t count;
++  uint32_t did[DISPLAY_LAYOUT_MAX];
++  CGRect bounds[DISPLAY_LAYOUT_MAX];
++};
++
++enum display_reconcile {
++  DISPLAY_RECONCILE_WAIT,     // Layout in transition; a later callback follows.
++  DISPLAY_RECONCILE_KEEP,     // Unchanged behind the lock screen; unlock refreshes.
++  DISPLAY_RECONCILE_REFRESH,  // Unchanged; keep the windows and redraw them.
++  DISPLAY_RECONCILE_REBUILD,  // Changed; recreate the bars once.
++};
++
++static inline void display_layout_read(struct display_layout* layout) {
++  memset(layout, 0, sizeof(struct display_layout));
++  uint32_t count = 0;
++  if (CGGetActiveDisplayList(DISPLAY_LAYOUT_MAX, layout->did, &count)
++      != kCGErrorSuccess) {
++    return;
++  }
++
++  layout->count = count;
++  for (uint32_t i = 0; i < count; i++)
++    layout->bounds[i] = CGDisplayBounds(layout->did[i]);
++}
++
++// The session dictionary only carries this key while the screen is locked.
++static inline bool display_session_locked(void) {
++  CFDictionaryRef session = CGSessionCopyCurrentDictionary();
++  if (!session) return false;
++
++  CFTypeRef locked = CFDictionaryGetValue(session,
++                                          CFSTR("CGSSessionScreenIsLocked"));
++  bool result = locked
++                && CFGetTypeID(locked) == CFBooleanGetTypeID()
++                && CFBooleanGetValue(locked);
++  CFRelease(session);
++  return result;
++}
++
++// A display that is being reprobed reports no bounds; its final state is
++// announced by a later reconfiguration callback.
++static inline bool display_layout_usable(const struct display_layout* layout) {
++  if (layout->count == 0) return false;
++  for (uint32_t i = 0; i < layout->count; i++) {
++    if (!layout->did[i] || CGRectIsEmpty(layout->bounds[i])) return false;
++  }
++  return true;
++}
++
++static inline bool display_layout_equal(const struct display_layout* a,
++                                        const struct display_layout* b) {
++  if (a->count != b->count) return false;
++  for (uint32_t i = 0; i < a->count; i++) {
++    if (a->did[i] != b->did[i]
++        || !CGRectEqualToRect(a->bounds[i], b->bounds[i])) {
++      return false;
++    }
++  }
++  return true;
++}
++
++// While settling after a wake, macOS may briefly replace the real displays
++// with a placeholder before reprobing them. A different topology is only
++// trusted once the settle period has passed. A wake usually lands on the lock
++// screen, and the unlock that follows refreshes the windows anyway.
++static inline enum display_reconcile display_reconcile_decide(
++                                        const struct display_layout* built,
++                                        const struct display_layout* current,
++                                        bool has_bars,
++                                        bool settling,
++                                        bool locked) {
++  if (!display_layout_usable(current)) return DISPLAY_RECONCILE_WAIT;
++  if (!has_bars) return DISPLAY_RECONCILE_REBUILD;
++  if (display_layout_equal(built, current)) {
++    return locked ? DISPLAY_RECONCILE_KEEP : DISPLAY_RECONCILE_REFRESH;
++  }
++  return settling ? DISPLAY_RECONCILE_WAIT : DISPLAY_RECONCILE_REBUILD;
++}
+diff --git a/src/event.c b/src/event.c
+index 0c05b58..a2c902c 100644
+--- a/src/event.c
++++ b/src/event.c
+@@ -50,7 +50,13 @@ static void event_menu_bar_hidden_changed(void* context) {
+ }
+ 
+ static void event_system_woke(void* context) {
+-  bar_manager_handle_system_woke(&g_bar_manager);
++  // Screen unlock is not a display topology change (see workspace.m).
++  if (context) bar_manager_handle_screen_unlocked(&g_bar_manager);
++  else bar_manager_handle_system_woke(&g_bar_manager);
++}
++
++static void event_display_reconcile(void* context) {
++  bar_manager_reconcile_displays(&g_bar_manager);
+ }
+ 
+ static void event_system_will_sleep(void* context) {
+@@ -367,6 +373,7 @@ static callback_type* event_handler[] = {
+   [MENU_BAR_HIDDEN_CHANGED]    = event_menu_bar_hidden_changed,
+   [SYSTEM_WOKE]                = event_system_woke,
+   [SYSTEM_WILL_SLEEP]          = event_system_will_sleep,
++  [DISPLAY_RECONCILE]          = event_display_reconcile,
+   [SHELL_REFRESH]              = event_shell_refresh,
+   [ANIMATOR_REFRESH]           = event_animator_refresh,
+   [MACH_MESSAGE]               = event_mach_message,
+diff --git a/src/event.h b/src/event.h
+index 627acff..18f56e2 100644
+--- a/src/event.h
++++ b/src/event.h
+@@ -31,6 +31,7 @@ enum event_type {
+   SPACE_WINDOWS_CHANGED,
+   DISTRIBUTED_NOTIFICATION,
+   HOTLOAD,
++  DISPLAY_RECONCILE,
+ 
+   INIT_MUTEX,
+   EVENT_TYPE_COUNT
+diff --git a/src/workspace.m b/src/workspace.m
+index 32237f5..5b58988 100644
+--- a/src/workspace.m
++++ b/src/workspace.m
+@@ -190,7 +190,9 @@ CGImageRef workspace_icon_for_app(char* app) {
+ }
+ 
+ - (void)didWake:(NSNotification *)notification {
+-    struct event event = { NULL, SYSTEM_WOKE };
++    // Screen unlock is not a display topology change.
++    bool unlocked = [notification.name isEqualToString:@"com.apple.screenIsUnlocked"];
++    struct event event = { (void*)(intptr_t)unlocked, SYSTEM_WOKE };
+     event_post(&event);
+ }
+ 

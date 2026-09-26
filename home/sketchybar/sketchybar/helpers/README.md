@@ -40,11 +40,20 @@ Home Manager owns SketchyBar, its launchd service and the media/audio CLI packag
 The temporary
 nowplaying-cli 2.1 override can be retired once nixpkgs supplies that adapter.
 
-SketchyBar 2.24.0 has a local patch in `home/sketchybar/unlock.patch`: a screen unlock
-refreshes existing windows, while a real wake and display topology changes
-retain the upstream reset path. The package checks the actual native event
-handler at build time and requires revalidation when the upstream version changes.
-The user confirmed that this removed the lock/unlock freeze on macOS 27.
+SketchyBar 2.24.0 has a local patch in `home/sketchybar/display-reconcile.patch`.
+Upstream destroys and recreates every bar and item window (206 with two
+displays, 0.3 to 0.9 s each) for every display callback and twice per wake,
+inside the CoreGraphics callback that WindowServer waits on. A wake with two
+external displays produced five such rebuilds. The patch coalesces display
+callbacks and wakes into one check 150 ms after the burst, compares the
+active displays and their bounds with those the bars were built for, and
+rebuilds only when they differ. An unchanged layout keeps its windows and is
+refreshed in about 10 ms. For 6 s after a wake, a different layout is treated
+as the transient placeholder macOS shows while it reprobes displays. Behind the
+lock screen an unchanged layout is left untouched, because the unlock that
+follows runs the same check immediately and refreshes it. Each check logs its outcome and
+duration to `service.log`. The package tests the routing and decisions at
+build time and requires revalidation when the upstream version changes.
 
 The service label is `org.nix-community.home.sketchybar`. It runs the immutable
 config directly, writes logs to `$XDG_STATE_HOME/sketchybar/service.log`, and
