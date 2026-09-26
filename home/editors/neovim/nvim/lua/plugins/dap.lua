@@ -63,21 +63,8 @@ return {
       -- Override LazyVim's default <F5> and <leader>dc with the smart version.
       { "<F5>",        smart_continue, desc = "DAP Continue" },
       { "<leader>dc",  smart_continue, desc = "DAP Continue" },
-      -- Reload .vscode/launch.json after editing it without restarting Neovim.
-      {
-        "<leader>dL",
-        function()
-          local ok, vscode = pcall(require, "dap.ext.vscode")
-          if ok then
-            pcall(vscode.load_launchjs, nil, {
-              codelldb = { "c", "cpp", "rust" },
-              python   = { "python" },
-            })
-            vim.notify("launch.json reloaded", vim.log.levels.INFO)
-          end
-        end,
-        desc = "DAP reload launch.json",
-      },
+      -- No launch.json reload key: nvim-dap re-reads .vscode/launch.json on
+      -- every session start, so edits apply without restarting Neovim.
     },
   },
 }
