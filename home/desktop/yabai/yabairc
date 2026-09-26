@@ -8,9 +8,6 @@
 
 sudo yabai --load-sa
 yabai -m signal --add label="load_sa" event=dock_did_restart action="sudo yabai --load-sa"
-# Absolute path: yabai runs under launchd, whose PATH lacks the Nix profile.
-yabai -m signal --add label="sketchybar_focus" event=window_focused \
-    action="/etc/profiles/per-user/$USER/bin/sketchybar --trigger window_focus"
 
 # Closing, minimizing or hiding the focused window can leave no window focused, so
 # keyboard commands would have nothing to act on. Focus the window under the
