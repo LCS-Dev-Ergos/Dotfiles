@@ -91,19 +91,25 @@ Dotfiles/
     ├── linux.nix          # Linux/Wayland-only application imports
     ├── out-of-store-allowlist.tsv
     ├── package-ownership-allowlist.tsv
-    ├── git/                # One folder per tool, each with its own default.nix
-    ├── zsh/
-    └── ...                 # kitty, neovim, tmux, starship, fish, nushell, etc.
+    ├── cli/               # bat, btop, cli-tools, git, lazygit, tealdeer
+    ├── desktop/           # Window managers and bars (platform-only modules)
+    ├── dev/               # Toolchains and per-language tooling
+    ├── editors/           # neovim, doom, zed, vscode
+    ├── file-managers/     # yazi, ranger, nnn, ueberzugpp
+    ├── multiplexers/      # tmux, zellij, herdr
+    ├── ricing/            # fastfetch, neofetch, cava
+    ├── shells/            # zsh, fish, nushell, starship, oh-my-posh, atuin
+    └── terminals/         # kitty, ghostty, wezterm, alacritty
 ```
 
-Each application's Nix glue and its actual config content live together in the same folder, rather than mirroring `$HOME`'s layout the way the old Stow packages did.
+Modules are grouped by category, one folder per tool with its own `default.nix`. A category's `default.nix` imports its cross-platform modules and is imported by `common.nix`; platform-only modules are imported one by one from `darwin.nix` or `linux.nix`, so `desktop/` has no `default.nix`. Each application's Nix glue and its actual config content live together in the same folder, rather than mirroring `$HOME`'s layout the way the old Stow packages did.
 
 ## What's Managed Where
 
 - **`darwin/`** — system-level policy shared by every macOS host: the Homebrew inventory, Nix garbage collection and store optimisation, system fonts, the generated `/etc` entries, and the unfree-package predicate.
 - **`hosts/lcs-macbook-pro/darwin.nix`** — the facts that are true of this Mac and not of a future one: platform, the account mapping Home Manager needs, the login shell, `system.stateVersion`, and the Dock/Finder/trackpad defaults.
 - **`home/`** — per-application Home Manager modules, shared across both hosts where a tool exists on both platforms. Platform-specific behavior is gated with `lib.mkIf pkgs.stdenv.hostPlatform.isDarwin` / `pkgs.stdenv.hostPlatform.isLinux` inside the shared module rather than duplicated per host.
-- **zsh**: everything under `home/zsh/` is Nix/Home Manager-managed, and the login shell is now the Nix `zsh` via `users.users.<name>.shell`, which nix-darwin records as the generation-stable `/run/current-system/sw/bin/zsh`. Homebrew's `zsh` stays declared until that has soaked through real sessions; every stock macOS shell remains in `/etc/shells` for recovery.
+- **zsh**: everything under `home/shells/zsh/` is Nix/Home Manager-managed, and the login shell is now the Nix `zsh` via `users.users.<name>.shell`, which nix-darwin records as the generation-stable `/run/current-system/sw/bin/zsh`. Homebrew's `zsh` stays declared until that has soaked through real sessions; every stock macOS shell remains in `/etc/shells` for recovery.
 
 ## State Boundaries
 
@@ -202,7 +208,7 @@ nix develop .#ci --command bash -euo pipefail -c '
   shellcheck scripts/*.sh scripts/tests/*.sh
 '
 nix flake check --no-build --all-systems --show-trace
-home/zsh/config/tests/run-all.zsh --full
+home/shells/zsh/config/tests/run-all.zsh --full
 git diff --check
 ```
 
