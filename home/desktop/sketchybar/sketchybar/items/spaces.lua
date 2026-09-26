@@ -98,23 +98,14 @@ for i = 1, 10, 1 do
         -- Handle right click to destroy the space
         sbar.exec("command -v yabai >/dev/null 2>&1 && yabai -m space --destroy " .. sid)
       else
-        -- Handle left click to switch space
-        -- Always switch to the space first, regardless of windows
+        -- Handle left click to switch space. The yabai module's space.sh
+        -- (shared with skhd) fades the space in and focuses its frontmost
+        -- window.
         sbar.exec(string.format([[
-          command -v yabai >/dev/null 2>&1 || exit 0
-          yabai -m space --focus %s || exit 0
-          if command -v jq >/dev/null 2>&1; then
-            WINDOW_ID=$(yabai -m query --spaces --space %s | jq -r '.windows[0] // empty')
-          else
-            WINDOW_ID=
-          fi
-          case "$WINDOW_ID" in
-            ''|*[!0-9]* ) exit 0 ;;
-          esac
-          if [ -n "$WINDOW_ID" ]; then
-            yabai -m window --focus "$WINDOW_ID"
-          fi
-        ]], sid, sid))
+          script="$HOME/.config/yabai/space.sh"
+          [ -x "$script" ] || exit 0
+          "$script" focus %s
+        ]], sid))
       end
     end
   end)
