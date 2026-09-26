@@ -5,12 +5,17 @@ local app_icons = require("helpers.app_icons")
 
 local spaces = {}
 
+-- Mission-control indices run across displays, as yabai numbers them. An item
+-- is drawn on the display that holds its space and hidden while that space
+-- does not exist, so every Desktop of every display gets its number.
+local max_spaces = 16
+
 local function valid_space_id(sid)
   sid = tostring(sid or "")
   return sid:match("^%d+$") and sid or nil
 end
 
-for i = 1, 10, 1 do
+for i = 1, max_spaces, 1 do
   local space = sbar.add("space", "space." .. i, {
     space = i,
     icon = {
