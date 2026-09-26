@@ -9,6 +9,7 @@
 }:
 let
   user = lib.escapeShellArg username;
+  screenshots = lib.escapeShellArg "${homeDirectory}/Desktop/Screenshots";
 in
 {
   # The platform this nix-darwin configuration is built for. It comes from the
@@ -51,6 +52,24 @@ in
     ignoreShellProgramCheck = true;
   };
 
+  # Touch ID for sudo through /etc/pam.d/sudo_local, the file macOS updates
+  # leave untouched; reattach keeps it working inside tmux/zellij sessions.
+  security.pam.services.sudo_local = {
+    touchIdAuth = true;
+    reattach = true;
+  };
+
+  # Captured from `scutil --get` on the live system. HostName is left unset,
+  # as it is today, so tools keep deriving it from LocalHostName.
+  networking = {
+    computerName = "LCS.MacBook.Pro";
+    localHostName = "LCSMacBookPro";
+  };
+
+  # Sleep timers stay undeclared: power.sleep.* writes one value for every
+  # power source, while the live pmset profile differs on battery and AC.
+  power.restartAfterFreeze = true;
+
   # nix-darwin does not manage the existing macOS account, so it cannot
   # discover the user's home directory on its own. Home Manager's Darwin
   # integration derives home.username/home.homeDirectory from this record;
@@ -74,11 +93,12 @@ in
     # defaults. Keep this consistent with users.users.${username} above.
     primaryUser = username;
 
+    startup.chime = false;
+
     # These values were captured from `defaults read` on the live system and
-    # confirmed as intentional customizations: Dock, Finder, and trackpad,
-    # plus responsiveness tuning (animation durations and key repeat).
-    # Other non-stock values found in that audit (dark mode and an auto-hidden
-    # menu bar) remain deliberately undeclared because they were not confirmed.
+    # confirmed as intentional customizations: Dock, Finder, trackpad, dark
+    # mode and the auto-hidden menu bar, plus responsiveness tuning (animation
+    # durations and key repeat) and the later workflow additions below.
     #
     # The original system.defaults block was disabled on 2026-07-21 because
     # nix-darwin replayed its `defaults write` operations and Dock/Finder
@@ -90,6 +110,8 @@ in
       _dotfiles_uid="$(/usr/bin/id -u -- "$_dotfiles_user")"
       _dotfiles_restart_dock=0
       _dotfiles_restart_finder=0
+      _dotfiles_restart_systemuiserver=0
+      _dotfiles_restart_windowmanager=0
 
       # --set-home rather than relying on the always_set_home default from
       # darwin/default.nix: that file exists for root-run Nix commands, and
@@ -116,6 +138,8 @@ in
           case "$_dotfiles_process" in
             Dock) _dotfiles_restart_dock=1 ;;
             Finder) _dotfiles_restart_finder=1 ;;
+            SystemUIServer) _dotfiles_restart_systemuiserver=1 ;;
+            WindowManager) _dotfiles_restart_windowmanager=1 ;;
           esac
         fi
       }
@@ -133,22 +157,66 @@ in
 
       # Responsiveness: remove pure waiting delays, shorten (not disable)
       # animations so the UI stays animated but feels snappier.
-      _dotfiles_ensure_default com.apple.dock autohide-delay float 0 0 Dock
-      _dotfiles_ensure_default com.apple.dock autohide-time-modifier float 0.35 0.35 Dock
-      _dotfiles_ensure_default com.apple.dock expose-animation-duration float 0.15 0.15 Dock
+      _dotfiles_ensure_default com.apple.dock autohide-delay float 0.15 0.15 Dock
+      _dotfiles_ensure_default com.apple.dock autohide-time-modifier float 0.45 0.45 Dock
+      _dotfiles_ensure_default com.apple.dock expose-animation-duration float 0.2 0.2 Dock
       _dotfiles_ensure_default com.apple.dock mineffect string scale scale Dock
 
       # Global-domain keys are read at app launch; KeyRepeat and
       # InitialKeyRepeat need a logout. 2 and 15 are the fastest values the
       # Keyboard settings pane itself offers.
       _dotfiles_ensure_default NSGlobalDomain KeyRepeat int 2 2 ""
-      _dotfiles_ensure_default NSGlobalDomain InitialKeyRepeat int 15 15 ""
-      _dotfiles_ensure_default NSGlobalDomain NSWindowResizeTime float 0.1 0.1 ""
-      _dotfiles_ensure_default NSGlobalDomain NSToolbarTitleViewRolloverDelay float 0 0 ""
+      _dotfiles_ensure_default NSGlobalDomain InitialKeyRepeat int 25 25 ""
+      _dotfiles_ensure_default NSGlobalDomain NSWindowResizeTime float 0.15 0.15 ""
+      _dotfiles_ensure_default NSGlobalDomain NSToolbarTitleViewRolloverDelay float 0.2 0.2 ""
 
       _dotfiles_ensure_default com.apple.finder ShowPathbar bool true 1 Finder
       _dotfiles_ensure_default com.apple.finder ShowStatusBar bool false 0 Finder
       _dotfiles_ensure_default com.apple.finder FXPreferredViewStyle string Nlsv Nlsv Finder
+      _dotfiles_ensure_default NSGlobalDomain AppleShowAllExtensions bool true 1 Finder
+      _dotfiles_ensure_default com.apple.finder _FXSortFoldersFirst bool true 1 Finder
+      # Group new windows by Kind, sorted by Name within each group. Column
+      # layout and sort live in the nested StandardViewSettings dictionary,
+      # which is set from Finder's "Use as Defaults" instead of declared here.
+      _dotfiles_ensure_default com.apple.finder FXPreferredGroupBy string Kind Kind Finder
+      _dotfiles_ensure_default com.apple.finder FXArrangeGroupViewBy string Name Name Finder
+      # SCcf: searches start in the current folder instead of "This Mac".
+      _dotfiles_ensure_default com.apple.finder FXDefaultSearchScope string SCcf SCcf Finder
+      _dotfiles_ensure_default com.apple.finder FXEnableExtensionChangeWarning bool false 0 Finder
+      _dotfiles_ensure_default com.apple.desktopservices DSDontWriteNetworkStores bool true 1 ""
+      _dotfiles_ensure_default com.apple.desktopservices DSDontWriteUSBStores bool true 1 ""
+
+      _dotfiles_ensure_default NSGlobalDomain AppleInterfaceStyle string Dark Dark ""
+      _dotfiles_ensure_default NSGlobalDomain _HIHideMenuBar bool true 1 ""
+
+      # Typing: no autocorrect or smart punctuation (it corrupts code and
+      # shell snippets); 2 is the Keyboard navigation toggle on current macOS.
+      _dotfiles_ensure_default NSGlobalDomain NSAutomaticSpellingCorrectionEnabled bool false 0 ""
+      _dotfiles_ensure_default NSGlobalDomain NSAutomaticQuoteSubstitutionEnabled bool false 0 ""
+      _dotfiles_ensure_default NSGlobalDomain NSAutomaticDashSubstitutionEnabled bool false 0 ""
+      _dotfiles_ensure_default NSGlobalDomain AppleKeyboardUIMode int 2 2 ""
+
+      # Ctrl+Cmd+drag moves a window from any point inside it (Cocoa apps).
+      _dotfiles_ensure_default NSGlobalDomain NSWindowShouldDragOnGesture bool true 1 ""
+
+      # Expanded save/print panels; new documents default to local disk.
+      _dotfiles_ensure_default NSGlobalDomain NSNavPanelExpandedStateForSaveMode bool true 1 ""
+      _dotfiles_ensure_default NSGlobalDomain NSNavPanelExpandedStateForSaveMode2 bool true 1 ""
+      _dotfiles_ensure_default NSGlobalDomain PMPrintingExpandedStateForPrint bool true 1 ""
+      _dotfiles_ensure_default NSGlobalDomain PMPrintingExpandedStateForPrint2 bool true 1 ""
+      _dotfiles_ensure_default NSGlobalDomain NSDocumentSaveNewDocumentsToCloud bool false 0 ""
+
+      _dotfiles_ensure_default com.apple.screencapture location string ${screenshots} ${screenshots} SystemUIServer
+      _dotfiles_ensure_default com.apple.screencapture type string png png SystemUIServer
+      _dotfiles_ensure_default com.apple.screencapture disable-shadow bool true 1 SystemUIServer
+
+      # yabai owns tiling: keep macOS from snapping windows dragged to screen
+      # edges or held with Option, and from clearing the desktop on a
+      # wallpaper click.
+      _dotfiles_ensure_default com.apple.WindowManager EnableTilingByEdgeDrag bool false 0 WindowManager
+      _dotfiles_ensure_default com.apple.WindowManager EnableTopTilingByEdgeDrag bool false 0 WindowManager
+      _dotfiles_ensure_default com.apple.WindowManager EnableTilingOptionAccelerator bool false 0 WindowManager
+      _dotfiles_ensure_default com.apple.WindowManager EnableStandardClickToShowDesktop bool false 0 WindowManager
 
       for _dotfiles_trackpad_domain in \
         com.apple.AppleMultitouchTrackpad \
@@ -165,10 +233,17 @@ in
       if [ "$_dotfiles_restart_finder" -eq 1 ]; then
         /usr/bin/killall -q -u "$_dotfiles_user" Finder || true
       fi
+      if [ "$_dotfiles_restart_systemuiserver" -eq 1 ]; then
+        /usr/bin/killall -q -u "$_dotfiles_user" SystemUIServer || true
+      fi
+      if [ "$_dotfiles_restart_windowmanager" -eq 1 ]; then
+        /usr/bin/killall -q -u "$_dotfiles_user" WindowManager || true
+      fi
 
       unset -f _dotfiles_as_user _dotfiles_ensure_default
       unset _dotfiles_user _dotfiles_uid _dotfiles_restart_dock
-      unset _dotfiles_restart_finder _dotfiles_trackpad_domain
+      unset _dotfiles_restart_finder _dotfiles_restart_systemuiserver
+      unset _dotfiles_restart_windowmanager _dotfiles_trackpad_domain
       unset _dotfiles_domain _dotfiles_key _dotfiles_type _dotfiles_value
       unset _dotfiles_expected _dotfiles_process _dotfiles_current
 
