@@ -1,7 +1,7 @@
 { username, ... }:
 {
   # pkgs.yabai becomes the signed fork release for nix-darwin and, through
-  # useGlobalPkgs, for Home Manager (skhd's focus_space.sh refers to it).
+  # useGlobalPkgs, for Home Manager (yabai's space.sh refers to it).
   nixpkgs.overlays = [
     (final: _prev: { yabai = final.callPackage ./yabai-package.nix { }; })
   ];
