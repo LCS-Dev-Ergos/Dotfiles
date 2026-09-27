@@ -8,10 +8,18 @@ CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/fastfetch"
 GENERATOR_SCRIPT="$CONFIG_DIR/scripts/generate-config.sh"
 GENERATED_CONFIG=""
 
+# The generator puts the config alone in a private temporary directory.
 cleanup() {
-  [ -n "${GENERATED_CONFIG:-}" ] && rm -f -- "$GENERATED_CONFIG"
+  if [ -n "${GENERATED_CONFIG:-}" ]; then
+    rm -f -- "$GENERATED_CONFIG"
+    rmdir -- "${GENERATED_CONFIG%/*}" 2>/dev/null || true
+  fi
 }
-trap cleanup EXIT INT TERM
+# A signal handler replaces the default action, so exit explicitly; the EXIT
+# trap then removes the generated config.
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 if [ ! -x "$GENERATOR_SCRIPT" ]; then
   echo "fastfetch-dynamic: missing generator script: $GENERATOR_SCRIPT" >&2
