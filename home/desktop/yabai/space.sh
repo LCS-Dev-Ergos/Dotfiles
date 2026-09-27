@@ -3,10 +3,12 @@
 # operation, so key repeats cannot interleave global opacity configuration.
 # Requires the signed fork's `space --navigate` command.
 yabai="@yabai@"
-# The windows of a Desktop that was hidden start at fade_from and reach their
-# opacity in fade_duration seconds.
-fade_from=0.7
-fade_duration=0.25
+# The whole display crossfades to the Desktop that was hidden in
+# effect_duration seconds. `crossfade` can be replaced with a starting opacity
+# in (0,1] to fade in only the destination's windows instead, over the
+# wallpaper; a duration of 0 switches without an effect.
+effect=crossfade
+effect_duration=0.25
 
 usage() {
   printf 'usage: %s {focus|move} <index|next|prev>\n' "${0##*/}" >&2
@@ -25,4 +27,4 @@ next | prev) ;;
 '' | *[!0-9]*) usage ;;
 esac
 
-exec "$yabai" -m space --navigate "$action" "$selector" "$fade_from" "$fade_duration"
+exec "$yabai" -m space --navigate "$action" "$selector" "$effect" "$effect_duration"
