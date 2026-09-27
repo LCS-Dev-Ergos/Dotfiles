@@ -26,6 +26,10 @@ yabai -m signal --add label="focus_after_hide" event=application_hidden active=y
 # ease_out_cubic spreads the motion over the whole animation. Steeper curves
 # (quint, expo) finish almost at once and then hold yabai's static snapshot of
 # the window until the real one replaces it, which reads as a delay.
+#
+# Focus changes opacity by only 2.5%, too little to see animated. Applying it
+# at once spares the Dock a timed fade for every focus change; Desktop
+# navigation keeps its own fade.
 yabai -m config external_bar all:40:0 \
     mouse_follows_focus off \
     focus_follows_mouse off \
@@ -35,7 +39,7 @@ yabai -m config external_bar all:40:0 \
     window_opacity on \
     active_window_opacity 1.0 \
     normal_window_opacity 0.975 \
-    window_opacity_duration 0.1 \
+    window_opacity_duration 0.0 \
     window_animation_duration 0.2 \
     window_animation_easing ease_out_cubic \
     insert_feedback_color 0xff565f89 \
