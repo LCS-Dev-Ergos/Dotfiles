@@ -78,9 +78,14 @@ for i = 1, max_spaces, 1 do
     }
   })
 
+  -- Every Desktop item receives each change, and each set makes SketchyBar
+  -- redraw. Only the items whose selection changed have anything to set.
+  local was_selected = nil
   space:subscribe("space_change", function(env)
     local selected = env.SELECTED == "true"
-    local color = selected and colors.grey or colors.bg2
+    if selected == was_selected then return end
+    was_selected = selected
+
     space:set({
       icon = { highlight = selected, },
       label = { highlight = selected },
