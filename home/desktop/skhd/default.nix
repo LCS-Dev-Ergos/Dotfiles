@@ -6,5 +6,11 @@
   # bindings call ~/.config/yabai/space.sh from the yabai module.
   xdg.configFile."skhd/skhdrc" = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     source = ./skhdrc;
+    # skhd's hotload watches the store file it resolved at startup, which a
+    # switch never modifies: it only repoints the symlink. Without a reload
+    # the old bindings stay active until the next login.
+    onChange = ''
+      run ${lib.getExe pkgs.skhd} --reload || true
+    '';
   };
 }

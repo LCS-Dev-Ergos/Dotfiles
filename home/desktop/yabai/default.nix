@@ -12,11 +12,10 @@
 
     # Space focus and window moves with a short fade-in, called by skhd and
     # SketchyBar. pkgs.yabai is the signed fork release from
-    # darwin/window-manager.nix; both store paths are substituted via
+    # darwin/window-manager.nix; its store path is substituted via
     # lib.getExe.
     "yabai/space.sh" = {
       source = pkgs.replaceVars ./space.sh {
-        jq = lib.getExe pkgs.jq;
         yabai = lib.getExe pkgs.yabai;
       };
       executable = true;
