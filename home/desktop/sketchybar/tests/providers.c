@@ -106,10 +106,11 @@ static void test_network_counter_restart(void) {
 static void test_format_message(void) {
   char     buffer[64];
   uint32_t length = format_message("--trigger 'a b' c", buffer, sizeof(buffer));
-  assert(length == 16);
+  assert(length == 17);
   assert(strcmp(buffer, "--trigger") == 0);
   assert(strcmp(buffer + 10, "a b") == 0);
   assert(strcmp(buffer + 14, "c") == 0);
+  assert(buffer[length - 2] == '\0' && buffer[length - 1] == '\0');
 }
 
 int main(void) {

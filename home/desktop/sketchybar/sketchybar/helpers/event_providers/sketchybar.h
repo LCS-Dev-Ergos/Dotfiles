@@ -204,7 +204,7 @@ static inline void mach_refresh_port() {
   uint32_t caret          = 0;
   uint32_t message_length = strlen(message) + 1;
 
-  for (uint32_t i = 0; i < message_length && i < buffer_size; ++i) {
+  for (uint32_t i = 0; i < message_length; ++i) {
     if (message[i] == '"' || message[i] == '\'') {
       if (outer_quote && outer_quote == message[i])
         outer_quote = 0;
@@ -213,26 +213,21 @@ static inline void mach_refresh_port() {
       continue;
     }
 
-    // Check for buffer overflow.
-    if (caret >= buffer_size - 1) break;
+    // Leave room for the empty token that terminates the command.
+    if (caret >= buffer_size - 1) return 0;
 
     formatted_message[caret] = message[i];
     if (message[i] == ' ' && !outer_quote) formatted_message[caret] = '\0';
     caret++;
   }
 
-  if (caret > 0 && caret < buffer_size && formatted_message[caret] == '\0'
-      && formatted_message[caret - 1] == '\0') {
-    caret--;
+  // The daemon requires an empty token after the last argument. A trailing
+  // unquoted space already provides it; otherwise append one more NUL.
+  if (caret < 2 || formatted_message[caret - 2] != '\0') {
+    formatted_message[caret++] = '\0';
   }
 
-  // Ensure null termination.
-  if (caret < buffer_size)
-    formatted_message[caret] = '\0';
-  else
-    formatted_message[buffer_size - 1] = '\0';
-
-  return caret + 1;
+  return caret;
 }
 
 /**
