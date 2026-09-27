@@ -1,7 +1,7 @@
 { lib, pkgs, ... }:
 let
-  # Credentials for AI tools, keyed by the environment variable that carries
-  # each one. `ref` is the 1Password reference; `shape` is the value's
+  # Credentials for AI and developer tools, keyed by the environment variable
+  # that carries each one. `ref` is the 1Password reference; `shape` is the value's
   # expected form, checked before anything is handed out. Every shape must
   # stay within [A-Za-z0-9._-]: the helper embeds values in JSON and HTTP
   # headers verbatim, and it re-checks that set on top of the shape.
@@ -22,6 +22,12 @@ let
     KILO_API_KEY = {
       ref = "op://Personal/Kilo API Key/credential";
       shape = "^[A-Za-z0-9_-]+[.][A-Za-z0-9_-]+[.][A-Za-z0-9_-]+$";
+    };
+    # SonarQube MCP server in VS Code (mcp.json), started through
+    # `ai-secret exec SONARQUBE_TOKEN -- docker run -e SONARQUBE_TOKEN ...`.
+    SONARQUBE_TOKEN = {
+      ref = "op://Personal/SonarQube Token/credential";
+      shape = "^(sq[apu]_)?[0-9a-f]{40}$";
     };
   };
 
@@ -98,6 +104,8 @@ let
           'usage: ai-secret get <NAME>        print a credential' \
           '       ai-secret ref <NAME>        print its 1Password reference' \
           '       ai-secret headers <server>  print MCP request headers as JSON' \
+          '       ai-secret exec <NAME>... -- <command> [args]' \
+          '                                   run a command with credentials exported' \
           '       ai-secret list              list credentials and servers' \
           >&2
         exit 64
@@ -177,6 +185,23 @@ let
         read_secret "$secret"
         # shellcheck disable=SC2059 # the format comes from the Nix table.
         printf "$format" "$REPLY"
+        ;;
+      exec)
+        # For consumers that only read the environment. The values reach the
+        # command and its children only, never this script's caller.
+        names=()
+        while (( $# > 0 )) && [[ "$1" != -- ]]; do
+          names+=("$1")
+          shift
+        done
+        (( ''${#names[@]} > 0 && $# >= 2 )) || usage
+        shift
+        for name in "''${names[@]}"; do
+          read_secret "$name"
+          export "$name=$REPLY"
+        done
+        unset REPLY
+        exec "$@"
         ;;
       list)
         (( $# == 0 )) || usage
