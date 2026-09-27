@@ -340,7 +340,10 @@ fabric-list() {
 # process of the wrapper that needs it. A variable already exported under the
 # same name always wins over 1Password.
 #
-#   GITHUB_PAT        GitHub MCP server in Claude Code and OpenCode.
+#   GITHUB_PAT        GitHub MCP server in Claude Code and OpenCode. Claude
+#                     reads it through the github-mcp-headers helper
+#                     (home/cli/github-mcp), which falls back to 1Password
+#                     when Claude is launched without this wrapper.
 #   CONTEXT7_API_KEY  Context7 MCP server in Claude Code and OpenCode.
 #   GEMINI_API_KEY    Gemini CLI v0.41+ with the "gemini-api-key" auth type
 #                     (~/.gemini/settings.json); required by `gemini`.
@@ -352,6 +355,7 @@ fabric-list() {
 #     --vault=Personal --field label=credential,value=<your-key>
 
 # 1Password references; adjust the vault or item name here if they differ.
+# The GITHUB_PAT reference is mirrored in home/cli/github-mcp/default.nix.
 typeset -gA _AI_SECRET_REFS=(
   GITHUB_PAT       "op://Personal/GITHUB_PAT/credential"
   CONTEXT7_API_KEY "op://Personal/CONTEXT7_API_KEY/credential"
