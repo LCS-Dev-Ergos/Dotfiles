@@ -6,6 +6,7 @@ _: {
     ./btop
     ./cli-tools
     ./git
+    ./github-mcp
     ./lazygit
     ./tealdeer
   ];
