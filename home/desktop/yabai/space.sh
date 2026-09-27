@@ -3,8 +3,10 @@
 # operation, so key repeats cannot interleave global opacity configuration.
 # Requires the signed fork's `space --navigate` command.
 yabai="@yabai@"
-fade_from=0.9
-fade_duration=0.15
+# The windows of a Desktop that was hidden start at fade_from and reach their
+# opacity in fade_duration seconds.
+fade_from=0.7
+fade_duration=0.25
 
 usage() {
   printf 'usage: %s {focus|move} <index|next|prev>\n' "${0##*/}" >&2
