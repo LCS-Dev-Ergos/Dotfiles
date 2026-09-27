@@ -22,6 +22,10 @@
 
   # Keep the log files the Homebrew launchd agents used to write.
   launchd.user.agents.yabai.serviceConfig = {
+    # Without a ProcessType, launchd throttles the agent's CPU and I/O, and
+    # every command and event waits on it. yabai's own service file and the
+    # skhd module use Interactive.
+    ProcessType = "Interactive";
     StandardOutPath = "/tmp/yabai_${username}.out.log";
     StandardErrorPath = "/tmp/yabai_${username}.err.log";
   };
