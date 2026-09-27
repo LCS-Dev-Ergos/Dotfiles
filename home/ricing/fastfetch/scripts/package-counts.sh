@@ -2,14 +2,15 @@
 # -----------------------------------------------------------------------------
 # Cross-platform package manager detector for Fastfetch.
 
-set -euo pipefail
+# Written for bash 3.2 as well (macOS's /bin/bash): no associative arrays.
 
-declare -A group_parts
+set -euo pipefail
 
 # Temporary directory for parallel job results with secure permissions.
 tmpdir=$(mktemp -d -t fastfetch-pkg.XXXXXXXXXX)
 chmod 700 "$tmpdir"
-trap 'rm -rf "$tmpdir"' EXIT INT TERM
+trap 'rm -rf "$tmpdir"' EXIT
+trap 'exit 130' INT TERM
 
 # Pacman (Arch) - differentiate official repos from AUR.
 if command -v pacman >/dev/null 2>&1; then
@@ -80,26 +81,60 @@ if command -v snap >/dev/null 2>&1; then
   ) &
 fi
 
-# Nix (user / system / default).
-if command -v nix-env >/dev/null 2>&1 || [ -d /run/current-system/sw/bin ]; then
+# Nix. Each profile is a buildEnv whose direct references are the packages
+# installed into it; a Home Manager profile holds a single home-manager-path
+# env, whose references are the packages. Profiles that resolve to the same
+# store path (~/.nix-profile is often the default profile) count once.
+if command -v nix-store >/dev/null 2>&1; then
   (
+    nix_packages() {
+      local refs env
+      refs=$(nix-store --query --references "$1" 2>/dev/null |
+        grep -v -e '-env-manifest\.nix$' -e '-manifest\.json$' || true)
+      env=$(printf '%s\n' "$refs" | grep -e '-home-manager-path$' || true)
+      if [[ -n "$env" ]]; then
+        # Keep anything else installed beside Home Manager in that profile.
+        refs=$(
+          printf '%s\n' "$refs" | grep -v -e '-home-manager-path$' || true
+          nix-store --query --references "$env" 2>/dev/null || true
+        )
+      fi
+      printf '%s\n' "$refs" | grep -c . || true
+    }
+
+    # Counts per label; a label with several profiles adds them up.
+    seen=" "
+    system_count=0 user_count=0 default_count=0
+    add_profile() {
+      local label="$1" profile="$2" resolved count
+      [[ -e "$profile" ]] || return 0
+      resolved=$(readlink -f "$profile" 2>/dev/null) || return 0
+      case "$seen" in *" $resolved "*) return 0 ;; esac
+      seen="$seen$resolved "
+      count=$(nix_packages "$profile")
+      case "$label" in
+        system) system_count=$((system_count + count)) ;;
+        user) user_count=$((user_count + count)) ;;
+        default) default_count=$((default_count + count)) ;;
+      esac
+      return 0
+    }
+
+    # The default profile goes before the per-user symlinks, which often
+    # point at it, so that it keeps its own label.
+    user=$(id -un 2>/dev/null || echo unknown)
+    add_profile system /run/current-system/sw
+    add_profile user "/etc/profiles/per-user/$user"
+    add_profile default /nix/var/nix/profiles/default
+    add_profile user "${XDG_STATE_HOME:-$HOME/.local/state}/nix/profile"
+    add_profile user "$HOME/.nix-profile"
+
     nix_parts=""
-    # Sanitize USER variable to prevent injection.
-    safe_user=$(id -un 2>/dev/null || echo "unknown")
-    if command -v nix-env >/dev/null 2>&1 && [ -d "/nix/var/nix/profiles/per-user/${safe_user}" ]; then
-      count=$(nix-env -q 2>/dev/null | wc -l | awk '{print $1}')
-      [[ ${count:-0} -gt 0 ]] && nix_parts=" ${count} (nix-user)"
-    fi
-    if [ -d /run/current-system/sw/bin ]; then
-      count=$(find /run/current-system/sw/bin -mindepth 1 -maxdepth 1 -print 2>/dev/null | wc -l | awk '{print $1}')
-      [[ ${count:-0} -gt 0 ]] && nix_parts="${nix_parts}${nix_parts:+,} ${count} (nix-system)"
-    fi
-    if command -v nix-env >/dev/null 2>&1 && [ -e /nix/var/nix/profiles/default ]; then
-      count=$(nix-env -p /nix/var/nix/profiles/default -q 2>/dev/null || true)
-      count=$(printf "%s" "$count" | wc -l | awk '{print $1}')
-      [[ ${count:-0} -gt 0 ]] && nix_parts="${nix_parts}${nix_parts:+,} ${count} (nix-default)"
-    fi
+    ((system_count > 0)) && nix_parts=" ${system_count} (nix-system)"
+    ((user_count > 0)) && nix_parts="${nix_parts}${nix_parts:+,} ${user_count} (nix-user)"
+    ((default_count > 0)) && nix_parts="${nix_parts}${nix_parts:+,} ${default_count} (nix-default)"
     [[ -n "$nix_parts" ]] && echo "$nix_parts" > "$tmpdir/nix"
+    true
   ) &
 fi
 
@@ -107,21 +142,15 @@ fi
 # Ignore non-zero status from individual package manager commands.
 wait || true
 
-# Collect results from temporary files.
+# Collect the non-empty results in a fixed order.
 order=(brew arch dpkg dnf zypper flatpak snap nix)
-for key in "${order[@]}"; do
-  # Validate key is alphanumeric to prevent path traversal.
-  if [[ "$key" =~ ^[a-z]+$ ]] && [[ -f "$tmpdir/$key" ]]; then
-    group_parts[$key]=$(cat "$tmpdir/$key")
-  fi
-done
-
-# Collect all non-empty lines.
 lines=()
 for key in "${order[@]}"; do
-  line="${group_parts[$key]:-}"
-  [[ -z "$line" ]] && continue
-  lines+=("$line")
+  [[ -f "$tmpdir/$key" ]] || continue
+  line=$(cat "$tmpdir/$key")
+  if [[ -n "$line" ]]; then
+    lines+=("$line")
+  fi
 done
 
 # Print multi-line values aligned to the command value column by anchoring
