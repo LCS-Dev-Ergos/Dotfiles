@@ -11,11 +11,11 @@
 # would invalidate the signature.
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "sketchybar";
-  version = "2.24.0-lcs.3";
+  version = "2.24.0-lcs.4";
 
   src = fetchurl {
     url = "https://github.com/LCS-Dev-Ergos/SketchyBar/releases/download/v${finalAttrs.version}/sketchybar-v${finalAttrs.version}.tar.gz";
-    hash = "sha256-dSUzZAlP2NfRtgC+Y+dEzYP3hihh6linAf4D3cKWZVc=";
+    hash = "sha256-tbwZYuTuFx0gPI7VKYcijuGgnF8jJLslcEBozPYPT3M=";
   };
 
   sourceRoot = "archive";
