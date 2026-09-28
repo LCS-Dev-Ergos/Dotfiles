@@ -92,12 +92,13 @@ local function reply(...) commands[#commands][2](...) end
 require("items.widgets.homebrew")
 local brew = items["widgets.brew"]
 assert(brew.props.label.string == "?")
-brew.handlers.brew_update({ outdated_count = "7" })
-brew.handlers.brew_update({})
+local brew_now = tostring(os.time() * 1000)
+brew.handlers.statwell_homebrew({ status = "ok", value_at_unix_ms = brew_now, max_age_ms = "10800000", total = "7" })
+brew.handlers.statwell_homebrew({})
 assert(brew.props.label.string == "7", "empty event must preserve count")
-brew.handlers.brew_update({ outdated_count = "0", error = "Command execution failed" })
+brew.handlers.statwell_homebrew({ status = "error", total = "0" })
 assert(brew.props.label.string == "7!", "failure must not look like zero updates")
-brew.handlers.brew_update({ outdated_count = "0", error = "Success" })
+brew.handlers.statwell_homebrew({ status = "ok", value_at_unix_ms = brew_now, max_age_ms = "10800000", total = "0" })
 assert(brew.props.label.string == "0", "recovery must clear the error")
 
 -- Media: one snapshot at a time, and the cover follows the playback state.
