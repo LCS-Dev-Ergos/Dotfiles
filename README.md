@@ -237,7 +237,7 @@ battery, and Homebrew widgets, plus Kitty's memory, load, disk, and battery
 segments. Its package and Home Manager module are pinned as a flake input.
 See [the migration guide](docs/STATWELL_MIGRATION.md) for activation, live
 checks, Linux limitations, and rollback. The old SketchyBar providers remain
-available until the new widgets pass real-bar verification.
+recoverable from Git history after real-bar verification.
 
 ## Migrating from GNU Stow
 
