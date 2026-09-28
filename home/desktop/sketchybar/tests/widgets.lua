@@ -217,6 +217,7 @@ assert(
 require("items.widgets.cpu")
 local cpu = items["widgets.cpu"]
 local now_ms = tostring(os.time() * 1000)
+assert(require("helpers.statwell").fresh({ status = "ok", value_at_unix_ms = tostring(os.time() * 1000 + 500), max_age_ms = "6000" }))
 cpu.handlers.statwell_cpu({ status = "ok", value_at_unix_ms = now_ms, max_age_ms = "6000", total_percent = "25" })
 assert(cpu.props.label == "cpu 25%" and cpu.last_push[1] == 0.25)
 cpu.handlers.statwell_cpu({ status = "error", value_at_unix_ms = now_ms, max_age_ms = "6000" })
