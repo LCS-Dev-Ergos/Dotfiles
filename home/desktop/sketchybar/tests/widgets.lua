@@ -11,6 +11,7 @@ package.path = root .. "/?.lua;" .. root .. "/?/init.lua;" .. package.path
 package.preload["helpers.runtime"] = function()
   return {
     nowplaying = "/fixture/nowplaying",
+    statwell = "/nix/store/fixture-statwell/bin/statwell",
     python = "/fixture/python",
     audio = "/fixture/audio",
     yabai = "/fixture/yabai",
@@ -45,6 +46,10 @@ local function add_item(name, props)
   function item:set(value)
     self.sets = self.sets + 1
     merge(self.props, value)
+  end
+
+  function item:push(value)
+    self.last_push = value
   end
 
   function item:query()
@@ -206,6 +211,15 @@ assert(
   items["volume.device.0"] and items["volume.device.1"],
   "fresh device list must still populate"
 )
+
+-- CPU: a fresh event updates the graph; stale readings remain unknown.
+require("items.widgets.cpu")
+local cpu = items["widgets.cpu"]
+local now_ms = tostring(os.time() * 1000)
+cpu.handlers.statwell_cpu({ status = "ok", value_at_unix_ms = now_ms, max_age_ms = "6000", total_percent = "25" })
+assert(cpu.props.label == "cpu 25%" and cpu.last_push[1] == 0.25)
+cpu.handlers.statwell_cpu({ status = "error", value_at_unix_ms = now_ms, max_age_ms = "6000" })
+assert(cpu.props.label == "cpu ?%", "failed CPU probe must not become zero")
 
 -- Network: only a changed direction is redrawn.
 require("items.widgets.wifi")
