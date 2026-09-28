@@ -1,26 +1,9 @@
 local icons = require("icons")
 local colors = require("colors")
 local settings = require("settings")
+local statwell = require("helpers.statwell")
 
-local function shell_quote(value)
-  return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
-end
-
-local config_dir = os.getenv("CONFIG_DIR") or os.getenv("HOME") .. "/.config/sketchybar"
-local cpu_provider = config_dir .. "/helpers/event_providers/cpu_load/bin/cpu_load"
-
-local function start_cpu_provider()
-  local script = string.format(
-    "pkill -TERM -f %s >/dev/null 2>&1; %s cpu_update 2.0 >/dev/null 2>&1 &",
-    shell_quote(cpu_provider .. " cpu_update"),
-    shell_quote(cpu_provider)
-  )
-  sbar.exec("/bin/zsh -c " .. shell_quote(script))
-end
-
--- Execute the event provider binary which provides the event "cpu_update" for
--- the cpu load data, which is fired every 2.0 seconds.
-start_cpu_provider()
+statwell.watch("cpu", "statwell_cpu")
 
 local cpu = sbar.add("graph", "widgets.cpu" , 42, {
   position = "right",
@@ -47,9 +30,12 @@ local cpu = sbar.add("graph", "widgets.cpu" , 42, {
   padding_right = settings.paddings + 6
 })
 
-cpu:subscribe("cpu_update", function(env)
-  -- Also available: env.user_load, env.sys_load
-  local load = tonumber(env.total_load) or 0
+cpu:subscribe("statwell_cpu", function(env)
+  local load = statwell.fresh(env) and tonumber(env.total_percent) or nil
+  if not load then
+    cpu:set({ label = "cpu ?%", graph = { color = colors.muted } })
+    return
+  end
   cpu:push({ load / 100. })
 
   local color = colors.blue
@@ -65,7 +51,7 @@ cpu:subscribe("cpu_update", function(env)
 
   cpu:set({
     graph = { color = color },
-    label = "cpu " .. env.total_load .. "%",
+    label = string.format("cpu %.0f%%", load),
   })
 end)
 
