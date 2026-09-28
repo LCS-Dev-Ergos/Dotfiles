@@ -224,17 +224,20 @@ assert(cpu.props.label == "cpu ?%", "failed CPU probe must not become zero")
 -- Network: only a changed direction is redrawn.
 require("items.widgets.wifi")
 local upload, download = items["widgets.wifi1"], items["widgets.wifi2"]
-upload.handlers.network_update({ upload = "000 Bps", download = "001 KBps" })
+local network_zero = { status = "ok", value_at_unix_ms = now_ms, max_age_ms = "6000", upload_bytes_per_second = "0", download_bytes_per_second = "1024" }
+upload.handlers.statwell_network(network_zero)
 local up_sets, down_sets = upload.sets, download.sets
-upload.handlers.network_update({ upload = "000 Bps", download = "001 KBps" })
+upload.handlers.statwell_network(network_zero)
 assert(
   upload.sets == up_sets and download.sets == down_sets,
   "identical network rates need no redraw"
 )
-upload.handlers.network_update({ upload = "002 KBps", download = "001 KBps" })
+upload.handlers.statwell_network({ status = "ok", value_at_unix_ms = now_ms, max_age_ms = "6000", upload_bytes_per_second = "2048", download_bytes_per_second = "1024" })
 assert(
   upload.sets == up_sets + 1 and download.sets == down_sets,
   "redraw only the changed direction"
 )
+upload.handlers.statwell_network({ status = "error" })
+assert(upload.props.label.string == "??? Bps", "network errors must remain unknown")
 
 print("widget callbacks: PASS")
