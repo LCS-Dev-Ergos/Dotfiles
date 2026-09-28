@@ -8,7 +8,7 @@
     home-manager.url = "github:nix-community/home-manager";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
     statwell = {
-      url = "git+https://github.com/LCS-Dev-Ergos/StatWell.git?rev=969db51a22256463510a5a53d8620b63d6c683da";
+      url = "git+https://github.com/LCS-Dev-Ergos/StatWell.git?rev=5213cac858af8ce1b33f2a06578ff334684fdbfe";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.home-manager.follows = "home-manager";
     };
