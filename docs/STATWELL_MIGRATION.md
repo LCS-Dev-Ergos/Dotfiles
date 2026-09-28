@@ -10,7 +10,7 @@ interface or package provider. The Nix update provider is deliberately excluded.
 
 | Surface | StatWell input | Local behavior retained |
 | --- | --- | --- |
-| SketchyBar CPU | `statwell_cpu` watch event | Existing C helper remains packaged for rollback. |
+| SketchyBar CPU | `statwell_cpu` watch event | The old C source remains in Git history for rollback. |
 | SketchyBar Wi-Fi rates | `statwell_network` watch event | Connection details and popup still use the existing Wi-Fi logic. |
 | SketchyBar battery | `statwell_battery` watch event | The popup queries `pmset` for a time estimate on demand. |
 | SketchyBar Homebrew | `statwell_homebrew` watch event | Brew actions remain in `brew_action.sh`; completion restarts the StatWell user service to refresh the count. |
@@ -19,7 +19,8 @@ interface or package provider. The Nix update provider is deliberately excluded.
 The SketchyBar widgets show an unknown value when an event reports an error or
 its timestamp is stale. Kitty checks the schema, file ownership and mode,
 daemon lock, and each metric's timestamp before using the snapshot. The old
-SketchyBar C providers remain packaged until the new widgets pass live checks.
+SketchyBar C providers were removed after CPU, network, battery, and Homebrew
+values appeared on the live bar, and the Homebrew refresh action succeeded.
 
 ## Activation and live checks
 
@@ -57,12 +58,13 @@ therefore also requires Git access to that repository.
 
 For an entire macOS generation, the user can run
 `sudo darwin-rebuild --rollback switch`; see
-[Nix environment guide](NIX_ENVIRONMENT_GUIDE.md#rollback). For one consumer,
-restore its widget or tab-bar source from the pre-migration commit `f489fbd`
-and run the normal build and switch. Restore `brew_action.sh` together with the
-Homebrew widget. Kitty also has the local `USE_STATWELL = False` switch in
-`tab_bar.py`. Keep the old SketchyBar C providers in the package until all
-four real widgets are verified.
+[Nix environment guide](NIX_ENVIRONMENT_GUIDE.md#rollback). To roll back only
+SketchyBar, restore `home/desktop/sketchybar/` from the pre-migration commit
+`f489fbd`, including its native provider sources, build rules, and Brew action,
+then build and switch. To roll back only Kitty, set `USE_STATWELL = False` in
+`home/terminals/kitty/kitty/tab_bar.py`, then build and switch. Git history
+retains the removed C providers; the active StatWell service can remain for the
+other consumer during a one-consumer rollback.
 
 ## Release gate
 

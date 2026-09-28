@@ -46,9 +46,8 @@ let
     hash = "sha256-nfJVICpaw1Q1jChc3feY39vjtS/fLJ3FKVGqOKhyzwA=";
   };
 
-  # Compile all four native helpers in the Nix sandbox, then assemble the
-  # exact config tree SketchyBar expects. The source checkout contains no
-  # architecture-specific binaries; each Darwin host builds its own output.
+  # Compile the native menu helper in the Nix sandbox, then assemble the
+  # exact config tree SketchyBar expects.
   sketchybarConfig = pkgs.stdenv.mkDerivation {
     pname = "sketchybar-config";
     version = "1";
