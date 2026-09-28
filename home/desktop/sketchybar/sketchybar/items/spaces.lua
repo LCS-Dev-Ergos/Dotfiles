@@ -2,6 +2,11 @@ local colors = require("colors")
 local icons = require("icons")
 local settings = require("settings")
 local app_icons = require("helpers.app_icons")
+local runtime = require("helpers.runtime")
+
+local function shell_quote(value)
+  return "'" .. value:gsub("'", "'\\''") .. "'"
+end
 
 local spaces = {}
 
@@ -106,16 +111,17 @@ for i = 1, max_spaces, 1 do
     else
       if env.BUTTON == "right" then
         -- Handle right click to destroy the space
-        sbar.exec("command -v yabai >/dev/null 2>&1 && yabai -m space --destroy " .. sid)
+        sbar.exec(shell_quote(runtime.yabai) .. " -m space --destroy " .. sid)
       else
         -- Handle left click to switch space. The yabai module's space.sh
         -- (shared with skhd) fades the space in and focuses its frontmost
         -- window.
-        sbar.exec(string.format([[
-          script="$HOME/.config/yabai/space.sh"
-          [ -x "$script" ] || exit 0
-          "$script" focus %s
-        ]], sid))
+        sbar.exec(shell_quote(runtime.space_script) .. " focus " .. sid,
+          function(_, code)
+            if code ~= 0 then
+              print("SketchyBar: space focus failed for " .. sid .. " (exit " .. tostring(code) .. ")")
+            end
+          end)
       end
     end
   end)

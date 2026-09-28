@@ -3,4 +3,6 @@ return {
   nowplaying = "@nowplaying@",
   audio = "@switchaudio@",
   python = "@python@",
+  yabai = "@yabai@",
+  space_script = "@space_script@",
 }
