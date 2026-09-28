@@ -75,6 +75,32 @@ class SnapshotReaderTests(unittest.TestCase):
             reader._last_read = float("-inf")
             self.assertEqual(reader.metric("cpu"), {"total_percent": 25.0})
 
+    def test_daemon_replaces_and_reaps_completed_fallback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            executable = root / "statwell"
+            executable.write_text("#!/bin/sh\nprintf '{}\\n'\n")
+            executable.chmod(0o700)
+            runtime = root / "runtime"
+            runtime.mkdir(mode=0o700)
+            reader = SnapshotReader(str(executable), runtime)
+            self.assertIsNone(reader.metric("cpu"))
+            reader._process.wait(timeout=3)
+
+            lock = runtime / "daemon.lock"
+            lock.touch(mode=0o600)
+            snapshot = runtime / "snapshot.json"
+            snapshot.write_text(json.dumps(document()))
+            snapshot.chmod(0o600)
+            fd = os.open(lock, os.O_RDWR)
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX)
+                reader._last_read = float("-inf")
+                self.assertEqual(reader.metric("cpu"), {"total_percent": 25.0})
+                self.assertIsNone(reader._process)
+            finally:
+                os.close(fd)
+
 
 if __name__ == "__main__":
     unittest.main()
