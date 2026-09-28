@@ -1,6 +1,9 @@
 local icons = require("icons")
 local colors = require("colors")
 local settings = require("settings")
+local statwell = require("helpers.statwell")
+
+statwell.watch("battery", "statwell_battery")
 
 local battery = sbar.add("item", "widgets.battery", {
   position = "right",
@@ -10,8 +13,7 @@ local battery = sbar.add("item", "widgets.battery", {
       size = 19.0,
     }
   },
-  label = { width = 42, align = "right", font = { family = settings.font.numbers } },
-  update_freq = 180,
+  label = { string = "?", width = 42, align = "right", font = { family = settings.font.numbers } },
   popup = { align = "center" }
 })
 
@@ -29,65 +31,27 @@ local remaining_time = sbar.add("item", {
   },
 })
 
-local battery_update_generation = 0
+-- The popup's time estimate still uses pmset on click; the drawn status uses
+-- the shared daemon's charge and power readings.
+battery:subscribe("statwell_battery", function(env)
+  local charge = statwell.fresh(env) and tonumber(env.percent) or nil
+  if not charge or charge < 0 or charge > 100 then
+    battery:set({ icon = { string = "!", color = colors.red }, label = { string = "?" } })
+    return
+  end
 
-local function update_battery()
-  sbar.exec("pmset -g batt", function(batt_info)
-    local icon = "!"
-    local label = "?"
-
-    local found, _, charge = batt_info:find("(%d+)%%")
-    if found then
-      charge = tonumber(charge)
-      label = charge .. "%"
-    end
-
-    local color = colors.green
-    local charging, _, _ = batt_info:find("AC Power")
-
-    if charging then
-      icon = icons.battery.charging
-    else
-      if found and charge > 80 then
-        icon = icons.battery._100
-      elseif found and charge > 60 then
-        icon = icons.battery._75
-      elseif found and charge > 40 then
-        icon = icons.battery._50
-      elseif found and charge > 20 then
-        icon = icons.battery._25
-        color = colors.orange
-      else
-        icon = icons.battery._0
-        color = colors.red
-      end
-    end
-
-    local lead = ""
-    if found and charge < 10 then
-      lead = "0"
-    end
-
-    battery:set({
-      icon = {
-        string = icon,
-        color = color
-      },
-      label = { string = lead .. label },
-    })
-  end)
-end
-
-battery:subscribe({"routine", "power_source_change"}, update_battery)
-
-battery:subscribe("system_woke", function()
-  battery_update_generation = battery_update_generation + 1
-  local generation = battery_update_generation
-
-  sbar.delay(2, function()
-    if generation ~= battery_update_generation then return end
-    update_battery()
-  end)
+  local icon, color = icons.battery.charging, colors.green
+  if env.external_power ~= "true" and env.charging ~= "true" then
+    if charge > 80 then icon = icons.battery._100
+    elseif charge > 60 then icon = icons.battery._75
+    elseif charge > 40 then icon = icons.battery._50
+    elseif charge > 20 then icon, color = icons.battery._25, colors.orange
+    else icon, color = icons.battery._0, colors.red end
+  end
+  battery:set({
+    icon = { string = icon, color = color },
+    label = { string = string.format("%02d%%", charge) },
+  })
 end)
 
 battery:subscribe("mouse.clicked", function(env)
