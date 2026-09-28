@@ -69,6 +69,16 @@ tests, and full Darwin generation build pass. The user has not yet switched to
 this audit-corrected generation, so the live observations above describe the
 preceding generation.
 
+A subsequent Homebrew refresh exposed a brief misleading `1!` in red while
+`brew outdated --json=v2` reported two updates. A live restart reproduced the
+same status path: the new daemon publishes `unavailable` before its first
+Homebrew result, and the Lua widget treated that pending state as a failed
+check with the prior count. The widget now shows a muted `?` during that
+interval and still marks a completed failed check in red. The Homebrew check
+has a 30-second deadline on macOS: an observed successful probe took 8.2
+seconds, near the previous 10-second limit. These changes are staged for the
+next switch.
+
 The Linux Home Manager output evaluates, but this repository has no live
 `lcs-legion-arch` build or switch evidence. Its systemd user service and Kitty
 tab bar require checks on that host before claiming Linux migration complete.

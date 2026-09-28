@@ -70,10 +70,17 @@ local brew = sbar.add("item", CONFIG.widget_name, {
 })
 
 -- A missing payload is not a successful zero. Keep the last valid count and
--- distinguish a failed check from an empty list of outdated packages.
+-- distinguish a pending refresh from a failed package check.
 local last_count = nil
 brew:subscribe("statwell_homebrew", function(env)
   if not env.status then return end
+  if env.status == "unavailable" then
+    brew:set({
+      icon = { color = colors.muted },
+      label = { string = "?", color = colors.muted },
+    })
+    return
+  end
   local failed = not statwell.fresh(env)
   local count = tonumber(env.total)
   if failed then
