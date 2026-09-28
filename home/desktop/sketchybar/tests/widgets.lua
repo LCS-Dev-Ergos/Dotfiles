@@ -221,6 +221,14 @@ assert(cpu.props.label == "cpu 25%" and cpu.last_push[1] == 0.25)
 cpu.handlers.statwell_cpu({ status = "error", value_at_unix_ms = now_ms, max_age_ms = "6000" })
 assert(cpu.props.label == "cpu ?%", "failed CPU probe must not become zero")
 
+-- Battery: charge comes from StatWell; errors never display as zero percent.
+require("items.widgets.battery")
+local battery = items["widgets.battery"]
+battery.handlers.statwell_battery({ status = "ok", value_at_unix_ms = now_ms, max_age_ms = "90000", percent = "8", charging = "false", external_power = "false" })
+assert(battery.props.label.string == "08%", "battery charge comes from StatWell")
+battery.handlers.statwell_battery({ status = "error" })
+assert(battery.props.label.string == "?", "failed battery probe must not become zero")
+
 -- Network: only a changed direction is redrawn.
 require("items.widgets.wifi")
 local upload, download = items["widgets.wifi1"], items["widgets.wifi2"]
