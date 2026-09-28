@@ -21,7 +21,9 @@ function M.fresh(env)
   local max_age = tonumber(env.max_age_ms)
   if not value_at or not max_age or value_at <= 0 or max_age <= 0 then return false end
   local now = os.time() * 1000
-  return now >= value_at and now - value_at <= max_age
+  -- os.time has one-second resolution; a sample from this second may appear
+  -- slightly ahead of the rounded clock used by Lua.
+  return value_at <= now + 999 and now - value_at <= max_age
 end
 
 function M.rate(bytes)
