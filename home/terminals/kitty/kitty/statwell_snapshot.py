@@ -62,13 +62,10 @@ class SnapshotReader:
         document = self._daemon_snapshot()
         if document is not None:
             if self._process is not None:
-                if self._process.poll() is not None:
-                    self._process.communicate()
-                    self._process = None
-                elif now - self._process_started > FALLBACK_TIMEOUT:
+                if self._process.poll() is None:
                     self._process.kill()
-                    self._process.communicate()
-                    self._process = None
+                self._process.communicate()
+                self._process = None
             self._document = document
             self._from_daemon = True
             return document
