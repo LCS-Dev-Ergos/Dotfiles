@@ -59,10 +59,22 @@ reader returns fresh memory, load, disk, and battery values. Visual inspection
 of the tab bar and battery popup was confirmed by the user after restarting
 Kitty.
 
+The subsequent StatWell audit found and fixed a stalled-daemon case: a watcher
+now sends one expiry event when an unchanged sample becomes stale. StatWell
+[PR #2](https://github.com/LCS-Dev-Ergos/StatWell/pull/2) merged as
+`5213cac858af8ce1b33f2a06578ff334684fdbfe`; its Linux and macOS CI
+passes. Kitty now stops an in-flight one-shot fallback immediately on daemon
+recovery. The updated pin, both-host flake evaluation, Kitty and SketchyBar
+tests, and full Darwin generation build pass. The user has not yet switched to
+this audit-corrected generation, so the live observations above describe the
+preceding generation.
+
 The Linux Home Manager output evaluates, but this repository has no live
 `lcs-legion-arch` build or switch evidence. Its systemd user service and Kitty
 tab bar require checks on that host before claiming Linux migration complete.
-The user deferred that live gate until the host is available.
+The user confirmed that the host is not physically available today. Current
+Dotfiles commits are also ahead of the remote `main`, so the deployment path
+for that host must carry this branch before the switch.
 The pinned StatWell input uses authenticated Git transport because GitHub's
 archive endpoint returned 404 for the private repository. Linux deployment
 therefore also requires Git access to that repository.
