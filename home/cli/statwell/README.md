@@ -1,0 +1,69 @@
+# StatWell Consumers
+
+StatWell is the status sampler shared by the macOS and Linux Home Manager
+configurations. Its package is pinned as a flake input, and this module
+configures the shared user service. On macOS the service samples `en0` and
+enables the Homebrew provider; on Linux it has no fixed network interface or
+package provider. The Nix update provider is excluded.
+
+The input is fetched over Git (`git+https`) at a pinned revision, so
+evaluation needs read access to the StatWell repository.
+
+## Consumers
+
+| Surface | StatWell input | Local behavior |
+| --- | --- | --- |
+| SketchyBar CPU | `statwell_cpu` watch event | The previous C helper remains packaged for rollback. |
+| SketchyBar Wi-Fi rates | `statwell_network` watch event | Connection details and the popup use the existing Wi-Fi logic. |
+| SketchyBar battery | `statwell_battery` watch event | The popup queries `pmset` for a time estimate on demand. |
+| SketchyBar Homebrew | `statwell_homebrew` watch event | Brew actions remain in `brew_action.sh`; completion restarts the StatWell user service to refresh the count. |
+| Kitty tab bar | Owner-only `snapshot.json` | A missing daemon triggers an asynchronous one-shot snapshot, at most once per five seconds. `USE_STATWELL = False` restores the legacy sampler. |
+
+The SketchyBar widgets show an unknown value when an event reports an error or
+its timestamp is stale. Kitty checks the schema, file ownership and mode, the
+daemon lock and each metric's timestamp before using the snapshot. The legacy
+SketchyBar C providers remain packaged as a fallback.
+
+## Activation and Checks
+
+Build, then switch:
+
+```bash
+nix build .#darwinConfigurations.LCSMacBook-Pro.system --no-link
+sudo darwin-rebuild switch --flake .#LCSMacBook-Pro
+```
+
+After the switch, check the user service and take a snapshot:
+
+```bash
+launchctl print "user/$(id -u)/org.nix-community.home.statwell"
+statwell snapshot
+```
+
+Reload SketchyBar and inspect CPU, upload and download rates, battery and the
+Homebrew count on the bar. Let at least one sample interval elapse, then stop
+the service briefly to check the stale and error presentation and the recovery.
+Check the battery popup estimate and a Homebrew refresh action separately. Open
+a new Kitty tab and inspect the memory, load, disk and battery segments, then
+reload the tab bar and repeat while the daemon is unavailable to exercise the
+one-shot fallback. Ordinary redraws must not spawn probes.
+
+On Linux, the systemd user service and the Kitty tab bar take the same checks
+after a Home Manager switch.
+
+## Rollback
+
+`sudo darwin-rebuild switch --rollback` returns to the previous macOS
+generation. To roll back one consumer, restore its widget or tab-bar source
+from the pre-migration commit `4f76c39` and run the normal build and switch.
+Restore `brew_action.sh` together with the Homebrew widget. Kitty also has the
+local `USE_STATWELL = False` switch in `tab_bar.py`. The package keeps the
+legacy SketchyBar C providers for this rollback.
+
+## Release Gate
+
+This consumer integration precedes StatWell's first stable release. Before
+that release,
+[StatWell's release audit plan](https://github.com/LCS-Dev-Ergos/StatWell/blob/main/docs/release-audit.md)
+requires a security, correctness, robustness and performance audit, including
+measured daemon idle CPU and RSS and sample latency.
