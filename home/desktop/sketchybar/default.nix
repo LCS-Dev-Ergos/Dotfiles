@@ -8,6 +8,7 @@
 let
   sketchybar = pkgs.callPackage ./package.nix { };
   nowplaying = pkgs.callPackage ../../cli/cli-tools/nowplaying-cli.nix { };
+  statwell = config.services.statwell.package;
   sbarLua = pkgs.stdenv.mkDerivation {
     pname = "sbarlua";
     version = "unstable-2026-03-06";
@@ -70,6 +71,7 @@ let
         --replace-fail '#!/usr/bin/env lua' '#!${sbarLua}/bin/lua'
       substituteInPlace "$out/helpers/runtime.lua" \
         --replace-fail '@nowplaying@' '${nowplaying}/bin/nowplaying-cli' \
+        --replace-fail '@statwell@' '${lib.getExe statwell}' \
         --replace-fail '@switchaudio@' '${pkgs.switchaudio-osx}/bin/SwitchAudioSource' \
         --replace-fail '@python@' '${pkgs.python3}/bin/python3' \
         --replace-fail '@yabai@' '${lib.getExe pkgs.yabai}' \
