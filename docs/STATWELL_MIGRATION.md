@@ -56,11 +56,13 @@ show values for all four migrated widgets. A middle-click Homebrew refresh
 restarted the service and restored the count; no old C provider processes
 remain. Kitty's active configuration was reloaded, and its deployed snapshot
 reader returns fresh memory, load, disk, and battery values. Visual inspection
-of the tab bar and battery popup is still pending.
+of the tab bar and battery popup was confirmed by the user after restarting
+Kitty.
 
 The Linux Home Manager output evaluates, but this repository has no live
 `lcs-legion-arch` build or switch evidence. Its systemd user service and Kitty
 tab bar require checks on that host before claiming Linux migration complete.
+The user deferred that live gate until the host is available.
 The pinned StatWell input uses authenticated Git transport because GitHub's
 archive endpoint returned 404 for the private repository. Linux deployment
 therefore also requires Git access to that repository.
