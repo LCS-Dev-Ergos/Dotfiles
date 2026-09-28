@@ -24,6 +24,10 @@ its timestamp is stale. Kitty checks the schema, file ownership and mode, the
 daemon lock and each metric's timestamp before using the snapshot. The legacy
 SketchyBar C providers are no longer packaged; Git history retains them.
 
+When an unchanged sample becomes stale, the watcher sends one expiry event, so
+a stalled daemon turns the widgets unknown. Kitty stops an in-flight one-shot
+fallback as soon as the daemon recovers.
+
 ## Activation and Checks
 
 Build, then switch:
