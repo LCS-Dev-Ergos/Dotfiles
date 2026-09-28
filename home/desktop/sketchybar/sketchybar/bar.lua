@@ -3,8 +3,8 @@ local colors = require("colors")
 -- Equivalent to the --bar domain
 sbar.bar({
   position = "top",
-  -- Keep MenuBarAgent from intercepting clicks above the visible widgets.
-  topmost = "on",
+  -- Let the native menu bar appear over SketchyBar when revealed.
+  topmost = "window",
   height = 40,
   color = colors.bar.bg,
   padding_right = 2,
