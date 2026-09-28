@@ -9,7 +9,13 @@
 local root = assert(arg[1], "usage: lua widgets.lua <sketchybar-config-dir>")
 package.path = root .. "/?.lua;" .. root .. "/?/init.lua;" .. package.path
 package.preload["helpers.runtime"] = function()
-  return { nowplaying = "/fixture/nowplaying", python = "/fixture/python", audio = "/fixture/audio" }
+  return {
+    nowplaying = "/fixture/nowplaying",
+    python = "/fixture/python",
+    audio = "/fixture/audio",
+    yabai = "/fixture/yabai",
+    space_script = "/fixture/space.sh",
+  }
 end
 
 -- Items by creation order and by name, plus every `sbar.exec` call as
@@ -141,6 +147,10 @@ assert(#commands == before, "do not poll during sleep")
 
 -- Spaces: window-event bursts coalesce, and nothing redraws while locked.
 require("items.spaces")
+items["space.1"].handlers["mouse.clicked"]({ BUTTON = "left", SID = "12" })
+assert(commands[#commands][1] == "'/fixture/space.sh' focus 12", "space click uses the managed script")
+items["space.1"].handlers["mouse.clicked"]({ BUTTON = "right", SID = "12" })
+assert(commands[#commands][1] == "'/fixture/yabai' -m space --destroy 12", "space menu uses managed yabai")
 local spaces_observer
 for _, item in ipairs(items) do
   if item.handlers.space_windows_change then spaces_observer = item end
