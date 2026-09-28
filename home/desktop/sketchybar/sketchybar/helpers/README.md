@@ -1,10 +1,10 @@
 # SketchyBar Helper Ownership
 
-The top-level `makefile` builds four native helpers: `menus`, `brew_check`,
-`cpu_load`, and `network_load`. Home Manager runs that build in the pinned Nix
-environment and places the results at the relative `helpers/**/bin` paths used
-by the Lua configuration. Generated binaries remain ignored in the checkout;
-manual compilation is useful for development, but is not part of deployment.
+The top-level `makefile` builds the native `menus` helper. Home Manager runs
+that build in the pinned Nix environment and places the result at the relative
+`helpers/menus/bin` path used by the Lua configuration. Generated binaries
+remain ignored in the checkout; manual compilation is useful for development,
+but is not part of deployment.
 
 SbarLua and its Lua interpreter are built from the same pinned `sbarlua` input.
 The build verifies dynamic module loading and substitutes the interpreter and
@@ -18,11 +18,12 @@ seconds. Artwork is resized to 32 pixels and cached under
 `$XDG_CACHE_HOME/sketchybar/media` (default `~/.cache/sketchybar/media`), keeping
 two covers. No state is written into the configuration or Nix store.
 
-`brew_check` reads the count every five minutes, independently of hourly
-metadata updates. stderr stays in its log; errors are visible in the widget.
-`brew_action.sh` signals the helper from inside the terminal after the brew
-command finishes. Left click lists updates, right click upgrades, and the
-middle button refreshes the count.
+StatWell supplies CPU, network rates, battery, and Homebrew events to the bar.
+The old event-provider C daemons are removed; Git history retains their
+rollback source.
+`brew_action.sh` restarts the StatWell user service after a Brew command.
+Left click lists updates, right click upgrades, and the middle button refreshes
+the count.
 
 The terminal launch passes the quoted helper command as Ghostty's single
 `--initial-command=...` option. Positional script paths after `-e` can reach

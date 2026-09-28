@@ -13,7 +13,7 @@ evaluation needs read access to the StatWell repository.
 
 | Surface | StatWell input | Local behavior |
 | --- | --- | --- |
-| SketchyBar CPU | `statwell_cpu` watch event | The previous C helper remains packaged for rollback. |
+| SketchyBar CPU | `statwell_cpu` watch event | The previous C source remains in Git history for rollback. |
 | SketchyBar Wi-Fi rates | `statwell_network` watch event | Connection details and the popup use the existing Wi-Fi logic. |
 | SketchyBar battery | `statwell_battery` watch event | The popup queries `pmset` for a time estimate on demand. |
 | SketchyBar Homebrew | `statwell_homebrew` watch event | Brew actions remain in `brew_action.sh`; completion restarts the StatWell user service to refresh the count. |
@@ -22,7 +22,7 @@ evaluation needs read access to the StatWell repository.
 The SketchyBar widgets show an unknown value when an event reports an error or
 its timestamp is stale. Kitty checks the schema, file ownership and mode, the
 daemon lock and each metric's timestamp before using the snapshot. The legacy
-SketchyBar C providers remain packaged as a fallback.
+SketchyBar C providers are no longer packaged; Git history retains them.
 
 ## Activation and Checks
 
@@ -54,11 +54,12 @@ after a Home Manager switch.
 ## Rollback
 
 `sudo darwin-rebuild switch --rollback` returns to the previous macOS
-generation. To roll back one consumer, restore its widget or tab-bar source
-from the pre-migration commit `4f76c39` and run the normal build and switch.
-Restore `brew_action.sh` together with the Homebrew widget. Kitty also has the
-local `USE_STATWELL = False` switch in `tab_bar.py`. The package keeps the
-legacy SketchyBar C providers for this rollback.
+generation. To roll back only SketchyBar, restore `home/desktop/sketchybar/`
+from the pre-migration commit `4f76c39`, including its native provider sources,
+build rules and Brew action, then build and switch. To roll back only Kitty, set
+`USE_STATWELL = False` in `home/terminals/kitty/kitty/tab_bar.py`, then build
+and switch. The StatWell service can stay active for the other consumer during
+a one-consumer rollback.
 
 ## Release Gate
 
