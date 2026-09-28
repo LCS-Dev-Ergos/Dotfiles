@@ -10,11 +10,11 @@
 # because any fixup would invalidate the signature.
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "yabai";
-  version = "7.1.25-lcs.24";
+  version = "7.1.25-lcs.25";
 
   src = fetchurl {
     url = "https://github.com/LCS-Dev-Ergos/yabai/releases/download/v${finalAttrs.version}/yabai-v${finalAttrs.version}.tar.gz";
-    hash = "sha256-4NwNfW+oggww3H7XhLQ37yU/keIBWJrWU+WylZvD4DY=";
+    hash = "sha256-Ee6FW/q0OU4rM6wtezMFeZ80ok8Vs3bQt5d8qYcuNOc=";
   };
 
   sourceRoot = "archive";
