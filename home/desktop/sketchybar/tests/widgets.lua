@@ -88,11 +88,19 @@ sbar = {
 --- @param ... any Arguments for the command's callback.
 local function reply(...) commands[#commands][2](...) end
 
--- Homebrew: the count survives empty events and errors stay visible.
+-- Homebrew: a daemon restart is pending, not a failed package check.
 require("items.widgets.homebrew")
 local brew = items["widgets.brew"]
 assert(brew.props.label.string == "?")
 local brew_now = tostring(os.time() * 1000)
+brew.handlers.statwell_homebrew({ status = "ok", value_at_unix_ms = brew_now, max_age_ms = "10800000", total = "1" })
+brew.handlers.statwell_homebrew({ status = "unavailable" })
+assert(brew.props.label.string == "?", "pending refresh must not show a stale 1!")
+assert(brew.props.label.color == require("colors").muted, "pending refresh must not look like an error")
+brew.handlers.statwell_homebrew({ status = "ok", value_at_unix_ms = brew_now, max_age_ms = "10800000", total = "2" })
+assert(brew.props.label.string == "2", "completed refresh must show the new count")
+
+-- Empty events preserve the count; actual failures stay visible.
 brew.handlers.statwell_homebrew({ status = "ok", value_at_unix_ms = brew_now, max_age_ms = "10800000", total = "7" })
 brew.handlers.statwell_homebrew({})
 assert(brew.props.label.string == "7", "empty event must preserve count")

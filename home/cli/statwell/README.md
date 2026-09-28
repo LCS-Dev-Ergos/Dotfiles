@@ -28,6 +28,10 @@ When an unchanged sample becomes stale, the watcher sends one expiry event, so
 a stalled daemon turns the widgets unknown. Kitty stops an in-flight one-shot
 fallback as soon as the daemon recovers.
 
+Before the daemon publishes its first Homebrew result, the Homebrew widget
+shows a muted `?`; a completed failed check is marked in red. The Homebrew
+check has a 30-second deadline on macOS.
+
 ## Activation and Checks
 
 Build, then switch:
