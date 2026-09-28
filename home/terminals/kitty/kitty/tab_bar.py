@@ -22,8 +22,12 @@ import os
 import re
 import socket
 import subprocess
+import sys
 import time
 from typing import NamedTuple
+
+sys.path.insert(0, os.path.dirname(__file__))
+from statwell_snapshot import SnapshotReader
 
 from kitty.boss import get_boss
 from kitty.constants import is_macos
@@ -113,6 +117,8 @@ LOAD_TTL = 5.0  # seconds between load average samples
 DISK_TTL = 60.0  # seconds between free space samples
 PROBE_TIMEOUT = 10.0  # seconds before a stuck probe command is killed
 DISK_PATH = os.path.expanduser("~")  # the volume whose free space is shown
+STATWELL_BIN = "@statwell@"  # replaced with the managed executable at build time
+USE_STATWELL = True  # set false for a one-consumer rollback before the next switch
 BADGE_MAX = 20  # cells for the session or mode label
 COMPACT_BADGE_BELOW = 60  # bar width, in cells, under which the badge is icon-only
 STATUS_GAP = 2  # minimum blank cells between the last tab and the status
@@ -376,6 +382,51 @@ def _draw_tab_body(
 # =====----- Samplers ---------------------------------------------------===== #
 
 
+class MetricSampler:
+    """Adapt a validated shared metric to the tab bar's segment interface."""
+
+    def __init__(self, name, transform) -> None:
+        self.name = name
+        self.transform = transform
+
+    def get(self):
+        value = _snapshot.metric(self.name)
+        if value is None:
+            return None
+        try:
+            return self.transform(value)
+        except (KeyError, TypeError, ValueError, ZeroDivisionError):
+            return None
+
+
+def _statwell_memory(value):
+    used = int(value["used_bytes"])
+    available = int(value["available_bytes"])
+    pressure = value["pressure"]
+    severity = {"warning": 1, "critical": 2}.get(pressure, 0)
+    return f"{_size(used)} used · {_size(available)} free", severity
+
+
+def _statwell_load(value):
+    load = float(value["one_minute"])
+    per_core = load / (os.cpu_count() or 1)
+    return f"{load:.1f}", 2 if per_core >= 1.0 else 1 if per_core >= 0.7 else 0
+
+
+def _statwell_disk(value):
+    available = int(value["available_bytes"])
+    total = int(value["total_bytes"])
+    ratio = available / total
+    return f"{_size(available)} free", 2 if ratio < 0.05 else 1 if ratio < 0.15 else 0
+
+
+def _statwell_battery(value):
+    percent = int(value["percent"])
+    if not 0 <= percent <= 100:
+        raise ValueError("invalid battery percent")
+    return percent, value["external_power"] or value["charging"]
+
+
 class Sampler:
     """The latest result of a probe, refreshed at most every ttl seconds.
 
@@ -520,8 +571,14 @@ def _read_sysfs_battery() -> tuple[int, bool] | None:
     return None
 
 
-# macOS answers through vm_stat, sysctl and pmset; Linux reads /proc and /sys.
-if is_macos:
+# Keep the old samplers as an explicit rollback until both tab bars are checked.
+if USE_STATWELL:
+    _snapshot = SnapshotReader(STATWELL_BIN)
+    _memory = MetricSampler("memory", _statwell_memory)
+    _battery = MetricSampler("battery", _statwell_battery)
+    _load = MetricSampler("load", _statwell_load)
+    _disk = MetricSampler("disk", _statwell_disk)
+elif is_macos:
     _memory = Sampler(
         _parse_macos_memory,
         MEMORY_TTL,
@@ -535,8 +592,9 @@ if is_macos:
 else:
     _memory = Sampler(_read_linux_memory, MEMORY_TTL)
     _battery = Sampler(_read_sysfs_battery, BATTERY_TTL)
-_load = Sampler(_read_load, LOAD_TTL)
-_disk = Sampler(_read_disk, DISK_TTL)
+if not USE_STATWELL:
+    _load = Sampler(_read_load, LOAD_TTL)
+    _disk = Sampler(_read_disk, DISK_TTL)
 
 
 # =====----- Status -----------------------------------------------------===== #
@@ -550,7 +608,7 @@ class Segment(NamedTuple):
 
 
 def _sampled_segment(
-    sampler: Sampler, icon: str, fg: int, priority: int, pal: Palette
+    sampler: Sampler | MetricSampler, icon: str, fg: int, priority: int, pal: Palette
 ) -> Segment | None:
     sample = sampler.get()
     if sample is None:
