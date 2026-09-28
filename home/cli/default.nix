@@ -8,6 +8,7 @@ _: {
     ./cli-tools
     ./git
     ./lazygit
+    ./statwell
     ./tealdeer
   ];
 }
