@@ -47,6 +47,17 @@ fresh Kitty tab and inspect memory, load, disk, and battery segments, then
 reload the tab bar and repeat while the daemon is unavailable to exercise the
 one-shot fallback. Confirm that ordinary redraws do not spawn probes.
 
+## Verification status, 2026-09-28
+
+The user activated the Darwin generation after a full build. The StatWell
+launch agent is running and its snapshot reports `ok` for CPU, memory, load,
+disk, battery, network, and Homebrew. Queries against the running SketchyBar
+show values for all four migrated widgets. A middle-click Homebrew refresh
+restarted the service and restored the count; no old C provider processes
+remain. Kitty's active configuration was reloaded, and its deployed snapshot
+reader returns fresh memory, load, disk, and battery values. Visual inspection
+of the tab bar and battery popup is still pending.
+
 The Linux Home Manager output evaluates, but this repository has no live
 `lcs-legion-arch` build or switch evidence. Its systemd user service and Kitty
 tab bar require checks on that host before claiming Linux migration complete.
