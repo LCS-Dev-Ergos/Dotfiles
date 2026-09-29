@@ -94,8 +94,12 @@ after 30 seconds instead of retaining the error for the hourly cadence.
 [StatWell PR #3](https://github.com/LCS-Dev-Ergos/StatWell/pull/3) merged as
 `878b604603b7cc8d0ee656d6a8e514173468cee0`; both Linux and macOS CI
 passed. The updated Dotfiles pin, widget tests, both-host evaluation, and full
-Darwin build pass. Switch this generation, verify both widgets, then reboot
-and verify the agent loads automatically in `gui/$(id -u)`.
+Darwin build pass. The new generation was activated on 2026-09-29. The live
+service is running in `gui/501`, all seven snapshot metrics report `ok`, and
+network and Homebrew widgets show real values. A controlled eight-second
+service stop left both widgets on valid one-shot fallback readings; after
+bootstrap, the service and both snapshot metrics returned to `ok`.
+A full reboot is still needed to confirm automatic loading at login.
 
 The Linux Home Manager output evaluates, but this repository has no live
 `lcs-legion-arch` build or switch evidence. Its systemd user service and Kitty
