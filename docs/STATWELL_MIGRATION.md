@@ -65,9 +65,8 @@ now sends one expiry event when an unchanged sample becomes stale. StatWell
 `5213cac858af8ce1b33f2a06578ff334684fdbfe`; its Linux and macOS CI
 passes. Kitty now stops an in-flight one-shot fallback immediately on daemon
 recovery. The updated pin, both-host flake evaluation, Kitty and SketchyBar
-tests, and full Darwin generation build pass. The user has not yet switched to
-this audit-corrected generation, so the live observations above describe the
-preceding generation.
+tests, and full Darwin generation build pass. The user switched to this
+audit-corrected generation on 2026-09-28.
 
 A subsequent Homebrew refresh exposed a brief misleading `1!` in red while
 `brew outdated --json=v2` reported two updates. A live restart reproduced the
@@ -76,8 +75,17 @@ Homebrew result, and the Lua widget treated that pending state as a failed
 check with the prior count. The widget now shows a muted `?` during that
 interval and still marks a completed failed check in red. The Homebrew check
 has a 30-second deadline on macOS: an observed successful probe took 8.2
-seconds, near the previous 10-second limit. These changes are staged for the
-next switch.
+seconds, near the previous 10-second limit. The user activated these changes
+on 2026-09-28; a live refresh showed `2` → muted `?` → `2`.
+
+On 2026-09-29, both network labels showed `??? Bps`. The StatWell LaunchAgent
+was absent from launchd although its managed plist remained installed.
+Bootstrapping that service restored valid network rates immediately; why it
+was unloaded is not yet known. During the outage, the network watcher fell
+back to one-shot sampling without an interface and received `invalid_input`;
+the same probe with `--interface en0` succeeded. The watcher now uses the
+configured interface for fallback. Lua callback tests cover the command.
+The new generation still needs a switch and live fallback verification.
 
 The Linux Home Manager output evaluates, but this repository has no live
 `lcs-legion-arch` build or switch evidence. Its systemd user service and Kitty

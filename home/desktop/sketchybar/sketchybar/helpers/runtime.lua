@@ -2,6 +2,7 @@
 return {
   nowplaying = "@nowplaying@",
   statwell = "@statwell@",
+  network_interface = "@network_interface@",
   audio = "@switchaudio@",
   python = "@python@",
   yabai = "@yabai@",
