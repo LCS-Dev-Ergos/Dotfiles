@@ -46,6 +46,25 @@ jobs:
       - name: Install Nix
         uses: cachix/install-nix-action@v31
 
+      # Dotfiles' token cannot read the private StatWell repository. Use a
+      # read-only deploy key for that one flake input, never for other remotes.
+      - name: Authorize the private StatWell flake input
+        env:
+          STATWELL_DEPLOY_KEY: ${{ secrets.STATWELL_DEPLOY_KEY }}
+        run: |
+          test -n "$STATWELL_DEPLOY_KEY"
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$STATWELL_DEPLOY_KEY" > "$HOME/.ssh/statwell_ci"
+          chmod 600 "$HOME/.ssh/statwell_ci"
+          curl --fail --silent --show-error https://api.github.com/meta |
+            jq -r '.ssh_keys[] | "github.com " + .' > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          printf 'Host github.com\n  IdentityFile %s/.ssh/statwell_ci\n  IdentitiesOnly yes\n  StrictHostKeyChecking yes\n' "$HOME" > "$HOME/.ssh/config"
+          chmod 600 "$HOME/.ssh/config"
+          git config --global \
+            url."ssh://git@github.com/LCS-Dev-Ergos/StatWell.git".insteadOf \
+            "https://github.com/LCS-Dev-Ergos/StatWell.git"
+
       - name: Check formatting, lint, and state boundaries
         run: |
           nix develop .#ci --command bash -euo pipefail -c '
