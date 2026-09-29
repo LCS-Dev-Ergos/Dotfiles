@@ -9,9 +9,13 @@ end
 function M.watch(metric, event)
   -- Retire a watcher from an older generation before starting this one.
   local pattern = "^/nix/store/[^/]+-statwell-[^/]+/bin/statwell watch --metric " .. metric .. " --event " .. event
+  local interface = ""
+  if metric == "network" and runtime.network_interface and runtime.network_interface ~= "" then
+    interface = " --interface " .. quote(runtime.network_interface)
+  end
   local script = "/usr/bin/pkill -TERM -u \"$(/usr/bin/id -u)\" -f " .. quote(pattern)
     .. " >/dev/null 2>&1 || true; " .. quote(runtime.statwell) .. " watch --metric "
-    .. quote(metric) .. " --event " .. quote(event) .. " >/dev/null 2>&1 &"
+    .. quote(metric) .. " --event " .. quote(event) .. interface .. " >/dev/null 2>&1 &"
   sbar.exec("/bin/zsh -c " .. quote(script))
 end
 

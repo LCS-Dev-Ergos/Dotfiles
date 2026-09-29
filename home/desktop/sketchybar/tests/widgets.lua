@@ -12,6 +12,7 @@ package.preload["helpers.runtime"] = function()
   return {
     nowplaying = "/fixture/nowplaying",
     statwell = "/nix/store/fixture-statwell/bin/statwell",
+    network_interface = "en0",
     python = "/fixture/python",
     audio = "/fixture/audio",
     yabai = "/fixture/yabai",
@@ -242,6 +243,14 @@ assert(battery.props.label.string == "?", "failed battery probe must not become 
 -- Network: only a changed direction is redrawn.
 require("items.widgets.wifi")
 local upload, download = items["widgets.wifi1"], items["widgets.wifi2"]
+local network_watch
+for _, invocation in ipairs(commands) do
+  if invocation[1]:find("watch %-%-metric") and invocation[1]:find("network") then
+    network_watch = invocation[1]
+  end
+end
+assert(network_watch and network_watch:find("%-%-interface") and network_watch:find("en0"),
+  "network watcher needs the configured interface for daemon-less sampling")
 local network_zero = { status = "ok", value_at_unix_ms = now_ms, max_age_ms = "6000", upload_bytes_per_second = "0", download_bytes_per_second = "1024" }
 upload.handlers.statwell_network(network_zero)
 local up_sets, down_sets = upload.sets, download.sets

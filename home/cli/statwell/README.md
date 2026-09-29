@@ -30,7 +30,8 @@ fallback as soon as the daemon recovers.
 
 Before the daemon publishes its first Homebrew result, the Homebrew widget
 shows a muted `?`; a completed failed check is marked in red. The Homebrew
-check has a 30-second deadline on macOS.
+check has a 30-second deadline on macOS. While the daemon is unavailable, the
+network watcher falls back to one-shot sampling on the configured interface.
 
 ## Activation and Checks
 
