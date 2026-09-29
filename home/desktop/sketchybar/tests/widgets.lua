@@ -13,6 +13,7 @@ package.preload["helpers.runtime"] = function()
     nowplaying = "/fixture/nowplaying",
     statwell = "/nix/store/fixture-statwell/bin/statwell",
     network_interface = "en0",
+    package_timeout_ms = 30000,
     python = "/fixture/python",
     audio = "/fixture/audio",
     yabai = "/fixture/yabai",
@@ -93,6 +94,10 @@ local function reply(...) commands[#commands][2](...) end
 require("items.widgets.homebrew")
 local brew = items["widgets.brew"]
 assert(brew.props.label.string == "?")
+local brew_watch = commands[#commands][1]
+assert(brew_watch:find("HOMEBREW_NO_AUTO_UPDATE=1", 1, true) and
+  brew_watch:find("--package-timeout-ms 30000", 1, true),
+  "Homebrew fallback needs the same environment and deadline as the daemon")
 local brew_now = tostring(os.time() * 1000)
 brew.handlers.statwell_homebrew({ status = "ok", value_at_unix_ms = brew_now, max_age_ms = "10800000", total = "1" })
 brew.handlers.statwell_homebrew({ status = "unavailable" })

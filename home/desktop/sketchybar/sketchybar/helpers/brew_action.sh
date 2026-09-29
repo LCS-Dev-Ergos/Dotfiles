@@ -6,7 +6,7 @@ if [ "${1:-}" = --run ]; then
   shift
   brew_path=$1
   action=$2
-  refresh() { launchctl kickstart -k "user/$(/usr/bin/id -u)/org.nix-community.home.statwell" 2>/dev/null || true; }
+  refresh() { launchctl kickstart -k "gui/$(/usr/bin/id -u)/org.nix-community.home.statwell" 2>/dev/null || true; }
   trap refresh EXIT
   "$brew_path" "$action"
   result=$?
@@ -21,7 +21,7 @@ brew_path=$1
 [ -x "$brew_path" ] || exit 1
 case "${BUTTON:-left}" in
   other|middle)
-    launchctl kickstart -k "user/$(/usr/bin/id -u)/org.nix-community.home.statwell"
+    launchctl kickstart -k "gui/$(/usr/bin/id -u)/org.nix-community.home.statwell"
     ;;
   left|right)
     action=outdated

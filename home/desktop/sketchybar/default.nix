@@ -78,6 +78,7 @@ let
             ) config.services.statwell.networkInterface
           )
         } \
+        --replace-fail '@package_timeout_ms@' '${toString config.services.statwell.packageTimeoutMs}' \
         --replace-fail '@switchaudio@' '${pkgs.switchaudio-osx}/bin/SwitchAudioSource' \
         --replace-fail '@python@' '${pkgs.python3}/bin/python3' \
         --replace-fail '@yabai@' '${lib.getExe pkgs.yabai}' \

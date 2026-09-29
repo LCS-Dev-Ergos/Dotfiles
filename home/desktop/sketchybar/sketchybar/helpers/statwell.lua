@@ -13,9 +13,14 @@ function M.watch(metric, event)
   if metric == "network" and runtime.network_interface and runtime.network_interface ~= "" then
     interface = " --interface " .. quote(runtime.network_interface)
   end
+  local provider = ""
+  if metric == "homebrew" then
+    provider = " --package-timeout-ms " .. tostring(runtime.package_timeout_ms or 10000)
+  end
+  local environment = metric == "homebrew" and "HOMEBREW_NO_AUTO_UPDATE=1 " or ""
   local script = "/usr/bin/pkill -TERM -u \"$(/usr/bin/id -u)\" -f " .. quote(pattern)
-    .. " >/dev/null 2>&1 || true; " .. quote(runtime.statwell) .. " watch --metric "
-    .. quote(metric) .. " --event " .. quote(event) .. interface .. " >/dev/null 2>&1 &"
+    .. " >/dev/null 2>&1 || true; " .. environment .. quote(runtime.statwell) .. " watch --metric "
+    .. quote(metric) .. " --event " .. quote(event) .. interface .. provider .. " >/dev/null 2>&1 &"
   sbar.exec("/bin/zsh -c " .. quote(script))
 end
 
