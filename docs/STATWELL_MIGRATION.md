@@ -35,7 +35,7 @@ sudo darwin-rebuild switch --flake .#LCSMacBook-Pro
 After the switch, check the user service and take a snapshot:
 
 ```bash
-launchctl print "user/$(id -u)/org.nix-community.home.statwell"
+launchctl print "gui/$(id -u)/org.nix-community.home.statwell"
 statwell snapshot
 ```
 
@@ -80,12 +80,22 @@ on 2026-09-28; a live refresh showed `2` → muted `?` → `2`.
 
 On 2026-09-29, both network labels showed `??? Bps`. The StatWell LaunchAgent
 was absent from launchd although its managed plist remained installed.
-Bootstrapping that service restored valid network rates immediately; why it
-was unloaded is not yet known. During the outage, the network watcher fell
+Bootstrapping that service restored valid network rates immediately. Its old
+Home Manager module selected the `user` launchd domain, which generated a
+`LimitLoadToSessionType=Background` plist. The StatWell module now selects
+the `gui` domain used by the login session and SketchyBar. During the outage,
+the network watcher fell
 back to one-shot sampling without an interface and received `invalid_input`;
 the same probe with `--interface en0` succeeded. The watcher now uses the
 configured interface for fallback. Lua callback tests cover the command.
-The new generation still needs a switch and live fallback verification.
+The Homebrew watcher also inherits the daemon's 30-second check deadline and
+disables metadata auto-update. StatWell retries a failed package fallback
+after 30 seconds instead of retaining the error for the hourly cadence.
+[StatWell PR #3](https://github.com/LCS-Dev-Ergos/StatWell/pull/3) merged as
+`878b604603b7cc8d0ee656d6a8e514173468cee0`; both Linux and macOS CI
+passed. The updated Dotfiles pin, widget tests, both-host evaluation, and full
+Darwin build pass. Switch this generation, verify both widgets, then reboot
+and verify the agent loads automatically in `gui/$(id -u)`.
 
 The Linux Home Manager output evaluates, but this repository has no live
 `lcs-legion-arch` build or switch evidence. Its systemd user service and Kitty
