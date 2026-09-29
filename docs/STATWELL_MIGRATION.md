@@ -14,7 +14,7 @@ interface or package provider. The Nix update provider is deliberately excluded.
 | SketchyBar Wi-Fi rates | `statwell_network` watch event | Connection details and popup still use the existing Wi-Fi logic. |
 | SketchyBar battery | `statwell_battery` watch event | The popup queries `pmset` for a time estimate on demand. |
 | SketchyBar Homebrew | `statwell_homebrew` watch event | Brew actions remain in `brew_action.sh`; completion restarts the StatWell user service to refresh the count. |
-| Kitty tab bar | Owner-only `snapshot.json` | A missing daemon triggers an asynchronous one-shot snapshot, at most once per five seconds. The legacy sampler remains available through `USE_STATWELL = False`. |
+| Kitty tab bar | Owner-only `snapshot.json` | CPU uses the same normalized percentage as SketchyBar. A missing daemon triggers an asynchronous one-shot snapshot, at most once per five seconds. The legacy load sampler remains available through `USE_STATWELL = False`. |
 
 The SketchyBar widgets show an unknown value when an event reports an error or
 its timestamp is stale. Kitty checks the schema, file ownership and mode,
@@ -43,7 +43,7 @@ Reload SketchyBar and inspect CPU, upload/download rates, battery, and
 Homebrew count on the real bar. Let at least one sample interval elapse, then
 stop the service briefly to check stale/error presentation and recovery. Check
 the battery popup estimate and a Homebrew refresh action separately. Open a
-fresh Kitty tab and inspect memory, load, disk, and battery segments, then
+fresh Kitty tab and inspect memory, CPU, disk, and battery segments, then
 reload the tab bar and repeat while the daemon is unavailable to exercise the
 one-shot fallback. Confirm that ordinary redraws do not spawn probes.
 
@@ -105,8 +105,10 @@ The Linux Home Manager output evaluates, but this repository has no live
 `lcs-legion-arch` build or switch evidence. Its systemd user service and Kitty
 tab bar require checks on that host before claiming Linux migration complete.
 The user confirmed that the host is not physically available today. Current
-Dotfiles commits are also ahead of the remote `main`, so the deployment path
-for that host must carry this branch before the switch.
+The CPU metric is configured for a one-second daemon cadence on both hosts;
+Kitty checks the snapshot every second and SketchyBar receives the same sample
+through its watch event. The Linux host still needs a build and switch before
+this behavior can be checked there.
 The pinned StatWell input uses authenticated Git transport because GitHub's
 archive endpoint returned 404 for the private repository. Linux deployment
 therefore also requires Git access to that repository.

@@ -32,7 +32,7 @@ local cpu = sbar.add("graph", "widgets.cpu" , 42, {
 
 cpu:subscribe("statwell_cpu", function(env)
   local load = statwell.fresh(env) and tonumber(env.total_percent) or nil
-  if not load then
+  if not load or load ~= load or load < 0 or load > 100 then
     cpu:set({ label = "cpu ?%", graph = { color = colors.muted } })
     return
   end
