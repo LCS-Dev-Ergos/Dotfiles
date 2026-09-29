@@ -8,11 +8,12 @@ CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/fastfetch"
 PNG_DIR="$CONFIG_DIR/pngs"
 CONFIG_FILE="$CONFIG_DIR/config.jsonc"
 
-# Find a random image in the configured directory.
+# Find a random image in the configured directory. -L follows the symlinks
+# Home Manager places there, which -type f alone would skip.
 if command -v shuf >/dev/null 2>&1; then
-  image=$(find "$PNG_DIR" -type f -name "*.png" | shuf -n 1)
+  image=$(find -L "$PNG_DIR" -type f -name "*.png" | shuf -n 1)
 else
-  image=$(find "$PNG_DIR" -type f -name "*.png" | awk 'BEGIN { srand() } { files[NR] = $0 } END { if (NR > 0) print files[int(rand() * NR) + 1] }')
+  image=$(find -L "$PNG_DIR" -type f -name "*.png" | awk 'BEGIN { srand() } { files[NR] = $0 } END { if (NR > 0) print files[int(rand() * NR) + 1] }')
 fi
 
 # Check if an image was found.

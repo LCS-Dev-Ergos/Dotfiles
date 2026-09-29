@@ -9,7 +9,16 @@
 local root = assert(arg[1], "usage: lua widgets.lua <sketchybar-config-dir>")
 package.path = root .. "/?.lua;" .. root .. "/?/init.lua;" .. package.path
 package.preload["helpers.runtime"] = function()
-  return { nowplaying = "/fixture/nowplaying", python = "/fixture/python", audio = "/fixture/audio" }
+  return {
+    nowplaying = "/fixture/nowplaying",
+    statwell = "/nix/store/fixture-statwell/bin/statwell",
+    network_interface = "en0",
+    package_timeout_ms = 30000,
+    python = "/fixture/python",
+    audio = "/fixture/audio",
+    yabai = "/fixture/yabai",
+    space_script = "/fixture/space.sh",
+  }
 end
 
 -- Items by creation order and by name, plus every `sbar.exec` call as
@@ -39,6 +48,10 @@ local function add_item(name, props)
   function item:set(value)
     self.sets = self.sets + 1
     merge(self.props, value)
+  end
+
+  function item:push(value)
+    self.last_push = value
   end
 
   function item:query()
@@ -77,16 +90,29 @@ sbar = {
 --- @param ... any Arguments for the command's callback.
 local function reply(...) commands[#commands][2](...) end
 
--- Homebrew: the count survives empty events and errors stay visible.
+-- Homebrew: a daemon restart is pending, not a failed package check.
 require("items.widgets.homebrew")
 local brew = items["widgets.brew"]
 assert(brew.props.label.string == "?")
-brew.handlers.brew_update({ outdated_count = "7" })
-brew.handlers.brew_update({})
+local brew_watch = commands[#commands][1]
+assert(brew_watch:find("HOMEBREW_NO_AUTO_UPDATE=1", 1, true) and
+  brew_watch:find("--package-timeout-ms 30000", 1, true),
+  "Homebrew fallback needs the same environment and deadline as the daemon")
+local brew_now = tostring(os.time() * 1000)
+brew.handlers.statwell_homebrew({ status = "ok", value_at_unix_ms = brew_now, max_age_ms = "10800000", total = "1" })
+brew.handlers.statwell_homebrew({ status = "unavailable" })
+assert(brew.props.label.string == "?", "pending refresh must not show a stale 1!")
+assert(brew.props.label.color == require("colors").muted, "pending refresh must not look like an error")
+brew.handlers.statwell_homebrew({ status = "ok", value_at_unix_ms = brew_now, max_age_ms = "10800000", total = "2" })
+assert(brew.props.label.string == "2", "completed refresh must show the new count")
+
+-- Empty events preserve the count; actual failures stay visible.
+brew.handlers.statwell_homebrew({ status = "ok", value_at_unix_ms = brew_now, max_age_ms = "10800000", total = "7" })
+brew.handlers.statwell_homebrew({})
 assert(brew.props.label.string == "7", "empty event must preserve count")
-brew.handlers.brew_update({ outdated_count = "0", error = "Command execution failed" })
+brew.handlers.statwell_homebrew({ status = "error", total = "0" })
 assert(brew.props.label.string == "7!", "failure must not look like zero updates")
-brew.handlers.brew_update({ outdated_count = "0", error = "Success" })
+brew.handlers.statwell_homebrew({ status = "ok", value_at_unix_ms = brew_now, max_age_ms = "10800000", total = "0" })
 assert(brew.props.label.string == "0", "recovery must clear the error")
 
 -- Media: one snapshot at a time, and the cover follows the playback state.
@@ -141,6 +167,10 @@ assert(#commands == before, "do not poll during sleep")
 
 -- Spaces: window-event bursts coalesce, and nothing redraws while locked.
 require("items.spaces")
+items["space.1"].handlers["mouse.clicked"]({ BUTTON = "left", SID = "12" })
+assert(commands[#commands][1] == "'/fixture/space.sh' focus 12", "space click uses the managed script")
+items["space.1"].handlers["mouse.clicked"]({ BUTTON = "right", SID = "12" })
+assert(commands[#commands][1] == "'/fixture/yabai' -m space --destroy 12", "space menu uses managed yabai")
 local spaces_observer
 for _, item in ipairs(items) do
   if item.handlers.space_windows_change then spaces_observer = item end
@@ -197,20 +227,49 @@ assert(
   "fresh device list must still populate"
 )
 
+-- CPU: a fresh event updates the graph; stale readings remain unknown.
+require("items.widgets.cpu")
+local cpu = items["widgets.cpu"]
+local now_ms = tostring(os.time() * 1000)
+assert(require("helpers.statwell").fresh({ status = "ok", value_at_unix_ms = tostring(os.time() * 1000 + 500), max_age_ms = "6000" }))
+cpu.handlers.statwell_cpu({ status = "ok", value_at_unix_ms = now_ms, max_age_ms = "6000", total_percent = "25" })
+assert(cpu.props.label == "cpu 25%" and cpu.last_push[1] == 0.25)
+cpu.handlers.statwell_cpu({ status = "error", value_at_unix_ms = now_ms, max_age_ms = "6000" })
+assert(cpu.props.label == "cpu ?%", "failed CPU probe must not become zero")
+
+-- Battery: charge comes from StatWell; errors never display as zero percent.
+require("items.widgets.battery")
+local battery = items["widgets.battery"]
+battery.handlers.statwell_battery({ status = "ok", value_at_unix_ms = now_ms, max_age_ms = "90000", percent = "8", charging = "false", external_power = "false" })
+assert(battery.props.label.string == "08%", "battery charge comes from StatWell")
+battery.handlers.statwell_battery({ status = "error" })
+assert(battery.props.label.string == "?", "failed battery probe must not become zero")
+
 -- Network: only a changed direction is redrawn.
 require("items.widgets.wifi")
 local upload, download = items["widgets.wifi1"], items["widgets.wifi2"]
-upload.handlers.network_update({ upload = "000 Bps", download = "001 KBps" })
+local network_watch
+for _, invocation in ipairs(commands) do
+  if invocation[1]:find("watch %-%-metric") and invocation[1]:find("network") then
+    network_watch = invocation[1]
+  end
+end
+assert(network_watch and network_watch:find("%-%-interface") and network_watch:find("en0"),
+  "network watcher needs the configured interface for daemon-less sampling")
+local network_zero = { status = "ok", value_at_unix_ms = now_ms, max_age_ms = "6000", upload_bytes_per_second = "0", download_bytes_per_second = "1024" }
+upload.handlers.statwell_network(network_zero)
 local up_sets, down_sets = upload.sets, download.sets
-upload.handlers.network_update({ upload = "000 Bps", download = "001 KBps" })
+upload.handlers.statwell_network(network_zero)
 assert(
   upload.sets == up_sets and download.sets == down_sets,
   "identical network rates need no redraw"
 )
-upload.handlers.network_update({ upload = "002 KBps", download = "001 KBps" })
+upload.handlers.statwell_network({ status = "ok", value_at_unix_ms = now_ms, max_age_ms = "6000", upload_bytes_per_second = "2048", download_bytes_per_second = "1024" })
 assert(
   upload.sets == up_sets + 1 and download.sets == down_sets,
   "redraw only the changed direction"
 )
+upload.handlers.statwell_network({ status = "error" })
+assert(upload.props.label.string == "??? Bps", "network errors must remain unknown")
 
 print("widget callbacks: PASS")

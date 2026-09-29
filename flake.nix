@@ -7,6 +7,11 @@
     nix-darwin.inputs.nixpkgs.follows = "nixpkgs";
     home-manager.url = "github:nix-community/home-manager";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
+    statwell = {
+      url = "git+https://github.com/LCS-Dev-Ergos/StatWell.git?rev=878b604603b7cc8d0ee656d6a8e514173468cee0";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.home-manager.follows = "home-manager";
+    };
 
     # Immutable application assets. Third-party code is pinned here; the few
     # runtime-mutable paths that cannot yet be store-backed are documented in
@@ -128,6 +133,8 @@
         inherit externalSources;
         inherit (host) dotfilesRoot homeDirectory username;
         herdr = inputs.herdr.packages.${host.system}.default;
+        statwellModule = inputs.statwell.homeManagerModules.default;
+        statwellPackage = inputs.statwell.packages.${host.system}.default;
       };
     in
     {

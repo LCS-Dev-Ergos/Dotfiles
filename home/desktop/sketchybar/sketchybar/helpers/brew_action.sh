@@ -5,9 +5,8 @@ set -u
 if [ "${1:-}" = --run ]; then
   shift
   brew_path=$1
-  provider=$2
-  action=$3
-  refresh() { /usr/bin/pkill -USR1 -f "^${provider} brew_update([[:space:]]|$)" 2>/dev/null || true; }
+  action=$2
+  refresh() { launchctl kickstart -k "gui/$(/usr/bin/id -u)/org.nix-community.home.statwell" 2>/dev/null || true; }
   trap refresh EXIT
   "$brew_path" "$action"
   result=$?
@@ -19,11 +18,10 @@ if [ "${1:-}" = --run ]; then
 fi
 
 brew_path=$1
-provider=$2
 [ -x "$brew_path" ] || exit 1
 case "${BUTTON:-left}" in
   other|middle)
-    /usr/bin/pkill -USR1 -f "^${provider} brew_update([[:space:]]|$)"
+    launchctl kickstart -k "gui/$(/usr/bin/id -u)/org.nix-community.home.statwell"
     ;;
   left|right)
     action=outdated
@@ -35,7 +33,7 @@ case "${BUTTON:-left}" in
       value=${value//\'/$escaped_quote}
       printf "'%s'" "$value"
     }
-    command="/bin/bash $(quote "$0") --run $(quote "$brew_path") $(quote "$provider") $(quote "$action")"
+    command="/bin/bash $(quote "$0") --run $(quote "$brew_path") $(quote "$action")"
     /usr/bin/open -n -a Ghostty --args \
       --window-save-state=never --quit-after-last-window-closed=true \
       "--initial-command=$command"
