@@ -8,6 +8,7 @@
 let
   sketchybar = pkgs.callPackage ./package.nix { };
   nowplaying = pkgs.callPackage ../../cli/cli-tools/nowplaying-cli.nix { };
+  statwell = config.services.statwell.package;
   sbarLua = pkgs.stdenv.mkDerivation {
     pname = "sbarlua";
     version = "unstable-2026-03-06";
@@ -45,9 +46,8 @@ let
     hash = "sha256-nfJVICpaw1Q1jChc3feY39vjtS/fLJ3FKVGqOKhyzwA=";
   };
 
-  # Compile all four native helpers in the Nix sandbox, then assemble the
-  # exact config tree SketchyBar expects. The source checkout contains no
-  # architecture-specific binaries; each Darwin host builds its own output.
+  # Compile the native menu helper in the Nix sandbox, then assemble the
+  # exact config tree SketchyBar expects.
   sketchybarConfig = pkgs.stdenv.mkDerivation {
     pname = "sketchybar-config";
     version = "1";
@@ -70,8 +70,19 @@ let
         --replace-fail '#!/usr/bin/env lua' '#!${sbarLua}/bin/lua'
       substituteInPlace "$out/helpers/runtime.lua" \
         --replace-fail '@nowplaying@' '${nowplaying}/bin/nowplaying-cli' \
+        --replace-fail '@statwell@' '${lib.getExe statwell}' \
+        --replace-fail '@network_interface@' ${
+          lib.escapeShellArg (
+            lib.optionalString (
+              config.services.statwell.networkInterface != null
+            ) config.services.statwell.networkInterface
+          )
+        } \
+        --replace-fail '@package_timeout_ms@' '${toString config.services.statwell.packageTimeoutMs}' \
         --replace-fail '@switchaudio@' '${pkgs.switchaudio-osx}/bin/SwitchAudioSource' \
-        --replace-fail '@python@' '${pkgs.python3}/bin/python3'
+        --replace-fail '@python@' '${pkgs.python3}/bin/python3' \
+        --replace-fail '@yabai@' '${lib.getExe pkgs.yabai}' \
+        --replace-fail '@space_script@' '${config.home.homeDirectory}/.config/yabai/space.sh'
       runHook postInstall
     '';
   };

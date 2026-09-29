@@ -1,6 +1,7 @@
 local icons = require("icons")
 local colors = require("colors")
 local settings = require("settings")
+local statwell = require("helpers.statwell")
 
 --[[ Widget for managing Homebrew updates ]]
 
@@ -17,14 +18,10 @@ end
 
 -- Configuration
 local CONFIG = {
-  check_interval = 300,
-  update_interval = 3600,
   brew_path = find_brew_path(),
-  debug = false,
   hover_effect = true,
   widget_name = "widgets.brew",
   package_icon = (icons.package or "[PKG]"):gsub("%s+$", ""),
-  log_path = (os.getenv("TMPDIR") or "/tmp/"):gsub("/*$", "/") .. "sketchybar-brew-check-" .. (os.getenv("UID") or os.getenv("USER") or "user") .. ".log"
 }
 
 -- Color threshold definitions
@@ -38,31 +35,9 @@ local THRESHOLDS = {
 
 -- Helper functions
 local config_dir = os.getenv("CONFIG_DIR") or os.getenv("HOME") .. "/.config/sketchybar"
-local brew_check_path = config_dir .. "/helpers/event_providers/brew_check/bin/brew_check"
 
 local function shell_quote(value)
   return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
-end
-local function debug_log(message)
-  if CONFIG.debug then print("[BREW] " .. message) end
-end
-local function safe_exec(command)
-  debug_log("Executing command: " .. command)
-  sbar.exec(command)
-end
-local function start_event_provider()
-  local verbose_arg = CONFIG.debug and " --verbose" or ""
-
-  local script = string.format(
-    "pkill -TERM -f %s >/dev/null 2>&1; %s brew_update %d %d%s >>%s 2>&1 &",
-    shell_quote(brew_check_path .. " brew_update"),
-    shell_quote(brew_check_path),
-    CONFIG.check_interval,
-    CONFIG.update_interval,
-    verbose_arg,
-    shell_quote(CONFIG.log_path)
-  )
-  safe_exec("/bin/zsh -c " .. shell_quote(script))
 end
 local function get_color(count)
   count = tonumber(count) or 0
@@ -73,9 +48,7 @@ local function get_color(count)
   return color
 end
 
--- Start event provider (unchanged)
-sbar.add("event", "brew_update")
-start_event_provider()
+statwell.watch("homebrew", "statwell_homebrew")
 
 -- Main widget - always visible (unchanged)
 local brew = sbar.add("item", CONFIG.widget_name, {
@@ -97,11 +70,19 @@ local brew = sbar.add("item", CONFIG.widget_name, {
 })
 
 -- A missing payload is not a successful zero. Keep the last valid count and
--- distinguish a failed check from an empty list of outdated packages.
+-- distinguish a pending refresh from a failed package check.
 local last_count = nil
-brew:subscribe("brew_update", function(env)
-  local failed = env.error and env.error ~= "" and env.error ~= "Success"
-  local count = tonumber(env.outdated_count)
+brew:subscribe("statwell_homebrew", function(env)
+  if not env.status then return end
+  if env.status == "unavailable" then
+    brew:set({
+      icon = { color = colors.muted },
+      label = { string = "?", color = colors.muted },
+    })
+    return
+  end
+  local failed = not statwell.fresh(env)
+  local count = tonumber(env.total)
   if failed then
     brew:set({
       icon = { color = colors.red },
@@ -120,7 +101,7 @@ end)
 
 -- The terminal command signals the provider after brew actually completes.
 brew:set({ click_script = "/bin/bash " .. shell_quote(config_dir .. "/helpers/brew_action.sh")
-  .. " " .. shell_quote(CONFIG.brew_path) .. " " .. shell_quote(brew_check_path) })
+  .. " " .. shell_quote(CONFIG.brew_path) })
 
 -- Hover effect and surrounding elements (unchanged)
 if CONFIG.hover_effect then
@@ -130,7 +111,4 @@ end
 sbar.add("bracket", CONFIG.widget_name .. ".bracket", { brew.name }, { background = { color = colors.bg1 }})
 sbar.add("item", CONFIG.widget_name .. ".padding", { position = "right", width = settings.group_paddings })
 
--- Note: Don't trigger brew_update here - let brew_check send the first update
--- when it completes its initial check. This prevents showing stale "0" values.
-
-debug_log("Homebrew widget initialized successfully")
+-- The first event arrives only after a real StatWell check; unknown is not zero.

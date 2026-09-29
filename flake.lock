@@ -123,6 +123,7 @@
         "sbarlua": "sbarlua",
         "shell-color-scripts": "shell-color-scripts",
         "smart-tmux-session-manager": "smart-tmux-session-manager",
+        "statwell": "statwell",
         "tmux-continuum": "tmux-continuum",
         "tmux-resurrect": "tmux-resurrect",
         "tmux-yank": "tmux-yank",
@@ -202,6 +203,30 @@
         "repo": "t-smart-tmux-session-manager",
         "rev": "3726950525ac9966412ea3f2093bf2ffe06aa023",
         "type": "github"
+      }
+    },
+    "statwell": {
+      "inputs": {
+        "home-manager": [
+          "home-manager"
+        ],
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1790702676,
+        "narHash": "sha256-sdpnJcJt3rWyRHdaMhsL2vJ3sqJGpqgKUwDtA6xVxRQ=",
+        "ref": "refs/heads/main",
+        "rev": "878b604603b7cc8d0ee656d6a8e514173468cee0",
+        "revCount": 16,
+        "type": "git",
+        "url": "https://github.com/LCS-Dev-Ergos/StatWell.git"
+      },
+      "original": {
+        "rev": "878b604603b7cc8d0ee656d6a8e514173468cee0",
+        "type": "git",
+        "url": "https://github.com/LCS-Dev-Ergos/StatWell.git"
       }
     },
     "tmux-continuum": {

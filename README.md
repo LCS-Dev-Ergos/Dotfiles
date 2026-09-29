@@ -18,6 +18,7 @@ Personal dotfiles for macOS and Linux, managed declaratively with [Nix](https://
   - [State Boundaries](#state-boundaries)
   - [Package Ownership and Homebrew Drift](#package-ownership-and-homebrew-drift)
   - [Verification](#verification)
+  - [StatWell Status Consumers](#statwell-status-consumers)
   - [Migrating from GNU Stow](#migrating-from-gnu-stow)
   - [Contributing](#contributing)
   - [License](#license)
@@ -228,6 +229,15 @@ nix build .#darwinConfigurations.LCSMacBook-Pro.system --no-link
 
 The Linux output is evaluated on CI, but it remains structurally verified only
 until it can be built, activated, exercised, and rolled back on the real host.
+
+## StatWell Status Consumers
+
+The shared StatWell user service supplies SketchyBar's CPU, network rates,
+battery, and Homebrew widgets, plus Kitty's memory, load, disk, and battery
+segments. Its package and Home Manager module are pinned as a flake input.
+See [the migration guide](docs/STATWELL_MIGRATION.md) for activation, live
+checks, Linux limitations, and rollback. The old SketchyBar providers remain
+recoverable from Git history after real-bar verification.
 
 ## Migrating from GNU Stow
 
