@@ -71,6 +71,13 @@ let
       substituteInPlace "$out/helpers/runtime.lua" \
         --replace-fail '@nowplaying@' '${nowplaying}/bin/nowplaying-cli' \
         --replace-fail '@statwell@' '${lib.getExe statwell}' \
+        --replace-fail '@network_interface@' ${
+          lib.escapeShellArg (
+            lib.optionalString (
+              config.services.statwell.networkInterface != null
+            ) config.services.statwell.networkInterface
+          )
+        } \
         --replace-fail '@switchaudio@' '${pkgs.switchaudio-osx}/bin/SwitchAudioSource' \
         --replace-fail '@python@' '${pkgs.python3}/bin/python3' \
         --replace-fail '@yabai@' '${lib.getExe pkgs.yabai}' \
