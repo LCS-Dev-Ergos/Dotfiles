@@ -2,17 +2,15 @@
 {
   # skhd itself runs as nix-darwin's services.skhd (darwin/window-manager.nix),
   # which reads this file from its default location. skhd's own hotkey DSL
-  # has no safe Nix parser, so the config stays a plain file.
-  xdg.configFile = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
-    "skhd/skhdrc".source = ./skhdrc;
-    "skhd/focus_space.sh" = {
-      # Both store paths are substituted via lib.getExe. pkgs.yabai is the
-      # signed fork release from darwin/window-manager.nix.
-      source = pkgs.replaceVars ./focus_space.sh {
-        jq = lib.getExe pkgs.jq;
-        yabai = lib.getExe pkgs.yabai;
-      };
-      executable = true;
-    };
+  # has no safe Nix parser, so the config stays a plain file. The space
+  # bindings call ~/.config/yabai/space.sh from the yabai module.
+  xdg.configFile."skhd/skhdrc" = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
+    source = ./skhdrc;
+    # skhd's hotload watches the store file it resolved at startup, which a
+    # switch never modifies: it only repoints the symlink. Without a reload
+    # the old bindings stay active until the next login.
+    onChange = ''
+      run ${lib.getExe pkgs.skhd} --reload || true
+    '';
   };
 }

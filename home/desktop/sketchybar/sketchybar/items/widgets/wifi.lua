@@ -1,19 +1,19 @@
 local icons = require("icons")
 local colors = require("colors")
 local settings = require("settings")
+local statwell = require("helpers.statwell")
 
 local function shell_quote(value)
   return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
 end
 
-local config_dir = os.getenv("CONFIG_DIR") or os.getenv("HOME") .. "/.config/sketchybar"
-local network_provider = config_dir .. "/helpers/event_providers/network_load/bin/network_load"
 local network_state = {
   iface = nil,
   service = nil,
-  provider_iface = nil,
   refresh_generation = 0,
 }
+
+statwell.watch("network", "statwell_network")
 
 local function resolve_network(callback)
   sbar.exec([[
@@ -35,30 +35,6 @@ local function resolve_network(callback)
     service = (service and service ~= "") and service or nil
     callback(iface, service)
   end)
-end
-
-local function start_network_provider(iface)
-  if not iface then return end
-
-  local script
-  if network_state.provider_iface == iface then
-    script = string.format(
-      "if ! pgrep -f %s >/dev/null 2>&1; then %s %s network_update 2.0 >/dev/null 2>&1 & fi",
-      shell_quote(network_provider .. " " .. iface .. " network_update"),
-      shell_quote(network_provider),
-      shell_quote(iface)
-    )
-  else
-    network_state.provider_iface = iface
-    script = string.format(
-      "pkill -TERM -f %s >/dev/null 2>&1; %s %s network_update 2.0 >/dev/null 2>&1 &",
-      shell_quote(network_provider .. " .* network_update"),
-      shell_quote(network_provider),
-      shell_quote(iface)
-    )
-  end
-
-  sbar.exec("/bin/zsh -c " .. shell_quote(script))
 end
 
 local popup_width = 250
@@ -210,21 +186,23 @@ local router = sbar.add("item", {
 sbar.add("item", { position = "right", width = settings.group_paddings })
 
 local last_upload, last_download
-wifi_up:subscribe("network_update", function(env)
-  local up_color = (env.upload == "000 Bps") and colors.muted or colors.magenta
-  local down_color = (env.download == "000 Bps") and colors.muted or colors.blue
-  if env.upload and env.upload ~= last_upload then
-    last_upload = env.upload
+wifi_up:subscribe("statwell_network", function(env)
+  local upload = statwell.fresh(env) and statwell.rate(env.upload_bytes_per_second) or "??? Bps"
+  local download = statwell.fresh(env) and statwell.rate(env.download_bytes_per_second) or "??? Bps"
+  local up_color = (upload == "000 Bps") and colors.muted or colors.magenta
+  local down_color = (download == "000 Bps") and colors.muted or colors.blue
+  if upload ~= last_upload then
+    last_upload = upload
     wifi_up:set({
       icon = { color = up_color },
-      label = { string = env.upload, color = up_color },
+      label = { string = upload, color = up_color },
     })
   end
-  if env.download and env.download ~= last_download then
-    last_download = env.download
+  if download ~= last_download then
+    last_download = download
     wifi_down:set({
       icon = { color = down_color },
-      label = { string = env.download, color = down_color },
+      label = { string = download, color = down_color },
     })
   end
 end)
@@ -255,7 +233,6 @@ local function refresh_network()
   resolve_network(function(iface, service)
     network_state.iface = iface
     network_state.service = service
-    start_network_provider(iface)
     update_connection(iface)
   end)
 end

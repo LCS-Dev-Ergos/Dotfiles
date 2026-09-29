@@ -5,16 +5,17 @@
 }:
 # yabai from the LCS-Dev-Ergos fork: upstream plus macOS 27 scripting-addition
 # support and payload hardening. The fork's CI builds and signs the release
-# with the yabai-lcs-dev certificate; TCC keys the Accessibility grant to that
-# certificate, so it survives updates. The binary is installed untouched,
-# because any fixup would invalidate the signature.
+# with the yabai-lcs-dev certificate, which TCC requires of the binary its
+# grants belong to; window-manager.nix runs it from a fixed path, because TCC
+# keys those grants to the path. The binary is installed untouched, because
+# any fixup would invalidate the signature.
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "yabai";
-  version = "7.1.25-lcs.1";
+  version = "8.0.0-lcs.1";
 
   src = fetchurl {
     url = "https://github.com/LCS-Dev-Ergos/yabai/releases/download/v${finalAttrs.version}/yabai-v${finalAttrs.version}.tar.gz";
-    hash = "sha256-yPB9DKFRFIGjT4efWtHAa8d8+xJ6Yi1wqw/95aEN1xI=";
+    hash = "sha256-YZgv4Fc9Nx6WeKfzZAeWhhrPh4fYpkm866HSMcpGMFE=";
   };
 
   sourceRoot = "archive";

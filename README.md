@@ -206,6 +206,15 @@ Module conventions:
   `lib.mkIf pkgs.stdenv.hostPlatform.isDarwin` or
   `pkgs.stdenv.hostPlatform.isLinux`, never duplicated per configuration.
 
+### StatWell Status Service
+
+The shared StatWell user service supplies SketchyBar's CPU, network-rate,
+battery and Homebrew widgets and Kitty's memory, load, disk and battery
+segments. Its package and Home Manager module are pinned as a flake input. The
+[StatWell consumer guide](home/cli/statwell/README.md) covers activation,
+checks, Linux behavior and rollback. Git history retains the legacy SketchyBar
+providers for rollback.
+
 ## Validation and CI
 
 ### Local Checks

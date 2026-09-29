@@ -248,8 +248,10 @@ and uses an atomic mkdir lock to prevent concurrent full runs.
   completions ngrok and ng print are cached by `_zsh_cached_init`, keyed to
   the symlink-resolved executable, and pass the same ownership and permission
   checks before being sourced.
-- 1Password values are cached in non-exported shell variables and exposed only
-  to the intended child command (`claude`, `gemini`, or `opencode`).
+- 1Password values are read through `ai-secret`, cached in non-exported shell
+  variables and exposed only to the intended child command (`gemini` or
+  `opencode`). Claude Code fetches its MCP headers itself through
+  `ai-secret headers`, so no key enters its environment.
 - Fabric refuses pattern names that collide with commands/builtins and publishes
   generated notes only after a successful run.
 - Zinit and its plugins intentionally track their upstream default revisions.

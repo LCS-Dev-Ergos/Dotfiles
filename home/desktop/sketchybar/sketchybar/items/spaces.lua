@@ -2,15 +2,25 @@ local colors = require("colors")
 local icons = require("icons")
 local settings = require("settings")
 local app_icons = require("helpers.app_icons")
+local runtime = require("helpers.runtime")
+
+local function shell_quote(value)
+  return "'" .. value:gsub("'", "'\\''") .. "'"
+end
 
 local spaces = {}
+
+-- Mission-control indices run across displays, as yabai numbers them. An item
+-- is drawn on the display that holds its space and hidden while that space
+-- does not exist, so every Desktop of every display gets its number.
+local max_spaces = 16
 
 local function valid_space_id(sid)
   sid = tostring(sid or "")
   return sid:match("^%d+$") and sid or nil
 end
 
-for i = 1, 10, 1 do
+for i = 1, max_spaces, 1 do
   local space = sbar.add("space", "space." .. i, {
     space = i,
     icon = {
@@ -73,9 +83,14 @@ for i = 1, 10, 1 do
     }
   })
 
+  -- Every Desktop item receives each change, and each set makes SketchyBar
+  -- redraw. Only the items whose selection changed have anything to set.
+  local was_selected = nil
   space:subscribe("space_change", function(env)
     local selected = env.SELECTED == "true"
-    local color = selected and colors.grey or colors.bg2
+    if selected == was_selected then return end
+    was_selected = selected
+
     space:set({
       icon = { highlight = selected, },
       label = { highlight = selected },
@@ -96,25 +111,17 @@ for i = 1, 10, 1 do
     else
       if env.BUTTON == "right" then
         -- Handle right click to destroy the space
-        sbar.exec("command -v yabai >/dev/null 2>&1 && yabai -m space --destroy " .. sid)
+        sbar.exec(shell_quote(runtime.yabai) .. " -m space --destroy " .. sid)
       else
-        -- Handle left click to switch space
-        -- Always switch to the space first, regardless of windows
-        sbar.exec(string.format([[
-          command -v yabai >/dev/null 2>&1 || exit 0
-          yabai -m space --focus %s || exit 0
-          if command -v jq >/dev/null 2>&1; then
-            WINDOW_ID=$(yabai -m query --spaces --space %s | jq -r '.windows[0] // empty')
-          else
-            WINDOW_ID=
-          fi
-          case "$WINDOW_ID" in
-            ''|*[!0-9]* ) exit 0 ;;
-          esac
-          if [ -n "$WINDOW_ID" ]; then
-            yabai -m window --focus "$WINDOW_ID"
-          fi
-        ]], sid, sid))
+        -- Handle left click to switch space. The yabai module's space.sh
+        -- (shared with skhd) fades the space in and focuses its frontmost
+        -- window.
+        sbar.exec(shell_quote(runtime.space_script) .. " focus " .. sid,
+          function(_, code)
+            if code ~= 0 then
+              print("SketchyBar: space focus failed for " .. sid .. " (exit " .. tostring(code) .. ")")
+            end
+          end)
       end
     end
   end)
