@@ -9,7 +9,7 @@
 #   tabs    index, an icon for the foreground process, the title, and markers
 #           for bell, failed command, activity, progress, zoom and window
 #           count; the active tab is a rounded pill in the theme's tab colors
-#   status  active layout, load, free disk, battery and a memory pill (date
+#   status  active layout, CPU, free disk, battery and a memory pill (date
 #           and clock can be switched back on), dropped from the least useful
 #           end when the bar gets narrow
 #
@@ -27,7 +27,7 @@ import time
 from typing import NamedTuple
 
 sys.path.insert(0, os.path.dirname(__file__))
-from statwell_snapshot import SnapshotReader
+from statwell_snapshot import SnapshotReader, cpu_display
 
 from kitty.boss import get_boss
 from kitty.constants import is_macos
@@ -65,7 +65,7 @@ ICON_LAYOUT = chr(0xF0574)  # md-view_quilt
 ICON_DATE = chr(0xF00ED)  # md-calendar
 ICON_CLOCK = chr(0xF0150)  # md-clock_outline
 ICON_MEMORY = chr(0xF035B)  # md-memory
-ICON_LOAD = chr(0xF04C5)  # md-speedometer
+ICON_CPU = chr(0xF04C5)  # md-speedometer
 ICON_DISK = chr(0xF02CA)  # md-harddisk
 ICON_PROCESS = chr(0xF0C8B)  # md-application_brackets
 ICON_SHELL = chr(0xF120)  # fa-terminal
@@ -125,7 +125,7 @@ STATUS_GAP = 2  # minimum blank cells between the last tab and the status
 
 # Status segments. Turning one off keeps its code and skips its sampling.
 SHOW_LAYOUT = True
-SHOW_LOAD = True
+SHOW_CPU = True
 SHOW_DISK = True
 SHOW_BATTERY = True
 SHOW_MEMORY = True
@@ -407,12 +407,6 @@ def _statwell_memory(value):
     return f"{_size(used)} used · {_size(available)} free", severity
 
 
-def _statwell_load(value):
-    load = float(value["one_minute"])
-    per_core = load / (os.cpu_count() or 1)
-    return f"{load:.1f}", 2 if per_core >= 1.0 else 1 if per_core >= 0.7 else 0
-
-
 def _statwell_disk(value):
     available = int(value["available_bytes"])
     total = int(value["total_bytes"])
@@ -576,7 +570,7 @@ if USE_STATWELL:
     _snapshot = SnapshotReader(STATWELL_BIN)
     _memory = MetricSampler("memory", _statwell_memory)
     _battery = MetricSampler("battery", _statwell_battery)
-    _load = MetricSampler("load", _statwell_load)
+    _cpu = MetricSampler("cpu", cpu_display)
     _disk = MetricSampler("disk", _statwell_disk)
 elif is_macos:
     _memory = Sampler(
@@ -595,6 +589,8 @@ else:
 if not USE_STATWELL:
     _load = Sampler(_read_load, LOAD_TTL)
     _disk = Sampler(_read_disk, DISK_TTL)
+    # The rollback path retains the old load-average segment.
+    _cpu = _load
 
 
 # =====----- Status -----------------------------------------------------===== #
@@ -641,8 +637,8 @@ def _status_segments(draw_data: DrawData, pal: Palette) -> list[Segment]:
         if tab is not None and len(tab) > 1:
             # The layout only matters once a tab is split.
             segments.append(Segment(ICON_LAYOUT, tab.current_layout.name, pal.info, 2))
-    if SHOW_LOAD:
-        segments.append(_sampled_segment(_load, ICON_LOAD, pal.info, 3, pal))
+    if SHOW_CPU:
+        segments.append(_sampled_segment(_cpu, ICON_CPU, pal.info, 3, pal))
     if SHOW_DISK:
         segments.append(_sampled_segment(_disk, ICON_DISK, pal.info, 0, pal))
     if SHOW_BATTERY:
@@ -699,7 +695,7 @@ def _tick(timer_id: int | None) -> None:
     # secure input state. Disabled segments are not sampled at all.
     global _last_signature
     samplers = (
-        (SHOW_LOAD, _load),
+        (SHOW_CPU, _cpu),
         (SHOW_DISK, _disk),
         (SHOW_BATTERY, _battery),
         (SHOW_MEMORY, _memory),

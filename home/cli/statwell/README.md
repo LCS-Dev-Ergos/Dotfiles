@@ -17,7 +17,7 @@ evaluation needs read access to the StatWell repository.
 | SketchyBar Wi-Fi rates | `statwell_network` watch event | Connection details and the popup use the existing Wi-Fi logic. |
 | SketchyBar battery | `statwell_battery` watch event | The popup queries `pmset` for a time estimate on demand. |
 | SketchyBar Homebrew | `statwell_homebrew` watch event | Brew actions remain in `brew_action.sh`; completion restarts the StatWell user service to refresh the count. |
-| Kitty tab bar | Owner-only `snapshot.json` | A missing daemon triggers an asynchronous one-shot snapshot, at most once per five seconds. `USE_STATWELL = False` restores the legacy sampler. |
+| Kitty tab bar | Owner-only `snapshot.json` | CPU uses the same normalized percentage as SketchyBar. A missing daemon triggers an asynchronous one-shot snapshot, at most once per five seconds. `USE_STATWELL = False` restores the legacy load sampler. |
 
 The SketchyBar widgets show an unknown value when an event reports an error or
 its timestamp is stale. Kitty checks the schema, file ownership and mode, the
@@ -37,7 +37,9 @@ unavailable, the network watcher falls back to one-shot sampling on the
 configured interface.
 
 The module runs the service in the `gui` launchd domain, which belongs to the
-login session that also runs SketchyBar.
+login session that also runs SketchyBar. The CPU metric uses a one-second
+daemon cadence on both platforms: Kitty reads the snapshot every second, and
+SketchyBar receives the same sample through its watch event.
 
 ## Activation and Checks
 
@@ -59,7 +61,7 @@ Reload SketchyBar and inspect CPU, upload and download rates, battery and the
 Homebrew count on the bar. Let at least one sample interval elapse, then stop
 the service briefly to check the stale and error presentation and the recovery.
 Check the battery popup estimate and a Homebrew refresh action separately. Open
-a new Kitty tab and inspect the memory, load, disk and battery segments, then
+a new Kitty tab and inspect the memory, CPU, disk and battery segments, then
 reload the tab bar and repeat while the daemon is unavailable to exercise the
 one-shot fallback. Ordinary redraws must not spawn probes.
 
