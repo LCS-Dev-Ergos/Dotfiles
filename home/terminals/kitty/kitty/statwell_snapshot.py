@@ -2,6 +2,7 @@
 
 import fcntl
 import json
+import math
 import os
 import stat
 import subprocess
@@ -12,6 +13,14 @@ MAX_SNAPSHOT_BYTES = 1 << 20
 READ_INTERVAL = 1.0
 FALLBACK_INTERVAL = 5.0
 FALLBACK_TIMEOUT = 10.0
+
+
+def cpu_display(value: dict) -> tuple[str, int]:
+    """Format the system-wide CPU percentage shared with SketchyBar."""
+    percent = float(value["total_percent"])
+    if not math.isfinite(percent) or not 0.0 <= percent <= 100.0:
+        raise ValueError("invalid CPU percentage")
+    return f"{percent:.0f}%", 2 if percent >= 80 else 1 if percent >= 60 else 0
 
 
 def default_runtime_dir() -> Path:

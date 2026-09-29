@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "kitty"))
-from statwell_snapshot import SnapshotReader, fresh_value
+from statwell_snapshot import SnapshotReader, cpu_display, fresh_value
 
 
 def document(status="ok"):
@@ -28,6 +28,13 @@ def document(status="ok"):
 
 
 class SnapshotReaderTests(unittest.TestCase):
+    def test_cpu_display_uses_bounded_system_utilization(self):
+        self.assertEqual(cpu_display({"total_percent": 23.6}), ("24%", 0))
+        self.assertEqual(cpu_display({"total_percent": 100}), ("100%", 2))
+        for value in (-1, 100.1, float("nan"), float("inf")):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                cpu_display({"total_percent": value})
+
     def test_freshness_and_schema_are_enforced(self):
         value = document()
         self.assertEqual(fresh_value(value, "cpu"), {"total_percent": 25.0})
