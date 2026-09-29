@@ -82,7 +82,7 @@ class BrewActionTests(unittest.TestCase):
             self.assertEqual(result.returncode, 7, "preserve Brew's exit status")
             self.assertEqual(
                 refreshed.read_text().strip(),
-                f"kickstart -k user/{os.getuid()}/org.nix-community.home.statwell",
+                f"kickstart -k gui/{os.getuid()}/org.nix-community.home.statwell",
             )
 
 

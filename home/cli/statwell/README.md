@@ -30,8 +30,14 @@ fallback as soon as the daemon recovers.
 
 Before the daemon publishes its first Homebrew result, the Homebrew widget
 shows a muted `?`; a completed failed check is marked in red. The Homebrew
-check has a 30-second deadline on macOS. While the daemon is unavailable, the
-network watcher falls back to one-shot sampling on the configured interface.
+check has a 30-second deadline on macOS; the Homebrew watcher inherits it and
+disables metadata auto-update. A failed package check is retried after 30
+seconds instead of waiting for the hourly cadence. While the daemon is
+unavailable, the network watcher falls back to one-shot sampling on the
+configured interface.
+
+The module runs the service in the `gui` launchd domain, which belongs to the
+login session that also runs SketchyBar.
 
 ## Activation and Checks
 
@@ -45,7 +51,7 @@ sudo darwin-rebuild switch --flake .#LCSMacBook-Pro
 After the switch, check the user service and take a snapshot:
 
 ```bash
-launchctl print "user/$(id -u)/org.nix-community.home.statwell"
+launchctl print "gui/$(id -u)/org.nix-community.home.statwell"
 statwell snapshot
 ```
 

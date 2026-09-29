@@ -3,6 +3,7 @@ return {
   nowplaying = "@nowplaying@",
   statwell = "@statwell@",
   network_interface = "@network_interface@",
+  package_timeout_ms = @package_timeout_ms@,
   audio = "@switchaudio@",
   python = "@python@",
   yabai = "@yabai@",
