@@ -7,6 +7,7 @@ statwell.watch("cpu", "statwell_cpu")
 
 local cpu = sbar.add("graph", "widgets.cpu" , 42, {
   position = "right",
+  scroll_texts = false,
   graph = { color = colors.blue },
   background = {
     height = 22,
@@ -16,13 +17,14 @@ local cpu = sbar.add("graph", "widgets.cpu" , 42, {
   },
   icon = { string = icons.cpu },
   label = {
-    string = "cpu ??%",
+    string = "?%",
     font = {
       family = settings.font.numbers,
       style = settings.font.style_map["Bold"],
       size = 9.0,
     },
     align = "right",
+    padding_left = 0,
     padding_right = 0,
     width = 0,
     y_offset = 4
@@ -33,7 +35,7 @@ local cpu = sbar.add("graph", "widgets.cpu" , 42, {
 statwell.subscribe(cpu, "cpu", "statwell_cpu", function(env)
   local load = statwell.fresh(env) and tonumber(env.total_percent) or nil
   if not load or load ~= load or load < 0 or load > 100 then
-    cpu:set({ label = "cpu ?%", graph = { color = colors.muted } })
+    cpu:set({ label = "?%", graph = { color = colors.muted } })
     return
   end
   cpu:push({ load / 100. })
@@ -51,7 +53,7 @@ statwell.subscribe(cpu, "cpu", "statwell_cpu", function(env)
 
   cpu:set({
     graph = { color = color },
-    label = string.format("cpu %.0f%%", load),
+    label = string.format("%.0f%%", load),
   })
 end)
 

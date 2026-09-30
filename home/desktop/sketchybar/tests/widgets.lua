@@ -32,6 +32,7 @@ local function reply(...) commands[#commands][2](...) end
 -- Homebrew: a daemon restart is pending, not a failed package check.
 require("items.widgets.homebrew")
 local brew = items["widgets.brew"]
+local brew_details, brew_checked = items["widgets.brew.details"], items["widgets.brew.checked"]
 assert(brew.props.label.string == "?")
 local helper = require("helpers.statwell")
 helper.prepare()
@@ -48,6 +49,9 @@ assert(brew.props.label.string == "1…", "pending refresh must not show a stale
 assert(brew.props.label.color == require("colors").muted, "pending refresh must not look like an error")
 brew.handlers.statwell_homebrew({ status = "ok", value_at_unix_ms = brew_now, max_age_ms = "10800000", total = "2" })
 assert(brew.props.label.string == "2", "completed refresh must show the new count")
+assert(brew_details.props.label.string == "2 updates available")
+assert(brew_checked.props.label.string:match("^Last checked at %d%d:%d%d:%d%d$"),
+  "the check time belongs in the secondary popup row")
 
 -- Empty events preserve the count; actual failures stay visible.
 brew.handlers.statwell_homebrew({ status = "ok", value_at_unix_ms = brew_now, max_age_ms = "10800000", total = "7" })
@@ -55,6 +59,10 @@ brew.handlers.statwell_homebrew({})
 assert(brew.props.label.string == "7", "empty event must preserve count")
 brew.handlers.statwell_homebrew({ status = "error", total = "0" })
 assert(brew.props.label.string == "7!", "failure must not look like zero updates")
+brew.handlers.statwell_homebrew({ status = "error", error = "system_failure" })
+assert(brew_details.props.label.string == "Update check failed")
+assert(brew_checked.props.label.string == "Homebrew will retry automatically",
+  "startup errors need readable feedback without hiding the failure")
 brew.handlers.statwell_homebrew({ status = "ok", value_at_unix_ms = brew_now, max_age_ms = "10800000", total = "0" })
 assert(brew.props.label.string == "0", "recovery must clear the error")
 
@@ -176,9 +184,12 @@ local cpu = items["widgets.cpu"]
 local now_ms = tostring(os.time() * 1000)
 assert(require("helpers.statwell").fresh({ status = "ok", value_at_unix_ms = tostring(os.time() * 1000 + 500), max_age_ms = "6000" }))
 cpu.handlers.statwell_cpu({ status = "ok", value_at_unix_ms = now_ms, max_age_ms = "6000", total_percent = "25" })
-assert(cpu.props.label == "cpu 25%" and cpu.last_push[1] == 0.25)
+assert(cpu.props.label == "25%" and cpu.last_push[1] == 0.25)
+cpu.handlers.statwell_cpu({ status = "ok", value_at_unix_ms = now_ms, max_age_ms = "6000", total_percent = "100" })
+assert(cpu.props.label == "100%" and cpu.last_push[1] == 1,
+  "the maximum CPU label must fit beside the icon")
 cpu.handlers.statwell_cpu({ status = "error", value_at_unix_ms = now_ms, max_age_ms = "6000" })
-assert(cpu.props.label == "cpu ?%", "failed CPU probe must not become zero")
+assert(cpu.props.label == "?%", "failed CPU probe must not become zero")
 
 -- Battery: charge comes from StatWell; errors never display as zero percent.
 require("items.widgets.battery")
@@ -194,10 +205,10 @@ require("items.widgets.wifi")
 local watched_network = false
 for _, cmd in ipairs(commands) do if cmd[1]:find("statwell_network",1,true) then watched_network=true end end
 local upload, download = items["widgets.wifi1"], items["widgets.wifi2"]
-assert(upload.props.label.width == 72 and download.props.label.width == 72,
+assert(upload.props.label.width == helper.rate_width and download.props.label.width == helper.rate_width,
   "both rate cells need identical fixed geometry")
-assert(download.props.width == 92 and upload.props.width == 0,
-  "stacked network rows must reserve exactly one fixed width")
+assert(download.props.width == "dynamic" and upload.props.width == 0,
+  "stacked rows reserve the fixed cells plus their actual padding once")
 local network_zero = { status = "ok", value_at_unix_ms = now_ms, max_age_ms = "6000", upload_bytes_per_second = "0", download_bytes_per_second = "1024" }
 upload.handlers.statwell_network(network_zero)
 local up_sets, down_sets = upload.sets, download.sets
