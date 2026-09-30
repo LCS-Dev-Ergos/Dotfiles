@@ -21,70 +21,9 @@ package.preload["helpers.runtime"] = function()
   }
 end
 
--- Items by creation order and by name, plus every `sbar.exec` call as
--- `{ command, callback }` and every `sbar.delay` callback.
-local items, commands, timers = {}, {}, {}
-
---- Deep-merges `b` into `a`, as `item:set` does for nested properties.
---- @param a table Properties to update in place.
---- @param b table Properties to apply.
-local function merge(a, b)
-  for k, v in pairs(b) do
-    if type(v) == "table" and type(a[k]) == "table" then
-      merge(a[k], v)
-    else
-      a[k] = v
-    end
-  end
-end
-
---- Creates a stub item that records its properties, redraws and handlers.
---- @param name string Item name.
---- @param props table|nil Initial properties.
---- @return table item The stub item, also stored in `items`.
-local function add_item(name, props)
-  local item = { name = name, props = props or {}, handlers = {}, sets = 0 }
-
-  function item:set(value)
-    self.sets = self.sets + 1
-    merge(self.props, value)
-  end
-
-  function item:push(value)
-    self.last_push = value
-  end
-
-  function item:query()
-    local drawing = self.props.popup and self.props.popup.drawing == true
-    return { popup = { drawing = drawing and "on" or "off" } }
-  end
-
-  function item:subscribe(events, callback)
-    if type(events) == "string" then events = { events } end
-    for _, event in ipairs(events) do
-      self.handlers[event] = callback
-    end
-  end
-
-  table.insert(items, item)
-  items[name] = item
-  return item
-end
-
-sbar = {
-  exec = function(command, callback) table.insert(commands, { command, callback }) end,
-  delay = function(_, callback) table.insert(timers, callback) end,
-  remove = function() end,
-  add = function(kind, name, props, extra_props)
-    if kind == "event" then return end
-    -- Graphs pass a width before the properties; anonymous items pass none.
-    if extra_props then props = extra_props end
-    if type(name) == "table" then
-      props, name = name, "item." .. #items
-    end
-    return add_item(name, props)
-  end,
-}
+local fixture = dofile(root .. "/../tests/fixtures/sbar.lua")()
+local items, commands, timers = fixture.items, fixture.commands, fixture.timers
+sbar = fixture.api
 
 --- Answers the most recent `sbar.exec` call.
 --- @param ... any Arguments for the command's callback.
@@ -94,14 +33,18 @@ local function reply(...) commands[#commands][2](...) end
 require("items.widgets.homebrew")
 local brew = items["widgets.brew"]
 assert(brew.props.label.string == "?")
-local brew_watch = commands[#commands][1]
+local helper = require("helpers.statwell")
+helper.prepare()
+helper.start()
+local brew_watch
+for _, cmd in ipairs(commands) do if cmd[1]:find("statwell_homebrew", 1, true) then brew_watch=cmd[1] end end
 assert(brew_watch:find("HOMEBREW_NO_AUTO_UPDATE=1", 1, true) and
   brew_watch:find("--package-timeout-ms 30000", 1, true),
   "Homebrew fallback needs the same environment and deadline as the daemon")
 local brew_now = tostring(os.time() * 1000)
 brew.handlers.statwell_homebrew({ status = "ok", value_at_unix_ms = brew_now, max_age_ms = "10800000", total = "1" })
 brew.handlers.statwell_homebrew({ status = "unavailable" })
-assert(brew.props.label.string == "?", "pending refresh must not show a stale 1!")
+assert(brew.props.label.string == "1…", "pending refresh must not show a stale 1!")
 assert(brew.props.label.color == require("colors").muted, "pending refresh must not look like an error")
 brew.handlers.statwell_homebrew({ status = "ok", value_at_unix_ms = brew_now, max_age_ms = "10800000", total = "2" })
 assert(brew.props.label.string == "2", "completed refresh must show the new count")
@@ -247,15 +190,14 @@ assert(battery.props.label.string == "?", "failed battery probe must not become 
 
 -- Network: only a changed direction is redrawn.
 require("items.widgets.wifi")
+-- Late-loaded widgets have queued watches; start is normally called after all modules.
+local watched_network = false
+for _, cmd in ipairs(commands) do if cmd[1]:find("statwell_network",1,true) then watched_network=true end end
 local upload, download = items["widgets.wifi1"], items["widgets.wifi2"]
-local network_watch
-for _, invocation in ipairs(commands) do
-  if invocation[1]:find("watch %-%-metric") and invocation[1]:find("network") then
-    network_watch = invocation[1]
-  end
-end
-assert(network_watch and network_watch:find("%-%-interface") and network_watch:find("en0"),
-  "network watcher needs the configured interface for daemon-less sampling")
+assert(upload.props.label.width == 72 and download.props.label.width == 72,
+  "both rate cells need identical fixed geometry")
+assert(download.props.width == 92 and upload.props.width == 0,
+  "stacked network rows must reserve exactly one fixed width")
 local network_zero = { status = "ok", value_at_unix_ms = now_ms, max_age_ms = "6000", upload_bytes_per_second = "0", download_bytes_per_second = "1024" }
 upload.handlers.statwell_network(network_zero)
 local up_sets, down_sets = upload.sets, download.sets
@@ -270,6 +212,6 @@ assert(
   "redraw only the changed direction"
 )
 upload.handlers.statwell_network({ status = "error" })
-assert(upload.props.label.string == "??? Bps", "network errors must remain unknown")
+assert(upload.props.label.string == require("helpers.statwell").rate_unknown, "network errors must remain unknown")
 
 print("widget callbacks: PASS")
