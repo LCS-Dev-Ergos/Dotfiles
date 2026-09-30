@@ -33,7 +33,7 @@ local remaining_time = sbar.add("item", {
 
 -- The popup's time estimate still uses pmset on click; the drawn status uses
 -- the shared daemon's charge and power readings.
-battery:subscribe("statwell_battery", function(env)
+statwell.subscribe(battery, "battery", "statwell_battery", function(env)
   local charge = statwell.fresh(env) and tonumber(env.percent) or nil
   if not charge or charge < 0 or charge > 100 then
     battery:set({ icon = { string = "!", color = colors.red }, label = { string = "?" } })
