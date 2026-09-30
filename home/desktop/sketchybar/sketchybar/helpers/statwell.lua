@@ -1,6 +1,7 @@
 -- Shared watcher lifecycle, cache reconciliation and presentation utilities.
 local runtime = require("helpers.runtime")
-local M = { rate_unknown = "  --.- KiB/s", rate_width = 72 }
+-- Fixed renderer cells keep the bar stable without padding the visible number.
+local M = { rate_unknown = "--.- KiB/s", rate_width = 68 }
 local watches, consumers = {}, {}
 local started, sleeping, in_flight = false, false, false
 local tick, wake_generation, cache_token, cache_started = 0, 0, 0, 0
@@ -205,8 +206,8 @@ function M.rate(bytes)
   while unit < #units and value >= 1023.95 do
     value, unit = value / 1024, unit + 1
   end
-  if value >= 9999.95 then return " >9999 " .. units[unit] end
-  return string.format("%6.1f %s", value, units[unit])
+  if value >= 9999.95 then return ">9999 " .. units[unit] end
+  return string.format("%.1f %s", value, units[unit])
 end
 
 return M

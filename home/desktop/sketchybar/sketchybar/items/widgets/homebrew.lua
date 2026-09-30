@@ -50,7 +50,7 @@ end
 
 statwell.watch("homebrew", "statwell_homebrew")
 
--- Main widget - always visible (unchanged)
+-- Main widget - always visible.
 local brew = sbar.add("item", CONFIG.widget_name, {
   position = "right",
   icon = {
@@ -71,13 +71,31 @@ local brew = sbar.add("item", CONFIG.widget_name, {
 
 -- Keep the last confirmed value while exposing pending, stale and error states.
 local last_count
-local details = sbar.add("item", CONFIG.widget_name .. ".details", {
-  position = "popup." .. brew.name,
-  width = 270,
-  icon = { drawing = false },
-  label = { string = "Waiting for the first check", max_chars = 48 },
-})
-brew:set({ popup = { align = "center" } })
+local function popup_row(name, text, size, style, color)
+  return sbar.add("item", CONFIG.widget_name .. "." .. name, {
+    position = "popup." .. brew.name,
+    width = 200,
+    padding_left = 4,
+    padding_right = 4,
+    scroll_texts = false,
+    icon = { drawing = false },
+    background = { drawing = false },
+    label = {
+      string = text,
+      font = { family = settings.font.text, style = style, size = size },
+      color = color,
+      align = "left",
+      padding_left = 6,
+      padding_right = 6,
+    },
+  })
+end
+local details = popup_row("details", "Checking for updates…", 11.0,
+  settings.font.style_map["Semibold"], colors.muted)
+local checked_row = popup_row("checked", "Waiting for the first result", 10.0,
+  settings.font.style_map["Regular"], colors.muted)
+brew:set({ popup = { align = "center", height = 24,
+  background = { border_width = 1, corner_radius = 8 } } })
 
 local function valid_count(value)
   value = tonumber(value)
@@ -95,14 +113,16 @@ statwell.subscribe(brew, "homebrew", "statwell_homebrew", function(env)
   end
   local pending = env.status == "unavailable" or env.refreshing == "true"
   local fresh = statwell.fresh(env) and count ~= nil
-  local label, color, state
+  local label, color, state, note
   if pending then
-    label, color, state = last_count and (tostring(last_count) .. "…") or "?", colors.muted, "Checking"
+    label, color, state = last_count and (tostring(last_count) .. "…") or "?", colors.muted, "Checking for updates…"
   elseif not fresh then
     label, color = last_count and (tostring(last_count) .. "!") or "?", colors.red
-    if env.status == "transport_error" then state = "Connection unavailable"
-    elseif env.status == "error" then state = "Check failed: " .. tostring(env.error or "unknown")
-    elseif not count then state = "Invalid package count"
+    if env.status == "transport_error" then
+      state, note = "Connection unavailable", "Waiting for StatWell"
+    elseif env.status == "error" then
+      state, note = "Update check failed", "Homebrew will retry automatically"
+    elseif not count then state, note = "Invalid package count", "Waiting for a valid result"
     else state = "Last result expired" end
   else
     last_count = count
@@ -111,11 +131,12 @@ statwell.subscribe(brew, "homebrew", "statwell_homebrew", function(env)
   end
   brew:set({ icon = { string = CONFIG.package_icon, color = color },
     label = { string = label, color = color } })
-  local checked = ""
+  local checked = "Waiting for the first result"
   if value_at and value_at > 0 and value_at < math.huge and value_at < 1e14 then
-    checked = " · " .. os.date("%H:%M:%S", math.floor(value_at / 1000))
+    checked = "Last checked at " .. os.date("%H:%M:%S", math.floor(value_at / 1000))
   end
-  details:set({ label = { string = state .. checked, color = color } })
+  details:set({ label = { string = state, color = color } })
+  checked_row:set({ label = { string = note or checked } })
 end)
 
 -- The terminal command signals the provider after brew actually completes.
@@ -123,7 +144,7 @@ brew:set({ click_script = "/bin/bash " .. shell_quote(config_dir .. "/helpers/br
   .. " " .. shell_quote(CONFIG.brew_path) .. " " .. shell_quote(require("helpers.runtime").statwell)
   .. " " .. shell_quote(require("helpers.runtime").runtime_dir or "") })
 
--- Hover effect and surrounding elements (unchanged)
+-- Hover effect and surrounding elements.
 if CONFIG.hover_effect then
   brew:subscribe("mouse.entered", function(env) brew:set({ background = { color = colors.hover }, popup = { drawing = true } }) end)
   brew:subscribe("mouse.exited", function(env) brew:set({ background = { color = { alpha = 0 } }, popup = { drawing = false } }) end)

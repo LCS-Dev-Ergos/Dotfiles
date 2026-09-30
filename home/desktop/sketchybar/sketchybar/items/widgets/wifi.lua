@@ -45,7 +45,9 @@ local wifi_up = sbar.add("item", "widgets.wifi1", {
   width = 0,
   scroll_texts = false,
   icon = {
-    padding_right = 0,
+    width = 12,
+    padding_left = 0,
+    padding_right = 2,
     font = {
       style = settings.font.style_map["Bold"],
       size = 9.0,
@@ -61,18 +63,24 @@ local wifi_up = sbar.add("item", "widgets.wifi1", {
     color = colors.magenta,
     string = statwell.rate_unknown,
     width = statwell.rate_width,
-    align = "right",
+    align = "left",
+    padding_left = 0,
+    padding_right = 2,
   },
   y_offset = 4,
 })
 
 local wifi_down = sbar.add("item", "widgets.wifi2", {
-  width = statwell.rate_width + 20,
+  -- The fixed icon/label cells determine the width, including their padding.
+  -- An item width smaller than this content would clip the unit on the right.
+  width = "dynamic",
   scroll_texts = false,
   position = "right",
   padding_left = -5,
   icon = {
-    padding_right = 0,
+    width = 12,
+    padding_left = 0,
+    padding_right = 2,
     font = {
       style = settings.font.style_map["Bold"],
       size = 9.0,
@@ -88,7 +96,9 @@ local wifi_down = sbar.add("item", "widgets.wifi2", {
     color = colors.blue,
     string = statwell.rate_unknown,
     width = statwell.rate_width,
-    align = "right",
+    align = "left",
+    padding_left = 0,
+    padding_right = 2,
   },
   y_offset = -4,
 })

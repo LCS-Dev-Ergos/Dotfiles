@@ -82,11 +82,12 @@ assert(brew.props.label.string == "7!", "freshness expires even with no watcher 
 assert(upload.props.label.string == helper.rate_unknown)
 
 for _, n in ipairs({0,1,1023,1024,1048575,1048576,1073741824,1e30}) do
-  assert(#helper.rate(n) == 12, "rate strings always reserve twelve characters")
+  assert(#helper.rate(n) <= 12 and not helper.rate(n):match("^%s"),
+    "rates fit the fixed cell without leading whitespace")
   upload.handlers.statwell_network({ status="ok",value_at_unix_ms=tostring(now*1000),max_age_ms="6000",
     upload_bytes_per_second=tostring(n),download_bytes_per_second=tostring(n) })
-  assert(upload.props.label.width == 72 and download.props.label.width == 72)
-  assert(download.props.width == 92 and upload.props.width == 0)
+  assert(upload.props.label.width == helper.rate_width and download.props.label.width == helper.rate_width)
+  assert(download.props.width == "dynamic" and upload.props.width == 0)
 end
 assert(helper.rate(math.huge) == nil and helper.rate(0/0) == nil and helper.rate(-1) == nil)
 assert(not helper.fresh({status="ok",value_at_unix_ms=math.huge,max_age_ms=6000}))
