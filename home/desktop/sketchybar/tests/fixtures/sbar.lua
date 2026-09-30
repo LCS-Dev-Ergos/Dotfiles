@@ -19,9 +19,11 @@ return function()
 
   function api.add(kind, name, props, extra_props)
     if kind == "event" then return end
+    local graph_width = kind == "graph" and props or nil
     if extra_props then props = extra_props end
     if type(name) == "table" then props, name = name, "item." .. #items end
-    local item = { name = name, props = props or {}, handlers = {}, sets = 0 }
+    local item = { name = name, props = props or {}, handlers = {}, sets = 0,
+      graph_width = graph_width }
 
     function item:set(value)
       self.sets = self.sets + 1
