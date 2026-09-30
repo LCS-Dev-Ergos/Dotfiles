@@ -69,44 +69,64 @@ local brew = sbar.add("item", CONFIG.widget_name, {
   background = { height = 22, color = { alpha = 0 }, border_color = { alpha = 0 }, drawing = true, },
 })
 
--- A missing payload is not a successful zero. Keep the last valid count and
--- distinguish a pending refresh from a failed package check.
-local last_count = nil
-brew:subscribe("statwell_homebrew", function(env)
+-- Keep the last confirmed value while exposing pending, stale and error states.
+local last_count
+local details = sbar.add("item", CONFIG.widget_name .. ".details", {
+  position = "popup." .. brew.name,
+  width = 270,
+  icon = { drawing = false },
+  label = { string = "Waiting for the first check", max_chars = 48 },
+})
+brew:set({ popup = { align = "center" } })
+
+local function valid_count(value)
+  value = tonumber(value)
+  return value and value == value and value >= 0 and value < math.huge
+    and value % 1 == 0 and value or nil
+end
+
+statwell.subscribe(brew, "homebrew", "statwell_homebrew", function(env)
   if not env.status then return end
-  if env.status == "unavailable" then
-    brew:set({
-      icon = { color = colors.muted },
-      label = { string = "?", color = colors.muted },
-    })
-    return
+  local count = valid_count(env.total)
+  local value_at = tonumber(env.value_at_unix_ms)
+  -- An error payload can carry the daemon's last valid value after a Lua restart.
+  if not last_count and count and value_at and value_at > 0 and value_at < math.huge then
+    last_count = count
   end
-  local failed = not statwell.fresh(env)
-  local count = tonumber(env.total)
-  if failed then
-    brew:set({
-      icon = { color = colors.red },
-      label = { string = last_count and (tostring(last_count) .. "!") or "?", color = colors.red },
-    })
-    return
+  local pending = env.status == "unavailable" or env.refreshing == "true"
+  local fresh = statwell.fresh(env) and count ~= nil
+  local label, color, state
+  if pending then
+    label, color, state = last_count and (tostring(last_count) .. "…") or "?", colors.muted, "Checking"
+  elseif not fresh then
+    label, color = last_count and (tostring(last_count) .. "!") or "?", colors.red
+    if env.status == "transport_error" then state = "Connection unavailable"
+    elseif env.status == "error" then state = "Check failed: " .. tostring(env.error or "unknown")
+    elseif not count then state = "Invalid package count"
+    else state = "Last result expired" end
+  else
+    last_count = count
+    label, color = tostring(count), get_color(count)
+    state = count == 0 and "No updates available" or (tostring(count) .. (count == 1 and " update available" or " updates available"))
   end
-  if not count or count < 0 or count % 1 ~= 0 then return end
-  last_count = count
-  local color = get_color(count)
-  brew:set({
-    icon = { string = CONFIG.package_icon, color = color },
-    label = { string = tostring(count), color = color },
-  })
+  brew:set({ icon = { string = CONFIG.package_icon, color = color },
+    label = { string = label, color = color } })
+  local checked = ""
+  if value_at and value_at > 0 and value_at < math.huge and value_at < 1e14 then
+    checked = " · " .. os.date("%H:%M:%S", math.floor(value_at / 1000))
+  end
+  details:set({ label = { string = state .. checked, color = color } })
 end)
 
 -- The terminal command signals the provider after brew actually completes.
 brew:set({ click_script = "/bin/bash " .. shell_quote(config_dir .. "/helpers/brew_action.sh")
-  .. " " .. shell_quote(CONFIG.brew_path) })
+  .. " " .. shell_quote(CONFIG.brew_path) .. " " .. shell_quote(require("helpers.runtime").statwell)
+  .. " " .. shell_quote(require("helpers.runtime").runtime_dir or "") })
 
 -- Hover effect and surrounding elements (unchanged)
 if CONFIG.hover_effect then
-  brew:subscribe("mouse.entered", function(env) brew:set({ background = { color = colors.hover }}) end)
-  brew:subscribe("mouse.exited", function(env) brew:set({ background = { color = { alpha = 0 } }}) end)
+  brew:subscribe("mouse.entered", function(env) brew:set({ background = { color = colors.hover }, popup = { drawing = true } }) end)
+  brew:subscribe("mouse.exited", function(env) brew:set({ background = { color = { alpha = 0 } }, popup = { drawing = false } }) end)
 end
 sbar.add("bracket", CONFIG.widget_name .. ".bracket", { brew.name }, { background = { color = colors.bg1 }})
 sbar.add("item", CONFIG.widget_name .. ".padding", { position = "right", width = settings.group_paddings })

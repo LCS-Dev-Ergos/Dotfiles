@@ -6,7 +6,15 @@ if [ "${1:-}" = --run ]; then
   shift
   brew_path=$1
   action=$2
-  refresh() { launchctl kickstart -k "gui/$(/usr/bin/id -u)/org.nix-community.home.statwell" 2>/dev/null || true; }
+  statwell_path=$3
+  runtime_dir=${4:-}
+  refresh() {
+    if [ -n "$runtime_dir" ]; then
+      "$statwell_path" refresh --provider homebrew --runtime-dir "$runtime_dir"
+    else
+      "$statwell_path" refresh --provider homebrew
+    fi
+  }
   trap refresh EXIT
   "$brew_path" "$action"
   result=$?
@@ -18,10 +26,16 @@ if [ "${1:-}" = --run ]; then
 fi
 
 brew_path=$1
+statwell_path=$2
+runtime_dir=${3:-}
 [ -x "$brew_path" ] || exit 1
 case "${BUTTON:-left}" in
   other|middle)
-    launchctl kickstart -k "gui/$(/usr/bin/id -u)/org.nix-community.home.statwell"
+    if [ -n "$runtime_dir" ]; then
+      "$statwell_path" refresh --provider homebrew --runtime-dir "$runtime_dir"
+    else
+      "$statwell_path" refresh --provider homebrew
+    fi
     ;;
   left|right)
     action=outdated
@@ -33,7 +47,7 @@ case "${BUTTON:-left}" in
       value=${value//\'/$escaped_quote}
       printf "'%s'" "$value"
     }
-    command="/bin/bash $(quote "$0") --run $(quote "$brew_path") $(quote "$action")"
+    command="/bin/bash $(quote "$0") --run $(quote "$brew_path") $(quote "$action") $(quote "$statwell_path") $(quote "$runtime_dir")"
     /usr/bin/open -n -a Ghostty --args \
       --window-save-state=never --quit-after-last-window-closed=true \
       "--initial-command=$command"

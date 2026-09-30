@@ -43,6 +43,7 @@ local wifi_up = sbar.add("item", "widgets.wifi1", {
   position = "right",
   padding_left = -5,
   width = 0,
+  scroll_texts = false,
   icon = {
     padding_right = 0,
     font = {
@@ -58,12 +59,16 @@ local wifi_up = sbar.add("item", "widgets.wifi1", {
       size = 9.0,
     },
     color = colors.magenta,
-    string = "??? Bps",
+    string = statwell.rate_unknown,
+    width = statwell.rate_width,
+    align = "right",
   },
   y_offset = 4,
 })
 
 local wifi_down = sbar.add("item", "widgets.wifi2", {
+  width = statwell.rate_width + 20,
+  scroll_texts = false,
   position = "right",
   padding_left = -5,
   icon = {
@@ -81,7 +86,9 @@ local wifi_down = sbar.add("item", "widgets.wifi2", {
       size = 9.0,
     },
     color = colors.blue,
-    string = "??? Bps",
+    string = statwell.rate_unknown,
+    width = statwell.rate_width,
+    align = "right",
   },
   y_offset = -4,
 })
@@ -185,21 +192,21 @@ local router = sbar.add("item", {
 
 sbar.add("item", { position = "right", width = settings.group_paddings })
 
-local last_upload, last_download
-wifi_up:subscribe("statwell_network", function(env)
-  local upload = statwell.fresh(env) and statwell.rate(env.upload_bytes_per_second) or "??? Bps"
-  local download = statwell.fresh(env) and statwell.rate(env.download_bytes_per_second) or "??? Bps"
-  local up_color = (upload == "000 Bps") and colors.muted or colors.magenta
-  local down_color = (download == "000 Bps") and colors.muted or colors.blue
-  if upload ~= last_upload then
-    last_upload = upload
+local last_upload, last_download, last_up_color, last_down_color
+statwell.subscribe(wifi_up, "network", "statwell_network", function(env)
+  local upload = statwell.fresh(env) and statwell.rate(env.upload_bytes_per_second) or statwell.rate_unknown
+  local download = statwell.fresh(env) and statwell.rate(env.download_bytes_per_second) or statwell.rate_unknown
+  local up_color = (upload == statwell.rate_unknown or (tonumber(env.upload_bytes_per_second) == 0 and statwell.fresh(env))) and colors.muted or colors.magenta
+  local down_color = (download == statwell.rate_unknown or (tonumber(env.download_bytes_per_second) == 0 and statwell.fresh(env))) and colors.muted or colors.blue
+  if upload ~= last_upload or up_color ~= last_up_color then
+    last_upload, last_up_color = upload, up_color
     wifi_up:set({
       icon = { color = up_color },
       label = { string = upload, color = up_color },
     })
   end
-  if download ~= last_download then
-    last_download = download
+  if download ~= last_download or down_color ~= last_down_color then
+    last_download, last_down_color = download, down_color
     wifi_down:set({
       icon = { color = down_color },
       label = { string = download, color = down_color },

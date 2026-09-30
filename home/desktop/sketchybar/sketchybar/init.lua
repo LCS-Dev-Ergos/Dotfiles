@@ -9,7 +9,9 @@ sbar.begin_config()
 require("bar")
 require("default")
 require("items")
+require("helpers.statwell").prepare()
 sbar.end_config()
+require("helpers.statwell").start()
 
 -- Run the event loop of the sketchybar module (without this there will be no
 -- callback functions executed in the lua module)
