@@ -215,16 +215,16 @@
         ]
       },
       "locked": {
-        "lastModified": 1790766401,
-        "narHash": "sha256-58n3Nsn1NYkmCw/A9x6k17DlmM7qaINfPiovR99hrXY=",
+        "lastModified": 1790766917,
+        "narHash": "sha256-vIVpPymYi0nb5p/azHJ6nupPXyH5kIHxoCHA795esLc=",
         "ref": "refs/heads/main",
-        "rev": "256bc6d1682b0a8c8f560996d510acff31b451cd",
-        "revCount": 24,
+        "rev": "9d500eb3875ac423115f75c167168f9c6aaea48d",
+        "revCount": 25,
         "type": "git",
         "url": "https://github.com/LCS-Dev-Ergos/StatWell.git"
       },
       "original": {
-        "rev": "256bc6d1682b0a8c8f560996d510acff31b451cd",
+        "rev": "9d500eb3875ac423115f75c167168f9c6aaea48d",
         "type": "git",
         "url": "https://github.com/LCS-Dev-Ergos/StatWell.git"
       }
