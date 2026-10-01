@@ -6,16 +6,18 @@
 # (text selection, kitty and tmux tabs and scrolling).
 #
 # Space bindings go through ~/.config/yabai/space.sh, which fades in the
-# windows of the space it switches to and focuses one of them.
+# windows of the space it switches to and focuses one of them. The others call
+# yabai-msg, which does what `yabai -m` does without loading the window
+# manager's frameworks: it starts in about 2 ms instead of 6.
 
 # ============================================================================ #
 # =====----- WINDOW AND SPACE NAVIGATION --------------------------------===== #
 
 # Window navigation (across display borders): lalt - {h, j, k, l}
-lalt - h : yabai -m window --focus west  || yabai -m display --focus west
-lalt - j : yabai -m window --focus south || yabai -m display --focus south
-lalt - k : yabai -m window --focus north || yabai -m display --focus north
-lalt - l : yabai -m window --focus east  || yabai -m display --focus east
+lalt - h : yabai-msg window --focus west  || yabai-msg display --focus west
+lalt - j : yabai-msg window --focus south || yabai-msg display --focus south
+lalt - k : yabai-msg window --focus north || yabai-msg display --focus north
+lalt - l : yabai-msg window --focus east  || yabai-msg display --focus east
 
 # Space navigation by mission-control index, as SketchyBar numbers them:
 # lalt - {1, 2, ..., 9, 0}, with 0 for space 10
@@ -37,8 +39,8 @@ ctrl - left  : ~/.config/yabai/space.sh focus prev
 ctrl - right : ~/.config/yabai/space.sh focus next
 
 # Cycle through the windows of a stack, wrapping around
-lalt - n : yabai -m window --focus stack.next || yabai -m window --focus stack.first
-lalt - p : yabai -m window --focus stack.prev || yabai -m window --focus stack.last
+lalt - n : yabai-msg window --focus stack.next || yabai-msg window --focus stack.first
+lalt - p : yabai-msg window --focus stack.prev || yabai-msg window --focus stack.last
 
 # ============================================================================ #
 # =====----- MOVE WINDOWS BETWEEN SPACES --------------------------------===== #
@@ -66,80 +68,80 @@ shift + lalt - n : ~/.config/yabai/space.sh move next
 # =====----- WINDOW MANIPULATION ----------------------------------------===== #
 
 # Equalize window size
-ctrl + lalt - e : yabai -m space --balance
+ctrl + lalt - e : yabai-msg space --balance
 
 # Change split type
-lalt - e : yabai -m window --toggle split
+lalt - e : yabai-msg window --toggle split
 
 # Close window
-ctrl + lalt - c : yabai -m window --close
+ctrl + lalt - c : yabai-msg window --close
 
 # Minimize window
-lalt - m : yabai -m window --minimize
+lalt - m : yabai-msg window --minimize
 
 # Rotate tree
-lalt - r : yabai -m space --rotate 90
+lalt - r : yabai-msg space --rotate 90
 
 # Mirror tree on the x, y axes
-lalt - x : yabai -m space --mirror x-axis
-lalt - y : yabai -m space --mirror y-axis
+lalt - x : yabai-msg space --mirror x-axis
+lalt - y : yabai-msg space --mirror y-axis
 
 # Float / unfloat window and center it (the grid only applies when floating)
-lalt - t : yabai -m window --toggle float --grid 4:4:1:1:2:2
+lalt - t : yabai-msg window --toggle float --grid 4:4:1:1:2:2
 
 # Toggle desktop padding
-lalt - a : yabai -m space --toggle padding; yabai -m space --toggle gap
+lalt - a : yabai-msg space --toggle padding; yabai-msg space --toggle gap
 
 # Toggle parent zoom / fullscreen zoom of the focused window
-lalt - d : yabai -m window --toggle zoom-parent
-lalt - f : yabai -m window --toggle zoom-fullscreen
+lalt - d : yabai-msg window --toggle zoom-parent
+lalt - f : yabai-msg window --toggle zoom-fullscreen
 
 # Increase, decrease gap in the active space
-lalt - g : yabai -m space --gap rel:20
-shift + lalt - g : yabai -m space --gap rel:-20
+lalt - g : yabai-msg space --gap rel:20
+shift + lalt - g : yabai-msg space --gap rel:-20
 
 # Toggle window native fullscreen
-shift + lalt - f : yabai -m window --toggle native-fullscreen
+shift + lalt - f : yabai-msg window --toggle native-fullscreen
 
 # ============================================================================ #
 # =====----- MOVE WINDOWS WITHIN LAYOUT ---------------------------------===== #
 
 # Warp window in direction: shift + lalt - {h, j, k, l}
-shift + lalt - h : yabai -m window --warp west
-shift + lalt - j : yabai -m window --warp south
-shift + lalt - k : yabai -m window --warp north
-shift + lalt - l : yabai -m window --warp east
+shift + lalt - h : yabai-msg window --warp west
+shift + lalt - j : yabai-msg window --warp south
+shift + lalt - k : yabai-msg window --warp north
+shift + lalt - l : yabai-msg window --warp east
 
 # ============================================================================ #
 # =====----- STACKS AND INSERTION ---------------------------------------===== #
 
 # Stack the focused window onto its neighbour: ctrl + shift + cmd - {h, j, k, l}
-ctrl + shift + cmd - h : yabai -m window west --stack $(yabai -m query --windows --window | jq -r '.id')
-ctrl + shift + cmd - j : yabai -m window south --stack $(yabai -m query --windows --window | jq -r '.id')
-ctrl + shift + cmd - k : yabai -m window north --stack $(yabai -m query --windows --window | jq -r '.id')
-ctrl + shift + cmd - l : yabai -m window east --stack $(yabai -m query --windows --window | jq -r '.id')
+ctrl + shift + cmd - h : yabai-msg window west --stack $(yabai-msg query --windows --window | jq -r '.id')
+ctrl + shift + cmd - j : yabai-msg window south --stack $(yabai-msg query --windows --window | jq -r '.id')
+ctrl + shift + cmd - k : yabai-msg window north --stack $(yabai-msg query --windows --window | jq -r '.id')
+ctrl + shift + cmd - l : yabai-msg window east --stack $(yabai-msg query --windows --window | jq -r '.id')
 
 # Set insertion point for the container: shift + ctrl + lalt - {h, j, k, l, s}
-shift + ctrl + lalt - h : yabai -m window --insert west
-shift + ctrl + lalt - j : yabai -m window --insert south
-shift + ctrl + lalt - k : yabai -m window --insert north
-shift + ctrl + lalt - l : yabai -m window --insert east
-shift + ctrl + lalt - s : yabai -m window --insert stack
+shift + ctrl + lalt - h : yabai-msg window --insert west
+shift + ctrl + lalt - j : yabai-msg window --insert south
+shift + ctrl + lalt - k : yabai-msg window --insert north
+shift + ctrl + lalt - l : yabai-msg window --insert east
+shift + ctrl + lalt - s : yabai-msg window --insert stack
 
 # ============================================================================ #
 # =====----- WINDOW RESIZING --------------------------------------------===== #
 
 # Increase window size
-ctrl + lalt - h : yabai -m window --resize left:-20:0
-ctrl + lalt - j : yabai -m window --resize bottom:0:20
-ctrl + lalt - k : yabai -m window --resize top:0:-20
-ctrl + lalt - l : yabai -m window --resize right:20:0
+ctrl + lalt - h : yabai-msg window --resize left:-20:0
+ctrl + lalt - j : yabai-msg window --resize bottom:0:20
+ctrl + lalt - k : yabai-msg window --resize top:0:-20
+ctrl + lalt - l : yabai-msg window --resize right:20:0
 
 # Decrease window size
-ctrl + lalt + cmd - h : yabai -m window --resize left:20:0
-ctrl + lalt + cmd - j : yabai -m window --resize bottom:0:-20
-ctrl + lalt + cmd - k : yabai -m window --resize top:0:20
-ctrl + lalt + cmd - l : yabai -m window --resize right:-20:0
+ctrl + lalt + cmd - h : yabai-msg window --resize left:20:0
+ctrl + lalt + cmd - j : yabai-msg window --resize bottom:0:-20
+ctrl + lalt + cmd - k : yabai-msg window --resize top:0:20
+ctrl + lalt + cmd - l : yabai-msg window --resize right:-20:0
 
 # ============================================================================ #
 # =====----- LAYOUT AND SERVICES ----------------------------------------===== #
@@ -154,7 +156,7 @@ ctrl + lalt - s : launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents
 ctrl + lalt - r : launchctl kickstart -k "gui/$(id -u)/org.nixos.yabai"
 
 # Change desktop layout
-ctrl + lalt - a : yabai -m space --layout bsp
-ctrl + lalt - d : yabai -m space --layout float
+ctrl + lalt - a : yabai-msg space --layout bsp
+ctrl + lalt - d : yabai-msg space --layout float
 
 # ============================================================================ #

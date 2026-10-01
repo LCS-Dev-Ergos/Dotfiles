@@ -2,7 +2,7 @@
 # Space navigation for skhd and SketchyBar. The daemon owns the whole
 # operation, so key repeats cannot interleave global opacity configuration.
 # Requires the signed fork's `space --navigate` command.
-yabai="@yabai@"
+yabai_msg="@yabai_msg@"
 # The whole display crossfades to the Desktop that was hidden in
 # effect_duration seconds. `crossfade` can be replaced with a starting opacity
 # in (0,1] to fade in only the destination's windows instead, over the
@@ -41,4 +41,4 @@ next | prev) ;;
 '' | *[!0-9]*) usage ;;
 esac
 
-exec "$yabai" -m space --navigate "$action" "$selector" "$effect" "$effect_duration"
+exec "$yabai_msg" space --navigate "$action" "$selector" "$effect" "$effect_duration"
