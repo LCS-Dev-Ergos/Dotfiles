@@ -47,5 +47,9 @@ return function()
     return item
   end
 
+  function api.set(name, values)
+    assert(items[name], "unknown item: " .. tostring(name)):set(values)
+  end
+
   return { api = api, items = items, commands = commands, timers = timers }
 end

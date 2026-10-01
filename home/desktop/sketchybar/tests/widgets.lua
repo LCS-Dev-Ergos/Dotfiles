@@ -50,6 +50,8 @@ assert(brew.props.label.color == require("colors").muted, "pending refresh must 
 brew.handlers.statwell_homebrew({ status = "ok", value_at_unix_ms = brew_now, max_age_ms = "10800000", total = "2" })
 assert(brew.props.label.string == "2", "completed refresh must show the new count")
 assert(brew_details.props.label.string == "2 updates available")
+assert(brew_checked.props.label.font.size >= 13,
+  "Homebrew popup text must be as readable as the other menus")
 assert(brew_checked.props.label.string:match("^Last checked at %d%d:%d%d:%d%d$"),
   "the check time belongs in the secondary popup row")
 
@@ -65,6 +67,22 @@ assert(brew_checked.props.label.string == "Homebrew will retry automatically",
   "startup errors need readable feedback without hiding the failure")
 brew.handlers.statwell_homebrew({ status = "ok", value_at_unix_ms = brew_now, max_age_ms = "10800000", total = "0" })
 assert(brew.props.label.string == "0", "recovery must clear the error")
+local brew_sets, details_sets, checked_sets = brew.sets, brew_details.sets, brew_checked.sets
+brew.handlers.statwell_homebrew({ status = "ok", value_at_unix_ms = brew_now, max_age_ms = "10800000", total = "0" })
+assert(brew.sets == brew_sets and brew_details.sets == details_sets and brew_checked.sets == checked_sets,
+  "unchanged Homebrew snapshots must not redraw the widget or popup")
+
+-- Hover must survive the move from a trigger into its popup rows.
+brew.handlers["mouse.entered"]({})
+assert(brew.props.popup.drawing == true)
+brew.handlers["mouse.exited"]({})
+local brew_close = timers[#timers]
+brew_details.handlers["mouse.entered"]({})
+brew_close()
+assert(brew.props.popup.drawing == true, "entering the popup must cancel trigger exit")
+brew_details.handlers["mouse.exited"]({})
+timers[#timers]()
+assert(brew.props.popup.drawing == false, "leaving the popup must close it")
 
 -- Media: one snapshot at a time, and the cover follows the playback state.
 require("items.media")
@@ -155,6 +173,7 @@ assert(items["space.1"].props.label == " —", "apply final state after unlock")
 -- Volume: replies that arrive after the popup closed are ignored.
 require("items.widgets.volume")
 local volume = items["widgets.volume1"]
+assert(volume.handlers["mouse.entered"], "volume must open on hover")
 volume.handlers["mouse.clicked"]({ BUTTON = "left" })
 local stale_current = commands[#commands]
 volume.handlers["mouse.exited.global"]({})
@@ -177,6 +196,23 @@ assert(
   items["volume.device.0"] and items["volume.device.1"],
   "fresh device list must still populate"
 )
+local audio_queries = #commands
+items["widgets.volume2"].handlers["mouse.entered"]({})
+volume.handlers["mouse.entered"]({})
+assert(#commands == audio_queries, "moving within the audio widget must not refetch devices")
+volume.handlers["mouse.exited"]({})
+local audio_close = timers[#timers]
+items["volume.device.0"].handlers["mouse.entered"]({})
+audio_close()
+assert(items["widgets.volume.bracket"].props.popup.drawing == true,
+  "audio devices must remain clickable after hover opens the menu")
+volume.handlers["mouse.clicked"]({ BUTTON = "right" })
+assert(commands[#commands][1]:find("Sound.prefpane", 1, true), "preserve audio settings shortcut")
+volume.handlers.volume_change({ INFO = "25" })
+local volume_sets = volume.sets
+volume.handlers.volume_change({ INFO = "25" })
+volume.handlers.volume_change({ INFO = "invalid" })
+assert(volume.sets == volume_sets, "unchanged or invalid volume events must not redraw")
 
 -- CPU: a fresh event updates the graph; stale readings remain unknown.
 require("items.widgets.cpu")
@@ -205,6 +241,10 @@ require("items.widgets.wifi")
 local watched_network = false
 for _, cmd in ipairs(commands) do if cmd[1]:find("statwell_network",1,true) then watched_network=true end end
 local upload, download = items["widgets.wifi1"], items["widgets.wifi2"]
+assert(upload.handlers["mouse.entered"] and download.handlers["mouse.entered"],
+  "network details must open on hover over either rate")
+assert(items["widgets.wifi.padding"].props.icon.padding_right >= 6,
+  "Wi-Fi icon needs clearance from the statistics")
 assert(upload.props.label.width == helper.rate_width and download.props.label.width == helper.rate_width,
   "both rate cells need identical fixed geometry")
 assert(download.props.width == "dynamic" and upload.props.width == 0,
@@ -224,5 +264,55 @@ assert(
 )
 upload.handlers.statwell_network({ status = "error" })
 assert(upload.props.label.string == require("helpers.statwell").rate_unknown, "network errors must remain unknown")
+
+-- Populate the cached interface from the initial topology lookup.
+local resolve
+for _, command in ipairs(commands) do
+  if command[1]:find("hardware_ports=", 1, true) then resolve = command end
+end
+assert(resolve)
+resolve[2]("en0\nWi-Fi\n", 0)
+reply("192.168.1.2\n", 0)
+upload.handlers["mouse.entered"]({})
+local network_queries = #commands
+download.handlers["mouse.entered"]({})
+assert(#commands == network_queries, "moving between network rows must not restart detail queries")
+assert(items["widgets.volume.bracket"].props.popup.drawing == false,
+  "opening another menu closes the previous one")
+local info_reply, ssid_reply, host_reply = commands[#commands], commands[#commands - 1], commands[#commands - 2]
+ssid_reply[2]("  SSID : Test Wi-Fi\n", 0)
+host_reply[2]("Test Mac\n", 0)
+info_reply[2]("DHCP Configuration\nIP address: 192.168.1.2\nSubnet mask: 255.255.255.0\nRouter: 192.168.1.1\n", 0)
+assert(items["widgets.wifi.ssid"].props.label.string == "Test Wi-Fi")
+assert(items["widgets.wifi.hostname"].props.label.string == "Test Mac")
+assert(items["widgets.wifi.ip"].props.label.string == "192.168.1.2")
+assert(items["widgets.wifi.mask"].props.label.string == "255.255.255.0")
+assert(items["widgets.wifi.router"].props.label.string == "192.168.1.1")
+local ip_row = items["widgets.wifi.ip"]
+ip_row.handlers["mouse.clicked"]({ NAME = ip_row.name })
+local first_copy_restore = timers[#timers]
+ip_row.handlers["mouse.clicked"]({ NAME = ip_row.name })
+assert(commands[#commands][1] == "printf %s '192.168.1.2' | pbcopy",
+  "repeated copy must use the value rather than the temporary clipboard icon")
+first_copy_restore()
+assert(ip_row.props.label.string == require("icons").clipboard,
+  "old copy timers must not interrupt newer feedback")
+local copy_restore = timers[#timers]
+upload.handlers["mouse.exited.global"]({})
+local ip_sets = items["widgets.wifi.ip"].sets
+info_reply[2]("IP address: 10.0.0.1\n", 0)
+ssid_reply[2](nil, 1)
+assert(items["widgets.wifi.ip"].sets == ip_sets,
+  "late network replies must not mutate a closed menu")
+upload.handlers["mouse.entered"]({})
+copy_restore()
+assert(ip_row.props.label.string == "Loading…", "late copy feedback must not overwrite a reopened menu")
+reply(nil, 1)
+assert(items["widgets.wifi.ip"].props.label.string == "Unavailable",
+  "network failures must replace old details with readable feedback")
+for _, host in ipairs({brew, items["widgets.volume.bracket"], items["widgets.wifi.bracket"]}) do
+  assert(host.props.popup.height == require("settings").popup.row_height,
+    "all widget menus share the same row geometry")
+end
 
 print("widget callbacks: PASS")
