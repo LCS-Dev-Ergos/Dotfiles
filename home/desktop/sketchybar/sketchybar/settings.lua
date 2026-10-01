@@ -1,6 +1,12 @@
 return {
   paddings = 3,
   group_paddings = 5,
+  popup = {
+    width = 280,
+    row_height = 30,
+    text_size = 13,
+    close_delay = 0.15,
+  },
 
   icons = "sf-symbols", -- alternatively available: NerdFont
 

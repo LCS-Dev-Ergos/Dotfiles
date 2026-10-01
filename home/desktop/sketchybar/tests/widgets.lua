@@ -21,70 +21,9 @@ package.preload["helpers.runtime"] = function()
   }
 end
 
--- Items by creation order and by name, plus every `sbar.exec` call as
--- `{ command, callback }` and every `sbar.delay` callback.
-local items, commands, timers = {}, {}, {}
-
---- Deep-merges `b` into `a`, as `item:set` does for nested properties.
---- @param a table Properties to update in place.
---- @param b table Properties to apply.
-local function merge(a, b)
-  for k, v in pairs(b) do
-    if type(v) == "table" and type(a[k]) == "table" then
-      merge(a[k], v)
-    else
-      a[k] = v
-    end
-  end
-end
-
---- Creates a stub item that records its properties, redraws and handlers.
---- @param name string Item name.
---- @param props table|nil Initial properties.
---- @return table item The stub item, also stored in `items`.
-local function add_item(name, props)
-  local item = { name = name, props = props or {}, handlers = {}, sets = 0 }
-
-  function item:set(value)
-    self.sets = self.sets + 1
-    merge(self.props, value)
-  end
-
-  function item:push(value)
-    self.last_push = value
-  end
-
-  function item:query()
-    local drawing = self.props.popup and self.props.popup.drawing == true
-    return { popup = { drawing = drawing and "on" or "off" } }
-  end
-
-  function item:subscribe(events, callback)
-    if type(events) == "string" then events = { events } end
-    for _, event in ipairs(events) do
-      self.handlers[event] = callback
-    end
-  end
-
-  table.insert(items, item)
-  items[name] = item
-  return item
-end
-
-sbar = {
-  exec = function(command, callback) table.insert(commands, { command, callback }) end,
-  delay = function(_, callback) table.insert(timers, callback) end,
-  remove = function() end,
-  add = function(kind, name, props, extra_props)
-    if kind == "event" then return end
-    -- Graphs pass a width before the properties; anonymous items pass none.
-    if extra_props then props = extra_props end
-    if type(name) == "table" then
-      props, name = name, "item." .. #items
-    end
-    return add_item(name, props)
-  end,
-}
+local fixture = dofile(root .. "/../tests/fixtures/sbar.lua")()
+local items, commands, timers = fixture.items, fixture.commands, fixture.timers
+sbar = fixture.api
 
 --- Answers the most recent `sbar.exec` call.
 --- @param ... any Arguments for the command's callback.
@@ -93,18 +32,28 @@ local function reply(...) commands[#commands][2](...) end
 -- Homebrew: a daemon restart is pending, not a failed package check.
 require("items.widgets.homebrew")
 local brew = items["widgets.brew"]
+local brew_details, brew_checked = items["widgets.brew.details"], items["widgets.brew.checked"]
 assert(brew.props.label.string == "?")
-local brew_watch = commands[#commands][1]
+local helper = require("helpers.statwell")
+helper.prepare()
+helper.start()
+local brew_watch
+for _, cmd in ipairs(commands) do if cmd[1]:find("statwell_homebrew", 1, true) then brew_watch=cmd[1] end end
 assert(brew_watch:find("HOMEBREW_NO_AUTO_UPDATE=1", 1, true) and
   brew_watch:find("--package-timeout-ms 30000", 1, true),
   "Homebrew fallback needs the same environment and deadline as the daemon")
 local brew_now = tostring(os.time() * 1000)
 brew.handlers.statwell_homebrew({ status = "ok", value_at_unix_ms = brew_now, max_age_ms = "10800000", total = "1" })
 brew.handlers.statwell_homebrew({ status = "unavailable" })
-assert(brew.props.label.string == "?", "pending refresh must not show a stale 1!")
+assert(brew.props.label.string == "1…", "pending refresh must not show a stale 1!")
 assert(brew.props.label.color == require("colors").muted, "pending refresh must not look like an error")
 brew.handlers.statwell_homebrew({ status = "ok", value_at_unix_ms = brew_now, max_age_ms = "10800000", total = "2" })
 assert(brew.props.label.string == "2", "completed refresh must show the new count")
+assert(brew_details.props.label.string == "2 updates available")
+assert(brew_checked.props.label.font.size >= 13,
+  "Homebrew popup text must be as readable as the other menus")
+assert(brew_checked.props.label.string:match("^Last checked at %d%d:%d%d:%d%d$"),
+  "the check time belongs in the secondary popup row")
 
 -- Empty events preserve the count; actual failures stay visible.
 brew.handlers.statwell_homebrew({ status = "ok", value_at_unix_ms = brew_now, max_age_ms = "10800000", total = "7" })
@@ -112,8 +61,28 @@ brew.handlers.statwell_homebrew({})
 assert(brew.props.label.string == "7", "empty event must preserve count")
 brew.handlers.statwell_homebrew({ status = "error", total = "0" })
 assert(brew.props.label.string == "7!", "failure must not look like zero updates")
+brew.handlers.statwell_homebrew({ status = "error", error = "system_failure" })
+assert(brew_details.props.label.string == "Update check failed")
+assert(brew_checked.props.label.string == "Homebrew will retry automatically",
+  "startup errors need readable feedback without hiding the failure")
 brew.handlers.statwell_homebrew({ status = "ok", value_at_unix_ms = brew_now, max_age_ms = "10800000", total = "0" })
 assert(brew.props.label.string == "0", "recovery must clear the error")
+local brew_sets, details_sets, checked_sets = brew.sets, brew_details.sets, brew_checked.sets
+brew.handlers.statwell_homebrew({ status = "ok", value_at_unix_ms = brew_now, max_age_ms = "10800000", total = "0" })
+assert(brew.sets == brew_sets and brew_details.sets == details_sets and brew_checked.sets == checked_sets,
+  "unchanged Homebrew snapshots must not redraw the widget or popup")
+
+-- Hover must survive the move from a trigger into its popup rows.
+brew.handlers["mouse.entered"]({})
+assert(brew.props.popup.drawing == true)
+brew.handlers["mouse.exited"]({})
+local brew_close = timers[#timers]
+brew_details.handlers["mouse.entered"]({})
+brew_close()
+assert(brew.props.popup.drawing == true, "entering the popup must cancel trigger exit")
+brew_details.handlers["mouse.exited"]({})
+timers[#timers]()
+assert(brew.props.popup.drawing == false, "leaving the popup must close it")
 
 -- Media: one snapshot at a time, and the cover follows the playback state.
 require("items.media")
@@ -204,6 +173,7 @@ assert(items["space.1"].props.label == " —", "apply final state after unlock")
 -- Volume: replies that arrive after the popup closed are ignored.
 require("items.widgets.volume")
 local volume = items["widgets.volume1"]
+assert(volume.handlers["mouse.entered"], "volume must open on hover")
 volume.handlers["mouse.clicked"]({ BUTTON = "left" })
 local stale_current = commands[#commands]
 volume.handlers["mouse.exited.global"]({})
@@ -226,6 +196,23 @@ assert(
   items["volume.device.0"] and items["volume.device.1"],
   "fresh device list must still populate"
 )
+local audio_queries = #commands
+items["widgets.volume2"].handlers["mouse.entered"]({})
+volume.handlers["mouse.entered"]({})
+assert(#commands == audio_queries, "moving within the audio widget must not refetch devices")
+volume.handlers["mouse.exited"]({})
+local audio_close = timers[#timers]
+items["volume.device.0"].handlers["mouse.entered"]({})
+audio_close()
+assert(items["widgets.volume.bracket"].props.popup.drawing == true,
+  "audio devices must remain clickable after hover opens the menu")
+volume.handlers["mouse.clicked"]({ BUTTON = "right" })
+assert(commands[#commands][1]:find("Sound.prefpane", 1, true), "preserve audio settings shortcut")
+volume.handlers.volume_change({ INFO = "25" })
+local volume_sets = volume.sets
+volume.handlers.volume_change({ INFO = "25" })
+volume.handlers.volume_change({ INFO = "invalid" })
+assert(volume.sets == volume_sets, "unchanged or invalid volume events must not redraw")
 
 -- CPU: a fresh event updates the graph; stale readings remain unknown.
 require("items.widgets.cpu")
@@ -233,9 +220,12 @@ local cpu = items["widgets.cpu"]
 local now_ms = tostring(os.time() * 1000)
 assert(require("helpers.statwell").fresh({ status = "ok", value_at_unix_ms = tostring(os.time() * 1000 + 500), max_age_ms = "6000" }))
 cpu.handlers.statwell_cpu({ status = "ok", value_at_unix_ms = now_ms, max_age_ms = "6000", total_percent = "25" })
-assert(cpu.props.label == "cpu 25%" and cpu.last_push[1] == 0.25)
+assert(cpu.props.label == "25%" and cpu.last_push[1] == 0.25)
+cpu.handlers.statwell_cpu({ status = "ok", value_at_unix_ms = now_ms, max_age_ms = "6000", total_percent = "100" })
+assert(cpu.props.label == "100%" and cpu.last_push[1] == 1,
+  "the maximum CPU label must fit beside the icon")
 cpu.handlers.statwell_cpu({ status = "error", value_at_unix_ms = now_ms, max_age_ms = "6000" })
-assert(cpu.props.label == "cpu ?%", "failed CPU probe must not become zero")
+assert(cpu.props.label == "?%", "failed CPU probe must not become zero")
 
 -- Battery: charge comes from StatWell; errors never display as zero percent.
 require("items.widgets.battery")
@@ -247,15 +237,18 @@ assert(battery.props.label.string == "?", "failed battery probe must not become 
 
 -- Network: only a changed direction is redrawn.
 require("items.widgets.wifi")
+-- Late-loaded widgets have queued watches; start is normally called after all modules.
+local watched_network = false
+for _, cmd in ipairs(commands) do if cmd[1]:find("statwell_network",1,true) then watched_network=true end end
 local upload, download = items["widgets.wifi1"], items["widgets.wifi2"]
-local network_watch
-for _, invocation in ipairs(commands) do
-  if invocation[1]:find("watch %-%-metric") and invocation[1]:find("network") then
-    network_watch = invocation[1]
-  end
-end
-assert(network_watch and network_watch:find("%-%-interface") and network_watch:find("en0"),
-  "network watcher needs the configured interface for daemon-less sampling")
+assert(upload.handlers["mouse.entered"] and download.handlers["mouse.entered"],
+  "network details must open on hover over either rate")
+assert(items["widgets.wifi.padding"].props.icon.padding_right >= 6,
+  "Wi-Fi icon needs clearance from the statistics")
+assert(upload.props.label.width == helper.rate_width and download.props.label.width == helper.rate_width,
+  "both rate cells need identical fixed geometry")
+assert(download.props.width == "dynamic" and upload.props.width == 0,
+  "stacked rows reserve the fixed cells plus their actual padding once")
 local network_zero = { status = "ok", value_at_unix_ms = now_ms, max_age_ms = "6000", upload_bytes_per_second = "0", download_bytes_per_second = "1024" }
 upload.handlers.statwell_network(network_zero)
 local up_sets, down_sets = upload.sets, download.sets
@@ -270,6 +263,56 @@ assert(
   "redraw only the changed direction"
 )
 upload.handlers.statwell_network({ status = "error" })
-assert(upload.props.label.string == "??? Bps", "network errors must remain unknown")
+assert(upload.props.label.string == require("helpers.statwell").rate_unknown, "network errors must remain unknown")
+
+-- Populate the cached interface from the initial topology lookup.
+local resolve
+for _, command in ipairs(commands) do
+  if command[1]:find("hardware_ports=", 1, true) then resolve = command end
+end
+assert(resolve)
+resolve[2]("en0\nWi-Fi\n", 0)
+reply("192.168.1.2\n", 0)
+upload.handlers["mouse.entered"]({})
+local network_queries = #commands
+download.handlers["mouse.entered"]({})
+assert(#commands == network_queries, "moving between network rows must not restart detail queries")
+assert(items["widgets.volume.bracket"].props.popup.drawing == false,
+  "opening another menu closes the previous one")
+local info_reply, ssid_reply, host_reply = commands[#commands], commands[#commands - 1], commands[#commands - 2]
+ssid_reply[2]("  SSID : Test Wi-Fi\n", 0)
+host_reply[2]("Test Mac\n", 0)
+info_reply[2]("DHCP Configuration\nIP address: 192.168.1.2\nSubnet mask: 255.255.255.0\nRouter: 192.168.1.1\n", 0)
+assert(items["widgets.wifi.ssid"].props.label.string == "Test Wi-Fi")
+assert(items["widgets.wifi.hostname"].props.label.string == "Test Mac")
+assert(items["widgets.wifi.ip"].props.label.string == "192.168.1.2")
+assert(items["widgets.wifi.mask"].props.label.string == "255.255.255.0")
+assert(items["widgets.wifi.router"].props.label.string == "192.168.1.1")
+local ip_row = items["widgets.wifi.ip"]
+ip_row.handlers["mouse.clicked"]({ NAME = ip_row.name })
+local first_copy_restore = timers[#timers]
+ip_row.handlers["mouse.clicked"]({ NAME = ip_row.name })
+assert(commands[#commands][1] == "printf %s '192.168.1.2' | pbcopy",
+  "repeated copy must use the value rather than the temporary clipboard icon")
+first_copy_restore()
+assert(ip_row.props.label.string == require("icons").clipboard,
+  "old copy timers must not interrupt newer feedback")
+local copy_restore = timers[#timers]
+upload.handlers["mouse.exited.global"]({})
+local ip_sets = items["widgets.wifi.ip"].sets
+info_reply[2]("IP address: 10.0.0.1\n", 0)
+ssid_reply[2](nil, 1)
+assert(items["widgets.wifi.ip"].sets == ip_sets,
+  "late network replies must not mutate a closed menu")
+upload.handlers["mouse.entered"]({})
+copy_restore()
+assert(ip_row.props.label.string == "Loading…", "late copy feedback must not overwrite a reopened menu")
+reply(nil, 1)
+assert(items["widgets.wifi.ip"].props.label.string == "Unavailable",
+  "network failures must replace old details with readable feedback")
+for _, host in ipairs({brew, items["widgets.volume.bracket"], items["widgets.wifi.bracket"]}) do
+  assert(host.props.popup.height == require("settings").popup.row_height,
+    "all widget menus share the same row geometry")
+end
 
 print("widget callbacks: PASS")

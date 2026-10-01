@@ -71,6 +71,11 @@ let
       substituteInPlace "$out/helpers/runtime.lua" \
         --replace-fail '@nowplaying@' '${nowplaying}/bin/nowplaying-cli' \
         --replace-fail '@statwell@' '${lib.getExe statwell}' \
+        --replace-fail '@runtime_dir@' ${
+          lib.escapeShellArg (
+            if config.services.statwell.runtimeDir == null then "" else config.services.statwell.runtimeDir
+          )
+        } \
         --replace-fail '@network_interface@' ${
           lib.escapeShellArg (
             lib.optionalString (

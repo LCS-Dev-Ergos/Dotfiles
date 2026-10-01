@@ -2,8 +2,9 @@ local colors = require("colors")
 local icons = require("icons")
 local settings = require("settings")
 local runtime = require("helpers.runtime")
+local popup = require("helpers.popup")
 
-local popup_width = 250
+local popup_width = settings.popup.width
 
 local function shell_quote(value)
   return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
@@ -75,8 +76,12 @@ local volume_slider = sbar.add("slider", popup_width, {
   ]]
 })
 
+local last_volume
 volume_percent:subscribe("volume_change", function(env)
-  local volume = tonumber(env.INFO) or 0
+  local volume = tonumber(env.INFO)
+  if not volume or volume ~= volume or volume < 0 or volume > 100 then return end
+  if volume == last_volume then return end
+  last_volume = volume
   local icon = icons.volume._0
   if volume > 60 then
     icon = icons.volume._100
@@ -99,83 +104,87 @@ volume_percent:subscribe("volume_change", function(env)
 end)
 
 local details_generation = 0
+local menu
 local function volume_collapse_details()
   details_generation = details_generation + 1
-  local drawing = volume_bracket:query().popup.drawing == "on"
-  if not drawing then return end
-  volume_bracket:set({ popup = { drawing = false } })
   sbar.remove('/volume.device\\.*/')
 end
 
-local function volume_toggle_details(env)
-  if env.BUTTON == "right" then
-    sbar.exec("open /System/Library/PreferencePanes/Sound.prefpane")
-    return
-  end
-
-  local should_draw = volume_bracket:query().popup.drawing == "off"
-  if should_draw then
-    details_generation = details_generation + 1
-    local generation = details_generation
-    volume_bracket:set({ popup = { drawing = true } })
-    local status = sbar.add("item", "volume.device.status", {
-      position = "popup." .. volume_bracket.name,
-      width = popup_width,
-      icon = { drawing = false },
-      label = { string = "Loading output devices…", color = colors.muted },
-    })
-    sbar.exec(shell_quote(runtime.audio) .. " -t output -c", function(result, code)
+local function volume_open_details()
+  details_generation = details_generation + 1
+  local generation = details_generation
+  local status = sbar.add("item", "volume.device.status", {
+    position = "popup." .. volume_bracket.name,
+    width = popup_width,
+    icon = { drawing = false },
+    background = { drawing = false },
+    label = { string = "Loading output devices…", color = colors.muted },
+  })
+  menu.attach(status)
+  sbar.exec(shell_quote(runtime.audio) .. " -t output -c", function(result, code)
+    if generation ~= details_generation then return end
+    if code ~= 0 or not result or result:match("^%s*$") then
+      status:set({ label = { string = "Audio devices unavailable", color = colors.red } })
+      return
+    end
+    local current = result:gsub("[\r\n]+$", "")
+    sbar.exec(shell_quote(runtime.audio) .. " -a -t output", function(available, list_code)
       if generation ~= details_generation then return end
-      if code ~= 0 or not result or result:match("^%s*$") then
+      if list_code ~= 0 or not available or available:match("^%s*$") then
         status:set({ label = { string = "Audio devices unavailable", color = colors.red } })
         return
       end
-      local current = result:gsub("[\r\n]+$", "")
-      sbar.exec(shell_quote(runtime.audio) .. " -a -t output", function(available, list_code)
-        if generation ~= details_generation then return end
-        if list_code ~= 0 or not available or available:match("^%s*$") then
-          status:set({ label = { string = "Audio devices unavailable", color = colors.red } })
-          return
-        end
-        sbar.remove(status.name)
-        local counter = 0
+      sbar.remove(status.name)
+      local counter = 0
 
-        for device in string.gmatch(available or "", '[^\r\n]+') do
-          local color = colors.muted
-          if current == device then
-            color = colors.white
-          end
-          sbar.add("item", "volume.device." .. counter, {
-            position = "popup." .. volume_bracket.name,
-            width = popup_width,
-            align = "center",
-            icon = { drawing = false },
-            label = { string = device, color = color },
-            click_script = shell_quote(runtime.audio) .. " -s "
-              .. shell_quote(device)
-              .. " && sketchybar --set /volume.device\\.*/ label.color="
-              .. colors.muted
-              .. " --set \"$NAME\" label.color="
-              .. colors.white
-
-          })
-          counter = counter + 1
+      for device in string.gmatch(available or "", '[^\r\n]+') do
+        local color = colors.muted
+        if current == device then
+          color = colors.white
         end
-      end)
+        local row = sbar.add("item", "volume.device." .. counter, {
+          position = "popup." .. volume_bracket.name,
+          width = popup_width,
+          align = "center",
+          icon = { drawing = false },
+          background = { drawing = false },
+          label = { string = device, color = color, max_chars = 32 },
+          click_script = shell_quote(runtime.audio) .. " -s "
+            .. shell_quote(device)
+            .. " && sketchybar --set /volume.device\\.*/ label.color="
+            .. colors.muted
+            .. " --set \"$NAME\" label.color="
+            .. colors.white
+
+        })
+        menu.attach(row)
+        counter = counter + 1
+      end
     end)
+  end)
+end
+
+menu = popup.new(volume_bracket, { open = volume_open_details, close = volume_collapse_details })
+menu.attach(volume_icon, true)
+menu.attach(volume_percent, true)
+menu.attach(volume_slider)
+
+local function volume_click(env)
+  if env.BUTTON == "right" then
+    sbar.exec("open /System/Library/PreferencePanes/Sound.prefpane")
   else
-    volume_collapse_details()
+    menu.show()
   end
 end
 
 local function volume_scroll(env)
   local delta = tonumber(env.SCROLL_DELTA)
-  if not delta then return end
+  if not delta or delta ~= delta or math.abs(delta) == math.huge then return end
+  delta = math.max(-100, math.min(100, delta))
   sbar.exec('osascript -e "set volume output volume (output volume of (get volume settings) + ' .. delta .. ')"')
 end
 
-volume_icon:subscribe("mouse.clicked", volume_toggle_details)
+volume_icon:subscribe("mouse.clicked", volume_click)
 volume_icon:subscribe("mouse.scrolled", volume_scroll)
-volume_percent:subscribe("mouse.clicked", volume_toggle_details)
-volume_percent:subscribe("mouse.exited.global", volume_collapse_details)
+volume_percent:subscribe("mouse.clicked", volume_click)
 volume_percent:subscribe("mouse.scrolled", volume_scroll)
