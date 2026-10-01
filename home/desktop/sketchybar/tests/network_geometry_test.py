@@ -26,6 +26,10 @@ sbar = fixture.api
 require('items.widgets.wifi')
 require('items.widgets.cpu')
 require('items.widgets.homebrew')
+require('items.widgets.volume')
+fixture.items['widgets.volume1'].handlers['mouse.entered']({})
+fixture.commands[#fixture.commands - 1][2]('LSX II\\n', 0)
+fixture.commands[#fixture.commands][2]('MacBook Pro Speakers\\n', 0)
 local helper = require('helpers.statwell')
 for _, value in ipairs({0, 1, 1023, 1024, 1048575, 1048576, 1073741824, 1e30}) do
   print('rate\\t' .. helper.rate(value))
@@ -35,10 +39,10 @@ local settings = require('settings')
 local function emit(group, props, prefix)
   prefix = prefix or ''
   for key, value in pairs(props) do
-    if key ~= 'background' and key ~= 'color' and key ~= 'position' then
+    if key ~= 'background' and key ~= 'color' and key ~= 'position' and key ~= 'click_script' then
       local name = prefix .. key
       if key == 'font' then
-        value = (value.family or settings.font.text) .. ':' .. value.style .. ':' .. value.size
+        value = (value.family or settings.font.text) .. ':' .. (value.style or 'Semibold') .. ':' .. (value.size or 13)
       elseif type(value) == 'table' then
         emit(group, value, name .. '.')
         value = nil
@@ -56,6 +60,16 @@ emit('down', fixture.items['widgets.wifi2'].props)
 emit('cpu', fixture.items['widgets.cpu'].props)
 emit('details', fixture.items['widgets.brew.details'].props)
 emit('checked', fixture.items['widgets.brew.checked'].props)
+emit('audio', fixture.items['volume.device.row.1'].props)
+for _, name in ipairs({'ssid', 'hostname', 'ip', 'mask', 'router'}) do
+  emit(name, fixture.items['widgets.wifi.' .. name].props)
+end
+for _, item in ipairs(fixture.items) do
+  if item.slider_width then
+    emit('slider', item.props)
+    print('track\\t' .. item.slider_width)
+  end
+end
 print('graph\\t' .. fixture.items['widgets.cpu'].graph_width)
 """
     result = subprocess.run(
@@ -167,7 +181,59 @@ def main():
             available = int(props["width"]) - int(props["label.padding_left"]) - int(props["label.padding_right"])
             for message in messages:
                 assert measured_width(message, props["label.font"]) <= available, message
-        print(f"Live geometry: {len(values)} fixed network rates, CPU through 100%, and popup text: PASS")
+        # Exercise complete popup rows in actual popup windows, including the
+        # slider. Main-bar text width alone did not catch the old overflow.
+        previous = None
+        for menu, groups in [("brew", ["details", "checked"]),
+                             ("wifi", ["ssid", "hostname", "ip", "mask", "router"]),
+                             ("volume", ["slider", "audio"])]:
+            host = prefix + "_" + menu
+            bar("--add", "item", host, "right", "--set", host,
+                "icon.drawing=off", "label.drawing=off", "width=1",
+                "popup.height=30", "popup.background.border_width=2")
+            created.append(host)
+            rows = []
+            for group in groups:
+                name = host + "_" + group
+                if group == "slider":
+                    bar("--add", "slider", name, "popup." + host, config["track"][0])
+                else:
+                    bar("--add", "item", name, "popup." + host)
+                created.append(name)
+                bar("--set", name, *config[group], "background.drawing=off")
+                rows.append((group, name))
+            if previous:
+                bar("--set", previous, "popup.drawing=off")
+            bar("--set", host, "popup.drawing=on")
+            previous = host
+            bounds = []
+            for group, name in rows:
+                props = dict(argument.split("=", 1) for argument in config[group])
+                item = query(name, props.get("label", ""))
+                rect = next(iter(item["bounding_rects"].values()))
+                bounds.append(rect)
+                assert 256 <= rect["size"][0] <= 258, (menu, group, rect)
+                assert rect["size"][1] == 30, (menu, group, rect)
+                assert item["geometry"]["padding_left"] == item["geometry"]["padding_right"] == 12
+                if group == "slider":
+                    assert int(item["slider"]["width"]) == 232
+                    assert rect["size"][0] - 232 >= 24, "slider must fit both endpoints inside the row"
+                    knob = item["slider"]["knob"]
+                    assert measured_width(knob["value"], knob["font"]) <= 24
+                    for endpoint in ["0", "100"]:
+                        bar("--set", name, "slider.percentage=" + endpoint)
+                        endpoint_item = query(name, "")
+                        assert int(endpoint_item["slider"]["percentage"]) == int(endpoint)
+                        assert endpoint_item["bounding_rects"] == item["bounding_rects"]
+                elif group in ["details", "checked", "audio"]:
+                    assert item["label"]["align"] == "center"
+                    assert measured_width(item["label"]["value"], item["label"]["font"]) <= 256
+                elif group != "ssid":
+                    assert item["icon"]["width"] == item["label"]["width"] == 128
+            assert all(rect["origin"][0] == bounds[0]["origin"][0] for rect in bounds)
+            assert all(right["origin"][1] - left["origin"][1] == 30
+                       for left, right in zip(bounds, bounds[1:]))
+        print(f"Live geometry: {len(values)} network rates, CPU through 100%, and three complete popups: PASS")
     finally:
         errors = []
         for name in reversed(created):

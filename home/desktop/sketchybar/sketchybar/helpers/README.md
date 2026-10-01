@@ -98,21 +98,28 @@ UX refinements retain the dark palette and the fork's window order. Secondary
 status text uses a brighter muted color; Brew keeps its count next to the icon,
 percentages reserve compact space, and popup backgrounds are more opaque. Paused media
 keeps its cover and playback controls, while unchanged stopped snapshots and
-network rates avoid redundant redraws. Audio popup requests are invalidated
-on close so delayed replies cannot recreate stale device rows.
+network rates avoid redundant redraws. Audio and network details are prefetched
+and cached for 15 seconds; one request is shared by repeated hover events.
+Each refresh publishes a complete snapshot in one callback, with a three-second
+loading limit. Replies received while closed populate the cache without drawing
+rows; wake/network changes invalidate obsolete requests.
 
 Homebrew, volume and network details share `helpers/popup.lua`: hover opens
 one menu at a time, and a 150 ms exit delay lets the pointer reach interactive
 rows. Global exit closes the menu; delayed replies and clipboard feedback
 cannot update a closed or reopened menu. `settings.popup` controls the shared
-280-point width, 30-point row height and 13-point text size. Borders, corners,
+280-point width, 30-point row height, 13-point text size and symmetric 12-point
+insets. Text-only rows are centered; network details use equal key/value cells.
+The audio track has additional inner margins for the knob at both endpoints.
+Borders, corners,
 colors and shadows inherit the common defaults. Brew retains its button
 actions; volume retains scrolling, the slider, device selection and the
 right-click Sound settings shortcut; network rows retain click-to-copy.
 
 The widget tests exercise these transitions without launching system commands.
 `SKETCHYBAR_LIVE_TESTS=1 bash home/desktop/sketchybar/tests/run.sh` also checks
-rate, CPU and Homebrew text geometry on the running renderer with temporary
+rate and CPU text geometry plus the complete Brew, Wi-Fi and audio popup rows
+on the running renderer, including the slider knob at 0% and 100%, with temporary
 items. After deployment, verify pointer travel into the audio slider/device
 rows and network copy rows on each display; geometry checks alone do not
 establish live pointer-event behavior.

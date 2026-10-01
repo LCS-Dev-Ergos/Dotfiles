@@ -3,6 +3,7 @@ local icons = require("icons")
 local settings = require("settings")
 local runtime = require("helpers.runtime")
 local popup = require("helpers.popup")
+local popup_data = require("helpers.popup_data")
 
 local popup_width = settings.popup.width
 
@@ -53,8 +54,10 @@ sbar.add("item", "widgets.volume.padding", {
   width = settings.group_paddings
 })
 
-local volume_slider = sbar.add("slider", popup_width, {
+local volume_slider = sbar.add("slider", popup_width - 4 * settings.popup.inset, {
   position = "popup." .. volume_bracket.name,
+  icon = { drawing = false },
+  label = { drawing = false },
   slider = {
     highlight_color = colors.blue,
     background = {
@@ -67,7 +70,7 @@ local volume_slider = sbar.add("slider", popup_width, {
       drawing = true,
     },
   },
-  background = { color = colors.bg1, height = 2, y_offset = -20 },
+  background = { drawing = false },
   click_script = [[
     case "$PERCENTAGE" in
       ''|*[!0-9.]* ) exit 0 ;;
@@ -103,71 +106,63 @@ volume_percent:subscribe("volume_change", function(env)
   volume_slider:set({ slider = { percentage = volume } })
 end)
 
-local details_generation = 0
-local menu
-local function volume_collapse_details()
-  details_generation = details_generation + 1
-  sbar.remove('/volume.device\\.*/')
+local menu, cache
+local rendered
+local status = sbar.add("item", "volume.device.status", {
+  position = "popup." .. volume_bracket.name,
+  icon = { drawing = false }, background = { drawing = false },
+  label = { string = "Loading output devices…", align = "center", width = popup_width - 2 * settings.popup.inset,
+    padding_left = 0, padding_right = 0, color = colors.muted },
+})
+local function render_devices(snapshot)
+  if snapshot == rendered and snapshot then return end
+  rendered = snapshot
+  sbar.remove('/volume.device.row\\.*/')
+  status:set({ drawing = not snapshot or not snapshot.devices,
+    label = { string = snapshot and "Audio devices unavailable" or "Loading output devices…" } })
+  if not snapshot or not snapshot.devices then return end
+  for index, device in ipairs(snapshot.devices) do
+    local row = sbar.add("item", "volume.device.row." .. index, {
+      position = "popup." .. volume_bracket.name,
+      icon = { drawing = false }, background = { drawing = false },
+      label = { string = device, align = "center", width = popup_width - 2 * settings.popup.inset,
+        padding_left = 0, padding_right = 0, max_chars = 32,
+        color = snapshot.current == device and colors.white or colors.muted },
+      click_script = shell_quote(runtime.audio) .. " -s " .. shell_quote(device)
+        .. " && sketchybar --set /volume.device.row\\.*/ label.color=" .. colors.muted
+        .. " --set \"$NAME\" label.color=" .. colors.white,
+    })
+    menu.attach(row)
+  end
 end
-
-local function volume_open_details()
-  details_generation = details_generation + 1
-  local generation = details_generation
-  local status = sbar.add("item", "volume.device.status", {
-    position = "popup." .. volume_bracket.name,
-    width = popup_width,
-    icon = { drawing = false },
-    background = { drawing = false },
-    label = { string = "Loading output devices…", color = colors.muted },
-  })
-  menu.attach(status)
+local function load_devices(done)
+  local current, devices, remaining = nil, nil, 2
+  local function finish()
+    remaining = remaining - 1
+    if remaining == 0 then done(current and devices and { current = current, devices = devices } or {}) end
+  end
   sbar.exec(shell_quote(runtime.audio) .. " -t output -c", function(result, code)
-    if generation ~= details_generation then return end
-    if code ~= 0 or not result or result:match("^%s*$") then
-      status:set({ label = { string = "Audio devices unavailable", color = colors.red } })
-      return
+    if code == 0 and type(result) == "string" and not result:match("^%s*$") then
+      current = result:gsub("[\r\n]+$", "")
     end
-    local current = result:gsub("[\r\n]+$", "")
-    sbar.exec(shell_quote(runtime.audio) .. " -a -t output", function(available, list_code)
-      if generation ~= details_generation then return end
-      if list_code ~= 0 or not available or available:match("^%s*$") then
-        status:set({ label = { string = "Audio devices unavailable", color = colors.red } })
-        return
-      end
-      sbar.remove(status.name)
-      local counter = 0
-
-      for device in string.gmatch(available or "", '[^\r\n]+') do
-        local color = colors.muted
-        if current == device then
-          color = colors.white
-        end
-        local row = sbar.add("item", "volume.device." .. counter, {
-          position = "popup." .. volume_bracket.name,
-          width = popup_width,
-          align = "center",
-          icon = { drawing = false },
-          background = { drawing = false },
-          label = { string = device, color = color, max_chars = 32 },
-          click_script = shell_quote(runtime.audio) .. " -s "
-            .. shell_quote(device)
-            .. " && sketchybar --set /volume.device\\.*/ label.color="
-            .. colors.muted
-            .. " --set \"$NAME\" label.color="
-            .. colors.white
-
-        })
-        menu.attach(row)
-        counter = counter + 1
-      end
-    end)
+    finish()
+  end)
+  sbar.exec(shell_quote(runtime.audio) .. " -a -t output", function(result, code)
+    if code == 0 and type(result) == "string" and not result:match("^%s*$") then
+      devices = {}
+      for device in result:gmatch('[^\r\n]+') do devices[#devices + 1] = device end
+    end
+    finish()
   end)
 end
-
-menu = popup.new(volume_bracket, { open = volume_open_details, close = volume_collapse_details })
+menu = popup.new(volume_bracket, { open = function() cache.show() end })
+cache = popup_data.new(load_devices, render_devices, menu.is_open, {})
 menu.attach(volume_icon, true)
 menu.attach(volume_percent, true)
 menu.attach(volume_slider)
+menu.attach(status)
+volume_icon:subscribe("system_woke", function() cache.invalidate() end)
+cache.refresh()
 
 local function volume_click(env)
   if env.BUTTON == "right" then
