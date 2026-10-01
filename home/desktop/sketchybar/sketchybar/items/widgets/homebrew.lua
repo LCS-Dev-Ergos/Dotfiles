@@ -2,6 +2,7 @@ local icons = require("icons")
 local colors = require("colors")
 local settings = require("settings")
 local statwell = require("helpers.statwell")
+local popup = require("helpers.popup")
 
 --[[ Widget for managing Homebrew updates ]]
 
@@ -19,7 +20,6 @@ end
 -- Configuration
 local CONFIG = {
   brew_path = find_brew_path(),
-  hover_effect = true,
   widget_name = "widgets.brew",
   package_icon = (icons.package or "[PKG]"):gsub("%s+$", ""),
 }
@@ -50,7 +50,7 @@ end
 
 statwell.watch("homebrew", "statwell_homebrew")
 
--- Main widget - always visible (unchanged)
+-- Main widget - always visible.
 local brew = sbar.add("item", CONFIG.widget_name, {
   position = "right",
   icon = {
@@ -69,45 +69,95 @@ local brew = sbar.add("item", CONFIG.widget_name, {
   background = { height = 22, color = { alpha = 0 }, border_color = { alpha = 0 }, drawing = true, },
 })
 
--- A missing payload is not a successful zero. Keep the last valid count and
--- distinguish a pending refresh from a failed package check.
-local last_count = nil
-brew:subscribe("statwell_homebrew", function(env)
-  if not env.status then return end
-  if env.status == "unavailable" then
-    brew:set({
-      icon = { color = colors.muted },
-      label = { string = "?", color = colors.muted },
-    })
-    return
-  end
-  local failed = not statwell.fresh(env)
-  local count = tonumber(env.total)
-  if failed then
-    brew:set({
-      icon = { color = colors.red },
-      label = { string = last_count and (tostring(last_count) .. "!") or "?", color = colors.red },
-    })
-    return
-  end
-  if not count or count < 0 or count % 1 ~= 0 then return end
-  last_count = count
-  local color = get_color(count)
-  brew:set({
-    icon = { string = CONFIG.package_icon, color = color },
-    label = { string = tostring(count), color = color },
+-- Keep the last confirmed value while exposing pending, stale and error states.
+local last_count
+local function popup_row(name, text, size, style, color)
+  return sbar.add("item", CONFIG.widget_name .. "." .. name, {
+    position = "popup." .. brew.name,
+    width = settings.popup.width,
+    padding_left = 4,
+    padding_right = 4,
+    scroll_texts = false,
+    icon = { drawing = false },
+    background = { drawing = false },
+    label = {
+      string = text,
+      font = { family = settings.font.text, style = style, size = size },
+      color = color,
+      align = "left",
+      padding_left = 6,
+      padding_right = 6,
+    },
   })
+end
+local details = popup_row("details", "Checking for updates…", settings.popup.text_size,
+  settings.font.style_map["Semibold"], colors.muted)
+local checked_row = popup_row("checked", "Waiting for the first result", settings.popup.text_size,
+  settings.font.style_map["Regular"], colors.muted)
+local menu = popup.new(brew)
+menu.attach(brew, true)
+menu.attach(details)
+menu.attach(checked_row)
+
+local function valid_count(value)
+  value = tonumber(value)
+  return value and value == value and value >= 0 and value < math.huge
+    and value % 1 == 0 and value or nil
+end
+
+local last_label, last_color, last_state, last_checked
+statwell.subscribe(brew, "homebrew", "statwell_homebrew", function(env)
+  if not env.status then return end
+  local count = valid_count(env.total)
+  local value_at = tonumber(env.value_at_unix_ms)
+  -- An error payload can carry the daemon's last valid value after a Lua restart.
+  if not last_count and count and value_at and value_at > 0 and value_at < math.huge then
+    last_count = count
+  end
+  local pending = env.status == "unavailable" or env.refreshing == "true"
+  local fresh = statwell.fresh(env) and count ~= nil
+  local label, color, state, note
+  if pending then
+    label, color, state = last_count and (tostring(last_count) .. "…") or "?", colors.muted, "Checking for updates…"
+  elseif not fresh then
+    label, color = last_count and (tostring(last_count) .. "!") or "?", colors.red
+    if env.status == "transport_error" then
+      state, note = "Connection unavailable", "Waiting for StatWell"
+    elseif env.status == "error" then
+      state, note = "Update check failed", "Homebrew will retry automatically"
+    elseif not count then state, note = "Invalid package count", "Waiting for a valid result"
+    else state = "Last result expired" end
+  else
+    last_count = count
+    label, color = tostring(count), get_color(count)
+    state = count == 0 and "No updates available" or (tostring(count) .. (count == 1 and " update available" or " updates available"))
+  end
+  if label ~= last_label or color ~= last_color then
+    brew:set({ icon = { color = color }, label = { string = label, color = color } })
+    last_label = label
+  end
+  local checked = "Waiting for the first result"
+  if value_at and value_at > 0 and value_at < math.huge and value_at < 1e14 then
+    checked = "Last checked at " .. os.date("%H:%M:%S", math.floor(value_at / 1000))
+  end
+  if state ~= last_state or color ~= last_color then
+    details:set({ label = { string = state, color = color } })
+    last_state = state
+  end
+  checked = note or checked
+  if checked ~= last_checked then
+    checked_row:set({ label = { string = checked } })
+    last_checked = checked
+  end
+  last_color = color
 end)
 
 -- The terminal command signals the provider after brew actually completes.
 brew:set({ click_script = "/bin/bash " .. shell_quote(config_dir .. "/helpers/brew_action.sh")
-  .. " " .. shell_quote(CONFIG.brew_path) })
+  .. " " .. shell_quote(CONFIG.brew_path) .. " " .. shell_quote(require("helpers.runtime").statwell)
+  .. " " .. shell_quote(require("helpers.runtime").runtime_dir or "") })
 
--- Hover effect and surrounding elements (unchanged)
-if CONFIG.hover_effect then
-  brew:subscribe("mouse.entered", function(env) brew:set({ background = { color = colors.hover }}) end)
-  brew:subscribe("mouse.exited", function(env) brew:set({ background = { color = { alpha = 0 } }}) end)
-end
+-- Surrounding elements use the same styling as the other widgets.
 sbar.add("bracket", CONFIG.widget_name .. ".bracket", { brew.name }, { background = { color = colors.bg1 }})
 sbar.add("item", CONFIG.widget_name .. ".padding", { position = "right", width = settings.group_paddings })
 

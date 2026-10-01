@@ -29,6 +29,8 @@ class BrewActionTests(unittest.TestCase):
                             'function /usr/bin/open() { printf "%s\\0" "$@"; }; source "$0" "$@"',
                             str(script),
                             str(brew),
+                            "/fixture/statwell",
+                            "",
                         ],
                         env={**os.environ, "BUTTON": button},
                         capture_output=True,
@@ -49,25 +51,25 @@ class BrewActionTests(unittest.TestCase):
                     self.assertEqual(len(commands), 1)
                     self.assertEqual(
                         shlex.split(commands[0]),
-                        ["/bin/bash", str(script), "--run", str(brew), action],
+                        ["/bin/bash", str(script), "--run", str(brew), action, "/fixture/statwell", ""],
                     )
 
     def test_refresh_follows_command_completion(self):
-        """The daemon restarts after brew exits, while Brew's status survives."""
+        """The provider refreshes after brew exits, while Brew's status survives."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             done, refreshed = root / "done", root / "refreshed"
             brew = root / "brew"
             brew.write_text(f'#!/bin/sh\nprintf done > "{done}"\nexit 7\n')
             brew.chmod(0o700)
-            launchctl = root / "launchctl"
+            launchctl = root / "statwell"
             launchctl.write_text(
                 '#!/bin/sh\n[ -f "$DONE_PATH" ] || exit 9\n'
                 'printf "%s\\n" "$*" > "$REFRESH_PATH"\n'
             )
             launchctl.chmod(0o700)
             result = subprocess.run(
-                ["/bin/bash", str(SCRIPT), "--run", str(brew), "upgrade"],
+                ["/bin/bash", str(SCRIPT), "--run", str(brew), "upgrade", str(launchctl), str(root / "runtime")],
                 env={
                     **os.environ,
                     "PATH": f'{root}:{os.environ.get("PATH", "")}',
@@ -82,7 +84,7 @@ class BrewActionTests(unittest.TestCase):
             self.assertEqual(result.returncode, 7, "preserve Brew's exit status")
             self.assertEqual(
                 refreshed.read_text().strip(),
-                f"kickstart -k gui/{os.getuid()}/org.nix-community.home.statwell",
+                f"refresh --provider homebrew --runtime-dir {root / 'runtime'}",
             )
 
 
