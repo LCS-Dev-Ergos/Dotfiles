@@ -84,4 +84,6 @@ This consumer integration precedes StatWell's first stable release. Before
 that release,
 [StatWell's release audit plan](https://github.com/LCS-Dev-Ergos/StatWell/blob/main/docs/release-audit.md)
 requires a security, correctness, robustness and performance audit, including
-measured daemon idle CPU and RSS and sample latency.
+measured daemon idle CPU and RSS and sample latency. The audit also requires
+evidence for reboot and sleep/wake behavior on macOS, publication syscall
+timing and a practical consumer rollback.
