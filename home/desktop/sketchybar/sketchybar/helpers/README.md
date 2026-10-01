@@ -21,7 +21,7 @@ two covers. No state is written into the configuration or Nix store.
 StatWell supplies CPU, network rates, battery, and Homebrew events to the bar.
 The old event-provider C daemons are removed; Git history retains their
 rollback source.
-`brew_action.sh` restarts the StatWell user service after a Brew command.
+`brew_action.sh` requests a targeted StatWell package refresh after a Brew command.
 Left click lists updates, right click upgrades, and the middle button refreshes
 the count.
 
@@ -100,3 +100,19 @@ percentages reserve compact space, and popup backgrounds are more opaque. Paused
 keeps its cover and playback controls, while unchanged stopped snapshots and
 network rates avoid redundant redraws. Audio popup requests are invalidated
 on close so delayed replies cannot recreate stale device rows.
+
+Homebrew, volume and network details share `helpers/popup.lua`: hover opens
+one menu at a time, and a 150 ms exit delay lets the pointer reach interactive
+rows. Global exit closes the menu; delayed replies and clipboard feedback
+cannot update a closed or reopened menu. `settings.popup` controls the shared
+280-point width, 30-point row height and 13-point text size. Borders, corners,
+colors and shadows inherit the common defaults. Brew retains its button
+actions; volume retains scrolling, the slider, device selection and the
+right-click Sound settings shortcut; network rows retain click-to-copy.
+
+The widget tests exercise these transitions without launching system commands.
+`SKETCHYBAR_LIVE_TESTS=1 bash home/desktop/sketchybar/tests/run.sh` also checks
+rate, CPU and Homebrew text geometry on the running renderer with temporary
+items. After deployment, verify pointer travel into the audio slider/device
+rows and network copy rows on each display; geometry checks alone do not
+establish live pointer-event behavior.
