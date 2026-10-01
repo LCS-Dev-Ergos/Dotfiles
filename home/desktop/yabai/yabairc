@@ -59,8 +59,6 @@ yabai -m config external_bar all:40:0 \
 # bsp, stack or float
 yabai -m config layout bsp
 
-# =====----- End Aspect Customization -----------------------------------===== #
-
 # =====----- Disabling Rules --------------------------------------------===== #
 
 # Rule values are extended regular expressions. Long ones are built by
@@ -216,7 +214,5 @@ yabai -m rule --add \
 # Rules only reach windows created after them; apply them to the windows that
 # were already open when yabai (re)started.
 yabai -m rule --apply
-
-# =====----- End Disabling Rules ----------------------------------------===== #
 
 echo "yabai configuration loaded..."
