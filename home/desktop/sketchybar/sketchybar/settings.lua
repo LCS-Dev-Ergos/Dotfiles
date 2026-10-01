@@ -5,6 +5,7 @@ return {
     width = 280,
     row_height = 30,
     text_size = 13,
+    inset = 12,
     close_delay = 0.15,
   },
 

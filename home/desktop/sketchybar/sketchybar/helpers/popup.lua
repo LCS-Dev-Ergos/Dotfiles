@@ -14,6 +14,8 @@ function M.new(host, callbacks)
     generation = generation + 1
   end
 
+  function controller.is_open() return opened end
+
   function controller.close()
     controller.keep_open()
     if not opened then return end
@@ -28,8 +30,8 @@ function M.new(host, callbacks)
     if opened then return end
     if active then active.close() end
     opened, active = true, controller
-    host:set({ popup = { drawing = true } })
     if callbacks.open then callbacks.open() end
+    host:set({ popup = { drawing = true } })
   end
 
   function controller.schedule_close()
@@ -43,7 +45,9 @@ function M.new(host, callbacks)
 
   function controller.attach(item, trigger)
     if not trigger then
-      item:set({ width = settings.popup.width, padding_left = 4, padding_right = 4 })
+      item:set({ width = settings.popup.width - 2 * settings.popup.inset,
+        padding_left = settings.popup.inset, padding_right = settings.popup.inset,
+        align = "center", scroll_texts = false })
     end
     item:subscribe("mouse.entered", trigger and controller.show or controller.keep_open)
     item:subscribe("mouse.exited", controller.schedule_close)

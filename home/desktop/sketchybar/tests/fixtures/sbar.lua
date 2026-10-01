@@ -23,7 +23,7 @@ return function()
     if extra_props then props = extra_props end
     if type(name) == "table" then props, name = name, "item." .. #items end
     local item = { name = name, props = props or {}, handlers = {}, sets = 0,
-      graph_width = graph_width }
+      graph_width = graph_width, slider_width = kind == "slider" and name or nil }
 
     function item:set(value)
       self.sets = self.sets + 1

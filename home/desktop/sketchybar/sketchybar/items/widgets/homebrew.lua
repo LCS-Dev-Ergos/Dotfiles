@@ -84,9 +84,10 @@ local function popup_row(name, text, size, style, color)
       string = text,
       font = { family = settings.font.text, style = style, size = size },
       color = color,
-      align = "left",
-      padding_left = 6,
-      padding_right = 6,
+      align = "center",
+      width = settings.popup.width - 2 * settings.popup.inset,
+      padding_left = 0,
+      padding_right = 0,
     },
   })
 end

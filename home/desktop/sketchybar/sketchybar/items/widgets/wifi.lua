@@ -3,6 +3,7 @@ local colors = require("colors")
 local settings = require("settings")
 local statwell = require("helpers.statwell")
 local popup = require("helpers.popup")
+local popup_data = require("helpers.popup_data")
 
 local function shell_quote(value)
   return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
@@ -40,7 +41,7 @@ end
 
 local popup_width = settings.popup.width
 -- Leave room for the shared outer padding and the icon/label padding.
-local detail_cell_width = (popup_width - 24) / 2
+local detail_cell_width = (popup_width - 2 * settings.popup.inset) / 2
 
 local wifi_up = sbar.add("item", "widgets.wifi1", {
   position = "right",
@@ -134,17 +135,13 @@ local ssid = sbar.add("item", "widgets.wifi.ssid", {
   align = "center",
   label = {
     font = {
-      size = 15,
+      size = settings.popup.text_size,
       style = settings.font.style_map["Bold"]
     },
     max_chars = 18,
     string = "????????????",
   },
-  background = {
-    height = 2,
-    color = colors.grey,
-    y_offset = -15
-  }
+  background = { drawing = false }
 })
 
 local hostname = sbar.add("item", "widgets.wifi.hostname", {
@@ -153,11 +150,15 @@ local hostname = sbar.add("item", "widgets.wifi.hostname", {
     align = "left",
     string = "Hostname:",
     width = detail_cell_width,
+    padding_left = 0, padding_right = 0,
+    font = { size = settings.popup.text_size, style = settings.font.style_map["Semibold"] },
   },
   label = {
     max_chars = 20,
     string = "????????????",
     width = detail_cell_width,
+    padding_left = 0, padding_right = 0,
+    font = { size = settings.popup.text_size, style = settings.font.style_map["Regular"] },
     align = "right",
   }
 })
@@ -168,10 +169,14 @@ local ip = sbar.add("item", "widgets.wifi.ip", {
     align = "left",
     string = "IP:",
     width = detail_cell_width,
+    padding_left = 0, padding_right = 0,
+    font = { size = settings.popup.text_size, style = settings.font.style_map["Semibold"] },
   },
   label = {
     string = "???.???.???.???",
     width = detail_cell_width,
+    padding_left = 0, padding_right = 0,
+    font = { size = settings.popup.text_size, style = settings.font.style_map["Regular"] },
     align = "right",
   }
 })
@@ -182,10 +187,14 @@ local mask = sbar.add("item", "widgets.wifi.mask", {
     align = "left",
     string = "Subnet mask:",
     width = detail_cell_width,
+    padding_left = 0, padding_right = 0,
+    font = { size = settings.popup.text_size, style = settings.font.style_map["Semibold"] },
   },
   label = {
     string = "???.???.???.???",
     width = detail_cell_width,
+    padding_left = 0, padding_right = 0,
+    font = { size = settings.popup.text_size, style = settings.font.style_map["Regular"] },
     align = "right",
   }
 })
@@ -196,10 +205,14 @@ local router = sbar.add("item", "widgets.wifi.router", {
     align = "left",
     string = "Router:",
     width = detail_cell_width,
+    padding_left = 0, padding_right = 0,
+    font = { size = settings.popup.text_size, style = settings.font.style_map["Semibold"] },
   },
   label = {
     string = "???.???.???.???",
     width = detail_cell_width,
+    padding_left = 0, padding_right = 0,
+    font = { size = settings.popup.text_size, style = settings.font.style_map["Regular"] },
     align = "right",
   },
 })
@@ -251,11 +264,13 @@ local function update_connection(iface)
   end)
 end
 
+local cache
 local function refresh_network()
   resolve_network(function(iface, service)
     network_state.iface = iface
     network_state.service = service
     update_connection(iface)
+    if cache then cache.invalidate() end
   end)
 end
 
@@ -273,72 +288,60 @@ wifi:subscribe({"wifi_change", "system_woke"}, function()
   schedule_network_refresh()
 end)
 
-refresh_network()
-
 local details_generation = 0
 local detail_values = {}
 local copy_generations = {}
 local menu
-local function network_open_details()
+local function render_details(snapshot)
   details_generation = details_generation + 1
-  local generation = details_generation
-  for _, item in ipairs({ssid, hostname, ip, mask, router}) do
-    detail_values[item.name] = nil
-    item:set({ label = { string = "Loading…", align = "right" } })
+  for _, entry in ipairs({{ssid, "ssid"}, {hostname, "hostname"}, {ip, "ip"}, {mask, "mask"}, {router, "router"}}) do
+    local item, key = entry[1], entry[2]
+    local value = snapshot and (snapshot[key] or "Unavailable") or "Loading…"
+    detail_values[item.name] = snapshot and value or nil
+    item:set({ label = { string = value, align = item == ssid and "left" or "right" } })
   end
-  local function set_label(item, value, code)
-    if generation ~= details_generation then return end
-    value = type(value) == "string" and value:gsub("[\r\n]+$", "") or ""
-    value = (code == nil or code == 0) and value ~= "" and value or "Unavailable"
-    detail_values[item.name] = value
-    item:set({ label = { string = value } })
+end
+local function load_details(done)
+  local snapshot, remaining = {}, 3
+  local function text(result, code)
+    return code == 0 and type(result) == "string" and result:gsub("[\r\n]+$", "") or ""
   end
-
+  local function finish()
+    remaining = remaining - 1
+    if remaining == 0 then done(snapshot) end
+  end
   sbar.exec("networksetup -getcomputername", function(result, code)
-    set_label(hostname, result, code)
+    result = text(result, code)
+    snapshot.hostname = result ~= "" and result or nil
+    finish()
   end)
-
-  local function update_details(iface, service)
-    if generation ~= details_generation then return end
-    if not iface then
-      for _, item in ipairs({ssid, ip, mask, router}) do set_label(item, nil) end
-      return
-    end
-    -- Parse SSID in Lua instead of starting an extra awk process.
+  local function query_interface(iface, service)
+    if not iface then finish(); finish(); return end
     sbar.exec("ipconfig getsummary " .. shell_quote(iface), function(result, code)
-      local value = type(result) == "string" and result:match("SSID : ([^\r\n]+)") or nil
-      set_label(ssid, value, code)
+      snapshot.ssid = text(result, code):match("SSID : ([^\r\n]+)")
+      finish()
     end)
     if service then
-      -- getinfo already includes the IP; avoid a separate getifaddr process.
       sbar.exec("networksetup -getinfo " .. shell_quote(service), function(result, code)
-        result = type(result) == "string" and result or ""
-        set_label(ip, result:match("\nIP address:[ \t]*([^\r\n]+)")
-          or result:match("^IP address:[ \t]*([^\r\n]+)"), code)
-        set_label(mask, result:match("Subnet mask:[ \t]*([^\r\n]+)"), code)
-        set_label(router, result:match("Router:[ \t]*([^\r\n]+)"), code)
+        result = text(result, code)
+        snapshot.ip = result:match("\nIP address:[ \t]*([^\r\n]+)") or result:match("^IP address:[ \t]*([^\r\n]+)")
+        snapshot.mask = result:match("Subnet mask:[ \t]*([^\r\n]+)")
+        snapshot.router = result:match("Router:[ \t]*([^\r\n]+)")
+        finish()
       end)
     else
       sbar.exec("ipconfig getifaddr " .. shell_quote(iface), function(result, code)
-        set_label(ip, result, code)
+        result = text(result, code)
+        snapshot.ip = result ~= "" and result or nil
+        finish()
       end)
-      set_label(mask, nil)
-      set_label(router, nil)
     end
   end
-
-  if network_state.iface then
-    update_details(network_state.iface, network_state.service)
-  else
-    resolve_network(function(iface, service)
-      if generation ~= details_generation then return end
-      update_details(iface, service)
-    end)
-  end
+  query_interface(network_state.iface, network_state.service)
 end
 
 menu = popup.new(wifi_bracket, {
-  open = network_open_details,
+  open = function() cache.show() end,
   close = function() details_generation = details_generation + 1 end,
 })
 for _, item in ipairs({wifi, wifi_up, wifi_down}) do
@@ -346,6 +349,8 @@ for _, item in ipairs({wifi, wifi_up, wifi_down}) do
   item:subscribe("mouse.clicked", menu.show)
 end
 for _, item in ipairs({ssid, hostname, ip, mask, router}) do menu.attach(item) end
+cache = popup_data.new(load_details, render_details, menu.is_open, {})
+refresh_network()
 
 local function copy_label_to_clipboard(env)
   local label = detail_values[env.NAME]

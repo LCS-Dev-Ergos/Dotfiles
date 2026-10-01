@@ -170,44 +170,29 @@ spaces_observer.handlers.session_unlocked({})
 timers[#timers]()
 assert(items["space.1"].props.label == " —", "apply final state after unlock")
 
--- Volume: replies that arrive after the popup closed are ignored.
+-- Audio prefetch is shared across hover; closed menus never acquire new rows.
 require("items.widgets.volume")
 local volume = items["widgets.volume1"]
-assert(volume.handlers["mouse.entered"], "volume must open on hover")
-volume.handlers["mouse.clicked"]({ BUTTON = "left" })
-local stale_current = commands[#commands]
-volume.handlers["mouse.exited.global"]({})
-local count = #commands
-stale_current[2]("Speakers\n", 0)
-assert(#commands == count, "closed audio popup must not continue fetching devices")
-
-volume.handlers["mouse.clicked"]({ BUTTON = "left" })
-reply("Speakers\n", 0)
-local stale_list = commands[#commands]
-volume.handlers["mouse.exited.global"]({})
-local item_count = #items
-stale_list[2]("Speakers\nHeadphones\n", 0)
-assert(#items == item_count, "late device list must not recreate closed popup rows")
-
-volume.handlers["mouse.clicked"]({ BUTTON = "left" })
-reply("Speakers\n", 0)
-reply("Speakers\nHeadphones\n", 0)
-assert(
-  items["volume.device.0"] and items["volume.device.1"],
-  "fresh device list must still populate"
-)
-local audio_queries = #commands
-items["widgets.volume2"].handlers["mouse.entered"]({})
+local current_reply, list_reply = commands[#commands - 1], commands[#commands]
+local queries = #commands
 volume.handlers["mouse.entered"]({})
-assert(#commands == audio_queries, "moving within the audio widget must not refetch devices")
+volume.handlers["mouse.exited.global"]({})
+volume.handlers["mouse.entered"]({})
+assert(#commands == queries, "rapid audio hover must share the in-flight fetch")
+volume.handlers["mouse.exited.global"]({})
+current_reply[2]("Speakers\n", 0)
+list_reply[2]("Speakers\nHeadphones\n", 0)
+assert(not items["volume.device.row.1"], "late device lists must not create rows while closed")
+volume.handlers["mouse.entered"]({})
+assert(items["volume.device.row.1"] and items["volume.device.row.2"], "cached devices must populate immediately")
+assert(#commands == queries, "cached audio hover must need no system query")
 volume.handlers["mouse.exited"]({})
 local audio_close = timers[#timers]
-items["volume.device.0"].handlers["mouse.entered"]({})
+items["volume.device.row.1"].handlers["mouse.entered"]({})
 audio_close()
-assert(items["widgets.volume.bracket"].props.popup.drawing == true,
-  "audio devices must remain clickable after hover opens the menu")
+assert(items["widgets.volume.bracket"].props.popup.drawing == true)
 volume.handlers["mouse.clicked"]({ BUTTON = "right" })
-assert(commands[#commands][1]:find("Sound.prefpane", 1, true), "preserve audio settings shortcut")
+assert(commands[#commands][1]:find("Sound.prefpane", 1, true))
 volume.handlers.volume_change({ INFO = "25" })
 local volume_sets = volume.sets
 volume.handlers.volume_change({ INFO = "25" })
@@ -272,7 +257,6 @@ for _, command in ipairs(commands) do
 end
 assert(resolve)
 resolve[2]("en0\nWi-Fi\n", 0)
-reply("192.168.1.2\n", 0)
 upload.handlers["mouse.entered"]({})
 local network_queries = #commands
 download.handlers["mouse.entered"]({})
@@ -281,6 +265,7 @@ assert(items["widgets.volume.bracket"].props.popup.drawing == false,
   "opening another menu closes the previous one")
 local info_reply, ssid_reply, host_reply = commands[#commands], commands[#commands - 1], commands[#commands - 2]
 ssid_reply[2]("  SSID : Test Wi-Fi\n", 0)
+assert(items["widgets.wifi.ssid"].props.label.string == "Loading…", "partial Wi-Fi results must not be published")
 host_reply[2]("Test Mac\n", 0)
 info_reply[2]("DHCP Configuration\nIP address: 192.168.1.2\nSubnet mask: 255.255.255.0\nRouter: 192.168.1.1\n", 0)
 assert(items["widgets.wifi.ssid"].props.label.string == "Test Wi-Fi")
@@ -306,10 +291,7 @@ assert(items["widgets.wifi.ip"].sets == ip_sets,
   "late network replies must not mutate a closed menu")
 upload.handlers["mouse.entered"]({})
 copy_restore()
-assert(ip_row.props.label.string == "Loading…", "late copy feedback must not overwrite a reopened menu")
-reply(nil, 1)
-assert(items["widgets.wifi.ip"].props.label.string == "Unavailable",
-  "network failures must replace old details with readable feedback")
+assert(ip_row.props.label.string == "192.168.1.2", "reopened Wi-Fi must render its cached snapshot immediately")
 for _, host in ipairs({brew, items["widgets.volume.bracket"], items["widgets.wifi.bracket"]}) do
   assert(host.props.popup.height == require("settings").popup.row_height,
     "all widget menus share the same row geometry")
