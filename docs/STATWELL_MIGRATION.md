@@ -113,6 +113,21 @@ The pinned StatWell input uses authenticated Git transport because GitHub's
 archive endpoint returned 404 for the private repository. Linux deployment
 therefore also requires Git access to that repository.
 
+## Audit integration, 2026-09-29
+
+[StatWell PR #6](https://github.com/LCS-Dev-Ergos/StatWell/pull/6) merged
+into `main` as `23d57dcce9dbf30237680077a62cfc40974b13ff`. Dotfiles now
+pins that merge. The complete Darwin generation build, both-host flake
+evaluation, SketchyBar callbacks and helper tests, and all six Kitty snapshot
+reader tests pass. [CI for the merge](https://github.com/LCS-Dev-Ergos/StatWell/actions/runs/36630522478)
+passes on Linux and macOS, including package/Home Manager builds, runtime
+contracts, and sanitizer checks.
+
+The switch remains with the user. The Legion is under maintenance and is
+currently inaccessible, so its deployment and live checks remain pending.
+Mac reboot/sleep-wake, publication syscall timing, and practical consumer
+rollback evidence remain required by the first stable release audit.
+
 ## Rollback
 
 For an entire macOS generation, the user can run
