@@ -4,9 +4,9 @@ return {
 
   -- Unified font style map
   style_map = {
-    ["Regular"] = "Regular",
+    ["Regular"]  = "Regular",
     ["Semibold"] = "Semibold",
-    ["Bold"] = "Bold",
+    ["Bold"]  = "Bold",
     ["Heavy"] = "Heavy",
     ["Black"] = "Black",
   }
