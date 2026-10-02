@@ -134,7 +134,7 @@ For an entire macOS generation, the user can run
 `sudo darwin-rebuild --rollback switch`; see
 [Nix environment guide](NIX_ENVIRONMENT_GUIDE.md#rollback). To roll back only
 SketchyBar, restore `home/desktop/sketchybar/` from the pre-migration commit
-`f489fbd`, including its native provider sources, build rules, and Brew action,
+`5980b71`, including its native provider sources, build rules, and Brew action,
 then build and switch. To roll back only Kitty, set `USE_STATWELL = False` in
 `home/terminals/kitty/kitty/tab_bar.py`, then build and switch. Git history
 retains the removed C providers; the active StatWell service can remain for the
