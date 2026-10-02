@@ -2,34 +2,30 @@ local icons = require("icons")
 local colors = require("colors")
 local settings = require("settings")
 local statwell = require("helpers.statwell")
+local style = require("helpers.style")
 
 statwell.watch("cpu", "statwell_cpu")
 
+-- The graph draws inside the item's background, which is otherwise
+-- invisible; its height leaves the pill's margin above and below the curve.
 local cpu = sbar.add("graph", "widgets.cpu" , 42, {
   position = "right",
   scroll_texts = false,
   graph = { color = colors.blue },
   background = {
-    height = 22,
-    color = { alpha = 0 },
-    border_color = { alpha = 0 },
+    height = settings.pill.height - 8,
+    color = colors.transparent,
+    border_color = colors.transparent,
     drawing = true,
   },
-  icon = { string = icons.cpu },
-  label = {
+  icon = { string = icons.cpu, padding_left = settings.pill.inset, padding_right = settings.spacing },
+  -- The label cell is only the pill's inset; right-aligned against that
+  -- inset, the percentage overlays the graph's top right corner.
+  label = style.merge(style.end_cell(0), {
     string = "?%",
-    font = {
-      family = settings.font.numbers,
-      style = settings.font.style_map["Bold"],
-      size = 9.0,
-    },
-    align = "right",
-    padding_left = 0,
-    padding_right = 0,
-    width = 0,
-    y_offset = 4
-  },
-  padding_right = settings.paddings + 6
+    font = style.font.small(),
+    y_offset = 4,
+  }),
 })
 
 statwell.subscribe(cpu, "cpu", "statwell_cpu", function(env)
@@ -61,13 +57,5 @@ cpu:subscribe("mouse.clicked", function(env)
   sbar.exec("open -a 'Activity Monitor'")
 end)
 
--- Background around the cpu item
-sbar.add("bracket", "widgets.cpu.bracket", { cpu.name }, {
-  background = { color = colors.bg1 }
-})
-
--- Background around the cpu item
-sbar.add("item", "widgets.cpu.padding", {
-  position = "right",
-  width = settings.group_paddings
-})
+style.pill("widgets.cpu.bracket", { cpu.name })
+style.gap("widgets.cpu.padding", "right")

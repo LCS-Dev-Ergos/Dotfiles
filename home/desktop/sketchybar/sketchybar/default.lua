@@ -1,46 +1,41 @@
 local settings = require("settings")
 local colors = require("colors")
+local style = require("helpers.style")
 
--- Equivalent to the --default domain
+-- Equivalent to the --default domain. Items start with no padding at all:
+-- each widget states its spacing explicitly from settings, and pill
+-- backgrounds come from brackets (helpers/style.lua).
 sbar.default({
   updates = "when_shown",
   icon = {
-    font = {
-      family = settings.font.text,
-      style = settings.font.style_map["Bold"],
-      size = 14.0
-    },
+    font = style.font.icon(),
     color = colors.white,
-    padding_left = settings.paddings,
-    padding_right = settings.paddings,
+    padding_left = 0,
+    padding_right = 0,
   },
   label = {
-    font = {
-      family = settings.font.text,
-      style = settings.font.style_map["Semibold"],
-      size = 13.0
-    },
+    font = style.font.text(),
     color = colors.white,
-    padding_left = settings.paddings,
-    padding_right = settings.paddings,
+    padding_left = 0,
+    padding_right = 0,
   },
   background = {
-    height = 28,
-    corner_radius = 9,
-    border_width = 2,
-    border_color = colors.bg2,
+    height = settings.pill.height,
+    corner_radius = settings.pill.corner_radius,
+    border_width = 0,
   },
+  -- The fork draws popups without a window shadow and skips
+  -- background.shadow on them, so a menu's edge is its border alone.
   popup = {
     background = {
-      border_width = 2,
-      corner_radius = 9,
+      border_width = settings.popup.border_width,
+      corner_radius = settings.pill.corner_radius,
       border_color = colors.popup.border,
       color = colors.popup.bg,
-      shadow = { drawing = true },
     },
     blur_radius = 15,
   },
-  padding_left = 5,
-  padding_right = 5,
+  padding_left = 0,
+  padding_right = 0,
   scroll_texts = true,
 })

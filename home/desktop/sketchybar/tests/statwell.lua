@@ -86,7 +86,8 @@ for _, n in ipairs({0,1,1023,1024,1048575,1048576,1073741824,1e30}) do
     "rates fit the fixed cell without leading whitespace")
   upload.handlers.statwell_network({ status="ok",value_at_unix_ms=tostring(now*1000),max_age_ms="6000",
     upload_bytes_per_second=tostring(n),download_bytes_per_second=tostring(n) })
-  assert(upload.props.label.width == helper.rate_width and download.props.label.width == helper.rate_width)
+  local cell = helper.rate_width + require("settings").pill.inset
+  assert(upload.props.label.width == cell and download.props.label.width == cell)
   assert(download.props.width == "dynamic" and upload.props.width == 0)
 end
 assert(helper.rate(math.huge) == nil and helper.rate(0/0) == nil and helper.rate(-1) == nil)

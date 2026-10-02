@@ -3,15 +3,15 @@ import base64
 import hashlib
 import json
 import os
-from pathlib import Path
 import subprocess
 import sys
 import tempfile
+from pathlib import Path
 
 APPS = {"com.tidal.desktop": "TIDAL", "com.spotify.client": "Spotify", "com.apple.Music": "Music"}
 
 
-def snapshot(binary):
+def snapshot(binary, pixels=64):
     result = subprocess.run(
         [binary, "get", "--json", "title", "artist", "album", "playbackRate", "clientBundleIdentifier", "artworkData"],
         capture_output=True, text=True, timeout=4, check=True,
@@ -30,14 +30,15 @@ def snapshot(binary):
                 return info
             cache = Path(os.environ.get("XDG_CACHE_HOME", str(Path.home() / ".cache"))) / "sketchybar/media"
             cache.mkdir(parents=True, exist_ok=True, mode=0o700)
-            target = cache / ("artwork-" + hashlib.sha256(raw).hexdigest() + ".png")
+            # The size is part of the name, so a new size never reuses old covers.
+            target = cache / f"artwork-{pixels}-{hashlib.sha256(raw).hexdigest()}.png"
             if not target.exists():
                 with tempfile.NamedTemporaryFile(dir=cache, delete=False) as f:
                     temp = Path(f.name)
                     f.write(raw)
                 try:
                     subprocess.run(
-                        ["/usr/bin/sips", "-s", "format", "png", "-Z", "32", str(temp), "--out", str(temp)],
+                        ["/usr/bin/sips", "-s", "format", "png", "-Z", str(pixels), str(temp), "--out", str(temp)],
                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3, check=True,
                     )
                     os.replace(temp, target)
@@ -56,7 +57,10 @@ def snapshot(binary):
 
 def main():
     try:
-        print(json.dumps(snapshot(sys.argv[1]), ensure_ascii=False))
+        pixels = int(sys.argv[2]) if len(sys.argv) > 2 else 64
+        if not 16 <= pixels <= 256:
+            raise ValueError(f"artwork size out of range: {pixels}")
+        print(json.dumps(snapshot(sys.argv[1], pixels), ensure_ascii=False))
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         print("media snapshot: " + str(exc), file=sys.stderr)
         print(json.dumps({"state": "unavailable"}))

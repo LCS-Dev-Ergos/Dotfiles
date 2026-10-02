@@ -28,11 +28,14 @@ commands[2][2]("LSX II\nMacBook Pro Speakers\n", 0)
 local settings = require("settings")
 local row = items["volume.device.row.1"].props
 assert(row.label.align == "center" and row.label.width == 256)
-assert(row.padding_left == 12 and row.padding_right == 12)
+-- Rows span the whole menu and centre their content: item padding would
+-- leave strips of the menu's background window exposed to clicks.
+assert(row.width == settings.popup.width and row.align == "center")
+assert(row.padding_left == 0 and row.padding_right == 0)
 for _, item in ipairs(items) do
   if item.slider_width then
     assert(item.slider_width == 232)
-    assert(item.props.width - item.slider_width == 2 * settings.popup.inset,
+    assert(item.props.width - item.slider_width == 4 * settings.popup.inset,
       "reserve space inside the row for both slider endpoints and the knob")
     assert(not item.props.icon.drawing and not item.props.label.drawing)
   end

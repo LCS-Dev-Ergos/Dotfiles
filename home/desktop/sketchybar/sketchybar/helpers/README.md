@@ -14,7 +14,7 @@ on the service PATH.
 
 `media.py` obtains a bounded snapshot through nowplaying-cli's MediaRemote
 adapter. The widget permits one snapshot at a time and polls every three
-seconds. Artwork is resized to 32 pixels and cached under
+seconds. Artwork is resized to 64 pixels (20 points on Retina) and cached under
 `$XDG_CACHE_HOME/sketchybar/media` (default `~/.cache/sketchybar/media`), keeping
 two covers. No state is written into the configuration or Nix store.
 
@@ -37,7 +37,9 @@ AppKit's file-opening handler and cause execution prompts and extra windows.
 The dedicated instance disables window restoration and exits when its last
 window closes; the user's normal Ghostty configuration is unchanged.
 
-Regression checks: `bash home/desktop/sketchybar/tests/run.sh` from the repository root.
+Regression checks: `bash home/desktop/sketchybar/tests/run.sh` from the repository root
+(widget callbacks, menu lifecycle, StatWell races and the visual-language
+checks in `tests/style.lua`).
 
 The `sketchybar-app-font` v3.0.5 font and the `icon_map.lua` of the same
 release are fetched by Nix with their SHA-256 checksums. macOS ignores a font
@@ -110,32 +112,62 @@ clang -fobjc-arc -framework Foundation -framework CoreGraphics \
 This read-only check requires the running GUI session. Build-time unit checks
 alone do not validate focus, clicks or the user-visible compositor result.
 
-UX refinements retain the dark palette and the fork's window order. Secondary
-status text uses a brighter muted color; Brew keeps its count next to the icon,
-percentages reserve compact space, and popup backgrounds are more opaque. Paused media
-keeps its cover and playback controls, while unchanged stopped snapshots and
-network rates avoid redundant redraws. Audio and network details are prefetched
+Visual language (`settings.lua`, `helpers/style.lua`): every group on the bar
+is one pill of the same height, radius and fill, one gap from its neighbours
+and one margin from the bar's edges, with the same inner inset on both sides.
+Fonts come from one type scale (13-point text, 15-point symbols, 14-point
+Desktop numbers, 9-point stacked statistics), symbols are SF Symbols, and the
+accent colors only mark a state. Changing values (percentages, rates, the
+speaker symbol) sit in fixed, right-aligned cells measured for their widest
+value, so pills keep their width.
+
+Every item is its own window, sized to its icon and label but not to its item
+padding, while a bracket's window also spans its members' padding. A click
+raises the window it lands on: with the pill's inset in item padding, a click
+near a pill's edge raised the bracket above its items, and its fill then hid
+them (the date or a Desktop's number disappeared after a few clicks). Pill
+members therefore carry no item padding; the inset is the outer icon or label
+padding, and a fixed cell that ends a pill includes it in its width, because
+SketchyBar ignores a fixed cell's padding when it measures the item. Menu rows
+follow the same rule over the menu's background window. Desktops are roomier
+pills drawn by the item's own background, and the focused one gets a
+transparent ring bracket with a one-point hairline around the pill; the gaps
+next to the row of Desktops account for the ring's room. `tests/style.lua`
+checks all of this against the real modules, and the live geometry test
+measures the cells and menu rows on the renderer.
+
+Unchanged stopped media snapshots and network rates avoid redundant redraws.
+Audio and network details are prefetched
 and cached for 15 seconds; one request is shared by repeated hover events.
 Each refresh publishes a complete snapshot in one callback, with a three-second
 loading limit. Replies received while closed populate the cache without drawing
 rows; wake/network changes invalidate obsolete requests.
 
-Homebrew, volume and network details share `helpers/popup.lua`: hover opens
-one menu at a time, and a 150 ms exit delay lets the pointer reach interactive
-rows. Global exit closes the menu; delayed replies and clipboard feedback
-cannot update a closed or reopened menu. `settings.popup` controls the shared
-280-point width, 30-point row height, 13-point text size and symmetric 12-point
-insets. Text-only rows are centered; network details use equal key/value cells.
-The audio track has additional inner margins for the knob at both endpoints.
-Borders, corners,
-colors and shadows inherit the common defaults. Brew retains its button
-actions; volume retains scrolling, the slider, device selection and the
-right-click Sound settings shortcut; network rows retain click-to-copy.
+Homebrew, audio, network, battery and media menus share `helpers/popup.lua`:
+hover opens one menu at a time, and a 150 ms exit delay lets the pointer reach
+interactive rows. The menu closes only once none of its items is under the
+pointer, so the order in which SketchyBar reports entering one item and
+leaving another does not matter. Every menu hangs from its widget's pill
+bracket: SketchyBar counts an item's own popup as part of the item, reports
+no exit when the pointer moves into it, and then reports no entry on the next
+hover, so item-hosted menus opened only every other time. For the same
+reason an item under the pointer must not change its geometry; the media pill
+expands away from its cover, whose properties never change. Global exit
+closes the menu; delayed replies and clipboard feedback cannot update a
+closed or reopened menu. `settings.popup` controls the shared 280-point
+width, 30-point row height, 13-point text size and symmetric 12-point insets;
+`text_row` and `detail_row` build every row. Text-only rows are centered;
+detail rows use equal key/value cells. The audio track has additional inner
+margins for the knob at both endpoints. Brew retains its button actions;
+volume retains scrolling, the slider, device selection and the right-click
+Sound settings shortcut; network rows retain click-to-copy. macOS redacts the
+SSID in `ipconfig` without Location Services access, so the network widget
+reads it from `system_profiler` in the background after each network change.
 
 The widget tests exercise these transitions without launching system commands.
 `SKETCHYBAR_LIVE_TESTS=1 bash home/desktop/sketchybar/tests/run.sh` also checks
-rate and CPU text geometry plus the complete Brew, Wi-Fi and audio popup rows
-on the running renderer, including the slider knob at 0% and 100%, with temporary
-items. After deployment, verify pointer travel into the audio slider/device
+rate, percentage, speaker-symbol and CPU text geometry plus the complete Brew,
+Wi-Fi, battery and audio popup rows on the running renderer, including the
+slider knob at 0% and 100%, with temporary items. After deployment, verify pointer travel into the audio slider/device
 rows and network copy rows on each display; geometry checks alone do not
 establish live pointer-event behavior.

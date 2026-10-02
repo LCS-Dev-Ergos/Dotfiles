@@ -79,15 +79,25 @@ assert(brew.sets == brew_sets and brew_details.sets == details_sets and brew_che
 
 -- Hover must survive the move from a trigger into its popup rows.
 brew.handlers["mouse.entered"]({})
-assert(brew.props.popup.drawing == true)
+assert(items["widgets.brew.bracket"].props.popup.drawing == true)
 brew.handlers["mouse.exited"]({})
 local brew_close = timers[#timers]
 brew_details.handlers["mouse.entered"]({})
 brew_close()
-assert(brew.props.popup.drawing == true, "entering the popup must cancel trigger exit")
+assert(items["widgets.brew.bracket"].props.popup.drawing == true, "entering the popup must cancel trigger exit")
 brew_details.handlers["mouse.exited"]({})
 timers[#timers]()
-assert(brew.props.popup.drawing == false, "leaving the popup must close it")
+assert(items["widgets.brew.bracket"].props.popup.drawing == false, "leaving the popup must close it")
+
+-- SketchyBar can report entering the row before leaving the bar item.
+brew.handlers["mouse.entered"]({})
+brew_details.handlers["mouse.entered"]({})
+brew.handlers["mouse.exited"]({})
+timers[#timers]()
+assert(items["widgets.brew.bracket"].props.popup.drawing == true, "a row entered first must keep the menu open")
+brew_details.handlers["mouse.exited"]({})
+timers[#timers]()
+assert(items["widgets.brew.bracket"].props.popup.drawing == false, "leaving the last hovered item closes the menu")
 
 -- Media: one snapshot at a time, and the cover follows the playback state.
 require("items.media")
@@ -161,19 +171,19 @@ space_event({ Music = 1 })
 space_event({ TIDAL = 1 })
 assert(#timers == num_timers + 1, "coalesce window-event bursts")
 timers[#timers]()
-local label = items["space.1"].props.label
+local label = items["space.1"].props.label.string
 assert(label and label ~= "", "flush latest icons")
 
 spaces_observer.handlers.session_locked({})
 num_timers = #timers
 space_event({})
 assert(
-  #timers == num_timers and items["space.1"].props.label == label,
+  #timers == num_timers and items["space.1"].props.label.string == label,
   "no icon redraws while locked"
 )
 spaces_observer.handlers.session_unlocked({})
 timers[#timers]()
-assert(items["space.1"].props.label == " —", "apply final state after unlock")
+assert(items["space.1"].props.label.string == "—", "apply final state after unlock")
 
 -- Audio prefetch is shared across hover; closed menus never acquire new rows.
 require("items.widgets.volume")
@@ -210,20 +220,21 @@ local cpu = items["widgets.cpu"]
 local now_ms = tostring(os.time() * 1000)
 assert(require("helpers.statwell").fresh({ status = "ok", value_at_unix_ms = tostring(os.time() * 1000 + 500), max_age_ms = "6000" }))
 cpu.handlers.statwell_cpu({ status = "ok", value_at_unix_ms = now_ms, max_age_ms = "6000", total_percent = "25" })
-assert(cpu.props.label == "25%" and cpu.last_push[1] == 0.25)
+assert(cpu.props.label.string == "25%" and cpu.last_push[1] == 0.25)
 cpu.handlers.statwell_cpu({ status = "ok", value_at_unix_ms = now_ms, max_age_ms = "6000", total_percent = "100" })
-assert(cpu.props.label == "100%" and cpu.last_push[1] == 1,
+assert(cpu.props.label.string == "100%" and cpu.last_push[1] == 1,
   "the maximum CPU label must fit beside the icon")
 cpu.handlers.statwell_cpu({ status = "error", value_at_unix_ms = now_ms, max_age_ms = "6000" })
-assert(cpu.props.label == "?%", "failed CPU probe must not become zero")
+assert(cpu.props.label.string == "?%", "failed CPU probe must not become zero")
 
 -- Battery: charge comes from StatWell; errors never display as zero percent.
 require("items.widgets.battery")
 local battery = items["widgets.battery"]
 battery.handlers.statwell_battery({ status = "ok", value_at_unix_ms = now_ms, max_age_ms = "90000", percent = "8", charging = "false", external_power = "false" })
-assert(battery.props.label.string == "08%", "battery charge comes from StatWell")
+assert(battery.props.label.string == "8%", "battery charge comes from StatWell")
+assert(battery.props.icon.color == require("colors").red, "a critical charge is red")
 battery.handlers.statwell_battery({ status = "error" })
-assert(battery.props.label.string == "?", "failed battery probe must not become zero")
+assert(battery.props.label.string == "?%", "failed battery probe must not become zero")
 
 -- Network: only a changed direction is redrawn.
 require("items.widgets.wifi")
@@ -233,9 +244,10 @@ for _, cmd in ipairs(commands) do if cmd[1]:find("statwell_network",1,true) then
 local upload, download = items["widgets.wifi1"], items["widgets.wifi2"]
 assert(upload.handlers["mouse.entered"] and download.handlers["mouse.entered"],
   "network details must open on hover over either rate")
-assert(items["widgets.wifi.padding"].props.icon.padding_right >= 6,
+assert(items["widgets.wifi"].props.icon.padding_right >= 6,
   "Wi-Fi icon needs clearance from the statistics")
-assert(upload.props.label.width == helper.rate_width and download.props.label.width == helper.rate_width,
+assert(upload.props.label.width == download.props.label.width
+  and upload.props.label.width == helper.rate_width + require("settings").pill.inset,
   "both rate cells need identical fixed geometry")
 assert(download.props.width == "dynamic" and upload.props.width == 0,
   "stacked rows reserve the fixed cells plus their actual padding once")
@@ -268,10 +280,17 @@ download.handlers["mouse.entered"]({})
 assert(#commands == network_queries, "moving between network rows must not restart detail queries")
 assert(items["widgets.volume.bracket"].props.popup.drawing == false,
   "opening another menu closes the previous one")
-local info_reply, ssid_reply, host_reply = commands[#commands], commands[#commands - 1], commands[#commands - 2]
-ssid_reply[2]("  SSID : Test Wi-Fi\n", 0)
-assert(items["widgets.wifi.ssid"].props.label.string == "Loading…", "partial Wi-Fi results must not be published")
+local function latest(pattern)
+  for i = #commands, 1, -1 do
+    if commands[i][1]:find(pattern, 1, true) then return commands[i] end
+  end
+end
+-- The SSID comes from system_profiler in the background, because ipconfig
+-- reports it as <redacted>; its answer re-reads the other details.
+latest("system_profiler")[2]("Test Wi-Fi\n", 0)
+local info_reply, host_reply = latest("-getinfo"), latest("-getcomputername")
 host_reply[2]("Test Mac\n", 0)
+assert(items["widgets.wifi.ssid"].props.label.string == "Loading…", "partial Wi-Fi results must not be published")
 info_reply[2]("DHCP Configuration\nIP address: 192.168.1.2\nSubnet mask: 255.255.255.0\nRouter: 192.168.1.1\n", 0)
 assert(items["widgets.wifi.ssid"].props.label.string == "Test Wi-Fi")
 assert(items["widgets.wifi.hostname"].props.label.string == "Test Mac")
@@ -291,13 +310,15 @@ local copy_restore = timers[#timers]
 upload.handlers["mouse.exited.global"]({})
 local ip_sets = items["widgets.wifi.ip"].sets
 info_reply[2]("IP address: 10.0.0.1\n", 0)
-ssid_reply[2](nil, 1)
+host_reply[2](nil, 1)
 assert(items["widgets.wifi.ip"].sets == ip_sets,
   "late network replies must not mutate a closed menu")
 upload.handlers["mouse.entered"]({})
 copy_restore()
 assert(ip_row.props.label.string == "192.168.1.2", "reopened Wi-Fi must render its cached snapshot immediately")
-for _, host in ipairs({brew, items["widgets.volume.bracket"], items["widgets.wifi.bracket"]}) do
+for _, name in ipairs({ "widgets.brew.bracket", "widgets.volume.bracket", "widgets.wifi.bracket",
+    "widgets.battery.bracket", "media.pill" }) do
+  local host = items[name]
   assert(host.props.popup.height == require("settings").popup.row_height,
     "all widget menus share the same row geometry")
 end
