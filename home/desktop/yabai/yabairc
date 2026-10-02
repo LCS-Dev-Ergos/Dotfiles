@@ -59,6 +59,13 @@ yabai -m config external_bar all:40:0 \
 # bsp, stack or float
 yabai -m config layout bsp
 
+# Desktop navigation (space.sh): the opacity curve of the crossfade and the
+# veil. ease_out changes visibly from the first frame, so a switch reads as
+# answered sooner; smooth, the default, starts slowly. The duration stays the
+# one space.sh passes. Kept on its own line: a release before 8.0.0-lcs.3
+# rejects the setting, and that must not abort the settings above.
+yabai -m config navigation_fade_curve ease_out
+
 # =====----- Disabling Rules --------------------------------------------===== #
 
 # Rule values are extended regular expressions. Long ones are built by
