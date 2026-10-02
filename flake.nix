@@ -65,7 +65,7 @@
     # upstream's own recommendation; follows this flake's nixpkgs so the
     # Rust build doesn't pull in a second copy of the package set.
     herdr = {
-      url = "github:ogulcancelik/herdr/v0.9.1";
+      url = "github:ogulcancelik/herdr/v0.9.3";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
