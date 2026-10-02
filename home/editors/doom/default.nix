@@ -9,7 +9,6 @@ let
   doomCustomState = "${doomCustomDirectory}/custom.el";
   aspell = pkgs.aspellWithDicts (dicts: [
     dicts.en
-    dicts.en-computers
     dicts.it
   ]);
 
