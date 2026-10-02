@@ -1,7 +1,8 @@
 -- Shared watcher lifecycle, cache reconciliation and presentation utilities.
 local runtime = require("helpers.runtime")
--- Fixed renderer cells keep the bar stable without padding the visible number.
-local M = { rate_unknown = "--.- KiB/s", rate_width = 68 }
+-- Rates have at most four digits and one decimal below 100, so every value
+-- fits ten characters. "1024 KiB/s" in SF Mono Bold 9 measures 55.6 points.
+local M = { rate_unknown = "--.- KiB/s", rate_width = 56 }
 local watches, consumers = {}, {}
 local started, sleeping, in_flight = false, false, false
 local tick, wake_generation, cache_token, cache_started = 0, 0, 0, 0
@@ -203,11 +204,11 @@ function M.rate(bytes)
   bytes = finite(bytes)
   if not bytes or bytes < 0 then return nil end
   local units, unit, value = { "KiB/s", "MiB/s", "GiB/s", "TiB/s" }, 1, bytes / 1024
-  while unit < #units and value >= 1023.95 do
+  while unit < #units and value >= 1023.5 do
     value, unit = value / 1024, unit + 1
   end
-  if value >= 9999.95 then return ">9999 " .. units[unit] end
-  return string.format("%.1f %s", value, units[unit])
+  if value >= 999.5 and unit == #units then return ">999 " .. units[unit] end
+  return string.format(value >= 99.95 and "%.0f %s" or "%.1f %s", value, units[unit])
 end
 
 return M
