@@ -41,10 +41,24 @@ let
     '';
   };
 
+  # The font and its application-name map come from one release, so every
+  # ligature the map names exists in the installed font.
+  sketchybarAppFontRelease = "https://github.com/kvndrsslr/sketchybar-app-font/releases/download/v3.0.5";
   sketchybarAppFont = pkgs.fetchurl {
-    url = "https://github.com/kvndrsslr/sketchybar-app-font/releases/download/v2.0.5/sketchybar-app-font.ttf";
-    hash = "sha256-nfJVICpaw1Q1jChc3feY39vjtS/fLJ3FKVGqOKhyzwA=";
+    url = "${sketchybarAppFontRelease}/sketchybar-app-font.ttf";
+    hash = "sha256-Srq4jhiG9pi+Q1CGzgzTD6UjIRHFQHnX0kR8Z8oRrss=";
   };
+  sketchybarAppIconMap = pkgs.fetchurl {
+    url = "${sketchybarAppFontRelease}/icon_map.lua";
+    hash = "sha256-tBgPE8smsD48sJ5VTFQG9Se0nr3zGrpD/6ckyZ9OcVs=";
+  };
+  # macOS does not register a font that is a symlink into the store.
+  # Home Manager copies the share/fonts of home.packages into ~/Library/Fonts/HomeManager
+  # instead, so the font travels as a package.
+  sketchybarAppFontPackage = pkgs.runCommand "sketchybar-app-font" { } ''
+    install -D -m 0444 ${sketchybarAppFont} "$out/share/fonts/truetype/sketchybar-app-font.ttf"
+  '';
+  installedAppFont = "${config.home.homeDirectory}/Library/Fonts/HomeManager/truetype/sketchybar-app-font.ttf";
 
   # Compile the native menu helper in the Nix sandbox, then assemble the
   # exact config tree SketchyBar expects.
@@ -64,6 +78,7 @@ let
       runHook preInstall
       mkdir -p "$out"
       cp -R ./. "$out/"
+      install -m 0444 ${sketchybarAppIconMap} "$out/helpers/app_icon_map.lua"
       substituteInPlace "$out/helpers/init.lua" \
         --replace-fail '@sbarlua@' '${sbarLua}/lib'
       substituteInPlace "$out/sketchybarrc" \
@@ -110,21 +125,21 @@ let
           exit 1
         fi
       done
+      # The Desktop pills resolve application names through the release's map.
+      ${sbarLua}/bin/lua -e "package.path = '$out/?.lua;' .. package.path
+        local icons = require('helpers.app_icons')
+        assert(icons.Claude == ':claude:' and icons.ChatGPT == ':openai:' and icons.default == ':default:',
+          'the application icon map is missing or incomplete')"
       runHook postInstallCheck
     '';
   };
 in
 lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
   home = {
-    # The old bootstrap script installed this exact, checksum-verified font as a
-    # regular user file. Home Manager now owns the same asset; force is limited
-    # to that known generated target so the first migration can replace it.
-    file."Library/Fonts/sketchybar-app-font.ttf" = {
-      source = sketchybarAppFont;
-      force = true;
-    };
-
-    packages = [ sketchybar ];
+    packages = [
+      sketchybar
+      sketchybarAppFontPackage
+    ];
 
     # The initial user-service migration pins its closure until a complete
     # Home Manager activation takes over garbage-collection ownership.
@@ -140,6 +155,19 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
         (toString (
           pkgs.writeShellScript "start-sketchybar" ''
             mkdir -p ${lib.escapeShellArg "${config.xdg.stateHome}/sketchybar"}
+            # SketchyBar resolves fonts once, when an item is created, and a
+            # font it cannot find becomes Helvetica, which shows ligatures as
+            # their names. The font's store path makes this script change with
+            # the font, so Home Manager restarts the agent; we then wait for
+            # its copy of this exact font, which may land after the restart,
+            # and give the font daemon a moment to register it.
+            for _ in $(seq 1 30); do
+              if /usr/bin/cmp -s ${lib.escapeShellArg installedAppFont} ${sketchybarAppFont}; then
+                sleep 1
+                break
+              fi
+              sleep 1
+            done
             # A new immutable config has a different path. Retire providers from
             # preceding generations, which would otherwise survive a restart.
             /usr/bin/pkill -TERM -u "$(/usr/bin/id -u)" -f \

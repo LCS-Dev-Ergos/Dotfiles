@@ -21,6 +21,11 @@ package.preload["helpers.runtime"] = function()
   }
 end
 
+-- The real map is installed by Nix from the font release (default.nix).
+package.preload["helpers.app_icon_map"] = function()
+  return { TIDAL = ":tidal:", Music = ":music:" }
+end
+
 local fixture = dofile(root .. "/../tests/fixtures/sbar.lua")()
 local items, commands, timers = fixture.items, fixture.commands, fixture.timers
 sbar = fixture.api
