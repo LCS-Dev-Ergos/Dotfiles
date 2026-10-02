@@ -39,10 +39,20 @@ window closes; the user's normal Ghostty configuration is unchanged.
 
 Regression checks: `bash home/desktop/sketchybar/tests/run.sh` from the repository root.
 
-The `sketchybar-app-font` v2.0.5 asset is fetched by Nix with its reviewed
-SHA-256 checksum and declared at `~/Library/Fonts`. Home Manager accepts an
-existing byte-identical file and replaces drift. Homebrew remains responsible
-for SF Symbols, SF Mono, and SF Pro as declared in `darwin/homebrew.nix`.
+The `sketchybar-app-font` v3.0.5 font and the `icon_map.lua` of the same
+release are fetched by Nix with their SHA-256 checksums. macOS ignores a font
+that is a symlink into the store, so the font is a package in `home.packages`,
+which Home Manager copies into `~/Library/Fonts/HomeManager`. SketchyBar
+resolves a font only when it creates an item, and an unknown font shows every
+ligature as its name; the launch agent therefore changes with the font,
+restarts with it, and waits until that exact file is installed. The map is
+installed as `helpers/app_icon_map.lua`, so the Desktop icons follow the
+release (Claude, ChatGPT, Codex and some 870 other application names) and
+every ligature it names exists in the font; `helpers/app_icons.lua` adds the
+few applications the release lacks. The config build checks that the installed
+map resolves. Updating the release means updating both hashes in
+`default.nix`. Homebrew remains responsible for SF Symbols, SF Mono, and SF
+Pro as declared in `darwin/homebrew.nix`.
 Home Manager owns SketchyBar, its launchd service and the media/audio CLI packages.
 The temporary
 nowplaying-cli 2.1 override can be retired once nixpkgs supplies that adapter.
