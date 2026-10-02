@@ -1,5 +1,8 @@
 local icons = require("icons")
 local colors = require("colors")
+local settings = require("settings")
+local style = require("helpers.style")
+local popup = require("helpers.popup")
 
 local runtime = require("helpers.runtime")
 local function quote(value) return "'" .. tostring(value):gsub("'", "'\\''") .. "'" end
@@ -8,72 +11,115 @@ local refresh_media
 local pending = false
 local generation = 0
 
+-- media.py renders covers at this many pixels; the bar shows them two pixels
+-- per point (Retina) and three points inside the pill's top and bottom.
+local artwork_pixels = 64
+local cover_points = settings.pill.height - 6
+
 local last_media_key = nil
 local media_visible = false
+local details = false
+local text = { title = "", artist = "" }
+
+-- Right-hand items are laid out from the right, so the pill reads title,
+-- artist, cover from left to right. The bar grows leftwards, so expanding
+-- the details never moves the cover. Its properties never change either:
+-- SketchyBar stops reporting hover for an item whose geometry changes under
+-- the pointer. A cover has no text to carry the pill's inset, so two empty
+-- edge items of fixed width hold it.
+local function edge(name)
+  return sbar.add("item", name, {
+    position = "right",
+    drawing = false,
+    width = settings.pill.inset,
+    icon = { drawing = false },
+    label = { drawing = false },
+  })
+end
+
+local media_edge_right = edge("media.edge_right")
 
 local media_cover = sbar.add("item", "media.cover", {
   position = "right",
+  drawing = false,
   background = {
     image = {
       drawing = false,
-      scale = 0.85,
-      corner_radius = 9,
-      border_color = colors.grey,
-      border_width = 1,
+      scale = cover_points / artwork_pixels,
+      corner_radius = 4,
     },
     color = colors.transparent,
   },
   label = { drawing = false },
   icon = { drawing = false, string = icons.media.play_pause },
-  drawing = false,
   updates = true,
-  popup = {
-    align = "center",
-    horizontal = true,
-  }
 })
 
-local media_artist = sbar.add("item", {
+local media_artist = sbar.add("item", "media.artist", {
   position = "right",
   drawing = false,
-  padding_left = 3,
-  padding_right = 0,
-  width = 0,
   scroll_texts = false,
   icon = { drawing = false },
-  label = {
-    width = 0,
-    font = { size = 10 },
-    color = colors.muted,
-    max_chars = 18,
-    y_offset = 6,
-  },
+  label = { color = colors.muted, max_chars = 24, padding_right = settings.spacing },
 })
 
-local media_title = sbar.add("item", {
+local media_title = sbar.add("item", "media.title", {
   position = "right",
   drawing = false,
-  padding_left = 3,
-  padding_right = 0,
   scroll_texts = false,
   icon = { drawing = false },
-  label = {
-    font = { size = 12 },
-    width = 0,
-    max_chars = 16,
-    y_offset = -5,
-  },
+  label = { max_chars = 32, padding_right = settings.spacing },
+})
+
+local media_edge = edge("media.edge")
+
+local media_pill = style.pill("media.pill", { media_edge.name, media_title.name, media_artist.name,
+  media_cover.name, media_edge_right.name }, { popup = { horizontal = true } })
+
+-- Title and artist show for a few seconds after a track change and while
+-- the controls are open; the pill otherwise holds only the cover.
+local function layout()
+  media_edge:set({ drawing = media_visible })
+  media_edge_right:set({ drawing = media_visible })
+  media_cover:set({ drawing = media_visible })
+  media_title:set({ drawing = media_visible and details and text.title ~= "" })
+  media_artist:set({ drawing = media_visible and details and text.artist ~= "" })
+end
+
+local menu
+local detail_timer = 0
+local function show_details(show)
+  detail_timer = detail_timer + 1
+  details = show
+  layout()
+end
+
+local function show_details_briefly()
+  show_details(true)
+  local token = detail_timer
+  sbar.delay(5, function()
+    if token == detail_timer and not menu.is_open() then show_details(false) end
+  end)
+end
+
+-- Right-aligned, so the controls hang below the cover at the pill's end.
+menu = popup.new(media_pill, {
+  align = "right",
+  open = function() show_details(true) end,
+  close = function() show_details(false) end,
 })
 
 for _, control in ipairs({
-  { icons.media.back, "previous" },
-  { icons.media.play_pause, "togglePlayPause" },
-  { icons.media.forward, "next" },
+  { "back", icons.media.back, "previous" },
+  { "play_pause", icons.media.play_pause, "togglePlayPause" },
+  { "forward", icons.media.forward, "next" },
 }) do
-  local command = control[2]
-  local button = sbar.add("item", {
-    position = "popup." .. media_cover.name,
-    icon = { string = control[1] },
+  local command = control[3]
+  local button = sbar.add("item", "media.control." .. control[1], {
+    position = "popup." .. media_pill.name,
+    width = settings.popup.row_height + 2 * settings.spacing,
+    align = "center",
+    icon = { string = control[2] },
     label = { drawing = false },
   })
   button:subscribe("mouse.clicked", function()
@@ -81,16 +127,9 @@ for _, control in ipairs({
       refresh_media()
     end)
   end)
+  menu.member(button)
 end
-
-local interrupt = 0
-local function animate_detail(detail)
-  if (not detail) then interrupt = interrupt - 1 end
-  if interrupt > 0 and (not detail) then return end
-
-  media_artist:set({ label = { width = detail and "dynamic" or 0 } })
-  media_title:set({ label = { width = detail and "dynamic" or 0 } })
-end
+for _, item in ipairs({ media_cover, media_title, media_artist }) do menu.trigger(item) end
 
 local function apply_media(info)
   local drawing = type(info) == "table" and (info.state == "playing" or info.state == "paused")
@@ -98,33 +137,37 @@ local function apply_media(info)
     if not media_visible then return end
     media_visible = false
     last_media_key = nil
-    media_artist:set({ drawing = false })
-    media_title:set({ drawing = false })
-    media_cover:set({ drawing = false, popup = { drawing = false } })
+    menu.close()
+    show_details(false)
     return
   end
   local key = table.concat({ info.state, info.app or "", info.artist or "", info.title or "", info.artwork or "" }, "\31")
   if key == last_media_key then return end
+  local track_changed = not media_visible or text.title ~= (info.title or "") or text.artist ~= (info.artist or "")
   last_media_key = key
   media_visible = true
+  text.title, text.artist = info.title or "", info.artist or ""
   local artwork = info.artwork and info.artwork ~= ""
-  media_artist:set({ drawing = true, label = info.artist or "" })
-  media_title:set({ drawing = true, label = {
-    string = info.title or "", color = info.state == "paused" and colors.muted or colors.white,
+  media_artist:set({ label = { string = text.artist } })
+  media_title:set({ label = {
+    string = text.title, color = info.state == "paused" and colors.muted or colors.white,
   } })
-  media_cover:set({ drawing = true, icon = { drawing = not artwork },
+  media_cover:set({ icon = { drawing = not artwork },
     background = { image = artwork and { string = info.artwork, drawing = true } or { drawing = false } } })
-  animate_detail(true)
-  interrupt = interrupt + 1
-  sbar.delay(5, animate_detail)
+  if track_changed then show_details_briefly() else layout() end
 end
 
+-- One snapshot at a time. A reply that never arrives must not stop polling,
+-- so a request older than ten seconds is abandoned and its late reply ignored.
+local request, requested_at = 0, 0
 refresh_media = function()
-  if pending then return end
-  pending = true
-  local current = generation
+  if pending and os.time() - requested_at < 10 then return end
+  pending, requested_at = true, os.time()
+  request = request + 1
+  local current, token = generation, request
   sbar.exec(quote(runtime.python) .. " " .. quote(config_dir .. "/helpers/media.py")
-    .. " " .. quote(runtime.nowplaying), function(info, code)
+    .. " " .. quote(runtime.nowplaying) .. " " .. artwork_pixels, function(info, code)
+      if token ~= request then return end
       pending = false
       if current ~= generation then return end
       apply_media(code == 0 and info or nil)
@@ -148,20 +191,3 @@ observer:subscribe("system_woke", function()
   sbar.delay(2, refresh_media)
 end)
 refresh_media()
-
-media_cover:subscribe("mouse.entered", function(env)
-  interrupt = interrupt + 1
-  animate_detail(true)
-end)
-
-media_cover:subscribe("mouse.exited", function(env)
-  animate_detail(false)
-end)
-
-media_cover:subscribe("mouse.clicked", function(env)
-  media_cover:set({ popup = { drawing = "toggle" }})
-end)
-
-media_title:subscribe("mouse.exited.global", function(env)
-  media_cover:set({ popup = { drawing = false }})
-end)

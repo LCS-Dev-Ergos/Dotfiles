@@ -1,4 +1,5 @@
 local colors = require("colors")
+local settings = require("settings")
 
 -- Equivalent to the --bar domain
 sbar.bar({
@@ -6,8 +7,8 @@ sbar.bar({
   -- Keep external displays at window level and switch the built-in bar at the top edge.
   topmost = "window",
   native_menu_switch = "on",
-  height = 40,
+  height = settings.bar.height,
   color = colors.bar.bg,
-  padding_right = 2,
-  padding_left = 2,
+  padding_right = settings.bar.margin,
+  padding_left = settings.bar.margin,
 })

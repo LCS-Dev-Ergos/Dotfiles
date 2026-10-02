@@ -1,8 +1,6 @@
 local colors = require("colors")
-local icons = require("icons")
-local settings = require("settings")
-local app_icons = require("helpers.app_icons")
 local runtime = require("helpers.runtime")
+local space_pill = require("helpers.space_pill")
 
 local function shell_quote(value)
   return "'" .. value:gsub("'", "'\\''") .. "'"
@@ -21,57 +19,12 @@ local function valid_space_id(sid)
 end
 
 for i = 1, max_spaces, 1 do
-  local space = sbar.add("space", "space." .. i, {
-    space = i,
-    icon = {
-      font = { family = settings.font.numbers },
-      string = i,
-      padding_left = 15,
-      padding_right = 8,
-      color = colors.white,
-      highlight_color = colors.red,
-    },
-    label = {
-      padding_right = 20,
-      color = colors.grey,
-      highlight_color = colors.white,
-      font = "sketchybar-app-font:Regular:16.0",
-      y_offset = -1,
-    },
-    padding_right = 1,
-    padding_left = 1,
-    background = {
-      color = colors.bg1,
-      border_width = 1,
-      height = 26,
-      border_color = colors.black,
-    },
-    popup = { background = { border_width = 5, border_color = colors.black } }
-  })
-
+  local space, select = space_pill.add("space", i, { space = i })
   spaces[i] = space
 
-  -- Single item bracket for space items to achieve double border on highlight
-  local space_bracket = sbar.add("bracket", { space.name }, {
-    background = {
-      color = colors.transparent,
-      border_color = colors.bg2,
-      height = 28,
-      border_width = 2
-    }
-  })
-
-  -- Padding space
-  sbar.add("space", "space.padding." .. i, {
-    space = i,
-    script = "",
-    width = settings.group_paddings,
-  })
-
-  local space_popup = sbar.add("item", {
+  -- Middle click previews the Desktop in a popup.
+  local space_popup = sbar.add("item", "space.preview." .. i, {
     position = "popup." .. space.name,
-    padding_left= 5,
-    padding_right= 0,
     background = {
       drawing = true,
       image = {
@@ -79,26 +32,14 @@ for i = 1, max_spaces, 1 do
         scale = 0.2,
         border_color = colors.grey,
         border_width = 1,
-      }
-    }
+      },
+    },
   })
 
   -- Every Desktop item receives each change, and each set makes SketchyBar
   -- redraw. Only the items whose selection changed have anything to set.
-  local was_selected = nil
   space:subscribe("space_change", function(env)
-    local selected = env.SELECTED == "true"
-    if selected == was_selected then return end
-    was_selected = selected
-
-    space:set({
-      icon = { highlight = selected, },
-      label = { highlight = selected },
-      background = { border_color = selected and colors.black or colors.bg2 }
-    })
-    space_bracket:set({
-      background = { border_color = selected and colors.grey or colors.bg2 }
-    })
+    select(env.SELECTED == "true")
   end)
 
   space:subscribe("mouse.clicked", function(env)
@@ -131,31 +72,9 @@ for i = 1, max_spaces, 1 do
   end)
 end
 
-local space_window_observer = sbar.add("item", {
+local space_window_observer = sbar.add("item", "spaces.observer", {
   drawing = false,
   updates = true,
-})
-
-local spaces_indicator = sbar.add("item", {
-  padding_left = -3,
-  padding_right = 0,
-  icon = {
-    padding_left = 8,
-    padding_right = 9,
-    color = colors.grey,
-    string = icons.switch.on,
-  },
-  label = {
-    width = 0,
-    padding_left = 0,
-    padding_right = 8,
-    string = "Spaces",
-    color = colors.bg1,
-  },
-  background = {
-    color = colors.with_alpha(colors.grey, 0.0),
-    border_color = colors.with_alpha(colors.bg1, 0.0),
-  }
 })
 
 -- WindowServer emits bursts while the session changes. Keep only the latest
@@ -187,53 +106,9 @@ space_window_observer:subscribe("space_windows_change", function(env)
   if type(env.INFO) ~= "table" or type(env.INFO.apps) ~= "table" then return end
   local sid = tonumber(env.INFO.space)
   if not sid or not spaces[sid] then return end
-  local apps = {}
-  for app in pairs(env.INFO.apps) do apps[#apps + 1] = app end
-  table.sort(apps)
-  local line = ""
-  for _, app in ipairs(apps) do
-    line = line .. " " .. (app_icons[app] or app_icons["default"])
-  end
-  pending_icons[sid] = #apps == 0 and " —" or line
+  pending_icons[sid] = space_pill.icons(env.INFO.apps)
   if not locked and not refresh_pending then
     refresh_pending = true
     sbar.delay(0.15, flush_icons)
   end
-end)
-
-spaces_indicator:subscribe("swap_menus_and_spaces", function(env)
-  local currently_on = spaces_indicator:query().icon.value == icons.switch.on
-  spaces_indicator:set({
-    icon = currently_on and icons.switch.off or icons.switch.on
-  })
-end)
-
-spaces_indicator:subscribe("mouse.entered", function(env)
-  sbar.animate("tanh", 30, function()
-    spaces_indicator:set({
-      background = {
-        color = colors.grey,
-        border_color = colors.bg1,
-      },
-      icon = { color = colors.bg1 }
-    })
-  end)
-  spaces_indicator:set({ label = { width = "dynamic" } })
-end)
-
-spaces_indicator:subscribe("mouse.exited", function(env)
-  sbar.animate("tanh", 30, function()
-    spaces_indicator:set({
-      background = {
-        color = colors.with_alpha(colors.grey, 0.0),
-        border_color = colors.with_alpha(colors.bg1, 0.0),
-      },
-      icon = { color = colors.grey }
-    })
-  end)
-  spaces_indicator:set({ label = { width = 0 } })
-end)
-
-spaces_indicator:subscribe("mouse.clicked", function(env)
-  sbar.trigger("swap_menus_and_spaces")
 end)

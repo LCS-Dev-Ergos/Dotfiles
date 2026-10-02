@@ -5,14 +5,14 @@ Run with SKETCHYBAR_LIVE_TESTS=1 bash tests/run.sh from the SketchyBar module.
 LUA and SKETCHYBAR may select the managed executables. No daemon is restarted.
 """
 
+import itertools
 import json
 import os
-from pathlib import Path
 import pwd
 import subprocess
 import time
 import uuid
-
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -26,6 +26,7 @@ sbar = fixture.api
 require('items.widgets.wifi')
 require('items.widgets.cpu')
 require('items.widgets.homebrew')
+require('items.widgets.battery')
 require('items.widgets.volume')
 fixture.items['widgets.volume1'].handlers['mouse.entered']({})
 fixture.commands[#fixture.commands - 1][2]('LSX II\\n', 0)
@@ -61,6 +62,14 @@ emit('cpu', fixture.items['widgets.cpu'].props)
 emit('details', fixture.items['widgets.brew.details'].props)
 emit('checked', fixture.items['widgets.brew.checked'].props)
 emit('audio', fixture.items['volume.device.row.1'].props)
+emit('remaining', fixture.items['widgets.battery.remaining'].props)
+emit('source', fixture.items['widgets.battery.source'].props)
+emit('percent', fixture.items['widgets.battery'].props)
+emit('speaker', fixture.items['widgets.volume2'].props)
+local icons = require('icons')
+for _, key in ipairs({'_100', '_66', '_33', '_10', '_0'}) do print('speakers\t' .. icons.volume[key]) end
+local face = require('helpers.style').font.icon()
+print('default_icon\t' .. face.family .. ':' .. face.style .. ':' .. face.size)
 for _, name in ipairs({'ssid', 'hostname', 'ip', 'mask', 'router'}) do
   emit(name, fixture.items['widgets.wifi.' .. name].props)
 end
@@ -87,7 +96,7 @@ def bar(*arguments):
     result = subprocess.run(
         [os.environ.get("SKETCHYBAR", "sketchybar"), *arguments],
         env={**os.environ, "USER": os.environ.get("USER") or pwd.getpwuid(os.getuid()).pw_name},
-        capture_output=True, text=True, timeout=5,
+        capture_output=True, text=True, timeout=5, check=False,
     )
     if result.returncode != 0:
         raise AssertionError(result.stderr or result.stdout)
@@ -172,13 +181,22 @@ def main():
             if cpu_bounds is None:
                 cpu_bounds = bounds
             assert bounds == cpu_bounds, (value, bounds, cpu_bounds)
+        # Fixed cells hold their widest value: "100%" in the percentage
+        # cell, every speaker symbol in the volume icon cell.
+        percent = dict(argument.split("=", 1) for argument in config["percent"])
+        assert measured_width("100%", percent["label.font"]) <= int(percent["label.width"])
+        speaker = dict(argument.split("=", 1) for argument in config["speaker"])
+        for symbol in config["speakers"]:
+            font = speaker.get("icon.font", config["default_icon"][0])
+            assert measured_width(symbol, font) <= int(speaker["icon.width"]), symbol
         # Both popup rows must accommodate their longest normal/error message.
         for group, messages in [
             ("details", ["Checking for updates…", "Connection unavailable", "999 updates available"]),
             ("checked", ["Last checked at 23:59:59", "Homebrew will retry automatically"]),
         ]:
             props = dict(argument.split("=", 1) for argument in config[group])
-            available = int(props["width"]) - int(props["label.padding_left"]) - int(props["label.padding_right"])
+            available = (int(props["width"]) - int(props.get("label.padding_left", 0))
+                         - int(props.get("label.padding_right", 0)))
             for message in messages:
                 assert measured_width(message, props["label.font"]) <= available, message
         # Exercise complete popup rows in actual popup windows, including the
@@ -186,6 +204,7 @@ def main():
         previous = None
         for menu, groups in [("brew", ["details", "checked"]),
                              ("wifi", ["ssid", "hostname", "ip", "mask", "router"]),
+                             ("battery", ["remaining", "source"]),
                              ("volume", ["slider", "audio"])]:
             host = prefix + "_" + menu
             bar("--add", "item", host, "right", "--set", host,
@@ -212,12 +231,14 @@ def main():
                 item = query(name, props.get("label", ""))
                 rect = next(iter(item["bounding_rects"].values()))
                 bounds.append(rect)
-                assert 256 <= rect["size"][0] <= 258, (menu, group, rect)
+                # Rows span the menu and centre their content; item padding
+                # would expose the menu's background window to clicks.
+                assert 280 <= rect["size"][0] <= 282, (menu, group, rect)
                 assert rect["size"][1] == 30, (menu, group, rect)
-                assert item["geometry"]["padding_left"] == item["geometry"]["padding_right"] == 12
+                assert item["geometry"]["padding_left"] == item["geometry"]["padding_right"] == 0
                 if group == "slider":
                     assert int(item["slider"]["width"]) == 232
-                    assert rect["size"][0] - 232 >= 24, "slider must fit both endpoints inside the row"
+                    assert rect["size"][0] - 232 >= 48, "slider must fit both endpoints inside the row"
                     knob = item["slider"]["knob"]
                     assert measured_width(knob["value"], knob["font"]) <= 24
                     for endpoint in ["0", "100"]:
@@ -232,8 +253,8 @@ def main():
                     assert item["icon"]["width"] == item["label"]["width"] == 128
             assert all(rect["origin"][0] == bounds[0]["origin"][0] for rect in bounds)
             assert all(right["origin"][1] - left["origin"][1] == 30
-                       for left, right in zip(bounds, bounds[1:]))
-        print(f"Live geometry: {len(values)} network rates, CPU through 100%, and three complete popups: PASS")
+                       for left, right in itertools.pairwise(bounds))
+        print(f"Live geometry: {len(values)} network rates, fixed cells, CPU through 100%, and four complete popups: PASS")
     finally:
         errors = []
         for name in reversed(created):

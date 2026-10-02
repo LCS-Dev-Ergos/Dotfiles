@@ -4,10 +4,15 @@ local settings = require("settings")
 local statwell = require("helpers.statwell")
 local popup = require("helpers.popup")
 local popup_data = require("helpers.popup_data")
+local style = require("helpers.style")
 
 local function shell_quote(value)
   return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
 end
+
+-- Assigned below; the popup callbacks and refreshes reach them through these.
+local cache
+local details_generation = 0
 
 local network_state = {
   iface = nil,
@@ -39,185 +44,59 @@ local function resolve_network(callback)
   end)
 end
 
-local popup_width = settings.popup.width
--- Leave room for the shared outer padding and the icon/label padding.
-local detail_cell_width = (popup_width - 2 * settings.popup.inset) / 2
+-- Two stacked rows share one slot: the upload item has zero width and draws
+-- over the download item, so both use identical cells and only the download
+-- item reserves space; with no item padding both draw in the same place. Rates are
+-- right-aligned in a cell sized for the longest value, so the units line up
+-- and the pill never changes width.
+local function rate_row(name, arrow, color, y_offset, width)
+  return sbar.add("item", name, {
+    position = "right",
+    width = width,
+    scroll_texts = false,
+    icon = {
+      string = arrow,
+      width = 12,
+      font = style.font.small_icon(),
+    },
+    label = style.merge(style.end_cell(statwell.rate_width), {
+      string = statwell.rate_unknown,
+      font = style.font.small(),
+      color = color,
+    }),
+    y_offset = y_offset,
+  })
+end
 
-local wifi_up = sbar.add("item", "widgets.wifi1", {
-  position = "right",
-  padding_left = -5,
-  width = 0,
-  scroll_texts = false,
-  icon = {
-    width = 12,
-    padding_left = 0,
-    padding_right = 2,
-    font = {
-      style = settings.font.style_map["Bold"],
-      size = 9.0,
-    },
-    string = icons.wifi.upload,
-  },
-  label = {
-    font = {
-      family = settings.font.numbers,
-      style = settings.font.style_map["Bold"],
-      size = 9.0,
-    },
-    color = colors.magenta,
-    string = statwell.rate_unknown,
-    width = statwell.rate_width,
-    align = "left",
-    padding_left = 0,
-    padding_right = 2,
-  },
-  y_offset = 4,
-})
+-- The fixed icon/label cells determine the download item's width. An item
+-- width smaller than this content would clip the unit on the right.
+local wifi_up = rate_row("widgets.wifi1", icons.wifi.upload, colors.magenta, 4, 0)
+local wifi_down = rate_row("widgets.wifi2", icons.wifi.download, colors.blue, -4, "dynamic")
 
-local wifi_down = sbar.add("item", "widgets.wifi2", {
-  -- The fixed icon/label cells determine the width, including their padding.
-  -- An item width smaller than this content would clip the unit on the right.
-  width = "dynamic",
-  scroll_texts = false,
+local wifi = sbar.add("item", "widgets.wifi", {
   position = "right",
-  padding_left = -5,
-  icon = {
-    width = 12,
-    padding_left = 0,
-    padding_right = 2,
-    font = {
-      style = settings.font.style_map["Bold"],
-      size = 9.0,
-    },
-    string = icons.wifi.download,
-  },
-  label = {
-    font = {
-      family = settings.font.numbers,
-      style = settings.font.style_map["Bold"],
-      size = 9.0,
-    },
-    color = colors.blue,
-    string = statwell.rate_unknown,
-    width = statwell.rate_width,
-    align = "left",
-    padding_left = 0,
-    padding_right = 2,
-  },
-  y_offset = -4,
-})
-
-local wifi = sbar.add("item", "widgets.wifi.padding", {
-  position = "right",
-  icon = { padding_right = settings.paddings + 3 },
+  -- Unknown until the first interface lookup answers.
+  icon = { string = icons.wifi.connected, color = colors.muted,
+    padding_left = settings.pill.inset, padding_right = settings.spacing },
   label = { drawing = false },
 })
 
--- Background around the item
-local wifi_bracket = sbar.add("bracket", "widgets.wifi.bracket", {
-  wifi.name,
-  wifi_up.name,
-  wifi_down.name
-}, {
-  background = { color = colors.bg1 },
-  popup = { align = "center", height = settings.popup.row_height }
+local wifi_bracket = style.pill("widgets.wifi.bracket", { wifi.name, wifi_up.name, wifi_down.name })
+style.gap("widgets.wifi.padding", "right")
+
+local menu = popup.new(wifi_bracket, {
+  open = function() cache.show() end,
+  close = function() details_generation = details_generation + 1 end,
 })
 
-local ssid = sbar.add("item", "widgets.wifi.ssid", {
-  position = "popup." .. wifi_bracket.name,
-  icon = {
-    font = {
-      style = settings.font.style_map["Bold"]
-    },
-    string = icons.wifi.router,
-  },
-  width = popup_width,
-  align = "center",
-  label = {
-    font = {
-      size = settings.popup.text_size,
-      style = settings.font.style_map["Bold"]
-    },
-    max_chars = 18,
-    string = "????????????",
-  },
-  background = { drawing = false }
+local ssid = menu.text_row("widgets.wifi.ssid", {
+  icon = { drawing = true, string = icons.wifi.router, padding_right = settings.spacing },
+  label = { width = "dynamic", max_chars = 24, string = "Loading…" },
 })
-
-local hostname = sbar.add("item", "widgets.wifi.hostname", {
-  position = "popup." .. wifi_bracket.name,
-  icon = {
-    align = "left",
-    string = "Hostname:",
-    width = detail_cell_width,
-    padding_left = 0, padding_right = 0,
-    font = { size = settings.popup.text_size, style = settings.font.style_map["Semibold"] },
-  },
-  label = {
-    max_chars = 20,
-    string = "????????????",
-    width = detail_cell_width,
-    padding_left = 0, padding_right = 0,
-    font = { size = settings.popup.text_size, style = settings.font.style_map["Regular"] },
-    align = "right",
-  }
-})
-
-local ip = sbar.add("item", "widgets.wifi.ip", {
-  position = "popup." .. wifi_bracket.name,
-  icon = {
-    align = "left",
-    string = "IP:",
-    width = detail_cell_width,
-    padding_left = 0, padding_right = 0,
-    font = { size = settings.popup.text_size, style = settings.font.style_map["Semibold"] },
-  },
-  label = {
-    string = "???.???.???.???",
-    width = detail_cell_width,
-    padding_left = 0, padding_right = 0,
-    font = { size = settings.popup.text_size, style = settings.font.style_map["Regular"] },
-    align = "right",
-  }
-})
-
-local mask = sbar.add("item", "widgets.wifi.mask", {
-  position = "popup." .. wifi_bracket.name,
-  icon = {
-    align = "left",
-    string = "Subnet mask:",
-    width = detail_cell_width,
-    padding_left = 0, padding_right = 0,
-    font = { size = settings.popup.text_size, style = settings.font.style_map["Semibold"] },
-  },
-  label = {
-    string = "???.???.???.???",
-    width = detail_cell_width,
-    padding_left = 0, padding_right = 0,
-    font = { size = settings.popup.text_size, style = settings.font.style_map["Regular"] },
-    align = "right",
-  }
-})
-
-local router = sbar.add("item", "widgets.wifi.router", {
-  position = "popup." .. wifi_bracket.name,
-  icon = {
-    align = "left",
-    string = "Router:",
-    width = detail_cell_width,
-    padding_left = 0, padding_right = 0,
-    font = { size = settings.popup.text_size, style = settings.font.style_map["Semibold"] },
-  },
-  label = {
-    string = "???.???.???.???",
-    width = detail_cell_width,
-    padding_left = 0, padding_right = 0,
-    font = { size = settings.popup.text_size, style = settings.font.style_map["Regular"] },
-    align = "right",
-  },
-})
-
-sbar.add("item", { position = "right", width = settings.group_paddings })
+local hostname = menu.detail_row("widgets.wifi.hostname", "Hostname")
+local ip = menu.detail_row("widgets.wifi.ip", "IP address")
+local mask = menu.detail_row("widgets.wifi.mask", "Subnet mask")
+local router = menu.detail_row("widgets.wifi.router", "Router")
 
 local last_upload, last_download, last_up_color, last_down_color
 statwell.subscribe(wifi_up, "network", "statwell_network", function(env)
@@ -264,13 +143,34 @@ local function update_connection(iface)
   end)
 end
 
-local cache
+-- macOS redacts the SSID in ipconfig and networksetup for processes without
+-- Location Services access; system_profiler still reports it but needs a few
+-- seconds. It is therefore read in the background whenever the network
+-- changes, and the menu shows the last answer.
+local ssid_generation = 0
+local function read_ssid()
+  ssid_generation = ssid_generation + 1
+  local generation = ssid_generation
+  network_state.ssid_pending = true
+  sbar.exec("/usr/sbin/system_profiler SPAirPortDataType 2>/dev/null"
+    .. " | /usr/bin/awk '/Current Network Information:/ { getline; sub(/^[ \t]+/, \"\"); sub(/:$/, \"\"); print; exit }'",
+    function(result)
+      if generation ~= ssid_generation then return end
+      result = type(result) == "string" and result:gsub("[\r\n]+$", "") or ""
+      network_state.ssid = result ~= "" and result or nil
+      network_state.ssid_pending = false
+      if cache then cache.invalidate() end
+    end)
+end
+
 local function refresh_network()
   resolve_network(function(iface, service)
     network_state.iface = iface
     network_state.service = service
+    network_state.ssid = nil
     update_connection(iface)
     if cache then cache.invalidate() end
+    if iface then read_ssid() end
   end)
 end
 
@@ -288,21 +188,20 @@ wifi:subscribe({"wifi_change", "system_woke"}, function()
   schedule_network_refresh()
 end)
 
-local details_generation = 0
 local detail_values = {}
 local copy_generations = {}
-local menu
 local function render_details(snapshot)
   details_generation = details_generation + 1
   for _, entry in ipairs({{ssid, "ssid"}, {hostname, "hostname"}, {ip, "ip"}, {mask, "mask"}, {router, "router"}}) do
     local item, key = entry[1], entry[2]
     local value = snapshot and (snapshot[key] or "Unavailable") or "Loading…"
     detail_values[item.name] = snapshot and value or nil
-    item:set({ label = { string = value, align = item == ssid and "left" or "right" } })
+    item:set({ label = { string = value } })
   end
 end
 local function load_details(done)
-  local snapshot, remaining = {}, 3
+  local snapshot, remaining = {}, 2
+  snapshot.ssid = network_state.ssid or (network_state.ssid_pending and "Loading…" or nil)
   local function text(result, code)
     return code == 0 and type(result) == "string" and result:gsub("[\r\n]+$", "") or ""
   end
@@ -316,11 +215,7 @@ local function load_details(done)
     finish()
   end)
   local function query_interface(iface, service)
-    if not iface then finish(); finish(); return end
-    sbar.exec("ipconfig getsummary " .. shell_quote(iface), function(result, code)
-      snapshot.ssid = text(result, code):match("SSID : ([^\r\n]+)")
-      finish()
-    end)
+    if not iface then finish(); return end
     if service then
       sbar.exec("networksetup -getinfo " .. shell_quote(service), function(result, code)
         result = text(result, code)
@@ -340,15 +235,10 @@ local function load_details(done)
   query_interface(network_state.iface, network_state.service)
 end
 
-menu = popup.new(wifi_bracket, {
-  open = function() cache.show() end,
-  close = function() details_generation = details_generation + 1 end,
-})
 for _, item in ipairs({wifi, wifi_up, wifi_down}) do
-  menu.attach(item, true)
+  menu.trigger(item)
   item:subscribe("mouse.clicked", menu.show)
 end
-for _, item in ipairs({ssid, hostname, ip, mask, router}) do menu.attach(item) end
 cache = popup_data.new(load_details, render_details, menu.is_open, {})
 refresh_network()
 
@@ -359,10 +249,10 @@ local function copy_label_to_clipboard(env)
   copy_generations[env.NAME] = (copy_generations[env.NAME] or 0) + 1
   local copy_generation = copy_generations[env.NAME]
   sbar.exec("printf %s " .. shell_quote(label) .. " | pbcopy")
-  sbar.set(env.NAME, { label = { string = icons.clipboard, align="center" } })
+  sbar.set(env.NAME, { label = { string = icons.clipboard } })
   sbar.delay(1, function()
     if generation ~= details_generation or copy_generation ~= copy_generations[env.NAME] then return end
-    sbar.set(env.NAME, { label = { string = label, align = "right" } })
+    sbar.set(env.NAME, { label = { string = label } })
   end)
 end
 

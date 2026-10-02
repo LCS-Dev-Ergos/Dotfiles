@@ -2,59 +2,49 @@ local colors = require("colors")
 local icons = require("icons")
 local settings = require("settings")
 local runtime = require("helpers.runtime")
+local style = require("helpers.style")
 local popup = require("helpers.popup")
 local popup_data = require("helpers.popup_data")
-
-local popup_width = settings.popup.width
 
 local function shell_quote(value)
   return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
 end
 
+-- Right-hand items are laid out from the right: the percentage comes first.
 local volume_percent = sbar.add("item", "widgets.volume1", {
   position = "right",
-  padding_left = 3,
   icon = { drawing = false },
-  label = {
-    string = "??%",
-    width = 34,
-    align = "left",
-    padding_left = 1,
-    font = { family = settings.font.numbers }
-  },
+  label = style.merge(style.end_cell(settings.cell.percent), {
+    string = "?%",
+    font = style.font.number(),
+  }),
 })
 
+-- The speaker symbols differ in width; a fixed cell keeps the pill steady.
+-- It starts the pill, so it holds the inset and the spacing after it.
 local volume_icon = sbar.add("item", "widgets.volume2", {
   position = "right",
-  padding_right = 0,
   icon = {
     string = icons.volume._100,
-    width = "dynamic",
+    width = settings.pill.inset + settings.cell.volume_icon + settings.spacing,
     align = "left",
-    padding_right = 2,
-    color = colors.white,
-    font = {
-      style = settings.font.style_map["Regular"],
-      size = 14.0,
-    },
+    padding_left = settings.pill.inset,
   },
   label = { drawing = false },
 })
 
-local volume_bracket = sbar.add("bracket", "widgets.volume.bracket", {
+local volume_bracket = style.pill("widgets.volume.bracket", {
   volume_icon.name,
   volume_percent.name
-}, {
-  background = { color = colors.bg1 },
-  popup = { align = "center" }
 })
+style.gap("widgets.volume.padding", "right")
 
-sbar.add("item", "widgets.volume.padding", {
-  position = "right",
-  width = settings.group_paddings
-})
+local menu, cache
+menu = popup.new(volume_bracket, { open = function() cache.show() end })
 
-local volume_slider = sbar.add("slider", popup_width - 4 * settings.popup.inset, {
+-- The track leaves one popup inset at both ends inside the row, so the knob
+-- stays within the menu at 0% and 100%.
+local volume_slider = sbar.add("slider", popup.row_width - 2 * settings.popup.inset, {
   position = "popup." .. volume_bracket.name,
   icon = { drawing = false },
   label = { drawing = false },
@@ -65,7 +55,7 @@ local volume_slider = sbar.add("slider", popup_width - 4 * settings.popup.inset,
       corner_radius = 3,
       color = colors.bg2,
     },
-    knob= {
+    knob = {
       string = "􀀁",
       drawing = true,
     },
@@ -78,6 +68,7 @@ local volume_slider = sbar.add("slider", popup_width - 4 * settings.popup.inset,
     osascript -e "set volume output volume $PERCENTAGE"
   ]]
 })
+menu.row(volume_slider)
 
 local last_volume
 volume_percent:subscribe("volume_change", function(env)
@@ -96,45 +87,59 @@ volume_percent:subscribe("volume_change", function(env)
     icon = icons.volume._10
   end
 
-  local lead = ""
-  if volume < 10 then
-    lead = "0"
-  end
-
   volume_icon:set({ icon = { string = icon } })
-  volume_percent:set({ label = lead .. volume .. "%" })
+  volume_percent:set({ label = string.format("%d%%", volume) })
   volume_slider:set({ slider = { percentage = volume } })
 end)
 
-local menu, cache
-local rendered
-local status = sbar.add("item", "volume.device.status", {
-  position = "popup." .. volume_bracket.name,
-  icon = { drawing = false }, background = { drawing = false },
-  label = { string = "Loading output devices…", align = "center", width = popup_width - 2 * settings.popup.inset,
-    padding_left = 0, padding_right = 0, color = colors.muted },
+-- Output devices. Rows are created on first use and then reused: a longer
+-- list adds rows, a shorter one hides the rest.
+local status = menu.text_row("volume.device.status", {
+  label = { string = "Loading output devices…", color = colors.muted },
 })
+local rows, rendered = {}, nil
+local select_device
+
+local function color_rows(current)
+  for _, row in ipairs(rows) do
+    if row.device then
+      row.item:set({ label = { color = row.device == current and colors.white or colors.muted } })
+    end
+  end
+end
+
 local function render_devices(snapshot)
   if snapshot == rendered and snapshot then return end
   rendered = snapshot
-  sbar.remove('/volume.device.row\\.*/')
-  status:set({ drawing = not snapshot or not snapshot.devices,
+  local devices = snapshot and snapshot.devices or {}
+  status:set({ drawing = #devices == 0,
     label = { string = snapshot and "Audio devices unavailable" or "Loading output devices…" } })
-  if not snapshot or not snapshot.devices then return end
-  for index, device in ipairs(snapshot.devices) do
-    local row = sbar.add("item", "volume.device.row." .. index, {
-      position = "popup." .. volume_bracket.name,
-      icon = { drawing = false }, background = { drawing = false },
-      label = { string = device, align = "center", width = popup_width - 2 * settings.popup.inset,
-        padding_left = 0, padding_right = 0, max_chars = 32,
-        color = snapshot.current == device and colors.white or colors.muted },
-      click_script = shell_quote(runtime.audio) .. " -s " .. shell_quote(device)
-        .. " && sketchybar --set /volume.device.row\\.*/ label.color=" .. colors.muted
-        .. " --set \"$NAME\" label.color=" .. colors.white,
-    })
-    menu.attach(row)
+  for index, device in ipairs(devices) do
+    local row = rows[index]
+    if not row then
+      row = { item = menu.text_row("volume.device.row." .. index, { label = { max_chars = 32 } }) }
+      row.item:subscribe("mouse.clicked", function() select_device(row.device) end)
+      rows[index] = row
+    end
+    row.device = device
+    row.item:set({ drawing = true, label = { string = device } })
   end
+  for index = #devices + 1, #rows do
+    rows[index].device = nil
+    rows[index].item:set({ drawing = false })
+  end
+  color_rows(snapshot and snapshot.current)
 end
+
+select_device = function(device)
+  if not device then return end
+  sbar.exec(shell_quote(runtime.audio) .. " -t output -s " .. shell_quote(device), function(_, code)
+    if code ~= 0 then return end
+    if rendered and rendered.devices then rendered.current = device end
+    color_rows(device)
+  end)
+end
+
 local function load_devices(done)
   local current, devices, remaining = nil, nil, 2
   local function finish()
@@ -155,12 +160,10 @@ local function load_devices(done)
     finish()
   end)
 end
-menu = popup.new(volume_bracket, { open = function() cache.show() end })
+
 cache = popup_data.new(load_devices, render_devices, menu.is_open, {})
-menu.attach(volume_icon, true)
-menu.attach(volume_percent, true)
-menu.attach(volume_slider)
-menu.attach(status)
+menu.trigger(volume_icon)
+menu.trigger(volume_percent)
 volume_icon:subscribe("system_woke", function() cache.invalidate() end)
 cache.refresh()
 

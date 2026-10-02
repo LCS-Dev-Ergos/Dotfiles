@@ -2,6 +2,7 @@ local icons = require("icons")
 local colors = require("colors")
 local settings = require("settings")
 local statwell = require("helpers.statwell")
+local style = require("helpers.style")
 local popup = require("helpers.popup")
 
 --[[ Widget for managing Homebrew updates ]]
@@ -21,7 +22,6 @@ end
 local CONFIG = {
   brew_path = find_brew_path(),
   widget_name = "widgets.brew",
-  package_icon = (icons.package or "[PKG]"):gsub("%s+$", ""),
 }
 
 -- Color threshold definitions
@@ -54,51 +54,29 @@ statwell.watch("homebrew", "statwell_homebrew")
 local brew = sbar.add("item", CONFIG.widget_name, {
   position = "right",
   icon = {
-    string = CONFIG.package_icon,
+    string = icons.package,
     color = colors.muted,
-    font = { family = settings.font.text, style = settings.font.style_map["Regular"], size = 13.0, },
-    padding_right = 2,
+    padding_left = settings.pill.inset,
+    padding_right = settings.spacing,
   },
   label = {
     string = "?",
-    font = { family = settings.font.numbers, style = settings.font.style_map["Semibold"], size = 11.0, },
+    font = style.font.number(),
     color = colors.muted,
-    align = "left", padding_left = 3, padding_right = 2, width = "dynamic",
+    padding_right = settings.pill.inset,
   },
-  padding_right = settings.paddings + 6,
-  background = { height = 22, color = { alpha = 0 }, border_color = { alpha = 0 }, drawing = true, },
 })
 
 -- Keep the last confirmed value while exposing pending, stale and error states.
 local last_count
-local function popup_row(name, text, size, style, color)
-  return sbar.add("item", CONFIG.widget_name .. "." .. name, {
-    position = "popup." .. brew.name,
-    width = settings.popup.width,
-    padding_left = 4,
-    padding_right = 4,
-    scroll_texts = false,
-    icon = { drawing = false },
-    background = { drawing = false },
-    label = {
-      string = text,
-      font = { family = settings.font.text, style = style, size = size },
-      color = color,
-      align = "center",
-      width = settings.popup.width - 2 * settings.popup.inset,
-      padding_left = 0,
-      padding_right = 0,
-    },
-  })
-end
-local details = popup_row("details", "Checking for updates…", settings.popup.text_size,
-  settings.font.style_map["Semibold"], colors.muted)
-local checked_row = popup_row("checked", "Waiting for the first result", settings.popup.text_size,
-  settings.font.style_map["Regular"], colors.muted)
-local menu = popup.new(brew)
-menu.attach(brew, true)
-menu.attach(details)
-menu.attach(checked_row)
+local brew_pill = style.pill(CONFIG.widget_name .. ".bracket", { brew.name })
+style.gap(CONFIG.widget_name .. ".padding", "right")
+local menu = popup.new(brew_pill)
+menu.trigger(brew)
+local details = menu.text_row(CONFIG.widget_name .. ".details",
+  { label = { string = "Checking for updates…", color = colors.muted } })
+local checked_row = menu.text_row(CONFIG.widget_name .. ".checked",
+  { label = { string = "Waiting for the first result", font = style.font.body(), color = colors.muted } })
 
 local function valid_count(value)
   value = tonumber(value)
@@ -157,9 +135,5 @@ end)
 brew:set({ click_script = "/bin/bash " .. shell_quote(config_dir .. "/helpers/brew_action.sh")
   .. " " .. shell_quote(CONFIG.brew_path) .. " " .. shell_quote(require("helpers.runtime").statwell)
   .. " " .. shell_quote(require("helpers.runtime").runtime_dir or "") })
-
--- Surrounding elements use the same styling as the other widgets.
-sbar.add("bracket", CONFIG.widget_name .. ".bracket", { brew.name }, { background = { color = colors.bg1 }})
-sbar.add("item", CONFIG.widget_name .. ".padding", { position = "right", width = settings.group_paddings })
 
 -- The first event arrives only after a real StatWell check; unknown is not zero.

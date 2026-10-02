@@ -1,36 +1,15 @@
-local colors = require("colors")
 local icons = require("icons")
 local settings = require("settings")
+local style = require("helpers.style")
 
--- Padding item required because of bracket
-sbar.add("item", { width = 5 })
-
-local apple = sbar.add("item", {
-  icon = {
-    font = { size = 16.0 },
-    string = icons.apple,
-    padding_right = 8,
-    padding_left = 8,
-  },
+local apple = sbar.add("item", "apple", {
+  icon = { string = icons.apple, padding_left = settings.pill.inset, padding_right = settings.pill.inset },
   label = { drawing = false },
-  background = {
-    color = colors.bg2,
-    border_color = colors.black,
-    border_width = 1
-  },
-  padding_left = 1,
-  padding_right = 1,
-  click_script = "$CONFIG_DIR/helpers/menus/bin/menus -s 0"
+  click_script = "$CONFIG_DIR/helpers/menus/bin/menus -s 0",
 })
 
--- Double border for apple using a single item bracket
-sbar.add("bracket", { apple.name }, {
-  background = {
-    color = colors.transparent,
-    height = 30,
-    border_color = colors.grey,
-  }
-})
-
--- Padding item required because of bracket
-sbar.add("item", { width = 7 })
+style.pill("apple.pill", { apple.name })
+-- The Desktops follow, and each keeps room for its ring outside its pill
+-- (settings.space.ring); this gap leaves that room out. The menu titles,
+-- shown instead of the Desktops, add it back with their own lead.
+style.gap("apple.gap", "left", nil, settings.pill.gap - settings.space.ring)
