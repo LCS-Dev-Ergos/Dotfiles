@@ -19,6 +19,12 @@ seconds. Artwork is resized to 32 pixels and cached under
 two covers. No state is written into the configuration or Nix store.
 
 StatWell supplies CPU, network rates, battery, and Homebrew events to the bar.
+The widgets also call `statwell snapshot --cached-only` and `statwell
+refresh`, which StatWell has had since PR #7 (merged into main as 5768225).
+The config build runs both commands against an empty runtime directory and
+fails if StatWell rejects their arguments, which is how an incompatible pin
+would otherwise show up: as a permanent "Connection unavailable" in the
+Homebrew menu.
 The old event-provider C daemons were removed after the replacement widgets
 passed live queries on 2026-09-28; Git history retains their rollback source.
 `brew_action.sh` requests a targeted StatWell package refresh after a Brew command.

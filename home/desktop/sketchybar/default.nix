@@ -90,6 +90,28 @@ let
         --replace-fail '@space_script@' '${config.home.homeDirectory}/.config/yabai/space.sh'
       runHook postInstall
     '';
+
+    # The widgets read StatWell's cache with `snapshot --cached-only` and ask
+    # for package checks with `refresh`. A StatWell without them answers every
+    # call with exit 2, which the bar can only show as a lost connection, so
+    # we refuse to build against it. An empty runtime directory makes both
+    # commands fail with 1 (no daemon) once their arguments are accepted.
+    doInstallCheck = true;
+    installCheckPhase = ''
+      runHook preInstallCheck
+      probe="$TMPDIR/statwell-contract"
+      mkdir -m 0700 "$probe"
+      for command in "snapshot --cached-only" "refresh --provider homebrew"; do
+        status=0
+        # shellcheck disable=SC2086
+        ${lib.getExe statwell} $command --runtime-dir "$probe" >/dev/null 2>&1 || status=$?
+        if [ "$status" -eq 2 ]; then
+          echo "StatWell at ${statwell} rejects 'statwell $command'; SketchyBar needs it" >&2
+          exit 1
+        fi
+      done
+      runHook postInstallCheck
+    '';
   };
 in
 lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
