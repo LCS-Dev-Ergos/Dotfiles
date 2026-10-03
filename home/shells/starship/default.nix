@@ -4,8 +4,8 @@ let
 
   # Starship runs `python --version` for every prompt in a Python project;
   # through a pyenv shim that alone costs about 200 ms. The probe answers from
-  # pyvenv.cfg or the selected pyenv interpreter instead, and falls back to
-  # the plain names the TOML lists.
+  # pyvenv.cfg or the selected pyenv interpreter instead. The helper owns
+  # fallback too: Starship must not retry a shim after rejecting a selector.
   pythonVersion = pkgs.writeScript "starship-python-version" (
     builtins.readFile ./scripts/python-version.sh
   );
@@ -15,7 +15,7 @@ let
   # error would silently change prompt behaviour.
   sourceSettings = builtins.fromTOML (builtins.readFile ./starship.toml);
   starshipSettings = lib.recursiveUpdate sourceSettings {
-    python.python_binary = [ "${pythonVersion}" ] ++ sourceSettings.python.python_binary;
+    python.python_binary = [ "${pythonVersion}" ];
   };
 in
 {
