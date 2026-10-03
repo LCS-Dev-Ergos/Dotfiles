@@ -170,6 +170,21 @@ function take_screenshot() {
   fi
 }
 
+function edit_image() {
+  # The template is trusted user configuration; the image path is data.
+  # Normalize the documented whole-argument placeholder forms before eval.
+  # image_arg is consumed by the literal variable reference evaluated below.
+  # shellcheck disable=SC2034
+  local image_arg="${1}" editor_template="${edit_command}"
+  # Keep this reference literal until the trusted editor template is evaluated.
+  # shellcheck disable=SC2016
+  local image_ref='"${image_arg}"'
+  editor_template=${editor_template//\"%img\"/$image_ref}
+  editor_template=${editor_template//\'%img\'/$image_ref}
+  editor_template=${editor_template//%img/$image_ref}
+  eval "${editor_template}"
+}
+
 function check_for_update() {
   # exit non-zero on HTTP error, output only the body (no stats) but output errors, follow redirects, output everything to stdout
   remote_version="$(curl --compressed -fsSL --stderr - "https://api.github.com/repos/jomo/imgur-screenshot/releases" | grep -Em 1 --color 'tag_name":\s*".*"' | cut -d '"' -f 4)"
@@ -565,9 +580,9 @@ for upload_file in "${upload_files[@]}"; do
 
   # open image in editor if configured
   if [ "${edit}" = "true" ]; then
-    edit_cmd=${edit_command//\%img/${img_file}}
+    edit_cmd=${edit_command}
     echo "Opening editor '${edit_cmd}'"
-    if ! (eval "${edit_cmd}"); then
+    if ! (edit_image "${img_file}"); then
       echo "Error for image '${img_file}': command '${edit_cmd}' failed, not uploading. For more information visit https://github.com/jomo/imgur-screenshot/wiki/Troubleshooting" | tee -a "${log_file}"
       notify error "Something went wrong :(" "Information has been logged"
       exit 1
