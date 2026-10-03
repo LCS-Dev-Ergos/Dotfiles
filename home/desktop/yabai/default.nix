@@ -10,8 +10,8 @@
       executable = true;
     };
 
-    # Space focus and window moves with a short fade-in, called by skhd and
-    # SketchyBar. pkgs.yabai is the signed fork release from
+    # Space focus and window moves with the navigation effect, called by skhd
+    # and SketchyBar. pkgs.yabai is the signed fork release from
     # darwin/window-manager.nix; the store path of its yabai-msg client is
     # substituted.
     "yabai/space.sh" = {

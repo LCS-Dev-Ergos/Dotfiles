@@ -59,12 +59,27 @@ yabai -m config external_bar all:40:0 \
 # bsp, stack or float
 yabai -m config layout bsp
 
-# Desktop navigation (space.sh): the opacity curve of the crossfade and the
-# veil. ease_out changes visibly from the first frame, so a switch reads as
-# answered sooner; smooth, the default, starts slowly. The duration stays the
-# one space.sh passes. Kept on its own line: a release before 8.0.0-lcs.3
-# rejects the setting, and that must not abort the settings above.
-yabai -m config navigation_fade_curve ease_out
+# Desktop navigation (space.sh): the effect of every switch. `yabai -m config`
+# changes these while yabai runs; they return to these values when it
+# restarts. Kept apart from the settings above, which an unknown setting must
+# not abort.
+#   navigation_effect             on or off, for every switch
+#   navigation_effect_type        crossfade (Screen Recording, about 280 ms to
+#                                 the first change) or veil (captures nothing,
+#                                 about 50 ms)
+#   navigation_effect_duration    seconds in [0,1]
+#   navigation_pressure_fallback  what a crossfade becomes under memory
+#                                 pressure: veil, keep or none
+#   navigation_fade_curve         ease_out changes visibly from the first
+#                                 frame, so a switch reads as answered sooner;
+#                                 smooth starts slowly
+#   navigation_veil_blur          0-100, off by default; blurs under the veil,
+#                                 but Dock's switch takes about twice as long
+yabai -m config navigation_effect on \
+    navigation_effect_type crossfade \
+    navigation_effect_duration 0.25 \
+    navigation_pressure_fallback veil \
+    navigation_fade_curve ease_out
 
 # =====----- Disabling Rules --------------------------------------------===== #
 
