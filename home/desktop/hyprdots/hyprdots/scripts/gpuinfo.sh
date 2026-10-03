@@ -2,13 +2,38 @@
 # shellcheck disable=SC2312
 # shellcheck disable=SC1090
 ScrDir=`dirname "$(realpath "$0")"`
-gpuQ="/tmp/hyprdots-${UID}-gpuinfo-query"
+umask 077
+gpuBase=${XDG_RUNTIME_DIR:-/tmp}
+gpuDir="${gpuBase}/hyprdots-${UID}-gpuinfo"
+if [[ "$gpuBase" != /tmp ]] &&
+   { [[ ! -d "$gpuBase" || -L "$gpuBase" || ! -O "$gpuBase" ]] || [[ $(stat -c %a "$gpuBase") != 700 ]]; }; then
+    printf '%s\n' 'Refusing unsafe GPU runtime directory' >&2
+    exit 1
+fi
+if [[ ! -e "$gpuDir" && ! -L "$gpuDir" ]]; then
+    mkdir -m 700 -- "$gpuDir" || exit 1
+fi
+if [[ ! -d "$gpuDir" || -L "$gpuDir" || ! -O "$gpuDir" ]] || [[ $(stat -c %a "$gpuDir") != 700 ]]; then
+    printf '%s\n' 'Refusing unsafe GPU cache directory' >&2
+    exit 1
+fi
+gpuQ="$gpuDir/query"
+if [[ ! " $* " =~ " startup " ]]; then
+    case "$2" in
+        ''|nvidia|amd|intel|tired) gpuQ="${gpuQ}$2" ;;
+        *) printf '%s\n' 'Invalid GPU cache selector' >&2; exit 1 ;;
+    esac
+fi
+if [[ -e "$gpuQ" || -L "$gpuQ" ]]; then
+    if [[ ! -f "$gpuQ" || -L "$gpuQ" || ! -O "$gpuQ" ]] ||
+       [[ $(stat -c '%a %h' "$gpuQ") != '600 1' ]]; then
+        printf '%s\n' 'Refusing unsafe GPU cache file' >&2
+        exit 1
+    fi
+fi
 
 tired=false
-[[ " $* " =~ " tired " ]] && ! grep -q "tired" "${gpuQ}" && echo "tired=true" >>"${gpuQ}"
-if [[ ! " $* " =~ " startup " ]]; then
-   gpuQ="${gpuQ}$2"
-fi
+[[ " $* " =~ " tired " ]] && tired=true
 detect() { # Auto detect Gpu used by Hyprland(declared using env = WLR_DRM_DEVICES) Sophisticated?
 card=$(echo "${WLR_DRM_DEVICES}" | cut -d':' -f1 | cut -d'/' -f4)
 # shellcheck disable=SC2010
@@ -244,7 +269,23 @@ fi
 if [[ ! -f "${gpuQ}" ]]; then
 query ; echo -e "Initialized Variable:\n$(cat "${gpuQ}")\n\nReboot or '$0 --reset' to RESET Variables"
 fi
-source "${gpuQ}"
+[[ "$tired" == true ]] && ! grep -q '^tired=' "$gpuQ" && printf '%s\n' 'tired=true' >> "$gpuQ"
+# Cached hardware text is data, never a shell program. Keep the legacy
+# assignment format so toggle/reset remain compatible, but allowlist keys.
+while IFS='=' read -r key value; do
+    case "$key" in
+        nvidia_flag|amd_flag|intel_flag)
+            value=${value%% *}
+            case "$value" in 0|1) printf -v "$key" '%s' "$value" ;; esac ;;
+        nvidia_gpu|amd_gpu|intel_gpu|nvidia_address|amd_address|intel_address|gpu_flags)
+            value=${value#\"}; value=${value%\"}
+            printf -v "$key" '%s' "$value" ;;
+        prioGPU)
+            case "$value" in nvidia_flag|amd_flag|intel_flag) prioGPU=$value ;; esac ;;
+        tired)
+            case "$value" in true|false) tired=$value ;; esac ;;
+    esac
+done < "$gpuQ"
 case "$1" in
   "--toggle"|"-t")
       toggle
@@ -255,7 +296,7 @@ echo -e "Sensor: ${next_prioGPU} GPU" | sed 's/_flag//g'
       toggle "$2"
     ;;
   "--reset"|"-rf")
-    rm -fr "${gpuQ}"*
+    rm -f -- "$gpuDir"/query*
     query
     echo -e "Initialized Variable:\n$(cat "${gpuQ}" || true)\n\nReboot or '$0 --reset' to RESET Variables"
     exit
