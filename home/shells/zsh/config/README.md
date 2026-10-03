@@ -251,7 +251,10 @@ and uses an atomic mkdir lock to prevent concurrent full runs.
 - 1Password values are read through `ai-secret`, cached in non-exported shell
   variables and exposed only to the intended child command (`gemini` or
   `opencode`). Claude Code fetches its MCP headers itself through
-  `ai-secret headers`, so no key enters its environment.
+  `ai-secret headers`, so no key enters its environment. `ai-secret` prefers
+  the 1Password Environment `AI-Secrets`, which the desktop app serves through
+  a named pipe at `$XDG_STATE_HOME/ai-secrets/secrets.env` (one authorization
+  until 1Password locks, nothing on disk), and falls back to `op read`.
 - Fabric refuses pattern names that collide with commands/builtins and publishes
   generated notes only after a successful run.
 - Zinit and its plugins intentionally track their upstream default revisions.
