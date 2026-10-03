@@ -9,6 +9,11 @@ on:
       - "home/**/*.nix"
       - "home/cli/cli-tools/scripts/**"
       - "home/shells/zsh/**"
+      - "home/shells/starship/**"
+      - "home/file-managers/nnn/**"
+      - "home/terminals/kitty/**"
+      - "home/editors/doom/**"
+      - "home/desktop/hyprdots/**"
       - "home/dev/languages/cpp/**"
       - "hosts/**/*.nix"
       - "scripts/**"
@@ -23,6 +28,11 @@ on:
       - "home/**/*.nix"
       - "home/cli/cli-tools/scripts/**"
       - "home/shells/zsh/**"
+      - "home/shells/starship/**"
+      - "home/file-managers/nnn/**"
+      - "home/terminals/kitty/**"
+      - "home/editors/doom/**"
+      - "home/desktop/hyprdots/**"
       - "home/dev/languages/cpp/**"
       - "hosts/**/*.nix"
       - "scripts/**"
@@ -211,7 +221,7 @@ jobs:
 
       - name: Install macOS validation dependencies
         if: runner.os == 'macOS'
-        run: brew install gawk
+        run: brew install gawk coreutils findutils
 
       - name: Install pinned shdoc
         run: |
@@ -226,3 +236,8 @@ jobs:
 
       - name: Run complete verification suite
         run: home/shells/zsh/config/tests/run-all.zsh --full
+
+      - name: Run workstation security regressions
+        run: |
+          python3 scripts/tests/security_regressions.py
+          python3 home/terminals/kitty/tests/test_statwell_snapshot.py
