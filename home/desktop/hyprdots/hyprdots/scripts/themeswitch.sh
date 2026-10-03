@@ -111,6 +111,7 @@ flatpak --user override --env=ICON_THEME="${gtkIcon}"
 
 # wallpaper
 getWall=`grep '^1|' "$ThemeCtl" | awk -F '|' '{print $NF}'`
-getWall=`eval echo "$getWall"`
+case "$getWall" in
+    \~/*) getWall="$HOME/${getWall#\~/}" ;;
+esac
 "${ScrDir}/swwwallpaper.sh" -s "${getWall}"
-

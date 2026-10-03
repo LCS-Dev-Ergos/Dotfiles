@@ -13,12 +13,21 @@ trap 'rm -f ${lockFile}' EXIT
 
 Wall_Update()
 {
+    case "$1" in
+        *'|'*|*'
+'*) printf '%s\n' 'Wallpaper path contains a theme delimiter' >&2; return 1 ;;
+    esac
     if [ ! -d "${cacheDir}/${curTheme}" ] ; then
         mkdir -p "${cacheDir}/${curTheme}"
     fi
 
     local x_wall="$1"
-    local x_update="${x_wall/$HOME/"~"}"
+    local x_update="$x_wall"
+    # Store a literal home-relative marker for the theme reader.
+    # shellcheck disable=SC2088
+    case "$x_wall" in
+        "$HOME"/*) x_update="~/${x_wall#"$HOME"/}" ;;
+    esac
     cacheImg=$(basename "$x_wall")
     $ScrDir/swwwallbash.sh "$x_wall" &
 
@@ -35,7 +44,9 @@ Wall_Update()
     fi
 
     wait
-    awk -F '|' -v thm="${curTheme}" -v wal="${x_update}" '{OFS=FS} {if($2==thm)$NF=wal;print$0}' "${ThemeCtl}" > "${ScrDir}/tmp" && mv "${ScrDir}/tmp" "${ThemeCtl}"
+    wallpaper_theme="$curTheme" wallpaper_path="$x_update" \
+        awk -F '|' 'BEGIN {thm=ENVIRON["wallpaper_theme"]; wal=ENVIRON["wallpaper_path"]} {OFS=FS} {if($2==thm)$NF=wal;print$0}' \
+        "$ThemeCtl" > "$ScrDir/tmp" && mv "$ScrDir/tmp" "$ThemeCtl"
     ln -fs "${x_wall}" "${wallSet}"
     ln -fs "${cacheDir}/${curTheme}/${cacheImg}" "${wallTmb}"
     ln -fs "${cacheDir}/${curTheme}/${cacheImg}.blur" "${wallBlr}"
@@ -98,7 +109,10 @@ if [ `echo $ctlLine | wc -l` -ne "1" ] ; then
 fi
 
 curTheme=$(echo "$ctlLine" | awk -F '|' '{print $2}')
-fullPath=$(echo "$ctlLine" | awk -F '|' '{print $NF}' | sed "s+~+$HOME+")
+fullPath=$(printf '%s\n' "$ctlLine" | awk -F '|' '{print $NF}')
+case "$fullPath" in
+    \~/*) fullPath="$HOME/${fullPath#\~/}" ;;
+esac
 wallName=$(basename "$fullPath")
 wallPath=$(dirname "$fullPath")
 mapfile -d '' Wallist < <(find ${wallPath} -type f \( -iname "*.gif" -o -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" \) -print0 | sort -z)
@@ -146,4 +160,3 @@ if [ $? -eq 1 ] ; then
 fi
 
 Wall_Set
-
