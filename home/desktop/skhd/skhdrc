@@ -5,10 +5,10 @@
 # ctrl + shift + cmd. shift + cmd and shift + ctrl are left to applications
 # (text selection, kitty and tmux tabs and scrolling).
 #
-# Space bindings go through ~/.config/yabai/space.sh, which fades in the
-# windows of the space it switches to and focuses one of them. The others call
-# yabai-msg, which does what `yabai -m` does without loading the window
-# manager's frameworks: it starts in about 2 ms instead of 6.
+# Space bindings go through ~/.config/yabai/space.sh, which switches with the
+# navigation effect yabai's settings choose and focuses a window there. The
+# others call yabai-msg, which does what `yabai -m` does without loading the
+# window manager's frameworks: it starts in about 2 ms instead of 6.
 
 # ============================================================================ #
 # =====----- WINDOW AND SPACE NAVIGATION --------------------------------===== #
@@ -63,6 +63,17 @@ ctrl + lalt - left  : ~/.config/yabai/space.sh move prev
 ctrl + lalt - right : ~/.config/yabai/space.sh move next
 shift + lalt - p : ~/.config/yabai/space.sh move prev
 shift + lalt - n : ~/.config/yabai/space.sh move next
+
+# ============================================================================ #
+# =====----- DESKTOP NAVIGATION EFFECT ----------------------------------===== #
+
+# The effect space.sh's switches show, through ~/.config/yabai/navfx.sh, which
+# shows the new setting in SketchyBar. yabai keeps it until it restarts.
+# lalt - v: effects on/off; shift + lalt - v: crossfade or veil;
+# ctrl + lalt - v: the crossfade's curve, smooth or ease_out
+lalt - v         : ~/.config/yabai/navfx.sh toggle
+shift + lalt - v : ~/.config/yabai/navfx.sh type
+ctrl + lalt - v  : ~/.config/yabai/navfx.sh curve
 
 # ============================================================================ #
 # =====----- WINDOW MANIPULATION ----------------------------------------===== #

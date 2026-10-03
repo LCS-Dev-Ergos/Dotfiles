@@ -102,7 +102,8 @@ let
         --replace-fail '@switchaudio@' '${pkgs.switchaudio-osx}/bin/SwitchAudioSource' \
         --replace-fail '@python@' '${pkgs.python3}/bin/python3' \
         --replace-fail '@yabai@' '${lib.getExe pkgs.yabai}' \
-        --replace-fail '@space_script@' '${config.home.homeDirectory}/.config/yabai/space.sh'
+        --replace-fail '@space_script@' '${config.home.homeDirectory}/.config/yabai/space.sh' \
+        --replace-fail '@navfx_script@' '${config.home.homeDirectory}/.config/yabai/navfx.sh'
       runHook postInstall
     '';
 

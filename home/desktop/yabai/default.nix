@@ -20,5 +20,13 @@
       };
       executable = true;
     };
+
+    # Bindings for the navigation effect (skhdrc) and its SketchyBar item.
+    "yabai/navfx.sh" = {
+      source = pkgs.replaceVars ./navfx.sh {
+        yabai_msg = "${pkgs.yabai}/bin/yabai-msg";
+      };
+      executable = true;
+    };
   };
 }

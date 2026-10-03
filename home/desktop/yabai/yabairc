@@ -59,8 +59,8 @@ yabai -m config external_bar all:40:0 \
 # bsp, stack or float
 yabai -m config layout bsp
 
-# Desktop navigation (space.sh): the effect of every switch. `yabai -m config`
-# changes these while yabai runs; they return to these values when it
+# Desktop navigation (space.sh): the effect of every switch. navfx.sh, bound in
+# skhdrc, changes these while yabai runs; they return to these values when it
 # restarts. Kept apart from the settings above, which an unknown setting must
 # not abort.
 #   navigation_effect             on or off, for every switch
@@ -236,5 +236,8 @@ yabai -m rule --add \
 # Rules only reach windows created after them; apply them to the windows that
 # were already open when yabai (re)started.
 yabai -m rule --apply
+
+# A restart sets the navigation effect again; show it in SketchyBar.
+"$HOME/.config/yabai/navfx.sh" announce >/dev/null 2>&1 || true
 
 echo "yabai configuration loaded..."
