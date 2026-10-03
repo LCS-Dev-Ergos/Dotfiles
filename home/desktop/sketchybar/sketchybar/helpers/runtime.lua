@@ -9,4 +9,5 @@ return {
   python = "@python@",
   yabai  = "@yabai@",
   space_script = "@space_script@",
+  navfx_script = "@navfx_script@",
 }
