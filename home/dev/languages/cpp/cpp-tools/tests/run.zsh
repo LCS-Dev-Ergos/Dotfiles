@@ -416,6 +416,26 @@ rebuild_reason=$(
   _cppconf_rebuild_reason_for_toolchain "$stale_build" "$workspace/Algorithms/gcc-toolchain.cmake"
 )
 _assert_eq "" "$rebuild_reason" "the preferred cached g++ is kept"
+
+# Health checks inspect forged project metadata without executing its compiler.
+typeset cache_spy="$test_tmp/cache-compiler" cache_marker="$test_tmp/cache-executed"
+print -rl -- '#!/bin/sh' "touch '$cache_marker'" >| "$cache_spy"
+chmod 700 "$cache_spy"
+print -r -- "CMAKE_CXX_COMPILER:FILEPATH=$cache_spy" >| "$stale_build/CMakeCache.txt"
+typeset health_output
+health_output=$(
+  # Resolve only this fixture build inside the subshell; the ordinary PATH
+  # compiler must answer probes while the hostile cached path stays display data.
+  _cp_get_active_build_dir() { print -r -- "$stale_build"; }
+  PATH="$gxx_bin:$PATH"
+  cppcheck
+)
+_assert_eq "0" "$?" "health check with cache metadata"
+[[ ! -e "$cache_marker" ]]
+_assert_eq "0" "$?" "cache compiler never executed by health check"
+_assert_contains "$health_output" 'Cached build compiler (not executed)' "cache metadata remains visible"
+_assert_contains "$health_output" 'PATH compiler:' "health check probes the PATH toolchain"
+_assert_contains "$health_output" 'C++23 support available' "standard support probe preserved"
 unfunction _write_fake_compiler
 
 # Syntax validation covers every maintained Zsh source.

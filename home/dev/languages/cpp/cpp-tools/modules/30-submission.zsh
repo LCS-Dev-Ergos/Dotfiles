@@ -589,27 +589,28 @@ function cppcheck() {
   # Check compiler and tools.
   echo -e "\n${C_BLUE}Development Tools:${C_RESET}"
 
-  local active_build_dir compiler_path compiler_version
+  local active_build_dir cached_compiler compiler_path compiler_version
   active_build_dir=$(_cp_get_active_build_dir 2>/dev/null || true)
-  compiler_path=""
+  cached_compiler=""
   if [ -n "$active_build_dir" ] && [ -f "$active_build_dir/CMakeCache.txt" ]; then
-    compiler_path=$(grep -E '^CMAKE_CXX_COMPILER:(FILEPATH|PATH|STRING)=' "$active_build_dir/CMakeCache.txt" | head -n1 | cut -d'=' -f2-)
+    cached_compiler=$(grep -E '^CMAKE_CXX_COMPILER:(FILEPATH|PATH|STRING)=' "$active_build_dir/CMakeCache.txt" | head -n1 | cut -d'=' -f2-)
+    printf '  Cached build compiler (not executed): %s\n' "$cached_compiler"
   fi
-  if [ -z "$compiler_path" ]; then
-    compiler_path=$(command -v g++ 2>/dev/null || true)
-  fi
+  # Diagnostics may inspect an unbuilt project. Only the user's selected
+  # PATH toolchain is executable here; project metadata is display data.
+  compiler_path=$(_cp_find_gxx 2>/dev/null || true)
 
   if [ -n "$compiler_path" ] && [ -x "$compiler_path" ]; then
     compiler_version=$("$compiler_path" --version 2>/dev/null | head -n1)
-    echo -e "${C_GREEN}  ✓ Compiler: $compiler_version${C_RESET}"
+    echo -e "${C_GREEN}  ✓ PATH compiler: $compiler_version${C_RESET}"
     if [ -n "$active_build_dir" ]; then
-      echo -e "${C_GREEN}  ✓ Active build compiler source: $active_build_dir/CMakeCache.txt${C_RESET}"
+      echo -e "${C_GREEN}  ✓ Active build cache inspected: $active_build_dir/CMakeCache.txt${C_RESET}"
     else
       echo -e "${C_YELLOW}  ⚠ No active build cache found; using compiler from PATH${C_RESET}"
       warnings=$((warnings + 1))
     fi
 
-    # Check C++ standard support with the same compiler configured for the active build.
+    # Probe standard support with the PATH toolchain, never the cached path.
     if echo | "$compiler_path" -std=c++23 -x c++ - -fsyntax-only &>/dev/null; then
       echo -e "${C_GREEN}  ✓ C++23 support available${C_RESET}"
     elif echo | "$compiler_path" -std=c++20 -x c++ - -fsyntax-only &>/dev/null; then
