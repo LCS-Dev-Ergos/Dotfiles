@@ -98,6 +98,11 @@
 # Authors: Todd Yamakawa, Léo Villeveygoux, @Recidiviste, Mario Ortiz Manero, Luuk van Baal, @WanderLanz, @flipflop133
 
 # Configurable environment variables:
+umask 077
+NNN_PREVIEWDIR=$(python3 "$(dirname "$0")/.preview-cache" \
+    "${NNN_PREVIEWDIR:-${XDG_CACHE_HOME:-$HOME/.cache}/nnn/previews}") || exit 1
+preview_runtime=$(python3 "$(dirname "$0")/.preview-cache" \
+    "${XDG_CACHE_HOME:-$HOME/.cache}/nnn/preview-runtime" --runtime) || exit 1
 NNN_SPLIT=${NNN_SPLIT:-}                                   # permanent split direction
 NNN_TERMINAL=${NNN_TERMINAL:-}                             # external terminal to be used
 NNN_SPLITSIZE=${NNN_SPLITSIZE:-50}                         # previewer split size percentage
@@ -111,7 +116,7 @@ ENVVARS=(
   "NNN_BATSTYLE=${NNN_BATSTYLE:-numbers}"                  # bat style
   "NNN_PREVIEWWIDTH=${NNN_PREVIEWWIDTH:-1920}"             # width of generated preview images
   "NNN_PREVIEWHEIGHT=${NNN_PREVIEWHEIGHT:-1080}"           # height of generated preview images
-  "NNN_PREVIEWDIR=${NNN_PREVIEWDIR:-$TMPDIR/nnn/previews}" # location of generated preview images
+  "NNN_PREVIEWDIR=$NNN_PREVIEWDIR"                       # validated private preview storage
   "NNN_PREVIEWIMGPROG=${NNN_PREVIEWIMGPROG:-}"             # program used to preview images
   "NNN_PREVIEWVIDEO=${NNN_PREVIEWVIDEO:-}"                 # mpv backend used to preview video
 )
@@ -122,12 +127,12 @@ ENVVARS+=(
   "PWD=$PWD"
   "PATH=$PATH"
   "NNN_FIFO=$NNN_FIFO"
-  "FIFOPID=$TMPDIR/nnn-preview-tui-fifopid.$NNN_PARENT"
-  "FIFOPATH=$TMPDIR/nnn-preview-tui-fifo.$NNN_PARENT"
-  "PREVIEWPID=$TMPDIR/nnn-preview-tui-previewpid.$NNN_PARENT"
-  "CURSEL=$TMPDIR/nnn-preview-tui-selection.$NNN_PARENT"
-  "FIFO_UEBERZUG=$TMPDIR/nnn-preview-tui-ueberzug-fifo.$NNN_PARENT"
-  "POSOFFSET=$TMPDIR/nnn-preview-tui-posoffset"
+  "FIFOPID=$preview_runtime/fifopid.$NNN_PARENT"
+  "FIFOPATH=$preview_runtime/fifo.$NNN_PARENT"
+  "PREVIEWPID=$preview_runtime/previewpid.$NNN_PARENT"
+  "CURSEL=$preview_runtime/selection.$NNN_PARENT"
+  "FIFO_UEBERZUG=$preview_runtime/ueberzug-fifo.$NNN_PARENT"
+  "POSOFFSET=$preview_runtime/posoffset.$NNN_PARENT"
 )
 
 trap '' PIPE
@@ -332,6 +337,12 @@ handle_ext() {
 }
 
 preview_file() {
+    # Source identity may contain ../ or symlink aliases. Cache output paths
+    # must only receive a canonical absolute source, with no traversal tokens.
+    local selected
+    selected=$(readlink -f -- "$1") || return
+    [ -n "$selected" ] || return
+    set -- "$selected"
     clear
     # Trying to use pistol if it's available.
     if [ "$NNN_PISTOL" -ne 0 ] && exists pistol; then
