@@ -26,6 +26,18 @@ pyvenv_version() {
   return 1
 }
 
+pyenv_file_version() {
+  # Match pyenv's comment/blank-line handling, selecting one safe probe name.
+  while read -r selected _ || [ -n "$selected" ]; do
+    selected=${selected%"$(printf '\r')"}
+    case $selected in
+      ''|\#*) continue ;;
+      *) printf '%s\n' "$selected"; return 0 ;;
+    esac
+  done < "$1"
+  return 1
+}
+
 if [ -n "${VIRTUAL_ENV:-}" ] && pyvenv_version "$VIRTUAL_ENV/pyvenv.cfg"; then
   exit 0
 fi
@@ -36,27 +48,39 @@ while [ -n "$dir" ] && [ "$dir" != "$HOME" ]; do
 done
 
 pyenv_root=${PYENV_ROOT:-$HOME/.pyenv}
-case $(command -v python) in
-"$pyenv_root/shims/python")
+for binary in python python3 python2; do
+  command -v "$binary" >/dev/null 2>&1 || continue
+  case $(command -v "$binary") in
+"$pyenv_root/shims/$binary")
   name=${PYENV_VERSION%%:*}
   if [ -z "$name" ]; then
     dir=$PWD
     while [ -n "$dir" ]; do
       if [ -r "$dir/.python-version" ]; then
-        read -r name _ <"$dir/.python-version"
+        name=$(pyenv_file_version "$dir/.python-version")
         break
       fi
       dir=${dir%/*}
     done
   fi
   if [ -z "$name" ] && [ -r "$pyenv_root/version" ]; then
-    read -r name _ <"$pyenv_root/version"
+    name=$(pyenv_file_version "$pyenv_root/version")
   fi
-  # "system", or a prefix pyenv resolves itself (3.12 -> 3.12.x), falls
-  # through to the shim below.
-  if [ -n "$name" ] && [ -x "$pyenv_root/versions/$name/bin/python" ]; then
-    exec "$pyenv_root/versions/$name/bin/python" "$@"
+  # A selector is an installed name, never a pathname. Do not let a shim
+  # reread other, unchecked lines or entries in the project version file.
+  case $name in
+    '') name=system ;;
+    .|..|*[!a-zA-Z0-9._-]*) exit 1 ;;
+  esac
+  if [ -x "$pyenv_root/versions/$name/bin/$binary" ]; then
+    exec "$pyenv_root/versions/$name/bin/$binary" "$@"
   fi
+  PYENV_VERSION=$name
+  export PYENV_VERSION
   ;;
-esac
-exec python "$@"
+  esac
+  # The first available candidate owns the result, including probe failure.
+  # shellcheck disable=SC2093
+  exec "$binary" "$@"
+done
+exit 1
