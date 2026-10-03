@@ -19,7 +19,9 @@
 #
 # Consider setting NNN_PREVIEWDIR to $XDG_CACHE_HOME/nnn/previews
 # if you want to keep media thumbnails on disk between reboots.
-NNN_PREVIEWDIR="${NNN_PREVIEWDIR:-${TMPDIR:-/tmp}/nnn/previews}"
+umask 077
+NNN_PREVIEWDIR=$(python3 "$(dirname "$0")/.preview-cache" \
+    "${NNN_PREVIEWDIR:-${XDG_CACHE_HOME:-$HOME/.cache}/nnn/previews}") || exit 1
 
 exit_prompt() {
     [ -n "$1" ] && printf "%s\n" "$1"

@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+"""Prepare private nnn storage; never repair or follow unsafe existing state."""
+
+import os
+import stat
+import sys
+from pathlib import Path
+
+
+def private_storage(raw: str, *, runtime: bool = False) -> Path:
+    supplied = Path(raw).absolute()
+    if supplied.is_symlink():
+        raise ValueError("storage root is a symlink")
+    root = supplied.resolve()
+    uid = os.geteuid()
+    # Check the spelling too: an attacker-owned ancestor symlink must not
+    # redirect a configured /tmp cache into an otherwise trusted user tree.
+    for directory in (*reversed(supplied.parents), supplied):
+        try:
+            info = directory.lstat()
+        except FileNotFoundError:
+            continue
+        if info.st_uid not in (0, uid):
+            raise ValueError(f"untrusted storage ancestor: {directory}")
+        if not stat.S_ISLNK(info.st_mode) and info.st_mode & 0o022 and not (
+            info.st_uid == 0 and info.st_mode & stat.S_ISVTX
+        ):
+            raise ValueError(f"writable storage ancestor: {directory}")
+    # Resolve and validate ancestors before creating anything. Root-owned
+    # sticky temporary parents are safe; other shared writable parents aren't.
+    for directory in (*reversed(root.parents), root):
+        if not directory.exists():
+            directory.mkdir(mode=0o700)
+        info = directory.lstat()
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid not in (0, uid):
+            raise ValueError(f"untrusted storage ancestor: {directory}")
+        if info.st_mode & 0o022 and not (
+            info.st_uid == 0 and info.st_mode & stat.S_ISVTX
+        ):
+            raise ValueError(f"writable storage ancestor: {directory}")
+    info = root.lstat()
+    if info.st_uid != uid or info.st_mode & 0o077:
+        raise ValueError("storage root must be owned by this user and private (0700)")
+    # Old cache trees can already contain redirected output leaves or parents.
+    # Reject them instead of chmod/unlink repairs that could touch user files.
+    for parent, directories, files in os.walk(root, followlinks=False):
+        for name in directories + files:
+            item = Path(parent) / name
+            info = item.lstat()
+            allowed = stat.S_ISDIR(info.st_mode) or stat.S_ISREG(info.st_mode)
+            allowed |= runtime and stat.S_ISFIFO(info.st_mode)
+            if not allowed or info.st_uid != uid:
+                raise ValueError(f"unsafe stored object: {item}")
+            if not stat.S_ISDIR(info.st_mode) and info.st_nlink != 1:
+                raise ValueError(f"linked stored object: {item}")
+    return root
+
+
+if __name__ == "__main__":
+    try:
+        print(private_storage(sys.argv[1], runtime="--runtime" in sys.argv[2:]))
+    except (OSError, RuntimeError, ValueError) as error:
+        print(f"nnn: refusing unsafe preview storage: {error}", file=sys.stderr)
+        sys.exit(1)
