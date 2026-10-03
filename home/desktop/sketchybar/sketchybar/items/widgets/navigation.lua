@@ -1,6 +1,8 @@
--- The Desktop navigation effect yabai's settings choose for space.sh: off,
--- the veil, or the crossfade with its curve. navfx.sh (bound in skhdrc)
--- changes it and announces the change; a click here switches it on or off.
+-- The Desktop navigation effect yabai's settings choose for space.sh, in
+-- short: "XF·S" and "XF·E" for the crossfade with the smooth or ease-out
+-- curve, "Veil" for the veil, dimmed while the effects are off. navfx.sh
+-- (bound in skhdrc) changes it and announces the change; a click here
+-- switches it on or off.
 local colors = require("colors")
 local runtime = require("helpers.runtime")
 local settings = require("settings")
@@ -12,7 +14,7 @@ end
 
 local script = shell_quote(runtime.navfx_script)
 
-local CURVES = { smooth = "smooth", ease_out = "ease-out" }
+local CURVES = { smooth = "S", ease_out = "E" }
 
 sbar.add("event", "navigation_effect_changed")
 
@@ -30,18 +32,21 @@ local navigation = sbar.add("item", "widgets.navigation", {
 style.pill("widgets.navigation.bracket", { navigation.name })
 style.gap("widgets.navigation.padding", "right")
 
--- Anything but the words navfx.sh reports reads as unknown.
+-- Switched off, the item still names the effect the bindings would bring
+-- back. Anything but the words navfx.sh reports reads as unknown.
 local last_label, last_color
 local function show(effect, kind, curve)
-  local label, color
-  if effect == "off" and (kind == "crossfade" or kind == "veil") then
-    label, color = "No effect", colors.muted
-  elseif effect == "on" and kind == "veil" then
-    label, color = "Veil", colors.white
-  elseif effect == "on" and kind == "crossfade" and CURVES[curve] then
-    label, color = "Crossfade " .. CURVES[curve], colors.white
-  else
+  local label
+  if kind == "veil" and CURVES[curve] then
+    label = "Veil"
+  elseif kind == "crossfade" and CURVES[curve] then
+    label = "XF·" .. CURVES[curve]
+  end
+  local color = colors.white
+  if not label or (effect ~= "on" and effect ~= "off") then
     label, color = "?", colors.red
+  elseif effect == "off" then
+    color = colors.muted
   end
   if label == last_label and color == last_color then return end
   navigation:set({ label = { string = label, color = color } })

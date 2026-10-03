@@ -24,6 +24,15 @@ toggle | type | curve | status | announce) ;;
 *) usage ;;
 esac
 
+# Each press runs its own copy, which reads a setting, flips it and writes it.
+# Two quick presses would both read the same value and the second would be
+# lost, so the copies take turns under a lock in the user's private temporary
+# directory.
+if [ -z "${NAVFX_LOCKED:-}" ]; then
+  lock="$(/usr/bin/getconf DARWIN_USER_TEMP_DIR)navfx.lock"
+  NAVFX_LOCKED=1 exec /usr/bin/lockf -k -t 5 "$lock" "$0" "$@"
+fi
+
 get() {
   "$yabai_msg" config "$1"
 }
@@ -70,13 +79,12 @@ announce() {
 
   # The values are checked words, so they are safe inside the script text.
   local text
-  if [ "$effect" = off ]; then
-    text='Effects off'
-  elif [ "$type" = veil ]; then
+  if [ "$type" = veil ]; then
     text='Veil'
   else
     text="Crossfade, $curve"
   fi
+  [ "$effect" = off ] && text="$text, off"
   /usr/bin/osascript -e "display notification \"$text\" with title \"Desktop navigation\"" >/dev/null 2>&1
   return 0
 }
