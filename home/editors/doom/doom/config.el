@@ -124,11 +124,11 @@
   (setq org-latex-compiler "xelatex")  ; Better Unicode support than pdflatex
 
   ;; Enable syntax highlighting in exported PDFs
-  (setq org-latex-src-block-backend 'minted
-        org-latex-packages-alist '(("" "minted")))
+  (setq org-latex-src-block-backend 'listings
+        org-latex-packages-alist '(("" "listings")))
   (setq org-latex-pdf-process
-        '("xelatex -shell-escape -interaction nonstopmode -output-directory %o %f"
-          "xelatex -shell-escape -interaction nonstopmode -output-directory %o %f"))
+        '("xelatex -no-shell-escape -interaction nonstopmode -output-directory %o %f"
+          "xelatex -no-shell-escape -interaction nonstopmode -output-directory %o %f"))
 
   ;; Prettier org mode with modern bullets
   (setq org-superstar-headline-bullets-list '("◉" "○" "●" "○" "●" "○" "●")))
