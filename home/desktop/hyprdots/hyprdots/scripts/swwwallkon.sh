@@ -28,6 +28,10 @@ while getopts "t:w:" option ; do
             ;;
 
         w ) # Set wallpaper
+            case "$OPTARG" in
+                *'|'*|*'
+'*) echo 'Error: wallpaper path contains a theme delimiter'; exit 1 ;;
+            esac
             if [ -f "$OPTARG" ] && file --mime-type "$OPTARG" | grep -q 'image/' ; then
                 setWall="$OPTARG"
             else
@@ -52,7 +56,9 @@ if [ ! -z "${setTheme}" ] && [ ! -z "${setWall}" ] ; then
     thmWall=$(basename "${setWall}")
     xWall="${wallPath}/${setTheme}/${thmWall}"
     cp "${setWall}" "${xWall}"
-    awk -F '|' -v thm="${setTheme}" -v wal="${xWall}" '{OFS=FS} {if($2==thm)$NF=wal;print$0}' "${ThemeCtl}" > "${ScrDir}/tmp" && mv "${ScrDir}/tmp" "${ThemeCtl}"
+    wallpaper_theme="$setTheme" wallpaper_path="$xWall" \
+        awk -F '|' 'BEGIN {thm=ENVIRON["wallpaper_theme"]; wal=ENVIRON["wallpaper_path"]} {OFS=FS} {if($2==thm)$NF=wal;print$0}' \
+        "$ThemeCtl" > "$ScrDir/tmp" && mv "$ScrDir/tmp" "$ThemeCtl"
     ${ScrDir}/themeswitch.sh -s "${setTheme}"
 
 else
@@ -63,4 +69,3 @@ else
     done
 
 fi
-
