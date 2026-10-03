@@ -12,9 +12,8 @@ dcol="${XDG_CONFIG_HOME:-$HOME/.config}/spicetify/Themes/Sleek/Wall-Dcol.ini"
 if pkg_installed spotify && pkg_installed spicetify-cli ; then
 
     if [ ! -w /opt/spotify ] || [ ! -w /opt/spotify/Apps ]; then
-        notify-send -a "Hyprdots" "Permission needed for Wallbash Spotify theme"
-        pkexec chmod a+wr /opt/spotify
-        pkexec chmod a+wr /opt/spotify/Apps -R
+        notify-send -a "Hyprdots" "Use a user-managed writable Spotify installation for theming; shared installation permissions will not be changed."
+        exit 1
     fi
 
     if [ "$(spicetify config | awk '{if ($1=="color_scheme") print $2}')" != "Wallbash" ] ; then
