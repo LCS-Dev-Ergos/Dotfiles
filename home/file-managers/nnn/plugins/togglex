@@ -12,7 +12,9 @@
 selection=${NNN_SEL:-${XDG_CONFIG_HOME:-$HOME/.config}/nnn/.selection}
 
 if [ -s "$selection" ]; then
-    xargs -0 -I {} sh -c 'if [ -x "{}" ] ; then chmod -x "{}" ; else chmod +x "{}" ; fi' < "$selection"
+    # The fixed child program receives filenames only through its argument.
+    # shellcheck disable=SC2016
+    xargs -0 -I {} sh -c 'if [ -x "$1" ]; then chmod -x -- "$1"; else chmod +x -- "$1"; fi' nnn-togglex {} < "$selection"
 
     # Clear selection
     if [ -p "$NNN_PIPE" ]; then

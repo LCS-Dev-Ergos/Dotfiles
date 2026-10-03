@@ -27,10 +27,26 @@ printf "\
 ## You will have the option to remove the files with force or interactively.\n
 " > "$tmpfile"
 
+# The editor review is line-delimited. Refuse names it cannot round-trip
+# before hashing or offering deletion, rather than manufacturing shell code.
+if find . -size +0 -type f -name '*
+*' -print -quit | grep -q .; then
+    printf '%s\n' 'Cannot review duplicate filenames containing newlines.' >&2
+    rm -- "$tmpfile"
+    exit 1
+fi
+# The child shell expands its positional argument, not the parent shell.
 # shellcheck disable=SC2016
-find . -size +0 -type f -printf "%${size_digits}s %p\n" | sort -rn | uniq -w"${size_digits}" -D | sed -e '
-s/^ \{0,12\}\([0-9]\{0,12\}\) \(.*\)$/printf "%s %s\\n" "$(md5sum "\2")" "d\1"/
-' | tr '\n' '\0' | xargs -0 -n1 sh -c | sort | { uniq -w32 --all-repeated=separate; echo; } | sed -ne '
+find . -size +0 -type f -printf "%${size_digits}s %p\0" | sort -zrn | uniq -zw"${size_digits}" -D |
+    xargs -0 -r -n1 sh -c '
+        entry=$1
+        # Strip find padding, then separate the numeric size from the path.
+        while [ "${entry# }" != "$entry" ]; do entry=${entry# }; done
+        size=${entry%% *}
+        file=${entry#* }
+        checksum=$(md5sum < "$file") || exit
+        printf "%s  %s d%s\n" "${checksum%% *}" "$file" "$size"
+    ' nnn-dups | sort | { uniq -w32 --all-repeated=separate; echo; } | sed -ne '
 h
 s/^\(.\{32\}\).* d\([0-9]*\)$/## md5sum: \1 size: \2 bytes/p
 g
