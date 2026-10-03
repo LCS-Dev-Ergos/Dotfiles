@@ -10,7 +10,10 @@
 #   scripts/update-yabai.sh --check
 #   scripts/update-yabai.sh --apply
 #
-# Releases are tags named v<upstream version>-lcs.<n>, compared numerically.
+# Releases are tags named v<major>.<minor>.<patch>, compared by Semantic
+# Versioning precedence. Release candidates (-rc.<n>) are never selected. The
+# tags before 8.0.0, v<version>-lcs.<n>, are pre-releases of <version> and rank
+# below it.
 # --apply prefetches the release tarball into the store, then rewrites version
 # and hash together. It never builds, stages, commits, or switches. The switch
 # restarts yabai, whose yabairc reloads the scripting addition into Dock.
@@ -64,15 +67,19 @@ current="$(sed -nE 's/^  version = "([^"]+)";$/\1/p' "$package_file")"
 
 # +++++++++++++++++++++++++++++ RELEASE LOOKUP +++++++++++++++++++++++++++++++ #
 
-if ! tags="$(git ls-remote --tags --refs "$repository" 'v*-lcs.*')"; then
+if ! tags="$(git ls-remote --tags --refs "$repository" 'v*')"; then
   die "cannot list tags of $repository"
 fi
 
-# Sort on the numeric fields of v<major>.<minor>.<patch>-lcs.<n>.
+# Each release as "<major> <minor> <patch> <rank> <n> <version>": a release
+# ranks 1 and an -lcs.<n> pre-release 0, so a sort on the numeric fields puts
+# the newest last. Other tags, release candidates among them, are skipped.
 latest="$(printf '%s\n' "$tags" |
-  sed -nE 's|^[0-9a-f]+[[:space:]]+refs/tags/v([0-9]+\.[0-9]+\.[0-9]+-lcs\.[0-9]+)$|\1|p' |
-  sort -t. -k1,1n -k2,2n -k3,3n -k4,4n | sed -n '$p')"
-[[ -n "$latest" ]] || die "no v*-lcs.* release tag in $repository"
+  sed -nE \
+    -e 's|^[0-9a-f]+[[:space:]]+refs/tags/v(([0-9]+)\.([0-9]+)\.([0-9]+))$|\2 \3 \4 1 0 \1|p' \
+    -e 's|^[0-9a-f]+[[:space:]]+refs/tags/v(([0-9]+)\.([0-9]+)\.([0-9]+)-lcs\.([0-9]+))$|\2 \3 \4 0 \5 \1|p' |
+  sort -k1,1n -k2,2n -k3,3n -k4,4n -k5,5n | sed -nE '$s/^([0-9]+ ){5}//p')"
+[[ -n "$latest" ]] || die "no release tag in $repository"
 
 if [[ "$latest" == "$current" ]]; then
   printf 'yabai %s is the newest release\n' "$current"
