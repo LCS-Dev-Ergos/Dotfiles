@@ -14,11 +14,11 @@
 # invalidate their signatures.
 stdenvNoCC.mkDerivation (finalAttrs: {
   pname = "yabai";
-  version = "8.0.1";
+  version = "8.0.2";
 
   src = fetchurl {
     url = "https://github.com/LCS-Dev-Ergos/yabai/releases/download/v${finalAttrs.version}/yabai-v${finalAttrs.version}.tar.gz";
-    hash = "sha256-cuAywnsYBMWAJlL9YZ/aOGMb6y63M/oGDXoM78OiLNI=";
+    hash = "sha256-iefZjV28wabpB49N22Jy82Sf1vMWmFWmP9lrllFj0Ro=";
   };
 
   sourceRoot = "archive";
