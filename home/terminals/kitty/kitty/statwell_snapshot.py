@@ -68,13 +68,25 @@ class SnapshotReader:
         if now - self._last_read < READ_INTERVAL:
             return self._document
         self._last_read = now
+        # An absent runtime may be created by the CLI. An existing unsafe
+        # runtime must not be handed to that fallback either.
+        try:
+            runtime = self.runtime_dir.lstat()
+        except FileNotFoundError:
+            runtime = None
+        except OSError:
+            self._stop_fallback()
+            self._document = None
+            self._from_daemon = False
+            return None
+        if runtime is not None and not self._private(runtime, directory=True):
+            self._stop_fallback()
+            self._document = None
+            self._from_daemon = False
+            return None
         document = self._daemon_snapshot()
         if document is not None:
-            if self._process is not None:
-                if self._process.poll() is None:
-                    self._process.kill()
-                self._process.communicate()
-                self._process = None
+            self._stop_fallback()
             self._document = document
             self._from_daemon = True
             return document
@@ -108,31 +120,51 @@ class SnapshotReader:
         return self._document
 
     def _daemon_snapshot(self) -> dict | None:
-        lock = self.runtime_dir / "daemon.lock"
         try:
-            fd = os.open(lock, os.O_RDWR | os.O_NOFOLLOW)
+            directory = os.open(self.runtime_dir, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
             try:
-                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                return None  # The daemon has released the lock.
-            except BlockingIOError:
-                pass
-            finally:
-                os.close(fd)
-            fd = os.open(self.runtime_dir / "snapshot.json", os.O_RDONLY | os.O_NOFOLLOW)
-            try:
-                metadata = os.fstat(fd)
-                if (
-                    not stat.S_ISREG(metadata.st_mode)
-                    or metadata.st_uid != os.geteuid()
-                    or metadata.st_mode & 0o077
-                    or metadata.st_size > MAX_SNAPSHOT_BYTES
-                ):
+                if not self._private(os.fstat(directory), directory=True):
                     return None
-                return self._parse(os.read(fd, MAX_SNAPSHOT_BYTES + 1))
+                fd = os.open("daemon.lock", os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+                try:
+                    if not self._private(os.fstat(fd)):
+                        return None
+                    try:
+                        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        return None  # The daemon has released the lock.
+                    except BlockingIOError:
+                        pass
+                finally:
+                    os.close(fd)
+                fd = os.open("snapshot.json", os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+                try:
+                    metadata = os.fstat(fd)
+                    if not self._private(metadata) or metadata.st_size > MAX_SNAPSHOT_BYTES:
+                        return None
+                    return self._parse(os.read(fd, MAX_SNAPSHOT_BYTES + 1))
+                finally:
+                    os.close(fd)
             finally:
-                os.close(fd)
+                os.close(directory)
         except OSError:
             return None
+
+    def _stop_fallback(self) -> None:
+        if self._process is not None:
+            if self._process.poll() is None:
+                self._process.kill()
+            self._process.communicate()
+            self._process = None
+
+    @staticmethod
+    def _private(metadata: os.stat_result, *, directory: bool = False) -> bool:
+        expected_type = stat.S_ISDIR if directory else stat.S_ISREG
+        return (
+            expected_type(metadata.st_mode)
+            and metadata.st_uid == os.geteuid()
+            and not metadata.st_mode & 0o077
+            and (directory or metadata.st_nlink == 1)
+        )
 
     @staticmethod
     def _parse(content: str | bytes) -> dict | None:
