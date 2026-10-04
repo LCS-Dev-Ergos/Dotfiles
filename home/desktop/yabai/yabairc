@@ -144,9 +144,9 @@ ANDROID_STUDIO_DIALOGS="$ANDROID_STUDIO_DIALOGS|.*Convert.*|.*Debug.*|.*Delete.*
 ANDROID_STUDIO_DIALOGS="$ANDROID_STUDIO_DIALOGS|.*devices?.*|.*Directory.*|.*Errors?.*|.*Files?.*"
 ANDROID_STUDIO_DIALOGS="$ANDROID_STUDIO_DIALOGS|.*Git.*|.*Gradle.*|.*Icons?.*|.*Injections?.*"
 ANDROID_STUDIO_DIALOGS="$ANDROID_STUDIO_DIALOGS|.*Inspections?.*|.*Installations?.*|.*JetBrains.*"
-ANDROID_STUDIO_DIALOGS="$ANDROID_STUDIO_DIALOGS|.*Languages?.*|.*Lines?.*|.*Log.*|.*Move.*"
+ANDROID_STUDIO_DIALOGS="$ANDROID_STUDIO_DIALOGS|.*Languages?.*|.*Lines?.*|.*Log.*|.*Move.*|.*Notifications?.*"
 ANDROID_STUDIO_DIALOGS="$ANDROID_STUDIO_DIALOGS|.*Plugins?.*|.*Process?.*|.*Projects?.*|.*Provide?.*"
-ANDROID_STUDIO_DIALOGS="$ANDROID_STUDIO_DIALOGS|.*Rename.*|.*Resources?.*|.*SDK.*|.*Select?.*"
+ANDROID_STUDIO_DIALOGS="$ANDROID_STUDIO_DIALOGS|.*Rename.*|.*Resources?.*|.*SDK.*|.*Select?.*|.*Settings.*"
 ANDROID_STUDIO_DIALOGS="$ANDROID_STUDIO_DIALOGS|.*Studio.*|.*Tip of the Day.*|.*Updates?.*|.*Welcome.*"
 
 yabai -m rule --add \
