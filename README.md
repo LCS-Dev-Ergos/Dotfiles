@@ -185,7 +185,7 @@ Dotfiles/
     ├── cli/                   # bat, btop, cli-tools, git, lazygit, tealdeer
     ├── desktop/               # Window managers and bars (platform-only modules)
     ├── dev/                   # Toolchains and per-language tooling
-    ├── editors/               # neovim, doom, zed, vscode
+    ├── editors/               # neovim, doom, zed, vscode, markdown
     ├── file-managers/         # yazi, ranger, nnn, ueberzugpp
     ├── multiplexers/          # tmux, zellij, herdr
     ├── ricing/                # fastfetch, neofetch, cava

@@ -190,7 +190,8 @@
       };
 
       # Personal tools are first-class outputs as well as Home Manager inputs:
-      # `nix build .#cpp-tools` runs their checks and builds the deployable CLI.
+      # `nix build .#cpp-tools` runs their checks and builds the deployable CLI;
+      # `nix build .#markdownlint-config` does the same for the markdownlint rules.
       packages = forAllSystems (
         system:
         let
@@ -198,6 +199,7 @@
         in
         {
           cpp-tools = pkgs.callPackage ./home/dev/languages/cpp/cpp-tools.nix { };
+          markdownlint-config = pkgs.callPackage ./home/editors/markdown/markdownlint-config.nix { };
           default = self.packages.${system}.cpp-tools;
         }
         // nixpkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
@@ -219,11 +221,13 @@
         aarch64-darwin = {
           darwin-configuration = self.darwinConfigurations."LCSMacBook-Pro".system;
           cpp-tools = self.packages.aarch64-darwin.cpp-tools;
+          markdownlint-config = self.packages.aarch64-darwin.markdownlint-config;
           llvm-darwin-toolchain = self.packages.aarch64-darwin.llvm-darwin-toolchain.tests.default;
         };
         x86_64-linux = {
           home-configuration = self.homeConfigurations."lcs-dev@lcs-legion-arch".activationPackage;
           cpp-tools = self.packages.x86_64-linux.cpp-tools;
+          markdownlint-config = self.packages.x86_64-linux.markdownlint-config;
         };
       };
 

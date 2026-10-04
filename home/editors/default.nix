@@ -3,6 +3,7 @@ _: {
   # by home/linux.nix instead.
   imports = [
     ./doom
+    ./markdown
     ./neovim
     ./zed
   ];
