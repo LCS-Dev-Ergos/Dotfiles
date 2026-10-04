@@ -112,13 +112,13 @@ same in kitty, tmux, herdr and VS Code.
 
 With Zsh 5.9.2, Starship 1.26.0, tmux 3.7c and kitty 0.49.1:
 
-| Layout and terminal                            | Result                                 |
-| ---------------------------------------------- | -------------------------------------- |
-| `$fill` layout, tmux                           | duplicates at almost every shrink      |
-| `$fill` layout, kitty without prompt marking   | 11 of 12 resize steps fail             |
-| `$fill` layout, kitty with shell integration   | 12 of 12 pass, down to 33 columns      |
-| One-line layout, tmux                          | passes down to its line width (46 + 2) |
-| One-line layout, kitty without prompt marking  | passes down to its line width (51)     |
+| Layout and terminal | Result |
+| --- | --- |
+| `$fill` layout, tmux | duplicates at almost every shrink |
+| `$fill` layout, kitty without prompt marking | 11 of 12 resize steps fail |
+| `$fill` layout, kitty with shell integration | 12 of 12 pass, down to 33 columns |
+| One-line layout, tmux | passes down to its line width (46 + 2) |
+| One-line layout, kitty without prompt marking | passes down to its line width (51) |
 
 The kitty runs resized a real window through `kitten @ set-font-size`
 (173 → 101 → 196 → 81 → 173 → 62 → 41 → 33 → 226 → 41 → 122 → 173 columns),

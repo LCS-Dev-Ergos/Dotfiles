@@ -142,24 +142,24 @@ the plugins.
 
 Current modules:
 
-| Module                    | Responsibility                                                      |
-| ------------------------- | ------------------------------------------------------------------- |
-| `00-initialization.zsh`   | Shell options, defer engine, VS Code integration, macOS rc handling |
-| `runtime-helpers.zsh`     | Colors, platform, mtime, permission checks, atomic cache writes     |
-| `10-history.zsh`          | Shared, deduplicated history                                        |
-| `20-zinit.zsh`            | Zinit, plugins, periodic compinit                                   |
-| `30-prompt.zsh`           | Prompt definitions; activation follows final PATH assembly          |
-| `40-vi-mode.zsh`          | Vi keymaps and cursor behavior                                      |
-| `50-tools.zsh`            | Atuin, fzf, zoxide, direnv (cached init), Yazi, Kitty, OrbStack     |
-| `60-aliases.zsh`          | Aliases and compilation shortcuts only                              |
-| `70-ai-tools.zsh`         | Fabric and credential-scoped AI command wrappers                    |
-| `75-variables.zsh`        | Language/application variables; no global compiler flags            |
-| `80-languages.zsh`        | Language managers, lazy runtimes, change-driven opam env hook       |
-| `85-completions.zsh`      | Cached generated completions                                        |
-| `90-path.zsh`             | Deterministic PATH rebuild with signed 24-hour cache                |
-| `94-lazy-loader-core.zsh` | Secure, auto-invalidating script stub generator                     |
-| `95-lazy-scripts.zsh`     | On-demand commands from `scripts/*.zsh`                             |
-| `96-lazy-cpp-tools.zsh`   | On-demand competitive-programming tools                             |
+| Module | Responsibility |
+| --- | --- |
+| `00-initialization.zsh` | Shell options, defer engine, VS Code integration, macOS rc handling |
+| `runtime-helpers.zsh` | Colors, platform, mtime, permission checks, atomic cache writes |
+| `10-history.zsh` | Shared, deduplicated history |
+| `20-zinit.zsh` | Zinit, plugins, periodic compinit |
+| `30-prompt.zsh` | Prompt definitions; activation follows final PATH assembly |
+| `40-vi-mode.zsh` | Vi keymaps and cursor behavior |
+| `50-tools.zsh` | Atuin, fzf, zoxide, direnv (cached init), Yazi, Kitty, OrbStack |
+| `60-aliases.zsh` | Aliases and compilation shortcuts only |
+| `70-ai-tools.zsh` | Fabric and credential-scoped AI command wrappers |
+| `75-variables.zsh` | Language/application variables; no global compiler flags |
+| `80-languages.zsh` | Language managers, lazy runtimes, change-driven opam env hook |
+| `85-completions.zsh` | Cached generated completions |
+| `90-path.zsh` | Deterministic PATH rebuild with signed 24-hour cache |
+| `94-lazy-loader-core.zsh` | Secure, auto-invalidating script stub generator |
+| `95-lazy-scripts.zsh` | On-demand commands from `scripts/*.zsh` |
+| `96-lazy-cpp-tools.zsh` | On-demand competitive-programming tools |
 
 `ZSH_FAST_START=1` loads only the minimal core. Other useful toggles include
 `ZSH_DEFER_COMPLETIONS`, `ZSH_LAZY_SCRIPTS`, `ZSH_LAZY_CPP_TOOLS`, and
@@ -179,43 +179,43 @@ take precedence over the generated baseline.
 
 ### Files, Navigation, and Productivity
 
-| Command               | Source                       | Purpose                                              |
-| --------------------- | ---------------------------- | ---------------------------------------------------- |
-| `extract`             | `functions/files.zsh`        | Extract common archive formats                       |
-| `count`               | `functions/files.zsh`        | Count files, directories, links, and hidden entries  |
-| `dirsize`             | `functions/files.zsh`        | Inspect directory sizes with the Python backend      |
-| `mkcd`, `bak`, `up`   | `functions/core.zsh`         | Navigation and safe file backup helpers              |
-| `note`, `bm`          | `functions/productivity.zsh` | Private notes and directory bookmarks                |
-| `cleanup`, `zshcache` | `functions/productivity.zsh` | Cache cleanup and compinit rebuild                   |
-| `fabric-pattern`      | `lib/70-ai-tools.zsh`        | Run Fabric patterns without global wrapper functions |
-| `zfuncs`              | `functions/zfuncs.zsh`       | List and validate documented public functions        |
-| `h`                   | `functions/cli-tools.zsh`    | Colorized command help through bat                   |
-| `hlp`                 | `lib/50-tools.zsh`           | Tldr with man fallback                               |
+| Command | Source | Purpose |
+| --- | --- | --- |
+| `extract` | `functions/files.zsh` | Extract common archive formats |
+| `count` | `functions/files.zsh` | Count files, directories, links, and hidden entries |
+| `dirsize` | `functions/files.zsh` | Inspect directory sizes with the Python backend |
+| `mkcd`, `bak`, `up` | `functions/core.zsh` | Navigation and safe file backup helpers |
+| `note`, `bm` | `functions/productivity.zsh` | Private notes and directory bookmarks |
+| `cleanup`, `zshcache` | `functions/productivity.zsh` | Cache cleanup and compinit rebuild |
+| `fabric-pattern` | `lib/70-ai-tools.zsh` | Run Fabric patterns without global wrapper functions |
+| `zfuncs` | `functions/zfuncs.zsh` | List and validate documented public functions |
+| `h` | `functions/cli-tools.zsh` | Colorized command help through bat |
+| `hlp` | `lib/50-tools.zsh` | Tldr with man fallback |
 
 ### Network and Documents
 
-| Command                    | Source                  | Purpose                                             |
-| -------------------------- | ----------------------- | --------------------------------------------------- |
-| `weather`, `myip`          | `functions/network.zsh` | Remote weather and public-IP information            |
-| `portscan`, `serve`        | `functions/network.zsh` | Port probe and guarded local HTTP server            |
-| `shorten`, `cheat`         | `functions/network.zsh` | is.gd and cheat.sh clients with shared URL encoding |
-| `qr`                       | `functions/network.zsh` | Local QR via `qrencode`, explicit remote fallback   |
-| `pdfcompress`, `pdfrotate` | `functions/pdf.zsh`     | PDF compression and rotation                        |
-| `remove_pdf_watermarks`    | `functions/pdf.zsh`     | Structural watermark analysis/removal               |
-| `remove_pdf_metadata*`     | `functions/pdf.zsh`     | qpdf/exiftool metadata cleanup                      |
+| Command | Source | Purpose |
+| --- | --- | --- |
+| `weather`, `myip` | `functions/network.zsh` | Remote weather and public-IP information |
+| `portscan`, `serve` | `functions/network.zsh` | Port probe and guarded local HTTP server |
+| `shorten`, `cheat` | `functions/network.zsh` | is.gd and cheat.sh clients with shared URL encoding |
+| `qr` | `functions/network.zsh` | Local QR via `qrencode`, explicit remote fallback |
+| `pdfcompress`, `pdfrotate` | `functions/pdf.zsh` | PDF compression and rotation |
+| `remove_pdf_watermarks` | `functions/pdf.zsh` | Structural watermark analysis/removal |
+| `remove_pdf_metadata*` | `functions/pdf.zsh` | qpdf/exiftool metadata cleanup |
 
 ### Development and Operations
 
-| Command                                | Source                                 | Purpose                                               |
-| -------------------------------------- | -------------------------------------- | ----------------------------------------------------- |
-| `toolchain`, `get_toolchain_info`      | `scripts/toolchain-information.zsh`    | Show active compiler resolution                       |
-| `use_llvm`, `use_gnu`, `use_system`    | `scripts/toolchain-selection.zsh`      | Reversible per-session toolchain selection            |
-| `fnm_clean`, `zsh_profile`, `zshdeps`  | `functions/development-tools.zsh`      | Maintain fnm, profile startup, inspect dependencies   |
-| `brew_stats`                           | `functions/package-management.zsh`     | Report installed Homebrew package sizes               |
-| `security_scan`, `secscan`             | `scripts/security-scan.zsh`            | Structural, YARA, and ClamAV file scanning            |
-| `vscode_sync_*`                        | `scripts/vscode-sync.zsh`              | Setup, update, check, status, and remove VS Code sync |
-| `vscode_clean_extensions`              | `scripts/vscode-extension-cleaner.zsh` | Quarantine duplicate extensions                       |
-| `utm_ubuntu_start`, `utm_ubuntu_login` | `scripts/utm-ubuntu.zsh`               | Start/login to the UTM Ubuntu VM                      |
+| Command | Source | Purpose |
+| --- | --- | --- |
+| `toolchain`, `get_toolchain_info` | `scripts/toolchain-information.zsh` | Show active compiler resolution |
+| `use_llvm`, `use_gnu`, `use_system` | `scripts/toolchain-selection.zsh` | Reversible per-session toolchain selection |
+| `fnm_clean`, `zsh_profile`, `zshdeps` | `functions/development-tools.zsh` | Maintain fnm, profile startup, inspect dependencies |
+| `brew_stats` | `functions/package-management.zsh` | Report installed Homebrew package sizes |
+| `security_scan`, `secscan` | `scripts/security-scan.zsh` | Structural, YARA, and ClamAV file scanning |
+| `vscode_sync_*` | `scripts/vscode-sync.zsh` | Setup, update, check, status, and remove VS Code sync |
+| `vscode_clean_extensions` | `scripts/vscode-extension-cleaner.zsh` | Quarantine duplicate extensions |
+| `utm_ubuntu_start`, `utm_ubuntu_login` | `scripts/utm-ubuntu.zsh` | Start/login to the UTM Ubuntu VM |
 
 ### Blog Workflow
 
@@ -223,15 +223,15 @@ take precedence over the generated baseline.
 live in `scripts/blog/_common.zsh`, commands in `scripts/blog/commands.zsh`,
 and canonical Python backends in `scripts/blog/python/`.
 
-| Command                                                    | Purpose                                      |
-| ---------------------------------------------------------- | -------------------------------------------- |
-| `blog_sync_posts`                                          | Guarded backup plus Obsidian→Hugo mirror     |
-| `blog_detect_changes`                                      | Git or hash-based change detection           |
-| `blog_update_frontmatter`, `blog_process_images`           | Invoke canonical Python transforms           |
-| `blog_build_hugo`, `blog_commit_changes`, `blog_push_main` | Build and publish the main branch            |
-| `blog_deploy_hostinger`                                    | Subtree deployment with `--force-with-lease` |
-| `blog_run_all`                                             | Locked end-to-end workflow                   |
-| `blog_status`, `blog_help`                                 | Diagnostics and usage                        |
+| Command | Purpose |
+| --- | --- |
+| `blog_sync_posts` | Guarded backup plus Obsidian→Hugo mirror |
+| `blog_detect_changes` | Git or hash-based change detection |
+| `blog_update_frontmatter`, `blog_process_images` | Invoke canonical Python transforms |
+| `blog_build_hugo`, `blog_commit_changes`, `blog_push_main` | Build and publish the main branch |
+| `blog_deploy_hostinger` | Subtree deployment with `--force-with-lease` |
+| `blog_run_all` | Locked end-to-end workflow |
+| `blog_status`, `blog_help` | Diagnostics and usage |
 
 The sync refuses an empty Markdown source, creates a pre-sync backup before
 `rsync --delete`, sends logs to stderr so command substitutions remain clean,

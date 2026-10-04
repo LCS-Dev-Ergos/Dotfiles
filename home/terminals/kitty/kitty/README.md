@@ -102,30 +102,30 @@ dynamic_background_opacity yes   # Adjustable at runtime
 
 #### Window Splitting
 
-| Shortcut      | Action                              |
-| ------------- | ----------------------------------- |
-| `Cmd+D`       | Split side by side (splits layout)  |
+| Shortcut | Action |
+| --- | --- |
+| `Cmd+D` | Split side by side (splits layout) |
 | `Cmd+Shift+D` | Split top to bottom (splits layout) |
-| `Cmd+Shift+[` | Focus previous window               |
-| `Cmd+Shift+]` | Focus next window                   |
-| `Cmd+Shift+R` | Start interactive window resizing   |
+| `Cmd+Shift+[` | Focus previous window |
+| `Cmd+Shift+]` | Focus next window |
+| `Cmd+Shift+R` | Start interactive window resizing |
 
 #### Window Navigation
 
-| Shortcut                  | Action                  |
-| ------------------------- | ----------------------- |
-| `Ctrl+Shift+1-9`, `0`     | Jump to window 1-10     |
-| `Ctrl+Shift+]` / `[`      | Next / previous window  |
-| `Ctrl+Shift+F` / `B`      | Move window forward/back |
-| `` Ctrl+Shift+` ``        | Move window to the top  |
+| Shortcut | Action |
+| --- | --- |
+| `Ctrl+Shift+1-9`, `0` | Jump to window 1-10 |
+| `Ctrl+Shift+]` / `[` | Next / previous window |
+| `Ctrl+Shift+F` / `B` | Move window forward/back |
+| `` Ctrl+Shift+` `` | Move window to the top |
 
 #### Layout Management
 
-| Shortcut          | Action                                        |
-| ----------------- | --------------------------------------------- |
-| `Cmd+Shift+L`     | Cycle through available layouts               |
+| Shortcut | Action |
+| --- | --- |
+| `Cmd+Shift+L` | Cycle through available layouts |
 | `Cmd+Shift+Enter` | Toggle stack layout (maximize current window) |
-| `Ctrl+Shift+L`    | Next layout (alternative binding)             |
+| `Ctrl+Shift+L` | Next layout (alternative binding) |
 
 ---
 
@@ -136,14 +136,14 @@ On Linux, shortcuts that use `Cmd` on macOS are mapped to `Super` (Windows key).
 
 #### Tabs and Windows
 
-| Shortcut                | Action                       |
-| ----------------------- | ---------------------------- |
-| `Cmd+T`                 | New tab in current directory |
-| `Cmd+N`                 | New OS window                |
-| `Ctrl+Shift+T`          | New tab in current directory |
-| `Ctrl+Shift+Q`          | Close current tab            |
-| `Ctrl+Shift+Right/Left` | Navigate between tabs        |
-| `Ctrl+Shift+./,`        | Move tab forward/backward    |
+| Shortcut | Action |
+| --- | --- |
+| `Cmd+T` | New tab in current directory |
+| `Cmd+N` | New OS window |
+| `Ctrl+Shift+T` | New tab in current directory |
+| `Ctrl+Shift+Q` | Close current tab |
+| `Ctrl+Shift+Right/Left` | Navigate between tabs |
+| `Ctrl+Shift+./,` | Move tab forward/backward |
 
 #### Tab Prefix (tmux style)
 
@@ -152,23 +152,23 @@ tab bar badge turns into a yellow **PREFIX** pill. The mode ends after one
 action, on any other key, on `Esc`, or after 2 seconds. `Ctrl+A` stays with
 herdr and `Ctrl+Q` with tmux, so the three prefixes never collide.
 
-| Key after the prefix | Action                                   |
-| -------------------- | ---------------------------------------- |
-| `1-9`, `0`           | Jump to tab 1-10                         |
-| `N` / `P`            | Next / previous tab                      |
-| `C`                  | New tab in the current directory         |
-| `W`                  | Pick a tab from a list                   |
-| `,`                  | Rename the current tab                   |
-| `L`                  | Next layout                              |
-| `Z` or `Enter`       | Toggle the stack layout (zoom)           |
-| `S`                  | Pick a session from `sessions/`          |
-| Arrows               | Focus the neighbouring window            |
-| `Shift` + arrows     | Move the window in that direction        |
-| `R`                  | Resize the window interactively          |
-| `X`                  | Close the window (asks first)            |
-| `H`                  | Scrollback in the pager                  |
-| `=` / `-`            | Background opacity +5% / -5%             |
-| `D`                  | Default background opacity               |
+| Key after the prefix | Action |
+| --- | --- |
+| `1-9`, `0` | Jump to tab 1-10 |
+| `N` / `P` | Next / previous tab |
+| `C` | New tab in the current directory |
+| `W` | Pick a tab from a list |
+| `,` | Rename the current tab |
+| `L` | Next layout |
+| `Z` or `Enter` | Toggle the stack layout (zoom) |
+| `S` | Pick a session from `sessions/` |
+| Arrows | Focus the neighbouring window |
+| `Shift` + arrows | Move the window in that direction |
+| `R` | Resize the window interactively |
+| `X` | Close the window (asks first) |
+| `H` | Scrollback in the pager |
+| `=` / `-` | Background opacity +5% / -5% |
+| `D` | Default background opacity |
 
 On macOS skhd captures `Ctrl+Shift+H/J/K/L` for yabai, so the prefix's `H` and
 `L` are the way to reach the scrollback pager and the next layout there.
@@ -178,44 +178,44 @@ Unfinished multi-key sequences such as `Cmd+Shift+S>...` give up after 3 seconds
 
 #### Text Navigation
 
-| Shortcut         | Action                 |
-| ---------------- | ---------------------- |
-| `Alt+Left/Right` | Move by word           |
+| Shortcut | Action |
+| --- | --- |
+| `Alt+Left/Right` | Move by word |
 | `Cmd+Left/Right` | Move to line start/end |
 
 #### Clipboard Operations
 
-| Shortcut       | Action               |
-| -------------- | -------------------- |
-| `Cmd+C`        | Copy to clipboard    |
-| `Cmd+V`        | Paste from clipboard |
+| Shortcut | Action |
+| --- | --- |
+| `Cmd+C` | Copy to clipboard |
+| `Cmd+V` | Paste from clipboard |
 | `Ctrl+Shift+S` | Paste from selection |
 | `Shift+Insert` | Paste from selection |
 
 #### Scrolling
 
-| Shortcut                  | Action                   |
-| ------------------------- | ------------------------ |
-| `Ctrl+Shift+Up/Down`      | Scroll line by line      |
-| `Ctrl+Shift+K/J`          | Scroll line (Vim-style)  |
-| `Ctrl+Shift+Page Up/Down` | Scroll page by page      |
-| `Ctrl+Shift+Home/End`     | Jump to top/bottom       |
-| `Ctrl+Shift+H`            | Show scrollback in pager |
+| Shortcut | Action |
+| --- | --- |
+| `Ctrl+Shift+Up/Down` | Scroll line by line |
+| `Ctrl+Shift+K/J` | Scroll line (Vim-style) |
+| `Ctrl+Shift+Page Up/Down` | Scroll page by page |
+| `Ctrl+Shift+Home/End` | Jump to top/bottom |
+| `Ctrl+Shift+H` | Show scrollback in pager |
 
 #### Font Size Control
 
-| Shortcut                | Action                |
-| ----------------------- | --------------------- |
-| `Ctrl+Shift+Plus/Equal` | Increase font size    |
-| `Ctrl+Shift+Minus`      | Decrease font size    |
-| `Ctrl+Shift+Backspace`  | Reset to default size |
+| Shortcut | Action |
+| --- | --- |
+| `Ctrl+Shift+Plus/Equal` | Increase font size |
+| `Ctrl+Shift+Minus` | Decrease font size |
+| `Ctrl+Shift+Backspace` | Reset to default size |
 
 #### Configuration Management
 
-| Shortcut        | Action               |
-| --------------- | -------------------- |
+| Shortcut | Action |
+| --- | --- |
 | `Ctrl+Shift+F5` | Reload configuration |
-| `Ctrl+Shift+F6` | Debug configuration  |
+| `Ctrl+Shift+F6` | Debug configuration |
 
 ---
 
@@ -225,12 +225,12 @@ Unfinished multi-key sequences such as `Cmd+Shift+S>...` give up after 3 seconds
 
 Dynamic background opacity adjustment:
 
-| Shortcut               | Action                               |
-| ---------------------- | ------------------------------------ |
+| Shortcut | Action |
+| --- | --- |
 | `Cmd+Shift+A` then `M` | Increase opacity by 5% (More opaque) |
 | `Cmd+Shift+A` then `L` | Decrease opacity by 5% (Less opaque) |
-| `Cmd+Shift+A` then `1` | Set opacity to 100%                  |
-| `Cmd+Shift+A` then `D` | Reset to default opacity             |
+| `Cmd+Shift+A` then `1` | Set opacity to 100% |
+| `Cmd+Shift+A` then `D` | Reset to default opacity |
 
 **Usage**: Press `Cmd+Shift+A`, release, then press the second key.
 
@@ -240,20 +240,20 @@ Visual hints for extracting URLs, paths, and text:
 
 #### Basic Hints
 
-| Shortcut               | Action                             |
-| ---------------------- | ---------------------------------- |
-| `Cmd+Shift+E`          | Show all hints (URLs, paths, etc.) |
-| `Cmd+Shift+P` then `F` | Show path hints                    |
-| `Cmd+Shift+P` then `L` | Show line hints                    |
-| `Cmd+Shift+P` then `W` | Show word hints                    |
-| `Cmd+Shift+P` then `H` | Show hash hints                    |
+| Shortcut | Action |
+| --- | --- |
+| `Cmd+Shift+E` | Show all hints (URLs, paths, etc.) |
+| `Cmd+Shift+P` then `F` | Show path hints |
+| `Cmd+Shift+P` then `L` | Show line hints |
+| `Cmd+Shift+P` then `W` | Show word hints |
+| `Cmd+Shift+P` then `H` | Show hash hints |
 
 #### Advanced Hints
 
-| Shortcut               | Action                 |
-| ---------------------- | ---------------------- |
-| `Cmd+Shift+O` then `U` | Open URL in browser    |
-| `Cmd+Shift+O` then `P` | Open path in editor    |
+| Shortcut | Action |
+| --- | --- |
+| `Cmd+Shift+O` then `U` | Open URL in browser |
+| `Cmd+Shift+O` then `P` | Open path in editor |
 | `Cmd+Shift+O` then `L` | Copy line to clipboard |
 | `Cmd+Shift+O` then `W` | Copy word to clipboard |
 
@@ -261,24 +261,24 @@ Visual hints for extracting URLs, paths, and text:
 
 #### Unicode Input
 
-| Shortcut      | Action                        |
-| ------------- | ----------------------------- |
+| Shortcut | Action |
+| --- | --- |
 | `Cmd+Shift+U` | Open Unicode character picker |
 
 Search for Unicode characters by name or code point.
 
 #### File Transfer (SSH)
 
-| Shortcut               | Action                  |
-| ---------------------- | ----------------------- |
+| Shortcut | Action |
+| --- | --- |
 | `Cmd+Shift+F` then `S` | Transfer files over SSH |
 
 Requires Kitty's SSH kitten to be properly configured.
 
 #### Scrollback Search
 
-| Shortcut      | Action                     |
-| ------------- | -------------------------- |
+| Shortcut | Action |
+| --- | --- |
 | `Cmd+Shift+/` | Search scrollback with fzf |
 
 **Requirement**: `fzf` must be installed (`brew install fzf`)
@@ -287,9 +287,9 @@ Opens an interactive overlay to search through scrollback history.
 
 #### Panel Management
 
-| Shortcut      | Action                 |
-| ------------- | ---------------------- |
-| `Cmd+Shift+Z` | Toggle fullscreen      |
+| Shortcut | Action |
+| --- | --- |
+| `Cmd+Shift+Z` | Toggle fullscreen |
 | `Cmd+Shift+M` | Toggle window maximize |
 
 ---
@@ -318,33 +318,33 @@ Sessions are text-based configuration files (`.kitty-session`) that specify:
 
 #### Available Sessions
 
-| Session File               | Description                                        | Keymap          |
-| -------------------------- | -------------------------------------------------- | --------------- |
-| `dotfiles.kitty-session`   | Dotfiles management with config editing            | `Cmd+Shift+S>D` |
+| Session File | Description | Keymap |
+| --- | --- | --- |
+| `dotfiles.kitty-session` | Dotfiles management with config editing | `Cmd+Shift+S>D` |
 | `dev-python.kitty-session` | Python development with REPL, testing, virtualenvs | `Cmd+Shift+S>P` |
-| `dev-java.kitty-session`   | Java development with Maven/Gradle, JUnit          | `Cmd+Shift+S>J` |
-| `dev-rust.kitty-session`   | Rust development with Cargo, Clippy, benchmarks    | `Cmd+Shift+S>R` |
-| `dev-cpp.kitty-session`    | C/C++ development with sanitizers, Valgrind        | `Cmd+Shift+S>C` |
-| `ssh-dev.kitty-session`    | SSH remote server connections and monitoring       | `Cmd+Shift+S>H` |
-| `monitoring.kitty-session` | System monitoring, logs, and service management    | `Cmd+Shift+S>M` |
+| `dev-java.kitty-session` | Java development with Maven/Gradle, JUnit | `Cmd+Shift+S>J` |
+| `dev-rust.kitty-session` | Rust development with Cargo, Clippy, benchmarks | `Cmd+Shift+S>R` |
+| `dev-cpp.kitty-session` | C/C++ development with sanitizers, Valgrind | `Cmd+Shift+S>C` |
+| `ssh-dev.kitty-session` | SSH remote server connections and monitoring | `Cmd+Shift+S>H` |
+| `monitoring.kitty-session` | System monitoring, logs, and service management | `Cmd+Shift+S>M` |
 
 #### Session Management Keybindings
 
 **Session Switching** (prefix: `Cmd+Shift+S`):
 
-| Shortcut               | Action                             |
-| ---------------------- | ---------------------------------- |
-| `Cmd+Shift+S` then `D` | Switch to Dotfiles session         |
-| `Cmd+Shift+S` then `P` | Switch to Python development       |
-| `Cmd+Shift+S` then `J` | Switch to Java development         |
-| `Cmd+Shift+S` then `R` | Switch to Rust development         |
-| `Cmd+Shift+S` then `C` | Switch to C/C++ development        |
-| `Cmd+Shift+S` then `H` | Switch to SSH remote connections   |
-| `Cmd+Shift+S` then `M` | Switch to Monitoring session       |
-| `Cmd+Shift+S` then `L` | Jump to previous session (Last)    |
-| `Cmd+Shift+S` then `X` | Close current session              |
+| Shortcut | Action |
+| --- | --- |
+| `Cmd+Shift+S` then `D` | Switch to Dotfiles session |
+| `Cmd+Shift+S` then `P` | Switch to Python development |
+| `Cmd+Shift+S` then `J` | Switch to Java development |
+| `Cmd+Shift+S` then `R` | Switch to Rust development |
+| `Cmd+Shift+S` then `C` | Switch to C/C++ development |
+| `Cmd+Shift+S` then `H` | Switch to SSH remote connections |
+| `Cmd+Shift+S` then `M` | Switch to Monitoring session |
+| `Cmd+Shift+S` then `L` | Jump to previous session (Last) |
+| `Cmd+Shift+S` then `X` | Close current session |
 | `Cmd+Shift+S` then `S` | Save current session (relocatable) |
-| `Ctrl+Shift+A` then `S` | Pick any session from `sessions/`  |
+| `Ctrl+Shift+A` then `S` | Pick any session from `sessions/` |
 
 **Usage**: Press `Cmd+Shift+S`, release, then press the session key.
 
@@ -695,4 +695,3 @@ File: [`tab_bar.py`](tab_bar.py), loaded by `tab_bar_style custom`.
 
 **Last Updated**: 2026-09-25
 **Author**: LCS.Dev
-**Optimized by**: Claude (Anthropic)
