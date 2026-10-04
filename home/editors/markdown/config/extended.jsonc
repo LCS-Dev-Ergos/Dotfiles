@@ -1,0 +1,29 @@
+{
+  // The reduced set plus every other markdownlint rule, with style choices taken from the existing
+  // notes and READMEs: dash bullets, two-space nesting, asterisk emphasis, incrementing ordered
+  // lists. Several of these rules have fixers that change content, so use it for reports only
+  // (`mdlint --extended`); mdlint refuses --fix together with it.
+  "customRules": ["./rules/table-delimiter-dashes.cjs"],
+  "config": {
+    "extends": "./safe.jsonc",
+    "default": true,
+
+    // Lists.
+    "MD004": { "style": "dash" },
+    "MD007": { "indent": 2 },
+    "MD029": { "style": "ordered" },
+
+    // Emphasis.
+    "MD049": { "style": "asterisk" },
+    "MD050": { "style": "asterisk" },
+
+    // Makefile and Go snippets legitimately contain tabs.
+    "MD010": { "code_blocks": false },
+    // Two trailing spaces stay valid as a hard line break.
+    "MD009": { "br_spaces": 2 },
+
+    // The editor soft-wraps, and notes start with front matter and prose rather than an H1.
+    "MD013": false,
+    "MD041": false,
+  },
+}

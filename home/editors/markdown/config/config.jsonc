@@ -3,61 +3,12 @@
   // ~/.config/markdownlint by Home Manager and referenced from the user settings through
   // "markdownlint.configFile". The extension hands it to markdownlint-cli2 as an options file
   // (rules under "config", plus "customRules"), which a plain .markdownlint.jsonc cannot express.
-  // A project's own .markdownlint.* or .markdownlint-cli2.* file takes precedence over it.
+  // A project's own .markdownlint.* or .markdownlint-cli2.* file replaces it for that project.
   //
-  // The choices below follow how the existing notes and READMEs are already written:
-  // dash bullets, two-space nesting, ATX headings, backtick fences, asterisk emphasis,
-  // incrementing ordered lists.
-
+  // The rules are the reduced, safe-to-autofix set in safe.jsonc. extended.jsonc adds the full
+  // style rules for reports on request; run it with `mdlint --extended`.
   "customRules": ["./rules/table-delimiter-dashes.cjs"],
-
   "config": {
-    "default": true,
-
-    // Lists.
-    "MD004": { "style": "dash" },
-    "MD007": { "indent": 2 },
-    "MD029": { "style": "ordered" },
-
-    // Headings. Repeated titles are fine under different parents (changelogs, per-item notes).
-    "MD003": { "style": "atx" },
-    "MD024": { "siblings_only": true },
-    // Skills, rules, memory and vault notes start with front matter and prose, not an H1.
-    "MD041": false,
-
-    // Emphasis and code.
-    "MD046": { "style": "fenced" },
-    "MD048": { "style": "backtick" },
-    "MD049": { "style": "asterisk" },
-    "MD050": { "style": "asterisk" },
-    // Makefile and Go snippets legitimately contain tabs.
-    "MD010": { "code_blocks": false },
-
-    // Whitespace. Two trailing spaces stay valid as a hard line break.
-    "MD009": { "br_spaces": 2 },
-    // The editor soft-wraps; long lines (tables, URLs, commands) are normal here.
-    "MD013": false,
-
-    // Inline HTML limited to the elements already in use.
-    "MD033": {
-      "allowed_elements": [
-        "a",
-        "br",
-        "details",
-        "img",
-        "kbd",
-        "picture",
-        "source",
-        "sub",
-        "summary",
-        "sup",
-      ],
-    },
-
-    // Tables. MD060 normalizes the padding around cell content ("| a | b |"); LCS001 (custom,
-    // rules/table-delimiter-dashes.cjs) rewrites delimiter dashes to exactly three ("| --- |"). Both are
-    // fixable, so fixAll turns padded tables into the canonical form.
-    "MD060": { "style": "compact" },
-    "LCS001": true,
+    "extends": "./safe.jsonc",
   },
 }

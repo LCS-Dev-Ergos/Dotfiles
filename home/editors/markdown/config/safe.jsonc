@@ -1,0 +1,49 @@
+{
+  // Reduced rule set: the one the editor uses, and the only one that may rewrite files unattended.
+  //
+  // Every fixer enabled here only touches whitespace or table delimiter dashes, and was checked
+  // by rendering 1107 real documents before and after a fix: the HTML did not change. The rest of
+  // markdownlint's fixers do change content (MD009 drops hard breaks, MD029 renumbers continued
+  // lists, MD037 turns "* N *" into emphasis, MD026 and MD034 rewrite headings and URLs, ...), so
+  // they live in extended.jsonc, which is for reports only.
+  //
+  // This is an allow-list on purpose: a rule markdownlint adds later stays off until it is vetted.
+  "default": false,
+
+  // Whitespace-only fixers.
+  "MD012": true,
+  "MD027": true,
+  "MD030": true,
+  "MD047": true,
+  "MD058": true,
+
+  // Tables. MD060 normalizes the padding around cell content ("| a | b |"); LCS001 (custom,
+  // rules/table-delimiter-dashes.cjs) rewrites delimiter dashes to exactly three ("| --- |").
+  "MD060": { "style": "compact" },
+  "LCS001": true,
+
+  // Diagnostics without a fixer, following how the existing notes are written.
+  "MD003": { "style": "atx" },
+  // Repeated titles are fine under different parents (changelogs, per-item notes).
+  "MD024": { "siblings_only": true },
+  // Inline HTML limited to the elements already in use.
+  "MD033": {
+    "allowed_elements": [
+      "a",
+      "br",
+      "details",
+      "img",
+      "kbd",
+      "picture",
+      "source",
+      "sub",
+      "summary",
+      "sup",
+    ],
+  },
+  "MD040": true,
+  "MD046": { "style": "fenced" },
+  "MD048": { "style": "backtick" },
+  "MD055": true,
+  "MD056": true,
+}
