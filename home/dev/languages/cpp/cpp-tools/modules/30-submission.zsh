@@ -11,7 +11,7 @@
 #   - _offer_clipboard_copy           Offer clipboard copy prompt.
 #   - cpptestsubmit                   Compile and test submission file.
 #   - cppfull                         Run full workflow (dev/test/submission).
-#   - cppcheck                        Validate environment and templates.
+#   - cpphealth                       Validate environment and templates.
 #
 # ============================================================================ #
 
@@ -519,13 +519,13 @@ function cppfull() {
 }
 
 # -----------------------------------------------------------------------------
-# cppcheck
+# cpphealth
 # -----------------------------------------------------------------------------
 # Check template system, compilers, and workspace configuration health.
 # -----------------------------------------------------------------------------
-function cppcheck() {
+function cpphealth() {
   if (( $# )); then
-    _cp_error "Usage: cppcheck"
+    _cp_error "Usage: cpphealth"
     return 64
   fi
   _cp_rule "TEMPLATE SYSTEM HEALTH" cyan

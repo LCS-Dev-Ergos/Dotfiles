@@ -90,7 +90,7 @@ _cp_help_register \
 _cp_help_register \
   "Utilities" "cppdiag" "" "Inspect the toolchain and environment."
 _cp_help_register \
-  "Utilities" "cppcheck" "" "Validate templates and required tools."
+  "Utilities" "cpphealth" "" "Validate templates and required tools."
 _cp_help_register \
   "Utilities" "cpphelp" "" "Show this command reference."
 

@@ -318,7 +318,7 @@ cppsubmit --unknown >/dev/null 2>&1
 _assert_eq "64" "$?" "submission option validation"
 cpptestsubmit --unknown >/dev/null 2>&1
 _assert_eq "64" "$?" "submission-test option validation"
-cppcheck unexpected >/dev/null 2>&1
+cpphealth unexpected >/dev/null 2>&1
 _assert_eq "64" "$?" "health-check argument validation"
 cppdiag unexpected >/dev/null 2>&1
 _assert_eq "64" "$?" "diagnostic argument validation"
@@ -428,7 +428,7 @@ health_output=$(
   # compiler must answer probes while the hostile cached path stays display data.
   _cp_get_active_build_dir() { print -r -- "$stale_build"; }
   PATH="$gxx_bin:$PATH"
-  cppcheck
+  cpphealth
 )
 _assert_eq "0" "$?" "health check with cache metadata"
 [[ ! -e "$cache_marker" ]]
