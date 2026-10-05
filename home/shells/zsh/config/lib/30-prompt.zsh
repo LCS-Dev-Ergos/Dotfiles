@@ -33,13 +33,6 @@
 typeset -f _zsh_cache_is_fresh >/dev/null 2>&1 ||
   source "${${(%):-%N}:A:h:h}/runtime-helpers.zsh"
 
-# On HyDE, load this file only when HYDE_ZSH_PROMPT is not 1.
-# The guard below is a safety net for direct sourcing.
-if [[ "$HYDE_ENABLED" == "1" ]] && [[ "${HYDE_ZSH_PROMPT}" == "1" ]]; then
-    # HyDE's shell.zsh handles prompt instead
-    return 0
-fi
-
 # Enable prompt substitution globally.
 setopt PROMPT_SUBST
 

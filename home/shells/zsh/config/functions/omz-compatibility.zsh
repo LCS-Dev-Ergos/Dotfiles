@@ -14,11 +14,6 @@
 #
 # ============================================================================ #
 
-# On HyDE with HYDE_ZSH_NO_PLUGINS!=1, shell.zsh uses its own plugin set.
-if [[ "$HYDE_ENABLED" == "1" ]] && [[ "${HYDE_ZSH_NO_PLUGINS}" != "1" ]]; then
-  return 0
-fi
-
 # -----------------------------------------------------------------------------
 # detect-clipboard
 # @internal

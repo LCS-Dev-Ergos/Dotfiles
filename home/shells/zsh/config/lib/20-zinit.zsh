@@ -19,13 +19,6 @@
 typeset -f _zsh_mtime >/dev/null 2>&1 ||
   source "${${(%):-%N}:A:h:h}/runtime-helpers.zsh"
 
-# On HyDE: this file is loaded only when "HYDE_ZSH_NO_PLUGINS=1".
-# The guard below is a safety net for direct sourcing.
-if [[ "$HYDE_ENABLED" == "1" ]] && [[ "${HYDE_ZSH_NO_PLUGINS}" != "1" ]]; then
-  # HyDE's shell.zsh handles plugins instead.
-  return 0
-fi
-
 # Keep compfix (compaudit) enabled by default for safer completion loading.
 # Set to "true" only if you explicitly want to skip security checks.
 : "${ZSH_DISABLE_COMPFIX:=false}"

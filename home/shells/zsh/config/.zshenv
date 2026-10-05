@@ -77,16 +77,13 @@ unset _nix_system_bin _nix_user_bin _nix_user_profile
 (( $+functions[_zsh_startup_trace_mark] )) &&
   _zsh_startup_trace_mark ".zshenv:nix"
 
-# Platform detection - load HyDE environment variables on Arch Linux.
-# Only env.zsh is loaded here - shell configuration is deferred to .zshrc.
-# /etc/arch-release is the same probe runtime-helpers.zsh uses; sourcing
-# /etc/os-release instead would leave NAME, ID, VERSION, ... behind as
-# globals in every shell, scripts included.
-if [[ -f /etc/arch-release ]]; then
-  # HyDE configs stay in the XDG config dir even if we later move ZDOTDIR to $HOME.
-  typeset _hyde_env="${XDG_CONFIG_HOME:-$HOME/.config}/zsh/conf.d/hyde/env.zsh"
-  [[ -r "$_hyde_env" ]] && source "$_hyde_env"
-  unset _hyde_env
+# Shared Linux environment, independent of the distribution and desktop.
+# Resolve beside this store-backed file so an old XDG tree cannot re-enable
+# a retired desktop integration. macOS retains its existing environment path.
+if [[ "$OSTYPE" == linux* ]]; then
+  typeset _linux_env="${${(%):-%x}:A:h}/conf.d/linux/env.zsh"
+  [[ -r "$_linux_env" ]] && source "$_linux_env"
+  unset _linux_env
 fi
 
 # Apple's /etc/zshrc spends a `locale` fork on every interactive shell for

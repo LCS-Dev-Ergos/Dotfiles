@@ -20,8 +20,7 @@
 #   2. functions/*.zsh follow. A bundle whose header carries the
 #      `# zsh-load: deferred` marker is sourced once the shell is idle.
 #   3. The prompt activates last, after 90-path.zsh has fixed PATH.
-#   HyDE (Arch) integration lives in the modules' own guards plus the single
-#   hook in the module loop below.
+#   The shell owns plugins and prompt on every desktop.
 #
 # Consult the README.md for further details on the design philosophy,
 # module breakdown, and usage tips.
@@ -58,7 +57,7 @@ fi
     _zsh_startup_trace_mark ".zshrc:entry"
 
 # Debug: Uncomment to troubleshoot configuration directory detection.
-# echo "ZSH_CONFIG_DIR=$ZSH_CONFIG_DIR HYDE_ENABLED=${HYDE_ENABLED:-not set}"
+# echo "ZSH_CONFIG_DIR=$ZSH_CONFIG_DIR"
 
 # -----------------------------------------------------------------------------
 # Fast start: the minimal core, without plugins, prompt engines, language
@@ -67,18 +66,6 @@ fi
 typeset -ga _ZSH_FAST_START_MODULES=(
     00-initialization 10-history 40-vi-mode 60-aliases 75-variables 90-path
 )
-
-# On HyDE systems, load user preferences FIRST to determine which modules to
-# use. This allows user.zsh to set HYDE_ZSH_NO_PLUGINS and HYDE_ZSH_PROMPT.
-if [[ "$HYDE_ENABLED" == "1" && "${ZSH_FAST_START:-}" != "1" ]]; then
-    if [[ -f "$HOME/.hyde.zshrc" ]]; then
-        source "$HOME/.hyde.zshrc"
-    elif [[ -f "$HOME/.user.zsh" ]]; then
-        source "$HOME/.user.zsh"
-    elif [[ -f "$ZSH_CONFIG_DIR/user.zsh" ]]; then
-        source "$ZSH_CONFIG_DIR/user.zsh"
-    fi
-fi
 
 # ++++++++++++++++++++++++++++ LOAD CORE MODULES +++++++++++++++++++++++++++++ #
 
@@ -100,15 +87,6 @@ for _zsh_rc_file in "${_zsh_rc_modules[@]}"; do
     (( $+functions[_zsh_startup_trace_mark] )) &&
         _zsh_startup_trace_mark "module:${_zsh_rc_file:t}"
 
-    # HyDE: unless HYDE_ZSH_NO_PLUGINS=1, its shell.zsh owns Oh-My-Zsh (and,
-    # with HYDE_ZSH_PROMPT=1, the prompt) in the slot of 20-zinit.zsh, whose
-    # guard makes it a no-op in that case. 30-prompt.zsh has the matching
-    # guard for the prompt.
-    if [[ "${_zsh_rc_file:t}" == 20-zinit.zsh && "$HYDE_ENABLED" == "1" &&
-          "${HYDE_ZSH_NO_PLUGINS}" != "1" &&
-          -r "$ZSH_CONFIG_DIR/conf.d/hyde/shell.zsh" ]]; then
-        source "$ZSH_CONFIG_DIR/conf.d/hyde/shell.zsh"
-    fi
 done
 (( $+functions[_zsh_startup_trace_mark] )) &&
     _zsh_startup_trace_mark "modules:ready"
@@ -180,8 +158,7 @@ _zsh_schedule_heavy_functions() {
 
 # ++++++++++++++++++++++++++++ LOAD FUNCTION FILES +++++++++++++++++++++++++++ #
 
-# Every mode, HyDE's included: bundles that duplicate what Oh-My-Zsh provides
-# (omz-compatibility.zsh) step aside on their own.
+# Load the shared function bundles independently of the graphical desktop.
 typeset -a _zsh_rc_functions=("$ZSH_CONFIG_DIR"/functions/*.zsh(N))
 if (( ${#_zsh_rc_functions} == 0 )); then
     print -u2 "Warning: No function files found in $ZSH_CONFIG_DIR/functions/"

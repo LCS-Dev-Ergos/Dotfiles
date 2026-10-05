@@ -5,10 +5,20 @@
   ...
 }:
 let
-  # Keep the complete Zsh unit in one store path. Validation and dependency
+  # Keep the active Zsh unit in one store path. Validation and dependency
   # tooling intentionally navigate from config/ to sibling packages and root
   # files; separate path copies would sever those read-only relationships.
-  zshSource = ./.;
+  # Retired desktop assets remain in Git but are never distributed to a home.
+  zshSource = lib.cleanSourceWith {
+    src = ./.;
+    filter =
+      path: _type:
+      !builtins.elem (lib.removePrefix (toString ./. + "/") path) [
+        "config/conf.d/hyde"
+        "config/user.zsh"
+        "config/prompt.zsh"
+      ];
+  };
 
   shdoc = pkgs.callPackage ./shdoc.nix { };
 

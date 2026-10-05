@@ -23,12 +23,10 @@ Dotfiles/home/shells/zsh/
     ├── .zshenv             Environment shared by all shell types
     ├── lib/                Ordered startup modules
     ├── functions/          Interactive command bundles
-    ├── conf.d/             Environment-specific integration (HyDE)
+    ├── conf.d/linux/       Shared Linux environment
     ├── completions/        Compinit-compatible `_name` files
     ├── scripts/            Lazy command modules and Python backends
-    ├── others/             Standalone minimal/server configurations
-    ├── prompt.zsh          Intentional HyDE prompt opt-out
-    └── user.zsh            HyDE preferences
+    └── others/             Standalone minimal/server configurations
 ```
 
 ### Naming Convention
@@ -135,10 +133,16 @@ opts into deferred loading with a header marker:
 
 `ZSH_FAST_START=1` keeps the same loop but sources only the core listed in
 `_ZSH_FAST_START_MODULES` (initialization, history, vi mode, aliases,
-variables, PATH), skips the function bundles, and sets a static prompt. On
-HyDE, `20-zinit.zsh` and `30-prompt.zsh` step aside through their own guards,
-and the loop sources `conf.d/hyde/shell.zsh` in the plugin slot when HyDE owns
-the plugins.
+variables, PATH), skips the function bundles, and sets a static prompt.
+Plugins and the prompt belong to the shared shell on every desktop. Linux
+environment defaults load from `conf.d/linux/env.zsh` without a distribution
+probe; graphical environment variables belong to the session manager.
+
+The original `conf.d/hyde/`, `user.zsh` and `prompt.zsh` are retained only in
+the checkout and excluded from the deployed Zsh source. Startup does not read
+`~/.hyde.zshrc` or `~/.user.zsh`. Inherited HyDE plugin/prompt flags cannot
+disable shared modules; Linux startup clears those flags and the exact retired
+`$XDG_DATA_HOME/hypr/hyprland.conf` value, preserving custom compositor paths.
 
 Current modules:
 
