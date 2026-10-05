@@ -1,3 +1,7 @@
+-- Check popup loading, cache invalidation, async replies and row geometry.
+-- Uses recorded requests and timers, without contacting audio or network tools.
+-- Usage: lua popups.lua <sketchybar-config-dir>
+
 local root = assert(arg[1])
 package.path = root .. "/?.lua;" .. root .. "/?/init.lua;" .. package.path
 package.preload["helpers.runtime"] = function()

@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Opt-in regression against a live bar; temporary items are always removed.
+"""Check widget text, rate cells and popup geometry against a live bar.
+
+Temporary items are always removed.
 
 Run with SKETCHYBAR_LIVE_TESTS=1 bash tests/run.sh from the SketchyBar module.
 LUA and SKETCHYBAR may select the managed executables. No daemon is restarted.

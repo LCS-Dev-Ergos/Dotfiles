@@ -1,4 +1,7 @@
-"""Regression checks for the Brew widget's click controller."""
+"""Check terminal command quoting and refresh after Brew completes.
+
+Executable fixtures preserve exit statuses without opening a real terminal.
+"""
 
 import os
 import shlex

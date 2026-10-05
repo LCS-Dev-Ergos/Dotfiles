@@ -1,4 +1,7 @@
--- Lifecycle and race regressions against the real helper and widget modules.
+-- Check watcher recovery, event ordering, freshness and fixed rate cells.
+-- Exercises real helpers and widgets with a fake clock and recorded callbacks.
+-- Usage: lua statwell.lua <sketchybar-config-dir>
+
 local root = assert(arg[1])
 package.path = root .. "/?.lua;" .. root .. "/?/init.lua;" .. package.path
 package.preload["helpers.runtime"] = function()
