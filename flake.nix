@@ -98,6 +98,8 @@
       };
       linuxHost = rec {
         system = "x86_64-linux";
+        hostname = "LCS.Dev-Legion-Cachy";
+        nativeGraphics = true;
         username = "lcs-dev";
         homeDirectory = "/home/${username}";
         dotfilesRoot = "${homeDirectory}/Dotfiles";
@@ -132,6 +134,7 @@
       homeArgs = host: {
         inherit externalSources;
         inherit (host) dotfilesRoot homeDirectory username;
+        nativeGraphics = host.nativeGraphics or false;
         herdr = inputs.herdr.packages.${host.system}.default;
         statwellModule = inputs.statwell.homeManagerModules.default;
         statwellPackage = inputs.statwell.packages.${host.system}.default;
@@ -169,25 +172,22 @@
         ];
       };
 
-      # Standalone Home Manager, no nix-darwin equivalent: Arch Linux keeps
-      # its own package manager responsible for the OS. Hostname taken from
-      # the Tailscale MagicDNS entry in known_hosts (lcs-legion-arch...ts.net);
-      # x86_64-linux is a provisional guess — neither is confirmed until
-      # there's access to the actual machine again. Written but unverified:
-      # cannot build or switch this from the Mac without a configured Linux
-      # remote builder.
-      # $ nix build '.#homeConfigurations."lcs-dev@lcs-legion-arch".activationPackage'
-      homeConfigurations."lcs-dev@lcs-legion-arch" = home-manager.lib.homeManagerConfiguration {
-        pkgs = import nixpkgs {
-          inherit (linuxHost) system;
-          # No package in this host's module set is unfree, unlike Darwin's
-          # single narrow Symbola exception (darwin/default.nix), so unfree
-          # access is denied outright rather than opened per-package.
-          config.allowUnfree = false;
-        };
-        extraSpecialArgs = homeArgs linuxHost;
-        modules = [ ./hosts/lcs-legion-arch/home.nix ];
-      };
+      # Standalone Home Manager: CachyOS owns the OS and graphical runtime.
+      # The retired Arch entrypoint remains on disk, without a flake output.
+      # Build before activation; the CachyOS guide in hosts/ describes it.
+      homeConfigurations."${linuxHost.username}@${linuxHost.hostname}" =
+        home-manager.lib.homeManagerConfiguration
+          {
+            pkgs = import nixpkgs {
+              inherit (linuxHost) system;
+              # No package in this host's module set is unfree, unlike Darwin's
+              # single narrow Symbola exception (darwin/default.nix), so unfree
+              # access is denied outright rather than opened per-package.
+              config.allowUnfree = false;
+            };
+            extraSpecialArgs = homeArgs linuxHost;
+            modules = [ ./hosts/lcs-dev-legion-cachy/home.nix ];
+          };
 
       # Personal tools are first-class outputs as well as Home Manager inputs:
       # `nix build .#cpp-tools` runs their checks and builds the deployable CLI;
@@ -225,7 +225,7 @@
           llvm-darwin-toolchain = self.packages.aarch64-darwin.llvm-darwin-toolchain.tests.default;
         };
         x86_64-linux = {
-          home-configuration = self.homeConfigurations."lcs-dev@lcs-legion-arch".activationPackage;
+          home-configuration = self.homeConfigurations."lcs-dev@LCS.Dev-Legion-Cachy".activationPackage;
           cpp-tools = self.packages.x86_64-linux.cpp-tools;
           markdownlint-config = self.packages.x86_64-linux.markdownlint-config;
         };

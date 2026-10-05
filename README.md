@@ -33,10 +33,14 @@ shared modules instead of being copied per configuration.
 
 ### Ownership Model
 
-Homebrew owns macOS applications and the packages that need its ecosystem;
-nix-darwin declares that inventory of taps, formulae and casks. Nix owns the
-portable command-line baseline and the development toolchains that benefit
-from reproducibility, and Home Manager owns application configuration.
+Each class of software has one owner:
+
+| Owner | Scope |
+| --- | --- |
+| Nix | Portable command-line baseline and the development toolchains that benefit from reproducibility |
+| Home Manager | Application configuration on both platforms |
+| Homebrew (macOS) | Applications and packages that need the Homebrew ecosystem; nix-darwin declares the inventory of taps, formulae and casks |
+| Distribution (Linux) | Operating system, graphics drivers, graphical runtimes and login infrastructure |
 
 Home Manager manages everything under `home/shells/zsh/`. On macOS the login
 shell is the Nix `zsh`, set through `users.users.<name>.shell` and recorded as
@@ -113,20 +117,25 @@ until the generation that implements it is active.
 | Platform | Nix system | Configuration | Reference output | Entry point |
 | --- | --- | --- | --- | --- |
 | macOS on Apple Silicon | `aarch64-darwin` | nix-darwin with the Home Manager module | `darwinConfigurations."LCSMacBook-Pro"` | `hosts/lcs-macbook-pro/` |
-| Arch Linux | `x86_64-linux` | Standalone Home Manager | `homeConfigurations."lcs-dev@lcs-legion-arch"` | `hosts/lcs-legion-arch/` |
+| Arch-based Linux, reference distribution CachyOS | `x86_64-linux` | Standalone Home Manager | `homeConfigurations."lcs-dev@LCS.Dev-Legion-Cachy"` | `hosts/lcs-dev-legion-cachy/` |
 
 Output names are the attribute names of the reference configurations. The
-account name and home directory are declared in `flake.nix` and reach modules
-as arguments; shared modules never hard-code them. The Linux configuration is
-experimental: CI evaluates it, but its build and activation are not validated.
+account name, home directory and checkout path are declared once per platform
+in `flake.nix` and reach modules as arguments; shared modules never hard-code
+them.
+
+On Linux the distribution owns the operating system and graphical runtimes,
+and Home Manager runs standalone, so NixOS is not required. The retired Arch
+entry point and the HyDE assets remain in the repository without a flake
+output or desktop deployment.
 
 ## Prerequisites
 
 | Requirement | macOS | Linux |
 | --- | --- | --- |
 | Nix | Flakes enabled: `experimental-features = nix-command flakes` | Same |
-| Package manager | Homebrew; nix-darwin manages its inventory but does not install it | The distribution's package manager, which remains responsible for the operating system |
-| Configuration tool | [nix-darwin](https://github.com/nix-darwin/nix-darwin) | [Home Manager](https://github.com/nix-community/home-manager) in standalone mode; NixOS is not required |
+| Package manager | Homebrew; nix-darwin manages its inventory but does not install it | pacman; the distribution remains responsible for the operating system |
+| Configuration tool | [nix-darwin](https://github.com/nix-darwin/nix-darwin) | None in advance: the first activation runs the built generation's `activate` script |
 | Build prerequisites | Command Line Tools for Xcode, whose Apple SDK the Nix compilers target | Not applicable |
 
 ## Installation
@@ -157,8 +166,16 @@ Homebrew inventory and the Dock, Finder and trackpad defaults.
 ### Linux Activation
 
 ```bash
-home-manager switch --flake '.#lcs-dev@lcs-legion-arch'
+nix build '.#homeConfigurations."lcs-dev@LCS.Dev-Legion-Cachy".activationPackage' --no-link
 ```
+
+Standalone Home Manager distributes application settings and command-line
+tools. Common Linux applications and the Hyprland and Caelestia desktop are
+separate imports, and KDE Plasma remains available as a separate session. The
+[CachyOS configuration guide](hosts/lcs-dev-legion-cachy/README.md) covers the
+native dependencies, backup, activation, session checks and rollback. A
+successful build validates the Nix closure; desktop behavior is verified in a
+running session with the native runtime.
 
 ## Module Organization
 
@@ -170,8 +187,10 @@ Dotfiles/
 │   ├── lcs-macbook-pro/
 │   │   ├── darwin.nix         # Platform, account and login shell, stateVersion, system defaults
 │   │   └── home.nix           # username, homeDirectory, imports
+│   ├── lcs-dev-legion-cachy/
+│   │   └── home.nix           # CachyOS: common applications and selected desktop modules
 │   └── lcs-legion-arch/
-│       └── home.nix           # The same shape for the Linux configuration
+│       └── home.nix           # Retired Arch entry point, without a flake output
 ├── darwin/
 │   ├── default.nix            # Nix GC and store optimisation, fonts, /etc, unfree policy
 │   └── homebrew.nix           # Declared taps, formulae and casks
@@ -179,7 +198,7 @@ Dotfiles/
     ├── default.nix            # Shared Home Manager policy and stateVersion
     ├── common.nix             # Platform-neutral application imports
     ├── darwin.nix             # macOS-only application imports
-    ├── linux.nix              # Linux and Wayland application imports
+    ├── linux.nix              # Linux application imports shared by KDE and Hyprland
     ├── out-of-store-allowlist.tsv
     ├── package-ownership-allowlist.tsv
     ├── cli/                   # bat, btop, cli-tools, git, lazygit, tealdeer
@@ -249,6 +268,9 @@ target, the Apple linker selection and the relocated runtime libraries.
 No runner builds `darwin-configuration`, the complete system. The build in
 [macOS Activation](#macos-activation) is the first complete build, so it runs
 before every switch.
+
+CI evaluates the Linux output. Build it before activation; login, rendering,
+portals, wallet access and rollback are verified in a running session.
 
 ## Contributing
 

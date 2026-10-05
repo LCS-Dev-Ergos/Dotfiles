@@ -2,6 +2,7 @@
   config,
   dotfilesRoot,
   pkgs,
+  nativeGraphics ? false,
   ...
 }:
 {
@@ -18,7 +19,7 @@
     # of this exact file with sed. Keep only that runtime-mutated file writable;
     # Darwin and the shader/theme assets remain immutable store-backed sources.
     "cava/config".source =
-      if pkgs.stdenv.hostPlatform.isLinux then
+      if pkgs.stdenv.hostPlatform.isLinux && !nativeGraphics then
         config.lib.file.mkOutOfStoreSymlink "${dotfilesRoot}/home/ricing/cava/config"
       else
         ./config;

@@ -48,7 +48,8 @@ sudo darwin-rebuild switch --flake .#LCSMacBook-Pro
 For the standalone Linux Home Manager output, use:
 
 ```zsh
-home-manager switch --flake '.#lcs-dev@lcs-legion-arch'
+nix build '.#homeConfigurations."lcs-dev@LCS.Dev-Legion-Cachy".activationPackage' --no-link
+home-manager switch --flake '.#lcs-dev@LCS.Dev-Legion-Cachy'
 ```
 
 Home Manager deploys `~/.zshenv`, `~/.zprofile`, `~/.zshrc`, `~/.p10k.zsh`, and

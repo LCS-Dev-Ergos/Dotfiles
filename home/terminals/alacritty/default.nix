@@ -1,7 +1,13 @@
-{ externalSources, ... }:
+{
+  externalSources,
+  lib,
+  nativeGraphics ? false,
+  ...
+}:
 {
   programs.alacritty = {
     enable = true;
+    package = lib.mkIf nativeGraphics null;
     # Parsed straight from the existing TOML rather than hand-transcribed.
     # The keyboard.bindings entries contain raw control-character escapes
     # (e.g. STX, ESC) -- verified these round-trip through Nix strings

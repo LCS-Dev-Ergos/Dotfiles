@@ -1,4 +1,9 @@
-{ pkgs, lib, ... }:
+{
+  pkgs,
+  lib,
+  nativeGraphics ? false,
+  ...
+}:
 {
   # Not using programs.ghostty.settings: values are unquoted bare text
   # (e.g. `font-family = CaskaydiaCove Nerd Font`), which isn't valid
@@ -12,7 +17,8 @@
   # and asserts a real package must be set.
   programs.ghostty = {
     enable = true;
-    package = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin null;
+    package = lib.mkIf (pkgs.stdenv.hostPlatform.isDarwin || nativeGraphics) null;
+    systemd.enable = lib.mkIf nativeGraphics false;
   };
 
   xdg.configFile."ghostty/config".source = ./config;
