@@ -17,7 +17,13 @@
     networkInterface = if pkgs.stdenv.hostPlatform.isDarwin then "en0" else null;
     providers = lib.optionals pkgs.stdenv.hostPlatform.isDarwin [ "homebrew" ];
     # Both status bars consume the same CPU sample on a one-second cadence.
-    cadences.cpu = 1000;
+    cadences = {
+      cpu = 1000;
+    }
+    // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
+      # Bound missed notifications from commands run outside the shell wrapper.
+      homebrew = 900000;
+    };
     # An observed Homebrew check took 8.2 seconds, close to the default deadline.
     packageTimeoutMs = if pkgs.stdenv.hostPlatform.isDarwin then 30000 else 10000;
   };

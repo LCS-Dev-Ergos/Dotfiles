@@ -149,10 +149,16 @@ function M.refresh(provider)
 end
 
 function M.prepare()
+  -- Shells opened before the StatWell migration still emit this event.
+  sbar.add("event", "brew_update")
   local observer = sbar.add("item", "statwell.observer", {
     position = "right", drawing = false, updates = "on", update_freq = 1,
   })
-  observer:subscribe({ "routine", "system_will_sleep", "system_woke" }, function(env)
+  observer:subscribe({ "routine", "system_will_sleep", "system_woke", "brew_update" }, function(env)
+    if env.SENDER == "brew_update" then
+      M.refresh("homebrew")
+      return
+    end
     if env.SENDER == "system_will_sleep" then
       sleeping = true
       wake_generation = wake_generation + 1

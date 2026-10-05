@@ -227,6 +227,8 @@ _verify_python_tests() {
       -s "$suite" -p 'test_*.py' -q || return 1
   done
   command env PYTHONDONTWRITEBYTECODE=1 python3 \
+    "$verify_config_dir/tests/python/test-brew-refresh.py" || return 1
+  command env PYTHONDONTWRITEBYTECODE=1 python3 \
     "$verify_config_dir/tests/python/test-prompt-context.py" || return 1
   command env PYTHONDONTWRITEBYTECODE=1 python3 \
     "$verify_config_dir/tests/python/test-zle-lifecycle.py" || return 1

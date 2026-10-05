@@ -71,7 +71,17 @@ local brew = sbar.add("item", CONFIG.widget_name, {
 local last_count
 local brew_pill = style.pill(CONFIG.widget_name .. ".bracket", { brew.name })
 style.gap(CONFIG.widget_name .. ".padding", "right")
-local menu = popup.new(brew_pill)
+local last_result, last_hover_request
+local menu = popup.new(brew_pill, { open = function()
+  statwell.reconcile()
+  local now = os.time()
+  if last_result and last_result.refreshing == "true" then return end
+  local checked = last_result and tonumber(last_result.value_at_unix_ms)
+  if checked and statwell.fresh(last_result) and now * 1000 - checked <= 60000 then return end
+  if last_hover_request and now >= last_hover_request and now - last_hover_request < 30 then return end
+  last_hover_request = now
+  statwell.refresh("homebrew")
+end })
 menu.trigger(brew)
 local details = menu.text_row(CONFIG.widget_name .. ".details",
   { label = { string = "Checking for updates…", color = colors.muted } })
@@ -87,6 +97,7 @@ end
 local last_label, last_color, last_state, last_checked
 statwell.subscribe(brew, "homebrew", "statwell_homebrew", function(env)
   if not env.status then return end
+  last_result = env
   local count = valid_count(env.total)
   local value_at = tonumber(env.value_at_unix_ms)
   -- An error payload can carry the daemon's last valid value after a Lua restart.

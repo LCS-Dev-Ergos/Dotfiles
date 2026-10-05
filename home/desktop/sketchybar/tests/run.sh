@@ -12,6 +12,7 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 "${LUA:-lua}" "$root/tests/widgets.lua" "$root/sketchybar"
 "${LUA:-lua}" "$root/tests/popups.lua" "$root/sketchybar"
 "${LUA:-lua}" "$root/tests/statwell.lua" "$root/sketchybar"
+"${LUA:-lua}" "$root/tests/package_refresh.lua" "$root/sketchybar"
 "${LUA:-lua}" "$root/tests/style.lua" "$root/sketchybar"
 "${PYTHON:-python3}" "$root/tests/media_test.py"
 "${PYTHON:-python3}" "$root/tests/brew_action_test.py"

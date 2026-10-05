@@ -8,7 +8,7 @@
 # (lib/60-aliases.zsh). Each function is scoped to the platform it applies to.
 #
 # Functions:
-#   - brew                       (macOS) Homebrew wrapper, triggers sketchybar.
+#   - brew                       (macOS) Homebrew wrapper, refreshes StatWell.
 #   - brew_stats                 (macOS) Reports Homebrew package counts/sizes.
 #   - command_not_found_handler  (Arch, opt-in) Suggests the owning package.
 #   - in                         (Arch) Installs via pacman or an AUR helper.
@@ -18,16 +18,27 @@
 if [[ "$PLATFORM" == macOS ]]; then
   # ---------------------------------------------------------------------------
   # brew
-  # @description Forwards Homebrew commands; triggers sketchybar after updates.
+  # @description Forwards Homebrew commands; refreshes StatWell after mutations.
   # @arg $@ string Optional Homebrew command and arguments.
-  # @exitcode 1 If the Homebrew command fails.
+  # @exitcode The original Homebrew command's status, even if refresh fails.
   # ---------------------------------------------------------------------------
   brew() {
-    command brew "$@"
-    local rc=$?
-    case "${1:-}" in
-      upgrade|update|outdated)
-        command -v sketchybar >/dev/null 2>&1 && sketchybar --trigger brew_update &!
+    emulate -L zsh
+    local rc=0 subcommand argument
+    command brew "$@" || rc=$?
+    # Homebrew accepts global options before its subcommand.
+    for argument in "$@"; do
+      [[ "$argument" == -* ]] && continue
+      subcommand="$argument"
+      break
+    done
+    case "$subcommand" in
+      update|upgrade|install|reinstall|uninstall|remove|rm|autoremove|cleanup|tap|untap|pin|unpin|link|unlink)
+        # Partial failures can also change the inventory. Queue one cheap
+        # request after completion; the daemon runs Brew on its worker.
+        if (( $+commands[statwell] )); then
+          command statwell refresh --provider homebrew >/dev/null 2>&1 || true
+        fi
         ;;
     esac
     return $rc
