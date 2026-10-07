@@ -15,7 +15,7 @@
 # any) the context: jobs, elapsed time, environments and toolchains.
 # Nothing is padded to the terminal width: a full-width line is text the
 # terminal re-wraps when it shrinks, which leaves duplicate headers behind
-# (see home/shells/zsh/docs/prompt-resize.md).
+# (see home/shells/zsh/docs/Prompt-Resize.md).
 format = """
 [╭─](gray)\
 $os\
