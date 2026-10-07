@@ -1,4 +1,4 @@
-# ZSH Dependencies
+# Zsh Dependencies
 
 The dependency model has three levels:
 
@@ -23,7 +23,7 @@ configuration deployed from the Nix store, Homebrew on other macOS hosts, and
 pacman or the AUR on Arch. `ZSH_DEPENDENCY_OWNER=nix|homebrew|arch` overrides
 the choice.
 
-## Inspect the current machine
+## Inspect The Current Machine
 
 After loading the shell, run:
 

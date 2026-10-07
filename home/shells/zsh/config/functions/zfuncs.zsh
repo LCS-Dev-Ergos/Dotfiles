@@ -140,6 +140,7 @@ function zfuncs() {
   source_files=(
     "$config_dir"/functions/*.zsh(N.)
     "$config_dir"/lib/*.zsh(N.)
+    "$config_dir"/languages/*.zsh(N.)
     "$config_dir"/scripts/**/*.sh(N.)
     "$config_dir"/scripts/**/*.zsh(N.)
   )

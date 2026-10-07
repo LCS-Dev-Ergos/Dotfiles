@@ -87,6 +87,32 @@ for owner expected_hint in \
   }
 done
 
+# A native-ready manager must not direct the next missing-install repair back
+# to Nix. Keep the diagnostic fixture independent of the actual FNM binary.
+typeset fnm_registry="$fixture_root/fnm.tsv"
+print -r -- $'required\tlanguages\tfnm\tfnm\t-\tfnm\tNode manager.' > "$fnm_registry"
+typeset native_bin="$fixture_root/no-fnm"
+typeset utility
+command mkdir -p "$native_bin"
+for utility in zsh mktemp rm uname; do
+  command ln -s "$(whence -p "$utility")" "$native_bin/$utility"
+done
+typeset native_hint
+native_hint="$(command env "${fixture_env[@]}" PATH="$native_bin" \
+  HOME="$fixture_root" ZDOTDIR="$fixture_root" \
+  ZSH_DEPENDENCY_REGISTRY="$fnm_registry" ZSH_DEPENDENCY_OWNER=nix \
+  LCS_RUNTIME_MANAGER_BACKEND=native LCS_NATIVE_FNM_READY=1 \
+  "$checker" --all --quiet 2>&1)" && {
+  print -u2 'FAIL: missing native FNM passed strict dependency checking'
+  exit 1
+}
+
+[[ "$native_hint" != *'Home Manager package fnm'* &&
+   ( "$native_hint" == *'brew fnm'* || "$native_hint" == *'pacman fnm'* ) ]] || {
+  print -u2 "FAIL: native FNM ownership hint: $native_hint"
+  exit 1
+}
+
 typeset malformed_registry="$fixture_root/malformed.tsv"
 print -r -- $'required\tcore\tzsh\tzsh\tzsh\tSix fields only.' \
   >| "$malformed_registry"

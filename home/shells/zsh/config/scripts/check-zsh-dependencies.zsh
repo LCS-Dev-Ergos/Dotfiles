@@ -182,7 +182,7 @@ _dependency_render_archfile() {
   {
     print -r -- "# Generated from zsh-dependencies.tsv."
     print -r -- "# Regenerate with: zshdeps --sync-manifests"
-    print -r -- "# Official packages; see docs/zsh-dependencies.md for AUR."
+    print -r -- "# Official packages; see docs/Zsh-Dependencies.md for AUR."
     print -r -- ""
     for package in "${(ou)dependency_arch_packages[@]}"; do
       print -r -- "$package"
@@ -311,7 +311,14 @@ for line in "${dependency_rows[@]}"; do
   fi
 
   package_hint="-"
-  if [[ "$dependency_owner" == nix && "$nix_package" != - ]]; then
+  if [[ "$command_spec" == fnm && "${LCS_RUNTIME_MANAGER_BACKEND:-}" == native &&
+        "${LCS_NATIVE_FNM_READY:-}" == 1 ]]; then
+    if [[ "$dependency_kernel" == Darwin ]]; then
+      package_hint="brew fnm"
+    else
+      package_hint="pacman fnm (home/dev/native-managers.nix)"
+    fi
+  elif [[ "$dependency_owner" == nix && "$nix_package" != - ]]; then
     package_hint="Home Manager package ${nix_package//|/ or } (switch to install)"
   elif [[ "$dependency_owner" == arch ||
         ( "$dependency_owner" == nix && "$dependency_kernel" != Darwin ) ]]; then

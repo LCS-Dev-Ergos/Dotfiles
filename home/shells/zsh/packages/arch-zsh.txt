@@ -1,6 +1,6 @@
 # Generated from zsh-dependencies.tsv.
 # Regenerate with: zshdeps --sync-manifests
-# Official packages; see docs/zsh-dependencies.md for AUR.
+# Official packages; see docs/Zsh-Dependencies.md for AUR.
 
 7zip
 atuin

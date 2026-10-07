@@ -69,12 +69,12 @@ Supported dependencies are declared once in
 `packages/zsh-dependencies.tsv`. The generated `Brewfile` and Arch package list
 provide reproducible platform inventories, and its `nix` column is checked
 against the Home Manager packages at build time; installation and trust
-details live in `docs/zsh-dependencies.md` beside this configuration. The
+details live in `docs/Zsh-Dependencies.md` beside this configuration. The
 module itself installs only what nothing else needs: gawk and shdoc.
 
-## Startup architecture
+## Startup Architecture
 
-### Development environment health
+### Development Environment Health
 
 `devdoctor` reports the configured runtime managers and development tools.
 The source is `scripts/dev-doctor.zsh`; `~/.cache/zsh/lazy-scripts.zsh` contains
@@ -121,7 +121,7 @@ optional runtime extension. C/C++ compile/link/runtime coverage belongs to
 the flake's `llvm-darwin-toolchain` check; `get_toolchain_info` and
 `get_toolchain_sdk_support` provide detailed compiler and header diagnostics.
 
-### Loading modules
+### Loading Modules
 
 The normal loader sources `lib/*.zsh` in lexical order, then `functions/*.zsh`,
 and activates the prompt last. Modules are sourced at top level, never from a
@@ -338,5 +338,5 @@ Shared presentation helpers use `ZSH_UI_STYLE=auto|plain|ansi|gum` and honor
 `NO_COLOR`. Headings, sections, cards, tables, and logs are drawn natively in
 every mode; Gum is reserved for confirmations and spinners. `zfuncs` also
 accepts `ZFUNCS_STYLE` as a command-specific override. New functions follow the
-[function authoring policy](../docs/function-authoring.md), including stable
+[function authoring policy](../docs/Function-Authoring.md), including stable
 data output, plain capture layouts, and Gum only for interactions.

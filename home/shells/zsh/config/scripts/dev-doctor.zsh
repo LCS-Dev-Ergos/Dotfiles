@@ -635,7 +635,7 @@ _devdoctor_managed_sdkman() {
 # @internal
 # @description Reports the Node version fnm would serve. `fnm current` fails
 # outright until `fnm env` has been applied, so a shell that has not activated
-# fnm is answered from the default alias that lib/80-languages.zsh maintains.
+# fnm is answered from its explicitly selected default alias.
 # @arg $1 path The fnm root.
 # @exitcode 1 If neither the active version nor a default alias is available.
 # @stdout The version string.

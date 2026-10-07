@@ -73,12 +73,23 @@ zsh_rebuild_path() {
 
   local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
   local cache_file="$cache_dir/path.cache"
+  local native_fnm_bin=""
+  if [[ "${LCS_RUNTIME_MANAGER_BACKEND:-}" == native &&
+        "${LCS_NATIVE_FNM_READY:-}" == 1 ]]; then
+    local fnm_root="${FNM_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/fnm}"
+    [[ ! -x "$fnm_root/fnm" ]] || native_fnm_bin="$fnm_root"
+  fi
 
   # Bump whenever priority semantics change so live shells cannot reuse a
   # structurally valid cache containing the previous order.
-  local cache_version="12"
+  local cache_version="15"
   local cache_signature="${cache_version}|${stable_original_path}|${PLATFORM}"
+  cache_signature+="|${HOME}|${USER}|${XDG_DATA_HOME}"
+  cache_signature+="|${OPAM_SWITCH_PREFIX}"
+  cache_signature+="|${LCS_RUNTIME_MANAGER_BACKEND}|${LCS_NATIVE_FNM_READY}|${native_fnm_bin}"
   cache_signature+="|${PYENV_ROOT}|${SDKMAN_DIR}"
+  cache_signature+="|${RBENV_ROOT}|${CARGO_HOME}|${ELAN_HOME}"
+  cache_signature+="|${GHCUP_INSTALL_BASE_PREFIX}|${JULIAUP_HOME}"
   cache_signature+="|${GOPATH}|${ANDROID_HOME}"
   cache_signature+="|${FNM_DIR}|${NPM_CONFIG_PREFIX}"
   # The template below is part of the key too: its resolved file changes
@@ -89,12 +100,11 @@ zsh_rebuild_path() {
   fi
 
   # The cache holds a few entries, one per input PATH: this function runs at
-  # startup and again from fnm's lazy init (80-languages.zsh) with the PATH
-  # the first run produced, and a single entry made each run evict the
-  # other's, so startup never hit. Each entry is an epoch/signature/PATH
-  # triple with its own 24-hour TTL, which makes newly installed template
-  # directories visible without a manual `zshfix`; the signature handles
-  # env changes.
+  # startup and again from fnm's lazy init (80-languages.zsh) with the PATH the
+  # first run produced, and a single entry made each run evict the  other's, so
+  # startup never hit. Each entry is an epoch/signature/PATH triple with its own
+  # 24-hour TTL, which makes newly installed template directories visible without
+  # a manual `zshfix`; the signature handles env changes.
   local -a kept_entries=()
   local entry_stamp entry_signature entry_path
   if _zsh_is_secure_file "$cache_file"; then
@@ -134,16 +144,20 @@ zsh_rebuild_path() {
       # This shell's fnm link carries `fnm use`, so it must beat the default
       # alias below, as it does when a cache hit prepends it.
       "${FNM_MULTISHELL_PATH:+$FNM_MULTISHELL_PATH/bin}"
-      "$HOME/.rbenv/shims"
-      "$HOME/.pyenv/shims"
+      "${RBENV_ROOT:-$HOME/.rbenv}/shims"
+      "${PYENV_ROOT:-$HOME/.pyenv}/shims"
       "${FNM_DIR:-$HOME/.local/share/fnm}/aliases/default/bin"
       "${NPM_CONFIG_PREFIX:-${XDG_DATA_HOME:-$HOME/.local/share}/npm-global}/bin"
 
       # ----- STATIC SHIMS & LANGUAGE BINS ------ #
-      "$PYENV_ROOT/bin"
+      "$native_fnm_bin"
+      "${PYENV_ROOT:+$PYENV_ROOT/bin}"
+      "${OPAM_SWITCH_PREFIX:+$OPAM_SWITCH_PREFIX/bin}"
       "$HOME/.opam/default/bin"
-      "$HOME/.cargo/bin"
-      "$HOME/.juliaup/bin"
+      "${CARGO_HOME:-$HOME/.cargo}/bin"
+      "${JULIAUP_HOME:-$HOME/.juliaup}/bin"
+      "${GHCUP_INSTALL_BASE_PREFIX:-$HOME}/.ghcup/bin"
+      "${ELAN_HOME:-$HOME/.elan}/bin"
       "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/java/current/bin"
       "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/maven/current/bin"
       "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/kotlin/current/bin"
@@ -151,7 +165,7 @@ zsh_rebuild_path() {
 
       # ------------------ Nix ------------------ #
       # Declaratively managed tools win over duplicate Homebrew formulae.
-      "/etc/profiles/per-user/$USER/bin"
+      "${USER:+/etc/profiles/per-user/$USER/bin}"
       "$HOME/.nix-profile/bin"
       "/nix/var/nix/profiles/default/bin"
       "/run/current-system/sw/bin"
@@ -171,8 +185,7 @@ zsh_rebuild_path() {
 
       # --------- Functional Languages ---------- #
       "$HOME/Library/Application Support/Coursier/bin"
-      "$HOME/.ghcup/bin" "$HOME/.cabal/bin"
-      "$HOME/.elan/bin"
+      "$HOME/.cabal/bin"
       "$HOME/.dotnet/tools" # dotnet global tools (csharp-ls, etc.)
 
       # ------ User and App-Specific Paths ------ #
@@ -183,10 +196,10 @@ zsh_rebuild_path() {
       "$HOME/.local/bin"
       "$HOME/.perl5/bin"
       "$HOME/.fpc-deluxe/fpc/bin/aarch64-darwin"
-      "$GOPATH/bin"
+      "${GOPATH:+$GOPATH/bin}"
       "$HOME/.miniforge3/condabin" "$HOME/.miniforge3/bin"
-      "$ANDROID_HOME/platform-tools"
-      "$ANDROID_HOME/cmdline-tools/latest/bin"
+      "${ANDROID_HOME:+$ANDROID_HOME/platform-tools}"
+      "${ANDROID_HOME:+$ANDROID_HOME/cmdline-tools/latest/bin}"
 
       # --------------- AI Tools ---------------- #
       "$HOME/.antigravity-ide/antigravity-ide/bin"
@@ -211,25 +224,29 @@ zsh_rebuild_path() {
       # This shell's fnm link carries `fnm use`, so it must beat the default
       # alias below, as it does when a cache hit prepends it.
       "${FNM_MULTISHELL_PATH:+$FNM_MULTISHELL_PATH/bin}"
-      "$HOME/.rbenv/shims"
-      "$HOME/.pyenv/shims"
+      "${RBENV_ROOT:-$HOME/.rbenv}/shims"
+      "${PYENV_ROOT:-$HOME/.pyenv}/shims"
       "${FNM_DIR:-$HOME/.local/share/fnm}/aliases/default/bin"
       "${NPM_CONFIG_PREFIX:-${XDG_DATA_HOME:-$HOME/.local/share}/npm-global}/bin"
 
       # ----- STATIC SHIMS & LANGUAGE BINS ------ #
-      "$PYENV_ROOT/bin"
+      "$native_fnm_bin"
+      "${PYENV_ROOT:+$PYENV_ROOT/bin}"
+      "${OPAM_SWITCH_PREFIX:+$OPAM_SWITCH_PREFIX/bin}"
       "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/java/current/bin"
       "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/maven/current/bin"
       "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/kotlin/current/bin"
       "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/gradle/current/bin"
       "$HOME/.opam/default/bin"
-      "$HOME/.cargo/bin"
-      "$HOME/.juliaup/bin"
-      
+      "${CARGO_HOME:-$HOME/.cargo}/bin"
+      "${JULIAUP_HOME:-$HOME/.juliaup}/bin"
+      "${GHCUP_INSTALL_BASE_PREFIX:-$HOME}/.ghcup/bin"
+      "${ELAN_HOME:-$HOME/.elan}/bin"
+
       # ------------------ Nix ------------------ #
       # Declaratively managed tools win over system and Linuxbrew copies.
       # Language-version shims remain above Nix by deliberate user choice.
-      "/etc/profiles/per-user/$USER/bin"
+      "${USER:+/etc/profiles/per-user/$USER/bin}"
       "$HOME/.nix-profile/bin"
       "/nix/var/nix/profiles/default/bin"
       "/run/current-system/sw/bin"
@@ -242,8 +259,7 @@ zsh_rebuild_path() {
       "/home/linuxbrew/.linuxbrew/bin" "/home/linuxbrew/.linuxbrew/sbin"
 
       # --------- Functional Languages ---------- #
-      "$HOME/.ghcup/bin" "$HOME/.cabal/bin"
-      "$HOME/.elan/bin"
+      "$HOME/.cabal/bin"
       "$HOME/.local/share/coursier/bin"
       "$HOME/.dotnet/tools" # dotnet global tools (csharp-ls, etc.)
 
@@ -254,10 +270,10 @@ zsh_rebuild_path() {
       "$HOME/.local/bin"
       "$HOME/.npm/bin"
       "$HOME/.perl5/bin"
-      "$GOPATH/bin"
+      "${GOPATH:+$GOPATH/bin}"
       "/opt/miniconda3/condabin" "$HOME/.miniforge3/condabin" "$HOME/.miniforge3/bin"
-      "$ANDROID_HOME/platform-tools"
-      "$ANDROID_HOME/cmdline-tools/latest/bin"
+      "${ANDROID_HOME:+$ANDROID_HOME/platform-tools}"
+      "${ANDROID_HOME:+$ANDROID_HOME/cmdline-tools/latest/bin}"
       "$HOME/.local/share/JetBrains/Toolbox/scripts"
 
       # --------------- AI Tools ---------------- #

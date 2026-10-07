@@ -170,6 +170,7 @@ _verify_shdoc() {
   files=(
     "$verify_config_dir"/functions/*.zsh(N.)
     "$verify_config_dir"/lib/*.zsh(N.)
+    "$verify_config_dir"/languages/*.zsh(N.)
     "$verify_config_dir"/scripts/**/*.sh(N.)
     "$verify_config_dir"/scripts/**/*.zsh(N.)
   )

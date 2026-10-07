@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
 # shellcheck shell=zsh
 # ============================================================================ #
-# +++++++++++++++++++++++ SHARED LINUX ENVIRONMENT +++++++++++++++++++++++++++ #
+# +++++++++++++++++++++++++ SHARED LINUX ENVIRONMENT +++++++++++++++++++++++++ #
 # ============================================================================ #
 # Shared Linux environment; desktop/session variables belong to UWSM.
 # Ignore retired desktop state inherited from a pre-migration shell.
