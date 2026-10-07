@@ -2,7 +2,7 @@
 
 This is an optimized Kitty terminal configuration with advanced features, professional documentation, and modern performance tuning.
 
-## Table of Contents
+## Table Of Contents
 
 - [Overview](#overview)
 - [Performance Optimizations](#performance-optimizations)
@@ -145,7 +145,7 @@ On Linux, shortcuts that use `Cmd` on macOS are mapped to `Super` (Windows key).
 | `Ctrl+Shift+Right/Left` | Navigate between tabs |
 | `Ctrl+Shift+./,` | Move tab forward/backward |
 
-#### Tab Prefix (tmux style)
+#### Tab Prefix (Tmux Style)
 
 Press `Ctrl+Shift+A`, release, then one key. While kitty waits for that key the
 tab bar badge turns into a yellow **PREFIX** pill. The mode ends after one
@@ -547,7 +547,7 @@ that ran for 15 seconds or more finishes in a tab you are not looking at.
    background_opacity 0.95
    ```
 
-#### TERM Variable Issues in Tmux
+#### TERM Variable Issues In Tmux
 
 **Symptom**: `$TERM` shows `tmux-256color` instead of `xterm-kitty`.
 
