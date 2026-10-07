@@ -11,7 +11,7 @@ emulate -L zsh
 setopt err_return pipefail
 umask 077
 
-typeset test_root="${0:A:h:h}"
+typeset test_root="${0:A:h:h:h}"
 source "$test_root/tests/helpers.zsh" || return 1
 typeset fixture_root
 fixture_root="$(_zsh_test_temp_dir toolchain)" || return 1
@@ -227,4 +227,4 @@ unfunction _make_compiler 2>/dev/null
 print -r -- "PASS: preferred toolchains, concise output, and restoration"
 
 # ============================================================================ #
-# End of tests/test-toolchain-selection.zsh
+# End of tests/runtime/test-toolchain-selection.zsh

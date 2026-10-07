@@ -10,7 +10,7 @@ right prompt (`right_format` is empty and Zsh's RPROMPT stays unset, which
 also saves a Starship process per prompt). The layout is the same in every
 terminal and multiplexer.
 
-## Reading the prompt
+## Reading The Prompt
 
 - The first line stays focused on the working location, branch and pending
   changes. Merge/rebase progress and conflicts remain visible on this side.
@@ -64,7 +64,7 @@ are not used here. Keep the existing chevron/vi-mode semantics and palette.
 Geometry's asynchronous renderer and extra information on empty Enter would
 require new shell behavior and are not part of this refinement.
 
-## Prompt and vi lifecycle
+## Prompt and Vi Lifecycle
 
 `lib/30-prompt.zsh` and `lib/40-vi-mode.zsh` share Zsh's native
 `add-zle-hook-widget` dispatcher. Existing line-init, line-finish and keymap
@@ -127,9 +127,9 @@ counting headers in the screen and scrollback with `kitten @ get-text`.
 Run the integration test explicitly, or through the full Zsh suite:
 
 ```sh
-python3 home/shells/zsh/config/tests/python/test-prompt-resize.py
-PYTHONDONTWRITEBYTECODE=1 python3 home/shells/zsh/config/tests/python/test-prompt-context.py
-PYTHONDONTWRITEBYTECODE=1 python3 home/shells/zsh/config/tests/python/test-zle-lifecycle.py
+python3 home/shells/zsh/config/tests/integration/core/test-prompt-resize.py
+PYTHONDONTWRITEBYTECODE=1 python3 home/shells/zsh/config/tests/integration/core/test-prompt-context.py
+PYTHONDONTWRITEBYTECODE=1 python3 home/shells/zsh/config/tests/integration/core/test-zle-lifecycle.py
 zsh home/shells/zsh/config/tests/run-all.zsh --full
 ```
 
@@ -142,7 +142,7 @@ stress run adds a shrink to 35 columns, narrower than the fixture's line, and
 is expected to fail at exactly that step (everything after it still passes):
 
 ```sh
-ZSH_PROMPT_RESIZE_STRESS=1 python3 home/shells/zsh/config/tests/python/test-prompt-resize.py
+ZSH_PROMPT_RESIZE_STRESS=1 python3 home/shells/zsh/config/tests/integration/core/test-prompt-resize.py
 ```
 
 ## Performance

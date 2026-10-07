@@ -14,29 +14,41 @@ umask 077
 zmodload -i zsh/datetime 2>/dev/null || true
 
 typeset verify_mode="quick"
-case "${1:-}" in
-  ""|--quick)
-    ;;
-  --full)
-    verify_mode="full"
-    ;;
-  -h|--help)
-    print -r -- "Usage: tests/run-all.zsh [--quick|--full]"
-    print -r -- ""
-    print -r -- "  --quick  Check shell syntax, shdoc, catalog, and Zsh tests."
-    print -r -- "  --full   Also run Python suites and a fast-start smoke test."
-    exit 0
-    ;;
-  *)
-    print -u2 "run-all: unknown option: $1"
-    print -u2 "Usage: tests/run-all.zsh [--quick|--full]"
-    exit 2
-    ;;
-esac
-(( $# <= 1 )) || {
-  print -u2 "Usage: tests/run-all.zsh [--quick|--full]"
-  exit 2
-}
+typeset verify_category=""
+while (( $# > 0 )); do
+  case "$1" in
+    --quick)
+      ;;
+    --full)
+      verify_mode="full"
+      ;;
+    --category)
+      shift
+      verify_category="${1:-}"
+      [[ -n "$verify_category" ]] || {
+        print -u2 "run-all: --category requires an argument"
+        exit 2
+      }
+      ;;
+    --category=*)
+      verify_category="${1#--category=}"
+      ;;
+    -h|--help)
+      print -r -- "Usage: tests/run-all.zsh [--quick|--full] [--category <category>]"
+      print -r -- ""
+      print -r -- "  --quick               Check shell syntax, shdoc, catalog, and Zsh tests."
+      print -r -- "  --full                Also run Python suites and a fast-start smoke test."
+      print -r -- "  --category <category> Only run Zsh tests in the specified category."
+      exit 0
+      ;;
+    *)
+      print -u2 "run-all: unknown option: $1"
+      print -u2 "Usage: tests/run-all.zsh [--quick|--full] [--category <category>]"
+      exit 2
+      ;;
+  esac
+  shift
+done
 
 typeset verify_config_dir="${0:A:h:h}"
 typeset verify_zsh_root="${verify_config_dir:h}"
@@ -190,12 +202,25 @@ _verify_catalog() {
 # -----------------------------------------------------------------------------
 # _verify_zsh_tests
 # @internal
-# @description Runs every test-*.zsh regression script.
-# @noargs
+# @description Runs regression tests across categories (or a chosen category).
+# @arg $1 string Optional category name to restrict execution.
 # -----------------------------------------------------------------------------
 _verify_zsh_tests() {
   emulate -L zsh
-  local -a tests=("$verify_config_dir"/tests/test-*.zsh(N.))
+  setopt extendedglob
+  local category="${1:-}"
+  local -a tests
+
+  if [[ -n "$category" ]]; then
+    tests=("$verify_config_dir"/tests/"$category"/test-*.zsh(N.))
+    (( ${#tests[@]} )) || {
+      print -u2 "run-all: no tests found for category: $category"
+      return 1
+    }
+  else
+    tests=("$verify_config_dir"/tests/**/test-*.zsh(N.))
+  fi
+
   local test_file
   (( ${#tests[@]} )) || return 1
   for test_file in "${(o)tests[@]}"; do
@@ -207,31 +232,37 @@ _verify_zsh_tests() {
 # _verify_python_tests
 # @internal
 # @description Runs every maintained Python unittest suite.
-# @noargs
+# @arg $1 string Optional category name to restrict execution.
 # -----------------------------------------------------------------------------
 _verify_python_tests() {
   emulate -L zsh
+  local category="${1:-}"
   (( $+commands[python3] )) || {
     print -u2 "python3 is required for the full verification suite."
     return 1
   }
 
-  local -a suites=(
-    "$verify_config_dir/scripts/security/python/tests"
-    "$verify_config_dir/scripts/python/tests"
-    "$verify_config_dir/scripts/vscode/python/tests"
-  )
-  local suite
-  for suite in "${suites[@]}"; do
-    command env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
-      -s "$suite" -p 'test_*.py' -q || return 1
-  done
-  command env PYTHONDONTWRITEBYTECODE=1 python3 \
-    "$verify_config_dir/tests/python/test-brew-refresh.py" || return 1
-  command env PYTHONDONTWRITEBYTECODE=1 python3 \
-    "$verify_config_dir/tests/python/test-prompt-context.py" || return 1
-  command env PYTHONDONTWRITEBYTECODE=1 python3 \
-    "$verify_config_dir/tests/python/test-zle-lifecycle.py" || return 1
+  if [[ -z "$category" || "$category" == "tools" || "$category" == "integration" ]]; then
+    local -a suites=(
+      "$verify_config_dir/scripts/security/python/tests"
+      "$verify_config_dir/scripts/python/tests"
+      "$verify_config_dir/scripts/vscode/python/tests"
+    )
+    local suite
+    for suite in "${suites[@]}"; do
+      command env PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
+        -s "$suite" -p 'test_*.py' -q || return 1
+    done
+    command env PYTHONDONTWRITEBYTECODE=1 python3 \
+      "$verify_config_dir/tests/integration/tools/test-brew-refresh.py" || return 1
+  fi
+
+  if [[ -z "$category" || "$category" == "core" || "$category" == "integration" ]]; then
+    command env PYTHONDONTWRITEBYTECODE=1 python3 \
+      "$verify_config_dir/tests/integration/core/test-prompt-context.py" || return 1
+    command env PYTHONDONTWRITEBYTECODE=1 python3 \
+      "$verify_config_dir/tests/integration/core/test-zle-lifecycle.py" || return 1
+  fi
 }
 
 # -----------------------------------------------------------------------------
@@ -265,24 +296,33 @@ _verify_fast_start() {
 # @noargs
 # -----------------------------------------------------------------------------
 _verify_prompt_resize() {
-  command python3 "$verify_config_dir/tests/python/test-prompt-resize.py"
+  command python3 "$verify_config_dir/tests/integration/core/test-prompt-resize.py"
 }
 
 _zsh_ui_heading \
   "Zsh verification" \
-  "${(U)verify_mode} suite · read-only repository checks"
+  "${(U)verify_mode} suite${verify_category:+ · category: $verify_category} · read-only repository checks"
 print -r -- ""
 
 _verify_step "Dependency contract" _verify_dependencies
 _verify_step "Shell syntax" _verify_shell_syntax
 _verify_step "Shdoc metadata" _verify_shdoc
 _verify_step "Function catalog" _verify_catalog
-_verify_step "Zsh regressions" _verify_zsh_tests
 
-if [[ "$verify_mode" == full ]]; then
-  _verify_step "Python regressions" _verify_python_tests
-  _verify_step "Prompt resize integration" _verify_prompt_resize
-  _verify_step "Fast-start smoke test" _verify_fast_start
+if [[ "$verify_category" != "integration" ]]; then
+  _verify_step "Zsh regressions${verify_category:+ ($verify_category)}" _verify_zsh_tests "$verify_category"
+fi
+
+if [[ "$verify_mode" == full || "$verify_category" == "integration" ]]; then
+  if [[ -z "$verify_category" || "$verify_category" == "core" || "$verify_category" == "tools" || "$verify_category" == "integration" ]]; then
+    _verify_step "Python regressions" _verify_python_tests "$verify_category"
+  fi
+  if [[ -z "$verify_category" || "$verify_category" == "core" || "$verify_category" == "integration" ]]; then
+    _verify_step "Prompt resize integration" _verify_prompt_resize
+  fi
+  if [[ -z "$verify_category" || "$verify_category" == "core" ]]; then
+    _verify_step "Fast-start smoke test" _verify_fast_start
+  fi
 fi
 
 print -r -- ""

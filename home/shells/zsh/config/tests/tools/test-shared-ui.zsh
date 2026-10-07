@@ -15,7 +15,7 @@ emulate -L zsh
 setopt err_return pipefail
 umask 077
 
-typeset test_root="${0:A:h:h}"
+typeset test_root="${0:A:h:h:h}"
 source "$test_root/tests/helpers.zsh" || return 1
 typeset fixture_root
 fixture_root="$(_zsh_test_temp_dir shared-ui)" || return 1
@@ -348,4 +348,4 @@ fi
 print -r -- "PASS: shared UI modes, native rendering, and safe fallback"
 
 # ============================================================================ #
-# End of tests/test-shared-ui.zsh
+# End of tests/tools/test-shared-ui.zsh

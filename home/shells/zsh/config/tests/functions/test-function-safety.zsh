@@ -12,7 +12,7 @@ emulate -L zsh
 setopt err_return pipefail extendedglob
 umask 077
 
-typeset test_root="${0:A:h:h}"
+typeset test_root="${0:A:h:h:h}"
 source "$test_root/tests/helpers.zsh" || return 1
 typeset fixture_root
 fixture_root="$(_zsh_test_temp_dir function-safety)" || return 1
@@ -127,4 +127,4 @@ fi
 print -r -- "PASS: public helpers validate inputs and protect local state"
 
 # ============================================================================ #
-# End of tests/test-function-safety.zsh
+# End of tests/functions/test-function-safety.zsh

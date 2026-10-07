@@ -12,8 +12,10 @@
 emulate -L zsh
 setopt err_return pipefail
 
-typeset test_root="${0:A:h:h}"
+typeset test_root="${0:A:h:h:h}"
 typeset darwin_rebuild="/run/current-system/sw/bin/darwin-rebuild"
+# Non-login runners need not export USER; qualify the actual account's profile.
+typeset test_user="${USER:-$(command id -un)}"
 
 if [[ "$OSTYPE" != darwin* || ! -x "$darwin_rebuild" ]]; then
   print -r -- "PASS: nix-darwin PATH policy is not applicable on this host"
@@ -23,7 +25,7 @@ fi
 typeset probe
 probe="$(command env -i \
   HOME="$HOME" \
-  USER="$USER" \
+  USER="$test_user" \
   TERM="${TERM:-dumb}" \
   PATH="/usr/bin:/bin" \
   ZSH_CONFIG_DIR="$test_root" \
@@ -71,8 +73,8 @@ trap 'return 130' INT TERM HUP
 
 command env -i \
   HOME="$HOME" \
-  USER="$USER" \
-  PATH="/opt/homebrew/opt/llvm/bin:/opt/homebrew/opt/ccache/libexec:/opt/homebrew/bin:/usr/bin:/bin:/etc/profiles/per-user/$USER/bin" \
+  USER="$test_user" \
+  PATH="/opt/homebrew/opt/llvm/bin:/opt/homebrew/opt/ccache/libexec:/opt/homebrew/bin:/usr/bin:/bin:/etc/profiles/per-user/$test_user/bin" \
   PLATFORM=macOS \
   XDG_CACHE_HOME="$fixture_root/cache" \
   ZSH_CONFIG_DIR="$test_root" \
@@ -98,4 +100,4 @@ print -r -- \
   "PASS: non-interactive Nix availability and interactive Nix precedence"
 
 # ============================================================================ #
-# End of test-nix-path.zsh
+# End of tests/runtime/test-nix-path.zsh

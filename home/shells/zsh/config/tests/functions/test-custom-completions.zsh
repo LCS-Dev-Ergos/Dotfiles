@@ -15,7 +15,7 @@ emulate -L zsh
 setopt err_return pipefail
 umask 077
 
-typeset test_root="${0:A:h:h}"
+typeset test_root="${0:A:h:h:h}"
 source "$test_root/tests/helpers.zsh" || return 1
 typeset fixture_root
 fixture_root="$(_zsh_test_temp_dir completions)" || return 1
@@ -237,4 +237,4 @@ print -r -- \
   "PASS: generated completions, secure cache, and native preservation"
 
 # ============================================================================ #
-# End of tests/test-custom-completions.zsh
+# End of tests/functions/test-custom-completions.zsh

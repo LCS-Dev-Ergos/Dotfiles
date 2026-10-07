@@ -12,7 +12,7 @@ emulate -L zsh
 setopt err_return pipefail
 umask 077
 
-typeset test_root="${0:A:h:h}"
+typeset test_root="${0:A:h:h:h}"
 source "$test_root/tests/helpers.zsh" || return 1
 typeset fixture_root
 fixture_root="$(_zsh_test_temp_dir hyde-retirement)" || return 1
@@ -93,4 +93,4 @@ command env -i HOME="$fixture_root" PATH="$PATH" ZSH_CONFIG_DIR="$test_root" \
 print -r -- 'PASS: retired HyDE files/flags cannot override shared shell startup'
 
 # ============================================================================ #
-# End of tests/test-hyde-retirement.zsh
+# End of tests/core/test-hyde-retirement.zsh

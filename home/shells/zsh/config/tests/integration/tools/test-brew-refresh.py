@@ -21,7 +21,7 @@ from pathlib import Path
 module = (
     Path(sys.argv[1])
     if len(sys.argv) > 1
-    else Path(__file__).resolve().parents[2] / "functions/package-management.zsh"
+    else Path(__file__).resolve().parents[3] / "functions/package-management.zsh"
 )
 
 # --------------------------- Executable Fixtures ---------------------------- #

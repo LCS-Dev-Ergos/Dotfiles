@@ -15,7 +15,7 @@ emulate -L zsh
 setopt pipefail
 umask 077
 
-typeset test_root="${0:A:h:h}"
+typeset test_root="${0:A:h:h:h}"
 source "$test_root/tests/helpers.zsh" || return 1
 typeset fixture_root
 fixture_root="$(_zsh_test_temp_dir fabric)" || return 1
@@ -200,4 +200,4 @@ source "$test_root/lib/70-ai-tools.zsh"
 print -r -- "PASS: Fabric namespace, discovery, and atomic notes"
 
 # ============================================================================ #
-# End of tests/test-fabric-tools.zsh
+# End of tests/tools/test-fabric-tools.zsh

@@ -14,7 +14,7 @@ emulate -L zsh
 setopt err_return pipefail extendedglob
 umask 077
 
-typeset test_root="${0:A:h:h}"
+typeset test_root="${0:A:h:h:h}"
 source "$test_root/tests/helpers.zsh" || return 1
 typeset fixture_root
 fixture_root="$(_zsh_test_temp_dir brew-stats)" || return 1
@@ -375,4 +375,4 @@ print -r -- \
   "PASS: brew_stats enforces safe snapshots, exact errors, and batch sizing"
 
 # ============================================================================ #
-# End of tests/test-brew-stats.zsh
+# End of tests/tools/test-brew-stats.zsh

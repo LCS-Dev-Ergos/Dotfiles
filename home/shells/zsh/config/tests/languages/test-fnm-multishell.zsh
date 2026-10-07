@@ -14,7 +14,7 @@ emulate -L zsh
 setopt err_return pipefail
 umask 077
 
-typeset test_root="${0:A:h:h}"
+typeset test_root="${0:A:h:h:h}"
 source "$test_root/tests/helpers.zsh" || return 1
 typeset fixture_root
 fixture_root="$(_zsh_test_temp_dir fnm)" || return 1
@@ -209,4 +209,4 @@ XDG_RUNTIME_DIR="$fixture_root/run" _fnm_multishell_dir
 print -r -- "PASS: per-shell fnm links, exit release, and stale-link reaping"
 
 # ============================================================================ #
-# End of tests/test-fnm-multishell.zsh
+# End of tests/languages/test-fnm-multishell.zsh

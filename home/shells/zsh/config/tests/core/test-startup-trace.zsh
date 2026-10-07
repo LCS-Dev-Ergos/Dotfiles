@@ -13,7 +13,7 @@ emulate -L zsh
 setopt err_return pipefail
 umask 077
 
-typeset test_root="${0:A:h:h}"
+typeset test_root="${0:A:h:h:h}"
 typeset zsh_root="${test_root:h}"
 source "$test_root/tests/helpers.zsh" || return 1
 typeset fixture_root
@@ -118,4 +118,4 @@ print -r -- \
   "PASS: secure startup trace, ordered milestones, and early zprof"
 
 # ============================================================================ #
-# End of tests/test-startup-trace.zsh
+# End of tests/core/test-startup-trace.zsh

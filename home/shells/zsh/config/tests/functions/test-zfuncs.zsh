@@ -14,7 +14,7 @@ emulate -L zsh
 setopt err_return pipefail
 umask 077
 
-typeset test_root="${0:A:h:h}"
+typeset test_root="${0:A:h:h:h}"
 source "$test_root/tests/helpers.zsh" || return 1
 typeset fixture_root
 fixture_root="$(_zsh_test_temp_dir zfuncs)" || return 1
@@ -264,4 +264,4 @@ fi
 print -r -- "PASS: zfuncs catalog, cache, info, and validation"
 
 # ============================================================================ #
-# End of tests/test-zfuncs.zsh
+# End of tests/functions/test-zfuncs.zsh

@@ -11,7 +11,7 @@
 emulate -L zsh
 setopt err_return pipefail
 
-typeset test_root="${0:A:h:h}"
+typeset test_root="${0:A:h:h:h}"
 
 alias reload='source ~/.zshrc'
 source "$test_root/functions/core.zsh"
@@ -52,4 +52,4 @@ source_status="$(
 print -r -- "PASS: clean reload function and successful .zshrc status"
 
 # ============================================================================ #
-# End of tests/test-reload.zsh
+# End of tests/core/test-reload.zsh

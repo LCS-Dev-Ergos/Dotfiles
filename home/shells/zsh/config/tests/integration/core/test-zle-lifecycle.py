@@ -11,7 +11,7 @@ import time
 import unittest
 from pathlib import Path
 
-CONFIG = Path(__file__).resolve().parents[2]
+CONFIG = Path(__file__).resolve().parents[3]
 
 # ----------------------------- ZLE Integration ------------------------------ #
 

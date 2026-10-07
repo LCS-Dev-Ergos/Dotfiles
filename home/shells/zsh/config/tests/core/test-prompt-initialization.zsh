@@ -12,7 +12,7 @@
 setopt errexit nounset pipefail
 umask 077
 
-typeset test_root="${0:A:h:h}"
+typeset test_root="${0:A:h:h:h}"
 source "$test_root/tests/helpers.zsh" || return 1
 typeset fixture_root
 fixture_root="$(_zsh_test_temp_dir prompt-init)" || return 1
@@ -135,4 +135,4 @@ fi
 print "PASS: deferred prompt init, executable-bound cache, trap and hook isolation"
 
 # ============================================================================ #
-# End of tests/test-prompt-initialization.zsh
+# End of tests/core/test-prompt-initialization.zsh

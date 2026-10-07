@@ -14,7 +14,7 @@ emulate -L zsh
 setopt err_return pipefail
 umask 077
 
-typeset test_root="${0:A:h:h}"
+typeset test_root="${0:A:h:h:h}"
 source "$test_root/tests/helpers.zsh" || return 1
 typeset fixture_root
 fixture_root="$(_zsh_test_temp_dir dev-doctor)" || return 1
@@ -521,9 +521,10 @@ DEVDOCTOR_REGISTRY="$bad_group_registry" devdoctor >/dev/null 2>&1 || bad_group_
   _dd_fail "an unknown group must be refused, got $bad_group_status"
 
 # The styled report draws the title bar, one heading per group and a marker
-# per row, all inside the terminal width.
+# per row, all inside the terminal width. This case explicitly opts into color;
+# inherited NO_COLOR must not silently turn it into another plain-output test.
 typeset styled_output
-styled_output="$(COLUMNS=72 ZSH_UI_STYLE=ansi \
+styled_output="$(NO_COLOR= COLUMNS=72 ZSH_UI_STYLE=ansi \
   DEVDOCTOR_REGISTRY="$group_registry" devdoctor 2>&1)" || true
 [[ "$styled_output" == *'╭'*'DEVDOCTOR'*'Development Environment'*'╯'* &&
    "$styled_output" == *'Platform'*'─'*'Scripting'*'Other'* &&
@@ -540,4 +541,4 @@ rehash
 print -r -- "PASS: manager states, PATH conflicts, update signals, and timeouts"
 
 # ============================================================================ #
-# End of tests/test-dev-doctor.zsh
+# End of tests/tools/test-dev-doctor.zsh

@@ -1,17 +1,17 @@
-# ZSH Function Authoring Policy
+# Zsh Function Authoring Policy
 
 Custom functions should be small shell interfaces with explicit output and
 state contracts. Their adjacent Shdoc metadata remains the source of truth for
 `zfuncs`, completions, and validation.
 
-## Naming and visibility
+## Naming and Visibility
 
 - Use `snake_case` for function names and `kebab-case` for shell filenames.
 - Prefix implementation helpers with `_` and document them with `@internal`.
 - Register only commands that are meaningful and available to users. Startup
   helpers and conditionally defined implementations are never public commands.
 
-## Function structure
+## Function Structure
 
 Public functions should normally begin with `emulate -L zsh` and enable only
 the local options they require. Validate arguments before changing state, quote
@@ -35,7 +35,7 @@ example_command() {
 }
 ```
 
-## Output contract
+## Output Contract
 
 Choose the output class before choosing its presentation:
 

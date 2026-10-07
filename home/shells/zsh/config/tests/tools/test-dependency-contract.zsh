@@ -14,12 +14,12 @@ emulate -L zsh
 setopt errexit nounset pipefail
 umask 077
 
-typeset test_dir="${0:A:h}"
-typeset config_dir="${test_dir:h}"
+typeset tests_dir="${0:A:h:h}"
+typeset config_dir="${tests_dir:h}"
 typeset checker="$config_dir/scripts/check-zsh-dependencies.zsh"
 typeset fixture_root=""
 
-source "$test_dir/helpers.zsh" || return 1
+source "$tests_dir/helpers.zsh" || return 1
 fixture_root="$(_zsh_test_temp_dir dependencies)" || return 1
 trap '
   command rm -rf -- "$fixture_root"
@@ -111,4 +111,4 @@ fi
 print -r -- "PASS: dependency scopes, drift detection, and manifest sync"
 
 # ============================================================================ #
-# End of tests/test-dependency-contract.zsh
+# End of tests/tools/test-dependency-contract.zsh
