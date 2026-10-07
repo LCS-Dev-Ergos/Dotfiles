@@ -37,12 +37,12 @@ flowchart TD
     Baseline["runtime-baseline.nix + native-managers.nix"] --> Validation["platforms.nix + validate.nix"]
     Validation --> Package
     Assets["assets.nix + policy.nix"] --> Package
-    Package --> CLI["bootstrap.py → cli.py → engine.Bootstrap"]
+    Package --> CLI["bootstrap.py → core.cli → engine.Bootstrap"]
     CLI -->|plan| Inspect["Read filesystem state"]
     CLI -->|verify / verify --health| Verify["Direct runtime checks and canaries"]
     CLI -->|apply| Guard["Owning user, directory checks, exclusive lock"]
-    Guard --> Setup["setup.py: prerequisites and readiness"]
-    Setup --> Adapters["seed.py / ocaml.py / native_toolchains.py"]
+    Guard --> Setup["setup: prerequisites and readiness"]
+    Setup --> Adapters["One adapter per ecosystem (core/adapters)"]
     Adapters --> Defaults["Initialize absent selections; repair hooks"]
     Defaults --> Shell["Qualify selected runtimes and production shell adapters"]
     Shell --> Native["Native manager-owned runtime state"]
@@ -52,13 +52,14 @@ flowchart TD
 | Component | Responsibility |
 | --- | --- |
 | `package.nix`, `assets.nix`, `policy.nix` | Compose the manifest, retain initial inputs, package the executor and run fixture checks. |
-| `bootstrap.py`, `cli.py` | Stable executable entry, argument parsing, reporting and process exit status. |
-| `manifest.py`, `support.py` | Validate runtime identities; provide checked process execution, JSON state reads and writable-directory rules. |
-| `engine.py` | Inspect runtimes, serialize mutation and dispatch installation/verification. |
-| `setup.py` | Coordinate native prerequisites, readiness, absence-only defaults, hooks and shell qualification. |
-| `seed.py` | Seed Node through FNM from a checked loopback archive and build Python through the pinned python-build helper. |
-| `ocaml.py`, `retention.py` | Create switches from retained repository inputs, checkpoint handover and protect registered sources from Nix GC. |
-| `native_toolchains.py` | Integrate rustup, GHCup, elan, rbenv, SDKMAN and juliaup through native interfaces. |
+| `bootstrap.py`, `core/cli.py` | Stable executable entry, argument parsing, reporting and process exit status. |
+| `core/manifest.py` | Validate the generated manifest; each toolchain adapter validates its own declaration. |
+| `core/process.py`, `paths.py`, `errors.py` | The single process boundary with scoped child environments; writable roots and owned directories; operational errors. |
+| `core/engine.py` | Select adapters, inspect and verify runtimes, serialize mutation and dispatch installation. |
+| `core/setup.py` | Run the setup stages over the selected adapters: prerequisites, readiness, defaults, hooks, selection reports and shell qualification. |
+| `core/adapters/base.py` | The adapter contract and the behavior every ecosystem shares: planning, manager resolution, verification and selection reports. |
+| `adapters/node.py`, `python.py`, `ocaml.py` | Seed Node through FNM from a checked loopback archive, build CPython with the pinned python-build, create opam switches from the retained repository with checkpointed handover and GC roots. |
+| `adapters/toolchain.py` and one module per manager | rustup, GHCup, elan, rbenv, SDKMAN and juliaup: hashed installer acquisition, native installation, absence-only defaults and direct canaries. |
 
 From the repository root:
 
@@ -94,8 +95,8 @@ locking, prerequisite checks, additive installation, absence-only defaults,
 health checks and shell qualification. Source builds and network installation
 remain outside activation and shell startup.
 
-`engine.Bootstrap.manager(language)` is the shared native-manager resolver for
-setup, runtime installation and shell expectations. Existing supported pyenv
+Each adapter's `manager()` is the single native-manager resolver for setup,
+runtime installation and shell expectations. Existing supported pyenv
 checkouts take precedence over host packages, matching production Zsh. FNM's
 local exposure must agree with its canonical executable; readiness rejects a
 conflicting link. Do not independently discover the same manager through PATH
@@ -132,11 +133,13 @@ manual manager operations. Avoid running upgrades concurrently with bootstrap.
 
 ## Extending an Ecosystem
 
-Introduce one bounded integration at a time. Start with a small declaration
-and a concrete adapter; extract shared code when another adapter has the
-same behavior. The current executor does not provide a general plugin API.
-A class hierarchy or command-template interpreter is unnecessary until
-actual implementations demonstrate a stable common interface.
+Introduce one bounded integration at a time. An ecosystem is one subclass of
+`adapters.base.Adapter`, registered in `adapters/__init__.py`; the engine and
+setup stages call only that interface and never branch on a language. A
+manager that installs exact toolchains into its own root extends
+`ToolchainAdapter` and supplies data and small hooks: roots, binary paths,
+install and default arguments, and a canary. Additional components of an
+existing ecosystem (Cabal beside GHC) stay inside that ecosystem's adapter.
 
 Each integration must identify:
 
@@ -158,7 +161,7 @@ Each integration must identify:
    qualify a runtime or manager upgrade.
 
 Rust, Haskell, Lean, Ruby, JVM and Julia are implemented in
-`native_toolchains.py` and selected with the corresponding `--only` value.
+`core/adapters/` and selected with the corresponding `--only` value.
 Their initial versions are declared in `runtime-baseline.nix`. The six
 integrations use native manager installation interfaces instead of duplicating
 their download/extraction logic. Existing runtime health and fixture checks do

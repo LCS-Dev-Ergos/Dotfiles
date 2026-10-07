@@ -1,4 +1,4 @@
-"""Install retained Node/Python seeds through native managers."""
+"""Node through FNM, seeded from Nix-retained archives over loopback."""
 
 import hashlib
 import http.server
@@ -9,12 +9,100 @@ import tempfile
 import threading
 from contextlib import contextmanager
 from pathlib import Path
-from support import BootstrapError, run, writable_directory
+
+from .. import process
+from ..errors import BootstrapError
+from ..paths import writable_directory
+from .base import Adapter
+
+# fnm records `fnm default system` as a link to this placeholder.
+FNM_SYSTEM_TARGET = "/dev/null/installation"
 
 
-class SeedRuntimes:
-    def __init__(self, context):
-        self.context = context
+class NodeAdapter(Adapter):
+    language = "node"
+    manager_name = "fnm"
+    runtime_directory = "node-versions"
+
+    def resolve_roots(self):
+        data = os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share"
+        return {"FNM_DIR": self.locate("FNM_DIR", Path(data) / "fnm")}
+
+    def manager_candidates(self):
+        """The canonical command, then FNM's local single-command exposure."""
+        if not self.recipe:
+            return None
+        directory = Path(self.recipe["managerDirectory"])
+        return [directory / self.recipe["managers"]["node"], self.root / "fnm"]
+
+    def readiness(self):
+        self.check_manager_release()
+        writable_directory(self.root)
+        link = self.root / "fnm"
+        native = self.manager()
+        # Existing shell adapters prioritize this single-command directory
+        # when native readiness is enabled, without promoting all Homebrew.
+        if os.path.lexists(link):
+            if link.resolve() != native.resolve():
+                raise BootstrapError(
+                    f"Conflicting native FNM exposure: {link}"
+                )
+        else:
+            link.symlink_to(native)
+
+    def baseline(self):
+        return [
+            self.row(
+                release["version"],
+                self.root
+                / "node-versions"
+                / f"v{release['version']}"
+                / "installation/bin/node",
+            )
+            for release in self.context.data["node"]
+        ]
+
+    def prefix(self, row):
+        return Path(row["path"]).parents[2]
+
+    def identity(self, row, path):
+        return process.run([str(path), "--version"]).removeprefix("v")
+
+    def canary(self, row, path, *, complete):
+        process.run([str(path), "-e", "if (1 + 1 !== 2) process.exit(1)"])
+
+    def selection(self):
+        alias = self.root / "aliases/default"
+        return os.readlink(alias) if alias.is_symlink() else None
+
+    def selected_runtime(self):
+        alias = self.root / "aliases/default"
+        if not alias.is_symlink():
+            raise BootstrapError("No valid FNM default alias")
+        if os.readlink(alias) == FNM_SYSTEM_TARGET:
+            return None
+        executable = alias.resolve() / "bin/node"
+        if not executable.is_relative_to(self.root):
+            raise BootstrapError("FNM default escapes its runtime root")
+        return executable
+
+    def initialize_default(self):
+        if os.path.lexists(self.root / "aliases/default"):
+            return
+        process.run(
+            [
+                str(self.manager()),
+                *self.context.arguments(
+                    "nodeDefault",
+                    root=str(self.root),
+                    version=self.context.data["defaults"]["node"],
+                ),
+            ],
+            env={},
+            cwd=str(self.context.state),
+        )
+
+    # Installation from the retained archive ----------------------------------
 
     def artifact(self, release):
         """Validate the Nix-fetched archive before any manager mutation."""
@@ -31,7 +119,7 @@ class SeedRuntimes:
 
     @staticmethod
     @contextmanager
-    def node_mirror(release, archive):
+    def mirror(release, archive):
         """FNM's HTTP-only mirror consumes one immutable archive over loopback."""
         route = f"/v{release['version']}/{release['filename']}"
 
@@ -62,7 +150,7 @@ class SeedRuntimes:
             worker.join()
 
     @staticmethod
-    def verify_node_tree(archive, installation):
+    def verify_tree(archive, installation):
         """Compare FNM extraction with the locked archive before executing Node."""
         expected = set()
         with tarfile.open(archive) as tar:
@@ -117,23 +205,23 @@ class SeedRuntimes:
                 "Node extraction contains missing or additional files"
             )
 
-    def install_node(self, row):
+    def install(self, row):
         release = next(
             item
             for item in self.context.data["node"]
             if item["version"] == row["version"]
         )
         archive = self.artifact(release)
-        writable_directory(self.context.fnm)
-        writable_directory(self.context.fnm / "node-versions")
+        writable_directory(self.root)
+        writable_directory(self.root / "node-versions")
         with tempfile.TemporaryDirectory(
-            prefix=".devrestore-", dir=self.context.fnm
+            prefix=".devrestore-", dir=self.root
         ) as temporary:
             staged_root = Path(temporary)
-            with self.node_mirror(release, archive) as mirror:
-                run(
+            with self.mirror(release, archive) as mirror:
+                process.run(
                     [
-                        str(self.context.manager("node")),
+                        str(self.manager()),
                         *self.context.arguments(
                             "nodeInstall",
                             staging=temporary,
@@ -150,70 +238,12 @@ class SeedRuntimes:
                     cwd=temporary,
                 )
             staged = staged_root / "node-versions" / f"v{row['version']}"
-            self.verify_node_tree(archive, staged / "installation")
-            self.context.verify_runtime(
-                dict(row, path=str(staged / "installation/bin/node"))
-            )
-            target = self.context.fnm / "node-versions" / staged.name
+            self.verify_tree(archive, staged / "installation")
+            self.verify(dict(row, path=str(staged / "installation/bin/node")))
+            target = self.root / "node-versions" / staged.name
             target.parent.mkdir(mode=0o700, exist_ok=True)
             if os.path.lexists(target):
                 raise BootstrapError(
                     "Node target appeared during installation; refusing overwrite"
                 )
             staged.rename(target)
-
-    def install_python(self, row):
-        builder = self.context.data["python"]["builder"]
-        expected = (
-            f"python-build {self.context.data['python']['pythonBuildVersion']}"
-        )
-        if run([builder, "--version"]) != expected:
-            raise BootstrapError(
-                f"Python recovery requires immutable {expected}"
-            )
-        source_cache = Path(self.context.data["python"]["sourceCache"])
-        for source in self.context.data["python"].get("sources", []):
-            with (source_cache / source["name"]).open("rb") as file:
-                if (
-                    hashlib.file_digest(file, "sha256").hexdigest()
-                    != source["sha256"]
-                ):
-                    raise BootstrapError(
-                        f"Python source checksum mismatch: {source['name']}"
-                    )
-        definition = Path(self.context.data["python"]["definition"])
-        target = self.context.pyenv / "versions" / row["version"]
-        if os.path.lexists(target):
-            raise BootstrapError("Python target appeared; refusing overwrite")
-        writable_directory(self.context.cache)
-        writable_directory(self.context.pyenv)
-        writable_directory(self.context.pyenv / "versions")
-        run(
-            [
-                builder,
-                *self.context.arguments(
-                    "pythonBuild",
-                    definition=str(definition),
-                    target=str(target),
-                ),
-            ],
-            env={
-                **self.context.data.get("setup", {}).get(
-                    "buildEnvironment", {}
-                ),
-                "PYENV_ROOT": str(self.context.pyenv),
-                "PYTHON_BUILD_CACHE_PATH": self.context.data["python"][
-                    "sourceCache"
-                ],
-            },
-            source_build=True,
-            timeout=self.context.data["policy"]["timeouts"]["python"],
-            cwd=str(self.context.cache),
-        )
-        run(
-            [
-                str(self.context.manager("python")),
-                *self.context.arguments("pythonRehash"),
-            ],
-            env={"PYENV_ROOT": str(self.context.pyenv)},
-        )

@@ -2,8 +2,9 @@
 
 import json
 import re
-from support import BootstrapError
-from native_toolchains import validate as validate_native
+
+from .adapters import TOOLCHAINS
+from .errors import BootstrapError
 
 
 def version(value):
@@ -24,6 +25,20 @@ def load_manifest(path):
     except (KeyError, TypeError, AttributeError, ValueError) as error:
         raise BootstrapError(f"Invalid baseline {path}: {error}") from error
     return data
+
+
+def validate_toolchains(data):
+    for language, spec in data.get("nativeToolchains", {}).items():
+        if language not in TOOLCHAINS:
+            raise BootstrapError("Unsupported native toolchain")
+        TOOLCHAINS[language].validate_declaration(spec)
+    for spec in data.get("setup", {}).get("installers", {}).values():
+        if not spec["url"].startswith("https://") or not re.fullmatch(
+            r"[a-f0-9]{64}", spec["sha256"]
+        ):
+            raise BootstrapError(
+                "Native installers require HTTPS and an exact SHA256"
+            )
 
 
 def validate_manifest(data):
@@ -50,7 +65,7 @@ def validate_manifest(data):
         raise BootstrapError("Unsupported opam repository")
     if not re.fullmatch(r"[a-f0-9]{40}", data["ocaml"]["revision"]):
         raise BootstrapError("opam repository must use an immutable revision")
-    validate_native(data, BootstrapError)
+    validate_toolchains(data)
     declared = {
         "node": versions,
         "python": [data["python"]["version"]],

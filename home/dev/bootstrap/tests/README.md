@@ -10,9 +10,18 @@ automatic checks.
 | `unit/` | Manifest input validation and CLI diagnostics; frozen opam source retention, registration failures and ownership conflicts. |
 | `integration/` | Native toolchain filesystem transitions, setup orchestration, child environments and shell adapters. |
 | `bootstrap/` | Pre-Nix foundation entry, runtime CLI recovery and installed command aliases. |
-| `qualification/` | Explicit manual checks using native managers; excluded from automatic discovery. |
+| `qualification/` | Manual checks against real native managers in disposable roots; excluded from automatic discovery. |
 
-Run the manifest-free source checks from the repository root:
+`qualification/native-assets.zsh` installs the packaged Node archives and
+builds CPython with real FNM and pyenv. `qualification/native-opam.zsh` drives
+real opam through switch creation, interrupted handover, selection
+preservation, hook repair and an upstream update, with empty switches instead
+of compiler builds. They are the evidence that native managers accept the
+generated commands; fixtures cannot provide it. They need network access and
+minutes, so they stay outside the fast suites.
+
+Run the source checks from the repository root. Setup contracts evaluate the
+declared policy from `tests/manifest.nix` with Nix, without building assets:
 
 ```sh
 python3 -B home/dev/bootstrap/tests/run.py source
@@ -27,9 +36,11 @@ python3 -B home/dev/bootstrap/tests/run.py package --manifest /path/to/baseline.
 ```
 
 Either phase accepts `--category unit`, `--category integration` or
-`--category bootstrap`. Python cases use standard `unittest` discovery; setup
-cases report a skip without a manifest, and the pre-Nix entry reports a skip
-inside the isolated package source, where repository scripts are unavailable.
+`--category bootstrap`. Python cases use standard `unittest` discovery. The
+package phase passes the generated manifest; the source phase fails rather
+than skipping when Nix cannot evaluate the declaration. The pre-Nix entry
+reports a skip inside the isolated package source, where repository scripts
+are unavailable.
 The installed executable alias check runs separately during `installCheck`:
 
 ```sh

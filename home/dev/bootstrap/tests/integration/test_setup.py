@@ -13,21 +13,17 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-implementation = Path(__file__).resolve().parents[2]
-manifest = os.environ.get("DEVRESTORE_MANIFEST")
-if not manifest:
-    raise unittest.SkipTest("setup contracts require DEVRESTORE_MANIFEST")
-sys.path.insert(0, str(implementation))
-import cli  # noqa: E402
-import engine  # noqa: E402
-from engine import Bootstrap  # noqa: E402
-import ocaml  # noqa: E402
-import seed  # noqa: E402
-import support  # noqa: E402
-from setup import BootstrapSetup  # noqa: E402
-from support import BootstrapError, run, writable_directory  # noqa: E402
+from core import cli, process
+from core.adapters.node import FNM_SYSTEM_TARGET
+from core.adapters.ocaml import OcamlAdapter
+from core.adapters.python import PythonAdapter
+from core.engine import Bootstrap
+from core.errors import BootstrapError
+from core.paths import writable_directory
+from core.setup import BootstrapSetup
+from tests.declaration import declared_manifest
 
-declaration = json.loads(Path(manifest).read_text())
+implementation = Path(__file__).resolve().parents[2]
 
 
 class SetupTests(unittest.TestCase):
@@ -44,7 +40,7 @@ class SetupTests(unittest.TestCase):
         self.probe = None
         self.installed = set()
         self.provided = set()
-        self.data = copy.deepcopy(declaration)
+        self.data = copy.deepcopy(declared_manifest())
         self.data.update(backend="native", platform="aarch64-darwin")
         # Retention has isolated unit coverage. Packaged manifests must never
         # turn an orchestration fixture into a real Nix daemon operation.
@@ -91,19 +87,21 @@ class SetupTests(unittest.TestCase):
         )
         self.environment.start()
         self.addCleanup(self.environment.stop)
-        self.recovery = Bootstrap(self.data, ["node", "python", "ocaml"])
+        self.fnm = self.root / "fnm"
+        self.pyenv = self.root / "pyenv"
+        self.opam = self.root / "opam"
+        self.actual_run = process.run
+        mock = patch.object(process, "run", self.mock_run)
+        mock.start()
+        self.addCleanup(mock.stop)
+        self.scope(["node", "python", "ocaml"])
+
+    def scope(self, languages):
+        """Select adapters; their installers become filesystem fixtures."""
+        self.recovery = Bootstrap(self.data, languages)
         self.setup = BootstrapSetup(self.recovery)
-        self.actual_run = run
-        for module in [engine, seed, ocaml, support, sys.modules["setup"]]:
-            mock = patch.object(module, "run", self.mock_run)
-            mock.start()
-            self.addCleanup(mock.stop)
-        for target, operation in (
-            (self.recovery.seed, "install_node"),
-            (self.recovery.seed, "install_python"),
-            (self.recovery.ocaml, "install"),
-        ):
-            mock = patch.object(target, operation, self.install_runtime)
+        for adapter in self.recovery.adapters.values():
+            mock = patch.object(adapter, "install", self.install_runtime)
             mock.start()
             self.addCleanup(mock.stop)
 
@@ -119,7 +117,7 @@ class SetupTests(unittest.TestCase):
         self.versions[str(path)] = row["version"]
         if row["language"] == "ocaml":
             (path.parent.parent / ".opam-switch").mkdir()
-            config = self.recovery.opam / "config"
+            config = self.opam / "config"
             if not config.exists():
                 config.write_text("")
 
@@ -154,35 +152,28 @@ class SetupTests(unittest.TestCase):
         if name == "python-build":
             return "python-build 2.8.8"
         if name == "fnm" and "default" in args:
-            alias = self.recovery.fnm / "aliases/default"
+            alias = self.fnm / "aliases/default"
             alias.parent.mkdir(parents=True, exist_ok=True)
             target = (
-                self.recovery.fnm
-                / "node-versions"
-                / ("v" + args[-1])
-                / "installation"
+                self.fnm / "node-versions" / ("v" + args[-1]) / "installation"
             )
             alias.symlink_to(target)
             return ""
         if name == "pyenv" and args[1] == "global":
-            (self.recovery.pyenv / "version").write_text(args[2] + "\n")
+            (self.pyenv / "version").write_text(args[2] + "\n")
             return ""
         if name == "pyenv" and args[1] == "rehash":
-            self.assertEqual(
-                kwargs["env"]["PYENV_ROOT"], str(self.recovery.pyenv)
-            )
-            self.executable(self.recovery.pyenv / "shims/python")
+            self.assertEqual(kwargs["env"]["PYENV_ROOT"], str(self.pyenv))
+            self.executable(self.pyenv / "shims/python")
             return ""
         if name == "opam" and args[1:3] == ["switch", "set"]:
-            (self.recovery.opam / "config").write_text(
-                'switch: "' + args[3] + '"\n'
-            )
+            (self.opam / "config").write_text('switch: "' + args[3] + '"\n')
             return ""
         if name == "opam" and args[1] == "init":
             self.assertIn("--reinit", args)
             self.assertIn("--no-setup", args)
             self.assertIn("--enable-shell-hook", args)
-            self.executable(self.recovery.opam / "opam-init/env_hook.zsh")
+            self.executable(self.opam / "opam-init/env_hook.zsh")
             return ""
         if name == "zsh":
             self.assertEqual(args[1], "-fi")
@@ -193,12 +184,12 @@ class SetupTests(unittest.TestCase):
                 return "node\t/unexpected/node\tv26.10.0"
             # Independent fixture observations, not production health() output.
             paths = {
-                "node": self.recovery.fnm / "aliases/default/bin/node",
-                "python": self.recovery.pyenv
+                "node": self.fnm / "aliases/default/bin/node",
+                "python": self.pyenv
                 / "versions"
-                / (self.recovery.pyenv / "version").read_text().strip()
+                / (self.pyenv / "version").read_text().strip()
                 / "bin/python",
-                "ocaml": self.recovery.opam
+                "ocaml": self.opam
                 / self.recovery.observed_state()["globalSelections"]["ocaml"]
                 / "bin/ocamlc",
             }
@@ -222,9 +213,9 @@ class SetupTests(unittest.TestCase):
 
     def selection_files(self):
         return (
-            os.readlink(self.recovery.fnm / "aliases/default"),
-            (self.recovery.pyenv / "version").read_text(),
-            (self.recovery.opam / "config").read_text(),
+            os.readlink(self.fnm / "aliases/default"),
+            (self.pyenv / "version").read_text(),
+            (self.opam / "config").read_text(),
         )
 
     def cli(self, *arguments):
@@ -277,10 +268,10 @@ class SetupTests(unittest.TestCase):
 
     def test_evolved_runtime_and_defaults_are_preserved(self):
         self.setup.apply()
-        python = self.recovery.pyenv / "versions/next/bin/python"
+        python = self.pyenv / "versions/next/bin/python"
         self.executable(python)
         self.versions[str(python)] = "3.15.1"
-        (self.recovery.pyenv / "version").write_text("next\n")
+        (self.pyenv / "version").write_text("next\n")
         baseline = next(
             r for r in self.recovery.plan() if r["language"] == "python"
         )
@@ -291,28 +282,22 @@ class SetupTests(unittest.TestCase):
         self.events.clear()
         self.setup.apply()
         self.assertEqual(self.mutations(), [])
-        self.assertEqual(
-            (self.recovery.pyenv / "version").read_text(), "next\n"
-        )
+        self.assertEqual((self.pyenv / "version").read_text(), "next\n")
         self.assertEqual(project.read_text(), "project-specific\n")
         self.assertTrue(python.exists())
         healthy = next(
             r for r in self.setup.health() if r["language"] == "python"
         )
-        self.assertEqual(
-            self.recovery.verify_healthy_runtime(healthy), "3.15.1"
-        )
+        self.assertEqual(self.recovery.verify(healthy, exact=False), "3.15.1")
         with self.assertRaisesRegex(BootstrapError, "identity mismatch"):
-            self.recovery.verify_runtime(baseline)
+            self.recovery.verify(baseline)
 
     def test_older_selections_are_verified_without_a_floor(self):
         self.setup.apply()
         older = {"node": "22.11.0", "python": "3.13.5", "ocaml": "4.14.2"}
-        node = (
-            self.recovery.fnm / f"node-versions/v{older['node']}/installation"
-        )
-        python = self.recovery.pyenv / "versions" / older["python"]
-        switch = self.recovery.opam / "older-switch"
+        node = self.fnm / f"node-versions/v{older['node']}/installation"
+        python = self.pyenv / "versions" / older["python"]
+        switch = self.opam / "older-switch"
         for language, prefix, executable in (
             ("node", node, "bin/node"),
             ("python", python, "bin/python"),
@@ -320,11 +305,11 @@ class SetupTests(unittest.TestCase):
         ):
             self.executable(prefix / executable)
             self.versions[str(prefix / executable)] = older[language]
-        alias = self.recovery.fnm / "aliases/default"
+        alias = self.fnm / "aliases/default"
         alias.unlink()
         alias.symlink_to(node)
-        (self.recovery.pyenv / "version").write_text(older["python"] + "\n")
-        (self.recovery.opam / "config").write_text('switch: "older-switch"\n')
+        (self.pyenv / "version").write_text(older["python"] + "\n")
+        (self.opam / "config").write_text('switch: "older-switch"\n')
         before = self.selection_files()
         self.events.clear()
         selections = self.setup.apply()
@@ -338,10 +323,10 @@ class SetupTests(unittest.TestCase):
 
     def test_system_selections_are_external_and_do_not_block_apply(self):
         self.setup.apply()
-        alias = self.recovery.fnm / "aliases/default"
+        alias = self.fnm / "aliases/default"
         alias.unlink()
-        alias.symlink_to(support.FNM_SYSTEM_TARGET)
-        (self.recovery.pyenv / "version").write_text("system\n")
+        alias.symlink_to(FNM_SYSTEM_TARGET)
+        (self.pyenv / "version").write_text("system\n")
         before = self.selection_files()
         self.events.clear()
         selections = self.setup.apply()
@@ -362,7 +347,7 @@ class SetupTests(unittest.TestCase):
 
     def test_unavailable_selection_is_reported_without_failing_apply(self):
         self.setup.apply()
-        (self.recovery.pyenv / "version").write_text("removed\n")
+        (self.pyenv / "version").write_text("removed\n")
         code, report = self.cli("apply")
         self.assertEqual(code, 0)
         python = next(
@@ -371,9 +356,7 @@ class SetupTests(unittest.TestCase):
         self.assertEqual(python["state"], "blocked")
         self.assertIn("unavailable", python["reason"])
         self.assertEqual(self.probe, ["node", "ocaml"])
-        self.assertEqual(
-            (self.recovery.pyenv / "version").read_text(), "removed\n"
-        )
+        self.assertEqual((self.pyenv / "version").read_text(), "removed\n")
         code, _ = self.cli("verify", "--health")
         self.assertEqual(code, 1)
 
@@ -389,7 +372,7 @@ class SetupTests(unittest.TestCase):
 
     def test_unparseable_opam_selection_is_preserved(self):
         self.setup.apply()
-        config = self.recovery.opam / "config"
+        config = self.opam / "config"
         config.write_text("switch: malformed-selection\n")
         self.events.clear()
         with self.assertRaisesRegex(
@@ -401,7 +384,7 @@ class SetupTests(unittest.TestCase):
 
     def test_existing_python_prefix_recovers_missing_shim(self):
         self.setup.apply()
-        shim = self.recovery.pyenv / "shims/python"
+        shim = self.pyenv / "shims/python"
         shim.unlink(missing_ok=True)
         self.events.clear()
         self.setup.apply()
@@ -427,12 +410,8 @@ class SetupTests(unittest.TestCase):
                 self.assertEqual(self.mutations(), [])
 
     def test_partial_prefix_blocks_provisioning(self):
-        path = next(
-            p
-            for language, _, p in self.recovery.entries()
-            if language == "python"
-        )
-        path.parent.mkdir(parents=True)
+        row = self.recovery.adapter("python").baseline()[0]
+        Path(row["path"]).parent.mkdir(parents=True)
         with self.assertRaisesRegex(BootstrapError, "incomplete"):
             self.setup.apply()
         self.assertEqual(self.mutations(), [])
@@ -457,7 +436,7 @@ class SetupTests(unittest.TestCase):
         self.failure = lambda args: "install" in args
         with self.assertRaisesRegex(BootstrapError, "prerequisites"):
             self.setup.apply()
-        self.assertFalse(self.recovery.pyenv.exists())
+        self.assertFalse(self.pyenv.exists())
         self.failure = None
         self.setup.apply()
         self.assertTrue(
@@ -465,7 +444,7 @@ class SetupTests(unittest.TestCase):
         )
 
     def test_arch_accepts_installed_dependency_providers(self):
-        self.recovery.only = ["python"]
+        self.scope(["python"])
         self.data["setup"].update(
             packageManager=str(self.bin / "pacman"),
             query=["-Qq"],
@@ -482,10 +461,10 @@ class SetupTests(unittest.TestCase):
         self.assertFalse(any("-S" in event for event in self.events))
 
     def test_dependency_query_rejects_unrequested_packages(self):
-        self.recovery.only = ["python"]
+        self.scope(["python"])
         self.data["setup"]["missingQuery"] = ["-T"]
         with (
-            patch("setup.run", return_value="unexpected-package"),
+            patch.object(process, "run", return_value="unexpected-package"),
             self.assertRaisesRegex(
                 BootstrapError, "Unexpected native dependency"
             ),
@@ -498,7 +477,7 @@ class SetupTests(unittest.TestCase):
             result = subprocess.CompletedProcess([], code, "zlib\n", "")
             with (
                 self.subTest(code=code, accepted=accepted),
-                patch("support.subprocess.run", return_value=result),
+                patch("core.process.subprocess.run", return_value=result),
             ):
                 if code in accepted:
                     self.assertEqual(
@@ -527,8 +506,8 @@ class SetupTests(unittest.TestCase):
             calls.append((args, kwargs))
             return self.mock_run(args, **kwargs)
 
-        with patch("seed.run", record):
-            seed.SeedRuntimes.install_python(self.recovery.seed, row)
+        with patch.object(process, "run", record):
+            PythonAdapter.install(self.recovery.adapter("python"), row)
         # Execute the real OCaml install path. Only subprocesses and the
         # compiled-runtime canary are substituted; no duplicate opam simulator.
         repository = self.root / "repository"
@@ -536,8 +515,8 @@ class SetupTests(unittest.TestCase):
         (repository / "repo").touch()
         self.data["ocaml"]["source"] = str(repository)
         writable_directory(self.recovery.state)
-        writable_directory(self.recovery.opam)
-        (self.recovery.opam / "config").touch()
+        writable_directory(self.opam)
+        (self.opam / "config").touch()
         upstream = self.data["policy"]["upstreamName"]
 
         def opam_process(args, **kwargs):
@@ -546,10 +525,10 @@ class SetupTests(unittest.TestCase):
 
         row = next(r for r in self.recovery.plan() if r["language"] == "ocaml")
         with (
-            patch("ocaml.run", opam_process),
-            patch.object(self.recovery, "verify_runtime"),
+            patch.object(process, "run", opam_process),
+            patch.object(OcamlAdapter, "verify"),
         ):
-            ocaml.OcamlBootstrap.install(self.recovery.ocaml, row)
+            OcamlAdapter.install(self.recovery.adapter("ocaml"), row)
         builder = next(
             k
             for a, k in calls
@@ -619,9 +598,9 @@ class SetupTests(unittest.TestCase):
                     self.assertEqual(os.environ["CC"], "/project/foreign")
 
     def test_manager_routes_agree_with_runtime_execution(self):
-        self.recovery.only = ["python"]
-        writable_directory(self.recovery.pyenv)
-        checkout = self.recovery.pyenv / "bin/pyenv"
+        self.scope(["python"])
+        writable_directory(self.pyenv)
+        checkout = self.pyenv / "bin/pyenv"
         canonical = self.bin / "pyenv"
         for installed in ((canonical,), (checkout,), (canonical, checkout)):
             with self.subTest(installed=installed):
@@ -630,12 +609,12 @@ class SetupTests(unittest.TestCase):
                 for path in installed:
                     self.executable(path)
                 expected = checkout if checkout in installed else canonical
-                (self.recovery.pyenv / "version").unlink(missing_ok=True)
+                (self.pyenv / "version").unlink(missing_ok=True)
                 self.events.clear()
                 self.setup.readiness()
                 self.setup.defaults()
-                seed.SeedRuntimes.install_python(
-                    self.recovery.seed, self.recovery.plan()[0]
+                PythonAdapter.install(
+                    self.recovery.adapter("python"), self.recovery.plan()[0]
                 )
                 invocations = [
                     e for e in self.events if Path(e[0]).name == "pyenv"
@@ -652,7 +631,7 @@ class SetupTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(BootstrapError, "defaults"):
             self.setup.apply()
-        node = self.recovery.fnm / "aliases/default"
+        node = self.fnm / "aliases/default"
         before = os.readlink(node)
         self.failure = None
         self.events.clear()
@@ -663,8 +642,8 @@ class SetupTests(unittest.TestCase):
 
     def test_conflicting_fnm_link_is_not_rewritten(self):
         self.executable(self.bin / "fnm")
-        writable_directory(self.recovery.fnm)
-        link = self.recovery.fnm / "fnm"
+        writable_directory(self.fnm)
+        link = self.fnm / "fnm"
         link.symlink_to(self.bin / "other-fnm")
         with self.assertRaisesRegex(BootstrapError, "readiness"):
             self.setup.apply()
@@ -674,7 +653,7 @@ class SetupTests(unittest.TestCase):
         self.shadow = True
         with self.assertRaisesRegex(BootstrapError, "shell"):
             self.setup.apply()
-        self.assertTrue((self.recovery.pyenv / "version").is_file())
+        self.assertTrue((self.pyenv / "version").is_file())
 
     def test_arch_privilege_is_scoped_to_missing_packages(self):
         self.data["setup"].update(

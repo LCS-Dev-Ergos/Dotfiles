@@ -1,11 +1,6 @@
 # Literal argv and ownership policy. Runtime paths are bound by the executor.
 { baseline }:
 {
-  prerequisites = {
-    node = [ "fnm" ];
-    python = [ "pyenv" ];
-    ocaml = [ "opam" ];
-  };
   repositoryName = "lcs-baseline-${baseline.ocaml.revision}-nix";
   upstreamName = "lcs-upstream";
   upstreamUrl = "https://opam.ocaml.org";

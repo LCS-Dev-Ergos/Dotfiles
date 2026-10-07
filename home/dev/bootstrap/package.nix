@@ -68,23 +68,10 @@ let
     };
   };
   manifestFile = writeText "runtime-baseline.json" (builtins.toJSON manifest);
+  # The same declaration source checks evaluate, without store assets.
   fixtureManifest = writeText "recovery-test-baseline.json" (
-    builtins.toJSON (baseline // { inherit policy; })
+    builtins.toJSON (import ./tests/manifest.nix)
   );
-  # Install only production modules. Missing modules fail the build; fixture
-  # and qualification files never enter the runtime import directory.
-  pythonModules = [
-    "bootstrap.py"
-    "cli.py"
-    "engine.py"
-    "support.py"
-    "manifest.py"
-    "seed.py"
-    "ocaml.py"
-    "setup.py"
-    "native_toolchains.py"
-    "retention.py"
-  ];
 in
 assert
   builtins.attrNames nativeManagers.bootstrap == builtins.attrNames platforms
@@ -118,6 +105,9 @@ builtins.seq baseline (
     doInstallCheck = true;
     checkPhase = ''
       runHook preCheck
+      # Shell fixtures run the entry directly; keep bytecode out of the
+      # source tree that installPhase copies.
+      export PYTHONDONTWRITEBYTECODE=1
       export DEVRESTORE_SOURCE="$PWD/bootstrap.py"
       export DEVRESTORE_PYTHON=${lib.getExe python3}
       export DEVRESTORE_MANIFEST=${fixtureManifest}
@@ -136,7 +126,9 @@ builtins.seq baseline (
     installPhase = ''
       runHook preInstall
       mkdir -p "$out/share/development-bootstrap" "$out/bin"
-      cp ${lib.escapeShellArgs pythonModules} "$out/share/development-bootstrap/"
+      # Only the entry and its package; tests never enter the import path.
+      cp bootstrap.py "$out/share/development-bootstrap/"
+      cp -r core "$out/share/development-bootstrap/"
       cp ${manifestFile} \
         "$out/share/development-bootstrap/baseline.json"
       makeWrapper ${lib.getExe python3} "$out/bin/dev-bootstrap" \

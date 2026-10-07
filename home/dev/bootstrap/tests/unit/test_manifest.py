@@ -10,10 +10,9 @@ from contextlib import redirect_stderr
 from pathlib import Path
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from cli import main
-from manifest import load_manifest
-from support import BootstrapError
+from core.cli import main
+from core.errors import BootstrapError
+from core.manifest import load_manifest
 
 
 BASELINE = {
@@ -71,8 +70,8 @@ class ManifestTests(unittest.TestCase):
                             "argv",
                             ["dev-bootstrap", "--manifest", str(path)],
                         ),
-                        patch("cli.Bootstrap") as engine,
-                        patch("cli.os.umask"),
+                        patch("core.cli.Bootstrap") as engine,
+                        patch("core.cli.os.umask"),
                         redirect_stderr(stderr),
                     ):
                         self.assertEqual(main(), 2)

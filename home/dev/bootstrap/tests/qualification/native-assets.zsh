@@ -12,16 +12,16 @@ emulate -L zsh
 setopt err_return pipefail
 umask 077
 
-typeset recovery_package="${1:?Provide the recovery package path}"
+typeset bootstrap_package="${1:?Provide the bootstrap package path}"
 typeset native_fnm="${2:?Provide a native FNM executable}"
 typeset native_pyenv="${3:?Provide a native pyenv executable}"
 [[ -x "$native_fnm" && "${native_fnm:A}" != /nix/store/* ]] || return 1
 [[ -x "$native_pyenv" && "${native_pyenv:A}" != /nix/store/* ]] || return 1
 
 typeset fixture_root
-fixture_root="$(mktemp -d "${TMPDIR:-/tmp}/recovery-native-assets.XXXXXX")" || return 1
+fixture_root="$(mktemp -d "${TMPDIR:-/tmp}/bootstrap-native-assets.XXXXXX")" || return 1
 fixture_root="${fixture_root:A}"
-[[ -d "$fixture_root" && "$fixture_root:t" == recovery-native-assets.* ]] || return 1
+[[ -d "$fixture_root" && "$fixture_root:t" == bootstrap-native-assets.* ]] || return 1
 trap 'command rm -rf -- "$fixture_root"' EXIT
 trap 'exit 130' INT TERM HUP
 
@@ -46,13 +46,13 @@ export PATH="$fixture_root/bin:$PATH"
 
 print -r -- "Native FNM: $("$native_fnm" --version)"
 print -r -- "Native pyenv: $("$native_pyenv" --version)"
-"$recovery_package/bin/dev-bootstrap" apply --runtimes-only --only node --json
+"$bootstrap_package/bin/dev-bootstrap" apply --runtimes-only --only node --json
 [[ ! -e "$FNM_DIR/aliases/default" ]] || return 1
 print -r -- 'PASS: real FNM consumed Nix archives over the private loopback mirror'
 
-"$recovery_package/bin/dev-bootstrap" apply --runtimes-only --only python --json
+"$bootstrap_package/bin/dev-bootstrap" apply --runtimes-only --only python --json
 [[ ! -e "$PYENV_ROOT/version" && -d "$PYENV_ROOT/shims" ]] || return 1
-"$recovery_package/bin/dev-bootstrap" verify --runtimes-only --only node --only python --json
+"$bootstrap_package/bin/dev-bootstrap" verify --runtimes-only --only node --only python --json
 print -r -- 'PASS: native CPython build, required extensions, rehash and absent-default preservation'
 
 # ============================================================================ #

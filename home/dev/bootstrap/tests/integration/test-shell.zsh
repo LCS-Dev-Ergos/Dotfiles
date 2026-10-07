@@ -125,7 +125,7 @@ for manager_route in linked checkout; do
   export DEV_BOOTSTRAP_NATIVE_PYENV="$("$fixture_python" -B - "$test_root" "$fixture_root/bin" <<'PYTHON'
 import sys
 sys.path.insert(0, sys.argv[1])
-from engine import Bootstrap
+from core.engine import Bootstrap
 manifest = {"setup": {"managerDirectory": sys.argv[2], "managers": {"python": "pyenv"}}}
 print(Bootstrap(manifest, ["python"]).manager("python").resolve())
 PYTHON

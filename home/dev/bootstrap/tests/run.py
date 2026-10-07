@@ -26,6 +26,7 @@ def main():
     if args.manifest:
         os.environ["DEVRESTORE_MANIFEST"] = str(Path(args.manifest).resolve())
     elif args.phase == "source":
+        # Source checks evaluate tests/manifest.nix (see tests/declaration.py).
         os.environ.pop("DEVRESTORE_MANIFEST", None)
 
     directory = Path(__file__).resolve().parent

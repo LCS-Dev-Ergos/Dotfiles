@@ -45,15 +45,12 @@ interface checks; they do not pin native packages or certify every release.
 | --- | --- |
 | `runtime-baseline.nix` | Initial runtime identities, source revisions and hashes, descriptive defaults |
 | `bootstrap/assets.nix` | Nix-fetched Node archives, opam source tree, standalone Python helper and complete source cache |
-| `bootstrap/policy.nix` | Literal command arguments, manager prerequisites, repository identities and timeouts |
+| `bootstrap/policy.nix` | Literal command arguments, manager CLI floors, repository identities and timeouts |
 | `bootstrap/package.nix` | Generated manifest, helper closure, wrapper and isolated contract checks |
-| `bootstrap/bootstrap.py`, `bootstrap/cli.py` | Executable entry, argument handling and structured reporting |
-| `bootstrap/engine.py` | Runtime inspection, mutation guards, shared lock and adapter coordination |
-| `bootstrap/manifest.py`, `bootstrap/support.py` | Manifest validation, process execution and filesystem/state boundaries |
-| `bootstrap/seed.py`, `bootstrap/ocaml.py` | Node/Python initial installation and checkpointed opam repository handover |
-| `bootstrap/setup.py` | Native prerequisites, manager readiness, absence-only defaults, hook repair and selected-runtime health |
-| `bootstrap/native_toolchains.py` | Supported native-manager interfaces for Rust, Haskell, Lean, Ruby, JVM and Julia |
-| `bootstrap/retention.py` | Durable GC roots for registered immutable opam sources |
+| `bootstrap/bootstrap.py`, `bootstrap/core/cli.py` | Executable entry, argument handling and structured reporting |
+| `bootstrap/core/engine.py`, `setup.py` | Adapter selection, mutation guards, shared lock, setup stages and selection reports |
+| `bootstrap/core/manifest.py`, `process.py`, `paths.py` | Manifest validation, the process boundary and filesystem/state boundaries |
+| `bootstrap/core/adapters/` | One adapter per ecosystem behind a shared contract: Node/Python seeding, checkpointed opam handover with GC roots, and the native managers for Rust, Haskell, Lean, Ruby, JVM and Julia |
 | `bootstrap/probe-shell.zsh` | Disposable startup context loading the production language adapters and PATH module |
 | `native-managers.nix` | Canonical package-manager routes, manager inventory and native build prerequisites |
 

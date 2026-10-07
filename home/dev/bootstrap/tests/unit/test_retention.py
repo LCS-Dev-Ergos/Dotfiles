@@ -1,16 +1,15 @@
 """GC-root lifecycle contract without touching the host Nix store or opam."""
 
-import sys
+import os
 import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-import retention
-from retention import retain_opam_source
-from support import BootstrapError
+from core import process
+from core.adapters.ocaml import OcamlAdapter
+from core.errors import BootstrapError
 
 
 class RetentionTests(unittest.TestCase):
@@ -20,17 +19,18 @@ class RetentionTests(unittest.TestCase):
         self.state = Path(self.temporary.name).resolve()
         self.source = Path("/nix/store/fixture-opam-repository")
         self.root = self.state / "opam-sources" / self.source.name
-        self.recovery = SimpleNamespace(
+        self.context = SimpleNamespace(
             state=self.state,
-            only=["ocaml"],
+            backend="native",
             data={
-                "backend": "native",
                 "ocaml": {
                     "source": str(self.source),
                     "retainCommand": "nix-store",
                 },
             },
         )
+        with patch.dict(os.environ, {"OPAMROOT": str(self.state / "opam")}):
+            self.adapter = OcamlAdapter(self.context)
 
     def test_initial_and_existing_root_are_registered(self):
         def register(arguments, **kwargs):
@@ -49,11 +49,11 @@ class RetentionTests(unittest.TestCase):
             if not self.root.is_symlink():
                 self.root.symlink_to(self.source)
 
-        with patch.object(retention, "run", side_effect=register) as run:
+        with patch.object(process, "run", side_effect=register) as run:
             with patch.object(Path, "is_file", return_value=True):
                 for phase in ("initial", "rerun"):
                     with self.subTest(phase=phase):
-                        retain_opam_source(self.recovery)
+                        self.adapter.before_apply()
                         self.assertEqual(self.root.resolve(), self.source)
             self.assertEqual(run.call_count, 2)
 
@@ -69,7 +69,7 @@ class RetentionTests(unittest.TestCase):
                 with (
                     patch.object(Path, "is_file", return_value=True),
                     patch.object(
-                        retention,
+                        process,
                         "run",
                         side_effect=failure
                         if kind == "command-failure"
@@ -77,7 +77,7 @@ class RetentionTests(unittest.TestCase):
                     ) as run,
                 ):
                     with self.assertRaises(BootstrapError):
-                        retain_opam_source(self.recovery)
+                        self.adapter.before_apply()
                     if kind in ("file", "redirect"):
                         run.assert_not_called()
                 if kind == "file":
@@ -88,16 +88,16 @@ class RetentionTests(unittest.TestCase):
                     )
                 self.root.unlink(missing_ok=True)
 
-    def test_unselected_ecosystems_do_not_create_roots(self):
-        for backend, languages in (
-            ("native", ["node"]),
-            ("nixpkgs", ["ocaml"]),
+    def test_undeclared_retention_does_not_create_roots(self):
+        for backend, declaration in (
+            ("nixpkgs", self.context.data["ocaml"]),
+            ("native", {"source": str(self.source)}),
         ):
-            with self.subTest(backend=backend, languages=languages):
-                self.recovery.data["backend"] = backend
-                self.recovery.only = languages
-                with patch.object(retention, "run") as run:
-                    retain_opam_source(self.recovery)
+            with self.subTest(backend=backend, declaration=declaration):
+                self.context.backend = backend
+                self.context.data["ocaml"] = declaration
+                with patch.object(process, "run") as run:
+                    self.adapter.before_apply()
                     run.assert_not_called()
                 self.assertFalse(self.root.parent.exists())
 
