@@ -1,6 +1,6 @@
 _: {
   imports = [
-    ./buildsystems
+    ./build-systems
     ./gcc
     ./lldb
     ./llvm
