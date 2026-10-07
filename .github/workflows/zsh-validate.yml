@@ -245,8 +245,10 @@ jobs:
       - name: Install macOS validation dependencies
         if: runner.os == 'macOS'
         run: |
-          brew install bash gawk coreutils findutils
+          brew install bash gawk coreutils findutils gnu-sed
           echo "$(brew --prefix bash)/bin" >> "$GITHUB_PATH"
+          # Linux desktop fixtures exercise scripts using GNU sed -i syntax.
+          echo "$(brew --prefix gnu-sed)/libexec/gnubin" >> "$GITHUB_PATH"
 
       - name: Install pinned shdoc
         run: |
