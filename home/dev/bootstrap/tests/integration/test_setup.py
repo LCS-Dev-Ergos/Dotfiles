@@ -148,6 +148,8 @@ class SetupTests(unittest.TestCase):
             return ""
         if name == "python-build":
             return "python-build 2.8.8"
+        if name == "sudo" and args[1:] == ["-n", "/usr/bin/true"]:
+            return ""
         if name == "fnm" and "default" in args:
             alias = self.fnm / "aliases/default"
             alias.parent.mkdir(parents=True, exist_ok=True)
@@ -659,6 +661,19 @@ class SetupTests(unittest.TestCase):
         self.assertEqual(installation[:2], (str(self.bin / "sudo"), "-n"))
         self.assertNotIn("-Sy", installation)
         self.assertNotIn("-Syu", installation)
+
+    def test_uncached_privilege_names_the_command_before_mutation(self):
+        self.data["setup"].update(
+            query=["-Qq"],
+            missingQuery=["-T"],
+            install=["-S", "--needed", "--noconfirm"],
+            privilege=[str(self.bin / "sudo"), "-n"],
+        )
+        self.failure = lambda args: args[-1] == "/usr/bin/true"
+        with self.assertRaisesRegex(BootstrapError, "sudo -v") as raised:
+            self.setup.prerequisites()
+        self.assertIn("sudo " + str(self.bin / "brew"), str(raised.exception))
+        self.assertFalse(any("-S" in event for event in self.events))
 
     def test_cli_import_preserves_structured_stage_errors(self):
         (self.bin / "brew").unlink()

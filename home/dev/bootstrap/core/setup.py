@@ -5,6 +5,7 @@ behind the explicit bootstrap entry, never shell startup.
 """
 
 import os
+import shlex
 import tarfile
 import tempfile
 from pathlib import Path
@@ -126,18 +127,27 @@ class BootstrapSetup:
                 ).splitlines()
             )
             missing = sorted(required - installed)
-        if missing:
-            process.run(
-                [
-                    *self.recipe["privilege"],
-                    str(package_manager),
-                    *self.recipe["install"],
-                    *missing,
-                ],
-                env=environment,
-                timeout=1800,
-                cwd=state,
-            )
+        if not missing:
+            return
+        privilege = self.recipe["privilege"]
+        command = [str(package_manager), *self.recipe["install"], *missing]
+        if privilege:
+            # sudo -n never prompts. Without cached credentials, stop before
+            # any change and name the command instead of failing mid-install.
+            try:
+                process.run([*privilege, "/usr/bin/true"], cwd=state)
+            except BootstrapError as error:
+                raise BootstrapError(
+                    "Missing native packages need administrator rights: run "
+                    "`sudo -v` in this terminal and retry, or install them "
+                    "with: " + shlex.join([Path(privilege[0]).name, *command])
+                ) from error
+        process.run(
+            [*privilege, *command],
+            env=environment,
+            timeout=1800,
+            cwd=state,
+        )
 
     def readiness(self):
         for adapter in self.adapters:

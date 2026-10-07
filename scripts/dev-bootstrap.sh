@@ -133,6 +133,22 @@ bootstrap_install() (
   fi
 )
 
+bootstrap_interactive() { [[ -t 0 ]]; }
+
+bootstrap_authenticate() {
+  # Arch apply installs missing native packages through sudo -n, which never
+  # prompts. Ask once here while a terminal is attached; without one, the
+  # executor stops before any change and names the command to run instead.
+  local platform="$1" argument
+  shift
+  [[ "$platform" == arch && "${1:-plan}" == apply ]] || return 0
+  for argument in "$@"; do
+    [[ "$argument" != --runtimes-only ]] || return 0
+  done
+  bootstrap_interactive || return 0
+  sudo -v || bootstrap_error 'Administrator authentication failed; apply needs it to install missing native packages.'
+}
+
 bootstrap_main() {
   local root platform nix install=0 check=0
   root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
@@ -161,6 +177,7 @@ bootstrap_main() {
   }
   # Read-only plan/verify do not require every native prerequisite to exist.
   # Apply retains its own language-specific readiness checks.
+  bootstrap_authenticate "$platform" "$@" || return
   cd -- "$root"
   # Apply expression defaults explicitly; the empty attribute selects the
   # resulting derivation and keeps runtime arguments out of Nix selection.

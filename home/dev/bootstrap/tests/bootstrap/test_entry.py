@@ -137,6 +137,42 @@ bootstrap_sdk() { [[ -f "$FIXTURE/has-sdk" ]]; }
                     ],
                 )
 
+    def test_interactive_arch_apply_authenticates_before_running(self):
+        """Only an attended Arch apply that may install packages asks sudo."""
+        self.mark("nix")
+        for platform, attended, arguments, sudo, expected in (
+            ("arch", "true", ("apply",), "true", True),
+            ("arch", "true", ("apply", "--only", "rust"), "true", True),
+            ("arch", "false", ("apply",), "true", False),
+            ("arch", "true", ("apply", "--runtimes-only"), "true", False),
+            ("arch", "true", ("plan",), "true", False),
+            ("darwin", "true", ("apply",), "true", False),
+            ("arch", "true", ("apply",), "false", None),
+        ):
+            with self.subTest(
+                platform=platform, attended=attended, arguments=arguments
+            ):
+                self.log.unlink(missing_ok=True)
+                result = self.run_shell(
+                    self.discovery
+                    + f"""
+bootstrap_platform() {{ printf '{platform}\\n'; }}
+bootstrap_interactive() {{ {attended}; }}
+sudo() {{ printf 'sudo %s\\n' "$*" >> "$LOG"; {sudo}; }}
+bootstrap_main "$@"
+""",
+                    *arguments,
+                )
+                lines = self.log.read_text().splitlines()
+                if expected is None:
+                    # Failed authentication stops before the executor runs.
+                    self.assertEqual(result.returncode, 2, result.stderr)
+                    self.assertEqual(lines, ["sudo -v"])
+                    continue
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual("sudo -v" in lines, expected)
+                self.assertEqual(lines[-len(arguments) :], list(arguments))
+
     def test_invalid_entry_and_missing_nix_never_install(self):
         """Argument errors and normal planning cannot trigger foundation mutation."""
         self.mark()
