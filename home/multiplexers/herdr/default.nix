@@ -33,7 +33,7 @@ in
         ${pkgs.coreutils}/bin/install -d -m 0700 \
           ${lib.escapeShellArg runtimeConfigDir}
         ${pkgs.coreutils}/bin/install -m 0600 \
-          ${lib.escapeShellArg (toString ./config.toml)} \
+          ${lib.escapeShellArg "${./config.toml}"} \
           ${lib.escapeShellArg "${runtimeConfig}.new"}
         ${pkgs.coreutils}/bin/mv -f \
           ${lib.escapeShellArg "${runtimeConfig}.new"} \

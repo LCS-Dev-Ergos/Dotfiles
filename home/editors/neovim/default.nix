@@ -6,7 +6,7 @@
   ...
 }:
 let
-  lockSource = ./nvim/lazy-lock.json;
+  lockSource = "${./nvim/lazy-lock.json}";
   lockTarget = "${dotfilesRoot}/home/editors/neovim/nvim/lazy-lock.json";
   runtimeLockDirectory = "${config.xdg.stateHome}/nvim";
   runtimeLock = "${runtimeLockDirectory}/lazy-lock.json";
@@ -22,7 +22,7 @@ let
       pkgs.jq
     ];
     text = ''
-      lock_source=${lib.escapeShellArg (toString lockSource)}
+      lock_source=${lib.escapeShellArg lockSource}
       lock_target=${lib.escapeShellArg lockTarget}
       runtime_lock=${lib.escapeShellArg runtimeLock}
       checkout_candidate=""
@@ -155,7 +155,7 @@ in
       ${pkgs.coreutils}/bin/install -d -m 0700 \
         ${lib.escapeShellArg runtimeLockDirectory}
       ${pkgs.coreutils}/bin/install -m 0600 \
-        ${lib.escapeShellArg (toString lockSource)} \
+        ${lib.escapeShellArg lockSource} \
         ${lib.escapeShellArg "${runtimeLock}.new"}
       ${pkgs.coreutils}/bin/mv -f \
         ${lib.escapeShellArg "${runtimeLock}.new"} \

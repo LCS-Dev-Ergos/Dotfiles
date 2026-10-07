@@ -28,7 +28,7 @@ in
         printf 'Would seed %s\n' ${lib.escapeShellArg fishVariablesState}
       else
         ${pkgs.coreutils}/bin/install -D -m 0600 \
-          ${lib.escapeShellArg (toString ./fish_variables)} \
+          ${lib.escapeShellArg "${./fish_variables}"} \
           ${lib.escapeShellArg fishVariablesState}
       fi
     fi

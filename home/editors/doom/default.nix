@@ -96,7 +96,7 @@ in
         ${lib.escapeShellArg doomCustomDirectory}
       if [[ ! -e ${lib.escapeShellArg doomCustomState} ]]; then
         ${pkgs.coreutils}/bin/install -m 0600 \
-          ${lib.escapeShellArg (toString ./custom.el)} \
+          ${lib.escapeShellArg "${./custom.el}"} \
           ${lib.escapeShellArg doomCustomState}
       fi
     fi
