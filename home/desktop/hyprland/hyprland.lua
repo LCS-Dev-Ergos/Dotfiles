@@ -22,19 +22,11 @@ end)
 local function app(key, command)
     hl.bind(key, hl.dsp.exec_cmd("/usr/bin/uwsm app -- " .. command))
 end
-local function shell(key, command)
-    hl.bind(key, hl.dsp.exec_cmd("/usr/bin/caelestia shell " .. command))
-end
 
 app("SUPER + T", "/usr/bin/kitty")
 app("SUPER + E", "/usr/bin/dolphin")
 app("SUPER + B", "/usr/bin/firefox")
 app("SUPER + C", "/usr/bin/code")
-shell("SUPER + A", "drawers toggle launcher")
-shell("SUPER + D", "drawers toggle dashboard")
-shell("SUPER + V", "drawers toggle utilities")
-shell("SUPER + L", "lock lock")
-shell("CTRL + ALT + Delete", "drawers toggle session")
 hl.bind("SUPER + SHIFT + Delete", hl.dsp.exec_cmd("/usr/bin/uwsm stop"))
 hl.bind("SUPER + Q", hl.dsp.window.close())
 hl.bind("ALT + F4", hl.dsp.window.close())
@@ -68,4 +60,3 @@ local hardware = {
 for key, command in pairs(hardware) do
     hl.bind(key, hl.dsp.exec_cmd(command), { locked = true, repeating = true })
 end
-app("Print", "/usr/bin/caelestia screenshot")

@@ -225,7 +225,7 @@ nix build '.#homeConfigurations."lcs-dev@LCS.Dev-Legion-Cachy".activationPackage
 ```
 
 Standalone Home Manager distributes application settings and command-line
-tools. Common Linux applications and the Hyprland and Caelestia desktop are
+tools. Common Linux applications and the selected Hyprland desktop are
 separate imports, and KDE Plasma remains available as a separate session. The
 [CachyOS configuration guide](hosts/lcs-dev-legion-cachy/README.md) covers the
 native dependencies, backup, activation, session checks and rollback. A

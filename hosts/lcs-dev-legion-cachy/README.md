@@ -7,10 +7,11 @@ graphics drivers, graphical runtimes and login infrastructure.
 
 ## Configuration State
 
-The host entrypoint imports shared applications, Linux settings, native
-Hyprland configuration and the Caelestia module. KDE remains available as a
-separate session. Native desktop prerequisites are provisioned independently
-of Home Manager; successful evaluation does not imply that they are installed.
+The host entrypoint imports shared applications, Linux settings and
+native Hyprland configuration. Caelestia is disabled: its retained module is
+not imported, and its service and IPC bindings are absent from the selected
+configuration. The retained source is not an installation requirement.
+No replacement desktop-shell configuration is selected here.
 
 | Host property | Value |
 | --- | --- |
@@ -72,13 +73,10 @@ The polkit agent and clipboard history units are bound to
 attached to the generic user default target. Qt and NVIDIA session variables
 are scoped through `uwsm/env-hyprland`, so they do not alter KDE.
 
-The Caelestia module binds its foreground shell service to the same Hyprland
-session target. Its configuration selects Caelestia 2.5.0, CLI 1.1.3, a
-compatible native Quickshell git runtime and Qt >= 6.9. These components must
-be built against the same native Qt stack. Caelestia owns notifications,
-locking and idle behavior; this profile starts no competing Waybar, Dunst,
-Hypridle or Hyprlock service. VCS-based dependencies require pinned source
-revisions and retained package artifacts during native provisioning.
+No desktop shell, notification daemon or screen locker is provisioned by the
+selected Hyprland modules. Those capabilities require an explicitly selected
+native implementation; the retained Caelestia module must not be treated as an
+active service.
 
 ## Portals, Secrets and Power Policy
 
