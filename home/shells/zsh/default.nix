@@ -2,6 +2,8 @@
   config,
   lib,
   pkgs,
+  runtimeManagerBackend,
+  nativeFnmReady,
   ...
 }:
 let
@@ -30,13 +32,14 @@ let
   # between owners then fails the build instead of leaving a stale hint.
   # "a|b" names alternatives, one per host where the owner differs (the
   # Darwin C/C++ drivers replace the stock compiler wrappers); any one of
-  # them being installed satisfies the row.
+  # them being installed satisfies the row. FNM's native migration checkpoint
+  # removes its Nix requirement together with the native install hint.
   registryRows = builtins.filter (line: line != "" && !lib.hasPrefix "#" line) (
     lib.splitString "\n" (builtins.readFile ./packages/zsh-dependencies.tsv)
   );
-  registryNixNames = lib.filter (name: name != "-") (
-    map (row: builtins.elemAt (lib.splitString "\t" row) 5) registryRows
-  );
+  registryNixNames = lib.filter (
+    name: name != "-" && !(name == "fnm" && runtimeManagerBackend == "native" && nativeFnmReady)
+  ) (map (row: builtins.elemAt (lib.splitString "\t" row) 5) registryRows);
   installedNames = map lib.getName config.home.packages;
   unownedNames = lib.filter (
     spec: !lib.any (name: builtins.elem name installedNames) (lib.splitString "|" spec)

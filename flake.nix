@@ -92,12 +92,16 @@
       # read-only again.
       darwinHost = rec {
         system = "aarch64-darwin";
+        runtimeManagerBackend = "native";
+        nativeFnmReady = false;
         username = "lcs-dev";
         homeDirectory = "/Users/${username}";
         dotfilesRoot = "${homeDirectory}/Dotfiles";
       };
       linuxHost = rec {
         system = "x86_64-linux";
+        runtimeManagerBackend = "native";
+        nativeFnmReady = false;
         hostname = "LCS.Dev-Legion-Cachy";
         nativeGraphics = true;
         username = "lcs-dev";
@@ -133,7 +137,13 @@
       # checkout path or the vendored flake inputs.
       homeArgs = host: {
         inherit externalSources;
-        inherit (host) dotfilesRoot homeDirectory username;
+        inherit (host)
+          dotfilesRoot
+          homeDirectory
+          username
+          runtimeManagerBackend
+          nativeFnmReady
+          ;
         nativeGraphics = host.nativeGraphics or false;
         herdr = inputs.herdr.packages.${host.system}.default;
         statwellModule = inputs.statwell.homeManagerModules.default;
@@ -200,6 +210,8 @@
         {
           cpp-tools = pkgs.callPackage ./home/dev/languages/cpp/cpp-tools.nix { };
           markdownlint-config = pkgs.callPackage ./home/editors/markdown/markdownlint-config.nix { };
+          dev-bootstrap = pkgs.callPackage ./home/dev/bootstrap/package.nix { };
+          development-recovery = self.packages.${system}.dev-bootstrap;
           default = self.packages.${system}.cpp-tools;
         }
         // nixpkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
@@ -222,12 +234,16 @@
           darwin-configuration = self.darwinConfigurations."LCSMacBook-Pro".system;
           cpp-tools = self.packages.aarch64-darwin.cpp-tools;
           markdownlint-config = self.packages.aarch64-darwin.markdownlint-config;
+          dev-bootstrap = self.packages.aarch64-darwin.dev-bootstrap;
+          development-recovery = self.checks.aarch64-darwin.dev-bootstrap;
           llvm-darwin-toolchain = self.packages.aarch64-darwin.llvm-darwin-toolchain.tests.default;
         };
         x86_64-linux = {
           home-configuration = self.homeConfigurations."lcs-dev@LCS.Dev-Legion-Cachy".activationPackage;
           cpp-tools = self.packages.x86_64-linux.cpp-tools;
           markdownlint-config = self.packages.x86_64-linux.markdownlint-config;
+          dev-bootstrap = self.packages.x86_64-linux.dev-bootstrap;
+          development-recovery = self.checks.x86_64-linux.dev-bootstrap;
         };
       };
 

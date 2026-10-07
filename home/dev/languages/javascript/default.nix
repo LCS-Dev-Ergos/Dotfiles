@@ -1,4 +1,10 @@
-{ pkgs, ... }:
+{
+  lib,
+  pkgs,
+  runtimeManagerBackend,
+  nativeFnmReady,
+  ...
+}:
 {
   # Stable non-interactive fallback; an active FNM multishell remains
   # higher-priority for projects that deliberately select another Node.
@@ -9,10 +15,12 @@
   # profile on PATH, so their releases update directly instead of through a
   # flake bump. scripts/opencode-update.sh is retained but no longer wired
   # into any module.
-  # fnm, the per-project Node version manager, is Nix-owned too; the Node
-  # versions it installs live in its own data directory, not in the store.
+  #
+  # Native hosts transfer FNM only after the replacement has been verified.
+  # Keep the old manager during this explicit transition. NixOS consumers
+  # select the nixpkgs backend and retain its platform-compatible package.
   home.packages = [
-    pkgs.fnm
     pkgs.nodejs_24
-  ];
+  ]
+  ++ lib.optionals (runtimeManagerBackend == "nixpkgs" || !nativeFnmReady) [ pkgs.fnm ];
 }

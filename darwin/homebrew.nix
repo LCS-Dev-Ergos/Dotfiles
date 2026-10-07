@@ -1,3 +1,6 @@
+let
+  nativeManagers = import ../home/dev/native-managers.nix;
+in
 _: {
   # Captured via `brew bundle dump` against the live system (2026-07-20).
   # The vscode/go/cargo/uv stanzas that command also emits have no
@@ -51,12 +54,14 @@ _: {
   # Homebrew-managed and `cleanup = "none"` would not touch it either way.
   # The `xcodes` cask (the GUI app) installed cleanly and is declared below.
   #
-  # `cmake`, `ninja`, `go`, `swi-prolog` and `fnm` moved to home/dev too
+  # `cmake`, `ninja`, `go` and `swi-prolog` moved to home/dev too
   # (cmake-docs went with cmake). The rest of the language tooling stays
   # here on purpose: pyenv, rbenv/ruby-build and opam update their version
   # definitions faster in Homebrew; pkgconf, autoconf, automake and make serve
-  # their builds against Homebrew libraries; PHP and Perl install modules with
-  # pecl/cpanm; lua is an nmap dependency; mit-scheme has no Darwin package.
+  # their builds against Homebrew libraries; native manager declarations now
+  # come from home/dev/native-managers.nix, including FNM's staged transfer.
+  # PHP and Perl install modules with pecl/cpanm; lua is an nmap dependency;
+  # mit-scheme has no Darwin package.
   #
   # `erlang` and `gleam` are Nix-owned as well, with Elixir, on one OTP
   # release (home/dev/languages/beam).
@@ -165,7 +170,6 @@ _: {
       "nmap"
       "oci-cli"
       "ocrmypdf"
-      "opam"
       "openssl@3"
       "pandoc"
       "pdfcpu"
@@ -179,10 +183,8 @@ _: {
       # ncurses, openssl@3, readline, sqlite, xz, zlib and zstd declared even
       # when another formula currently pulls them in transitively. Tcl/Tk 8
       # supplies tkinter without opting into Tcl/Tk 9's experimental support.
-      "pyenv"
       "qrencode"
       "raylib"
-      "rbenv"
       "readline"
       "reaver"
       "redis"
@@ -204,7 +206,8 @@ _: {
       "zlib"
       "zsh"
       "zstd"
-    ];
+    ]
+    ++ nativeManagers.homebrew;
 
     casks = [
       "1password-cli@beta"
