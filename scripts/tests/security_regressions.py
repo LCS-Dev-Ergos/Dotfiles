@@ -29,7 +29,9 @@ class SecurityRegressions(unittest.TestCase):
         """
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        # macOS exposes temporary paths through /var -> /private/var; compare
+        # canonical paths so containment checks test the helper, not that alias.
+        self.root = Path(self.temp.name).resolve()
         self.home = self.root / "home"
         self.bin = self.root / "bin"
         self.home.mkdir(mode=0o700)

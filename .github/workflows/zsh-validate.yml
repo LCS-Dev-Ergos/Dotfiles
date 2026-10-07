@@ -1,4 +1,4 @@
-name: Validate Nix and Zsh configuration
+name: Validate Nix and Zsh Configuration
 
 on:
   push:
@@ -15,11 +15,13 @@ on:
       - "home/editors/doom/**"
       - "home/desktop/hyprdots/**"
       - "home/dev/languages/cpp/**"
+      - "home/dev/bootstrap/**"
       - "hosts/**/*.nix"
       - "scripts/**"
       - "home/out-of-store-allowlist.tsv"
       - "home/package-ownership-allowlist.tsv"
       - ".github/workflows/zsh-validate.yml"
+      - ".github/workflows/development-bootstrap.yml"
   pull_request:
     paths:
       - "flake.nix"
@@ -34,52 +36,49 @@ on:
       - "home/editors/doom/**"
       - "home/desktop/hyprdots/**"
       - "home/dev/languages/cpp/**"
+      - "home/dev/bootstrap/**"
       - "hosts/**/*.nix"
       - "scripts/**"
       - "home/out-of-store-allowlist.tsv"
       - "home/package-ownership-allowlist.tsv"
       - ".github/workflows/zsh-validate.yml"
+      - ".github/workflows/development-bootstrap.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   nix:
+    # Keep the existing status-check name; full evaluation is a separate job.
     name: Nix policy and evaluation
-    runs-on: ubuntu-latest
-
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       - name: Install Nix
-        uses: cachix/install-nix-action@v31
-
-      # Dotfiles' token cannot read the private StatWell repository. Use a
-      # read-only deploy key for that one flake input, never for other remotes.
-      - name: Authorize the private StatWell flake input
-        env:
-          STATWELL_DEPLOY_KEY: ${{ secrets.STATWELL_DEPLOY_KEY }}
-        run: |
-          test -n "$STATWELL_DEPLOY_KEY"
-          install -d -m 700 "$HOME/.ssh"
-          printf '%s\n' "$STATWELL_DEPLOY_KEY" > "$HOME/.ssh/statwell_ci"
-          chmod 600 "$HOME/.ssh/statwell_ci"
-          curl --fail --silent --show-error https://api.github.com/meta |
-            jq -r '.ssh_keys[] | "github.com " + .' > "$HOME/.ssh/known_hosts"
-          chmod 600 "$HOME/.ssh/known_hosts"
-          printf 'Host github.com\n  IdentityFile %s/.ssh/statwell_ci\n  IdentitiesOnly yes\n  StrictHostKeyChecking yes\n' "$HOME" > "$HOME/.ssh/config"
-          chmod 600 "$HOME/.ssh/config"
-          git config --global \
-            url."ssh://git@github.com/LCS-Dev-Ergos/StatWell.git".insteadOf \
-            "https://github.com/LCS-Dev-Ergos/StatWell.git"
+        uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
 
       - name: Check formatting, lint, and state boundaries
         run: |
-          nix develop .#ci --command bash -euo pipefail -c '
+          # The outer shell must leave expressions for the nested Bash process.
+          # shellcheck disable=SC2016
+          nix develop --impure \
+            --expr 'import ./scripts/development-bootstrap.nix { target = "ci"; }' \
+            --command bash -euo pipefail -c '
             mapfile -t nix_files < <(find flake.nix darwin home hosts -type f -name "*.nix" | sort)
-            nixfmt --check "${nix_files[@]}"
+            nixfmt --check "${nix_files[@]}" scripts/development-bootstrap.nix
+            actionlint .github/workflows/development-bootstrap.yml .github/workflows/zsh-validate.yml
+            ruff check --isolated --target-version py313 --select E4,E7,E9,F,B home/dev/bootstrap
+            ruff format --isolated --target-version py313 --line-length 79 --check home/dev/bootstrap
             statix check .
             deadnix --fail flake.nix darwin home hosts
             bash scripts/check-out-of-store-allowlist.sh
@@ -88,9 +87,6 @@ jobs:
             bash scripts/tests/run.sh
             shellcheck scripts/*.sh scripts/tests/*.sh home/cli/cli-tools/scripts/*.sh
           '
-
-      - name: Evaluate every flake output
-        run: nix flake check --no-build --all-systems --show-trace
 
       # GCC and LLVM must come from the binary cache: building GCC locally has
       # failed on the workstation before. A nixpkgs update that leaves the
@@ -103,7 +99,9 @@ jobs:
           for system in aarch64-darwin x86_64-linux; do
             report="$(nix eval --raw --impure --expr "
               let
-                pkgs = (builtins.getFlake (toString ./.)).inputs.nixpkgs.legacyPackages.$system;
+                lock = builtins.fromJSON (builtins.readFile ./flake.lock);
+                source = builtins.fetchTree lock.nodes.nixpkgs.locked;
+                pkgs = import source { system = \"$system\"; };
                 inherit (pkgs) lib;
                 toolchain = import ./home/dev/toolchains/cc-toolchain.nix pkgs;
                 # Highest N among the attributes named <prefix>N.
@@ -166,7 +164,26 @@ jobs:
       # that evaluates cleanly still never runs. Build the ones that are cheap
       # enough for a runner; cpp-tools' checkPhase is its Zsh test suite.
       - name: Build the Linux check derivations
-        run: nix build --no-link --print-out-paths --print-build-logs .#checks.x86_64-linux.cpp-tools
+        run: |
+          nix build --impure --file scripts/development-bootstrap.nix \
+            --argstr target cpp-tools --no-link --print-out-paths --print-build-logs
+
+  configuration:
+    name: Full configuration evaluation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
+
+      - name: Evaluate every flake output
+        run: nix flake check --no-build --all-systems --show-trace
 
   darwin:
     name: Darwin check derivations
@@ -175,13 +192,16 @@ jobs:
     # which the workstation's newer SDK does not. Moving the runner is a
     # decision about that coverage, not something a label change does silently.
     runs-on: macos-26
+    timeout-minutes: 30
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       - name: Install Nix
-        uses: cachix/install-nix-action@v31
+        uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
 
       # The reason this job exists: the toolchain smoke test compiles, links,
       # and runs real binaries to verify the host SDK selection, the deployment
@@ -197,6 +217,7 @@ jobs:
   zsh:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -206,10 +227,12 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.13"
 
@@ -221,7 +244,9 @@ jobs:
 
       - name: Install macOS validation dependencies
         if: runner.os == 'macOS'
-        run: brew install gawk coreutils findutils
+        run: |
+          brew install bash gawk coreutils findutils
+          echo "$(brew --prefix bash)/bin" >> "$GITHUB_PATH"
 
       - name: Install pinned shdoc
         run: |
