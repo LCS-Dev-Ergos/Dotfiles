@@ -2,9 +2,11 @@
 
 Declarative workstation configuration for macOS and Linux, built as a Nix
 flake. [nix-darwin](https://github.com/nix-darwin/nix-darwin) manages the macOS
-system layer, and [Home Manager](https://github.com/nix-community/home-manager)
-manages application configuration on both platforms. Revisions before the Nix
-migration used one GNU Stow package per tool; that layout is retired.
+system layer, [Home Manager](https://github.com/nix-community/home-manager)
+manages application configuration on both platforms, and a packaged development
+bootstrap installs language runtimes through their native version managers at
+exact, declared versions. Revisions before the Nix migration used one GNU Stow
+package per tool; that layout is retired.
 
 ![macOS desktop with SketchyBar, kitty, tmux, Neovim, fastfetch and btop](assets/Screenshot-LCS.Dev.webp)
 
@@ -13,7 +15,7 @@ migration used one GNU Stow package per tool; that layout is retired.
 - [Architecture Overview](#architecture-overview)
 - [Supported Platforms](#supported-platforms)
 - [Prerequisites](#prerequisites)
-- [Installation](#installation)
+- [Bootstrap and Installation](#bootstrap-and-installation)
 - [Module Organization](#module-organization)
 - [Validation and CI](#validation-and-ci)
 - [Contributing](#contributing)
@@ -31,6 +33,10 @@ shared modules instead of being copied per configuration.
 | User | `home/` | Home Manager modules, one per application, shared by both platforms |
 | Entry point | `hosts/<name>/` | Module selection and the facts of one configuration: platform, account mapping, login shell, state version, system defaults |
 
+The development bootstrap in `home/dev/bootstrap/` is packaged as the
+`dev-bootstrap` command and runs only when invoked. Neither activation nor
+shell startup provisions language runtimes.
+
 ### Ownership Model
 
 Each class of software has one owner:
@@ -41,6 +47,15 @@ Each class of software has one owner:
 | Home Manager | Application configuration on both platforms |
 | Homebrew (macOS) | Applications and packages that need the Homebrew ecosystem; nix-darwin declares the inventory of taps, formulae and casks |
 | Distribution (Linux) | Operating system, graphics drivers, graphical runtimes and login infrastructure |
+| Native ecosystem managers | Language runtimes, their upgrades and project selections: fnm, pyenv, opam, rbenv, rustup, GHCup, elan, SDKMAN and juliaup |
+
+Ecosystem managers use their canonical native installation on macOS and on
+Arch-based Linux; shared configuration and shell integration stay with Home
+Manager. The installation intent is declared in `home/dev/native-managers.nix`
+and can be inspected with `nix eval --json --file home/dev/native-managers.nix`.
+Each configuration's `nativeFnmReady` flag selects whether FNM still comes from
+Nix or from the native installation. A consumer without native managers, such
+as NixOS, selects the `nixpkgs` runtime backend explicitly.
 
 Home Manager manages everything under `home/shells/zsh/`. On macOS the login
 shell is the Nix `zsh`, set through `users.users.<name>.shell` and recorded as
@@ -67,9 +82,11 @@ with the live installation and checks command precedence across `PATH`:
 On macOS, pyenv's `python-build` compiles CPython with the Nix compiler drivers
 against Apple's SDK. The external libraries it links against are declared in
 `darwin/homebrew.nix` and found through Homebrew and pkg-config; they do not
-belong in the compiler package. Tcl/Tk 8 is declared for tkinter. A project
-that needs a fully pinned Python environment uses a development shell in its
-own flake instead.
+belong in the compiler package. Tcl/Tk 8 is declared for tkinter. The
+development bootstrap declares build dependencies per ecosystem in
+`home/dev/native-managers.nix` and installs them through Homebrew or pacman, so
+it also works before nix-darwin is active. A project that needs a fully pinned
+Python environment uses a development shell in its own flake instead.
 
 ### Compiler Toolchains
 
@@ -136,9 +153,17 @@ output or desktop deployment.
 | Nix | Flakes enabled: `experimental-features = nix-command flakes` | Same |
 | Package manager | Homebrew; nix-darwin manages its inventory but does not install it | pacman; the distribution remains responsible for the operating system |
 | Configuration tool | [nix-darwin](https://github.com/nix-darwin/nix-darwin) | None in advance: the first activation runs the built generation's `activate` script |
-| Build prerequisites | Command Line Tools for Xcode, whose Apple SDK the Nix compilers target | Not applicable |
+| Build prerequisites | Command Line Tools for Xcode, whose Apple SDK the Nix compilers target; the bootstrap installs the declared build dependencies through Homebrew | The bootstrap installs the declared build dependencies through pacman |
 
-## Installation
+On Apple Silicon, `scripts/dev-bootstrap.sh --install-foundation` installs a
+missing Homebrew and Nix (see [Development Bootstrap](#development-bootstrap)).
+
+## Bootstrap and Installation
+
+Installation has two independent stages. The development bootstrap installs
+language runtimes and can run before any configuration is active. Activation
+applies the system and Home Manager configuration. Neither stage invokes the
+other.
 
 ### Clone
 
@@ -146,6 +171,36 @@ output or desktop deployment.
 git clone https://github.com/LCS-Dev-Ergos/Dotfiles.git ~/Dotfiles
 cd ~/Dotfiles
 ```
+
+### Development Bootstrap
+
+`scripts/dev-bootstrap.sh` starts under the system Bash, before Nix is
+available, and delegates to the packaged executor. The executor is built
+through `scripts/development-bootstrap.nix` from the nixpkgs revision in
+`flake.lock`, without evaluating the flake's other inputs.
+
+| Invocation | Effect |
+| --- | --- |
+| `scripts/dev-bootstrap.sh --check-foundation` | Checks the platform, Nix daemon, Homebrew or pacman and the Apple SDK; downloads nothing |
+| `scripts/dev-bootstrap.sh --install-foundation plan --json` | Apple Silicon only: installs a missing Homebrew and Nix, then plans |
+| `scripts/dev-bootstrap.sh plan` | Default operation: reports what `apply` would change |
+| `scripts/dev-bootstrap.sh apply --only node` | Installs the selected ecosystems |
+| `scripts/dev-bootstrap.sh verify` | Verifies the exact declared baseline; `--health` checks the selected environment instead |
+
+- Versions are declared in `home/dev/runtime-baseline.nix`. After the initial
+  installation, each ecosystem manager owns upgrades, additional releases and
+  project selection.
+- A rerun adds missing baseline entries and leaves later upgrades, additional
+  releases and project selections in place.
+- Foundation installation runs only the installers for missing foundations:
+  the pinned official Homebrew installer, then the official Nix multi-user
+  installer. On Linux, Nix and pacman must already be present.
+- The bootstrap never activates nix-darwin or Home Manager and never installs
+  desktop applications.
+
+The [development configuration guide](home/dev/README.md#clean-host-entry) and
+the [bootstrap reference](home/dev/bootstrap/README.md) cover privileges,
+download boundaries and the adapter model.
 
 ### macOS Activation
 
@@ -254,6 +309,8 @@ nix develop .#ci --command bash -euo pipefail -c '
   shellcheck scripts/*.sh scripts/tests/*.sh
 '
 nix flake check --no-build --all-systems --show-trace
+bash scripts/ci-development-bootstrap.sh source
+bash scripts/ci-development-bootstrap.sh package
 home/shells/zsh/config/tests/run-all.zsh --full
 git diff --check
 ```
@@ -271,6 +328,13 @@ before every switch.
 
 CI evaluates the Linux output. Build it before activation; login, rendering,
 portals, wallet access and rollback are verified in a running session.
+
+### Workflows
+
+| Workflow | Trigger | Runners | Coverage |
+| --- | --- | --- | --- |
+| `zsh-validate.yml` | Push and pull request on configuration paths | Ubuntu 24.04, macOS 26, latest Ubuntu and macOS | Formatting, lint and policy checks; pinned-toolchain freshness; flake evaluation for both systems; `cpp-tools` and `llvm-darwin-toolchain` builds; the Zsh suite on Linux and macOS |
+| `development-bootstrap.yml` | Push and pull request on bootstrap paths | Ubuntu 24.04 (x86_64), macOS 15 (arm64) | Bootstrap source contracts, ownership checks and the packaged executor's tests |
 
 ## Contributing
 
