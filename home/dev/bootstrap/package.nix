@@ -11,7 +11,6 @@
   coreutils,
   diffutils,
   writeText,
-  nix,
   runtimeManagerBackend ? "native",
 }:
 let
@@ -24,7 +23,7 @@ let
     backend = runtimeManagerBackend;
   };
   assets = callPackage ./assets.nix { inherit baseline; };
-  policy = import ./policy.nix { inherit baseline; };
+  policy = import ./policy.nix;
   pythonRuntime = python314.withPackages (packages: [ packages.tkinter ]);
   nixRuntime = name: package: {
     inherit (package) version;
@@ -50,12 +49,7 @@ let
         definition = assets.pythonDefinition;
         sourceCache = toString assets.pythonCache;
       };
-    ocaml =
-      baseline.ocaml
-      // lib.optionalAttrs (runtimeManagerBackend == "native") {
-        source = toString assets.opamRepository;
-        retainCommand = "${nix}/bin/nix-store";
-      };
+    inherit (baseline) ocaml;
     # Exact versions are checked at runtime; never substitute a nearby release.
     nixRuntimes = lib.optionalAttrs (runtimeManagerBackend == "nixpkgs") {
       "node-${nodejs_24.version}" = nixRuntime "node" nodejs_24;

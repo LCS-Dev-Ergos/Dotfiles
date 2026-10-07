@@ -74,9 +74,6 @@ let
         "5.4.1"
         "5.5.1"
       ];
-      repository = "https://github.com/ocaml/opam-repository.git";
-      revision = "197f8eb389658dab6a200a42e38ad37f3ae5e2c9";
-      sourceHash = "sha256-tJHPaQLaR2Z39ki/aV+RhOv1GtOeUEADNL2fe00idt4=";
     };
   };
 in

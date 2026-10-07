@@ -29,7 +29,7 @@ class Bootstrap:
                 "Selected native toolchain is absent from the baseline"
             )
         home = Path.home()
-        # Existing hosts keep lock, checkpoints and GC roots under these names.
+        # Existing hosts keep their lock and caches under these names.
         self.cache = (
             root_path("XDG_CACHE_HOME", home / ".cache") / "devrestore"
         )
@@ -107,9 +107,6 @@ class Bootstrap:
     def verify(self, row, *, exact=True):
         return self.adapter(row["language"]).verify(row, exact=exact)
 
-    def pending(self, row):
-        return self.adapter(row["language"]).pending(row)
-
     def qualify(self, rows, *, exact):
         """Verify present rows in place: ok, or conflict with the reason."""
         for row in rows:
@@ -120,8 +117,6 @@ class Bootstrap:
                 identity = adapter.verify(row, exact=exact)
                 if not exact:
                     row["actualVersion"] = identity
-                if adapter.pending(row):
-                    raise BootstrapError(adapter.pending_reason)
                 row["state"] = "ok"
             except BootstrapError as error:
                 row.update(state="conflict", reason=str(error))
@@ -169,19 +164,15 @@ class Bootstrap:
         if not lock_held:
             with self.locked():
                 return self.apply(rows, lock_held=True, evolved=evolved)
-        for adapter in self.adapters.values():
-            adapter.before_apply()
         if any(row["state"] in ("blocked", "conflict") for row in rows):
             raise BootstrapError(
                 "Recovery is blocked; inspect the plan before installing"
             )
         for row in rows:
             if row["state"] == "present":
-                # Resumed work was created by the bootstrap; check it exactly.
-                self.verify(row, exact=not evolved or self.pending(row))
+                self.verify(row, exact=not evolved)
         missing = [row for row in rows if row["state"] == "missing"]
-        pending = [row for row in rows if self.pending(row)]
-        if not missing and not pending:
+        if not missing:
             return
         for adapter in self.adapters.values():
             selected = [
@@ -195,7 +186,7 @@ class Bootstrap:
         if any(row["state"] in ("blocked", "conflict") for row in fresh):
             raise BootstrapError("State changed since planning")
         for row in fresh:
-            if row["state"] == "missing" or self.pending(row):
+            if row["state"] == "missing":
                 adapter = self.adapter(row["language"])
                 adapter.install(row)
                 adapter.verify(row)

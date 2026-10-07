@@ -42,9 +42,6 @@ class SetupTests(unittest.TestCase):
         self.provided = set()
         self.data = copy.deepcopy(declared_manifest())
         self.data.update(backend="native", platform="aarch64-darwin")
-        # Retention has isolated unit coverage. Packaged manifests must never
-        # turn an orchestration fixture into a real Nix daemon operation.
-        self.data["ocaml"].pop("retainCommand", None)
         self.data["python"].update(
             builder=str(self.bin / "python-build"),
             sourceCache=str(self.root),
@@ -510,18 +507,13 @@ class SetupTests(unittest.TestCase):
             PythonAdapter.install(self.recovery.adapter("python"), row)
         # Execute the real OCaml install path. Only subprocesses and the
         # compiled-runtime canary are substituted; no duplicate opam simulator.
-        repository = self.root / "repository"
-        repository.mkdir()
-        (repository / "repo").touch()
-        self.data["ocaml"]["source"] = str(repository)
         writable_directory(self.recovery.state)
         writable_directory(self.opam)
         (self.opam / "config").touch()
-        upstream = self.data["policy"]["upstreamName"]
 
         def opam_process(args, **kwargs):
             calls.append((args, kwargs))
-            return upstream if args[1:3] == ["repository", "list"] else ""
+            return ""
 
         row = next(r for r in self.recovery.plan() if r["language"] == "ocaml")
         with (

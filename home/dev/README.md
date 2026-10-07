@@ -44,13 +44,13 @@ interface checks; they do not pin native packages or certify every release.
 | Component | Responsibility |
 | --- | --- |
 | `runtime-baseline.nix` | Initial runtime identities, source revisions and hashes, descriptive defaults |
-| `bootstrap/assets.nix` | Nix-fetched Node archives, opam source tree, standalone Python helper and complete source cache |
-| `bootstrap/policy.nix` | Literal command arguments, manager CLI floors, repository identities and timeouts |
+| `bootstrap/assets.nix` | Nix-fetched Node archives, standalone Python helper and complete source cache |
+| `bootstrap/policy.nix` | Literal command arguments, manager CLI floors and timeouts |
 | `bootstrap/package.nix` | Generated manifest, helper closure, wrapper and isolated contract checks |
 | `bootstrap/bootstrap.py`, `bootstrap/core/cli.py` | Executable entry, argument handling and structured reporting |
 | `bootstrap/core/engine.py`, `setup.py` | Adapter selection, mutation guards, shared lock, setup stages and selection reports |
 | `bootstrap/core/manifest.py`, `process.py`, `paths.py` | Manifest validation, the process boundary and filesystem/state boundaries |
-| `bootstrap/core/adapters/` | One adapter per ecosystem behind a shared contract: Node/Python seeding, checkpointed opam handover with GC roots, and the native managers for Rust, Haskell, Lean, Ruby, JVM and Julia |
+| `bootstrap/core/adapters/` | One adapter per ecosystem behind a shared contract: Node/Python seeding, opam switches on the root's own upstream, and the native managers for Rust, Haskell, Lean, Ruby, JVM and Julia |
 | `bootstrap/probe-shell.zsh` | Disposable startup context loading the production language adapters and PATH module |
 | `native-managers.nix` | Canonical package-manager routes, manager inventory and native build prerequisites |
 
@@ -82,9 +82,9 @@ NixOS uses nixpkgs and the required language adapters. Existing ecosystem
 managers remain available. An additional package manager is appropriate only
 when a selected platform installation requires it. Current Nix-owned compiler
 modules keep their role. Full NixOS coverage and native manager/SDK artifact
-retention are outside the qualified baseline. Node archives,
-the Python build definition and the opam repository revision are pinned by the
-bootstrap; native library closures still require qualification.
+retention are outside the qualified baseline. Node archives
+and the Python build definition are pinned by the bootstrap, while OCaml installs
+from opam's own upstream; native library closures still require qualification.
 
 ## Clean-Host Entry
 
@@ -173,7 +173,7 @@ reports paths and blockers without running managers, downloading or writing.
 `present` means a path exists; `verify` establishes its version and canaries.
 JSON additionally reports global selections and installed version/switch names.
 Planning succeeds even with missing prerequisites; verification returns nonzero
-until every selected runtime passes and no selected opam handover remains pending.
+until every selected runtime passes.
 Default `verify` checks exact baseline identities and complete build canaries.
 `verify --health` checks that each selected native global runtime runs, at any
 release: there is no version floor, so downgrades and additional named Python
@@ -237,27 +237,15 @@ are scoped to compilation and do not change interactive C/C++ ownership. The nat
 than a complete build lock. The helper is distinct from the native pyenv package
 and the builder used for ordinary `pyenv install` operations.
 
-The OCaml adapter creates `lcs-ocaml-<version>` switches from the immutable opam
-repository, with required source checksums and automatic OS-package installation
-disabled. Fresh bare roots generate Zsh hooks without writing shell configuration
-or selecting a global switch. The new switch moves to `lcs-upstream` at
-`https://opam.ocaml.org`; only a root created by recovery also receives that
-repository default. Existing global/default/project selections are preserved.
-
-A private pending journal records owned creation/handover intent before mutation.
-Retry requires the same root, release and repository revision, a valid compiler,
-and expected repository selections/addresses. Planning exposes unfinished
-handover and verification cannot report success until it completes. Incomplete
-switches require inspection; they are never deleted automatically. Retired
-frozen registrations are retained; completed bootstrap switches use the ordinary
-upstream. Explicit
-apply protects the declared store source with an indirect Nix GC root under
-`$XDG_STATE_HOME/devrestore/opam-sources`, including preserving reruns. Keep that
-state while any opam root still registers its frozen repository; ordinary
-`opam update --all` includes unselected registrations. A separate
-reference query followed by opam's global removal could alter another switch
-between commands. Verification of an existing
-compiler compiles and runs a small bytecode program. Project dependency locks
+The OCaml adapter creates `lcs-ocaml-<version>` switches from the opam root's
+own repositories, with required source checksums and automatic OS-package
+installation disabled. A fresh root is initialized bare on opam's default
+upstream (`https://opam.ocaml.org`) with Zsh hooks, without writing shell
+configuration or selecting a global switch. Existing roots keep their
+repositories and global/project selections; the bootstrap never registers or
+selects repositories. An interrupted creation leaves an incomplete switch that
+planning reports for inspection; it is never deleted or reused automatically.
+Verification of an existing compiler compiles and runs a small bytecode program. Project dependency locks
 and existing switch exports remain separate inputs.
 
 Manager roots honor `FNM_DIR`, `PYENV_ROOT` and `OPAMROOT`; cache and lock state

@@ -3,4 +3,4 @@
 let
   baseline = import ../validate.nix { baseline = import ../../runtime-baseline.nix; };
 in
-baseline // { policy = import ../policy.nix { inherit baseline; }; }
+baseline // { policy = import ../policy.nix; }

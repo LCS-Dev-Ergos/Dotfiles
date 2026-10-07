@@ -7,18 +7,18 @@ automatic checks.
 
 | Category | Coverage |
 | --- | --- |
-| `unit/` | Manifest input validation and CLI diagnostics; frozen opam source retention, registration failures and ownership conflicts. |
+| `unit/` | Manifest input validation and CLI diagnostics. |
 | `integration/` | Native toolchain filesystem transitions, setup orchestration, child environments and shell adapters. |
 | `bootstrap/` | Pre-Nix foundation entry, runtime CLI recovery and installed command aliases. |
 | `qualification/` | Manual checks against real native managers in disposable roots; excluded from automatic discovery. |
 
 `qualification/native-assets.zsh` installs the packaged Node archives and
 builds CPython with real FNM and pyenv. `qualification/native-opam.zsh` drives
-real opam through switch creation, interrupted handover, selection
-preservation, hook repair and an upstream update, with empty switches instead
-of compiler builds. They are the evidence that native managers accept the
-generated commands; fixtures cannot provide it. They need network access and
-minutes, so they stay outside the fast suites.
+real opam through bare root initialization, switch creation, default
+selection, selection preservation, hook repair and an upstream update, with
+empty switches instead of compiler builds. They are the evidence that native
+managers accept the generated commands; fixtures cannot provide it. They need
+network access and minutes, so they stay outside the fast suites.
 
 Run the source checks from the repository root. Setup contracts evaluate the
 declared policy from `tests/manifest.nix` with Nix, without building assets:

@@ -1,9 +1,5 @@
 # Literal argv and ownership policy. Runtime paths are bound by the executor.
-{ baseline }:
 {
-  repositoryName = "lcs-baseline-${baseline.ocaml.revision}-nix";
-  upstreamName = "lcs-upstream";
-  upstreamUrl = "https://opam.ocaml.org";
   # Manager CLI floors: the declared argv relies on these releases' options.
   # Runtime selections have no floor; native managers own downgrades too.
   managerMinimums = {
@@ -72,8 +68,6 @@
       "--no-opamrc"
       "--enable-shell-hook"
       "--shell=zsh"
-      "{name}"
-      "{url}"
     ];
     opamCreate = [
       "switch"
@@ -83,36 +77,6 @@
       "--no-switch"
       "--no-depexts"
       "--require-checksums"
-      "--repositories={name}"
-    ];
-    opamRegister = [
-      "repository"
-      "add"
-      "{name}"
-      "{url}"
-      "--dont-select"
-    ];
-    opamSelectSwitch = [
-      "repository"
-      "set-repos"
-      "{name}"
-      "--on-switches={switch}"
-    ];
-    opamSelectDefault = [
-      "repository"
-      "set-repos"
-      "{name}"
-      "--set-default"
-    ];
-    opamList = [
-      "repository"
-      "list"
-      "--short"
-    ];
-    opamListAll = [
-      "repository"
-      "list"
-      "--all"
     ];
   };
 }

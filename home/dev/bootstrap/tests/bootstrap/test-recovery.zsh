@@ -94,17 +94,10 @@ manifest = {
         "sourceCache": str(python_cache),
         "sources": [{"name": "source.tar.gz", "sha256": python_digest}],
     },
-    "ocaml": {
-        "versions": ["5.5.1"],
-        "repository": "https://github.com/ocaml/opam-repository.git",
-        "revision": "197f8eb389658dab6a200a42e38ad37f3ae5e2c9",
-        "source": str(root / "opam-source"),
-    },
+    "ocaml": {"versions": ["5.5.1"]},
 }
 (root / "definitions").mkdir()
 (root / "definitions/3.14.7").touch()
-(root / "opam-source").mkdir()
-(root / "opam-source/repo").write_text('opam-version: "2.0"\n')
 (root / "baseline.json").write_text(json.dumps(manifest))
 manifest["backend"] = "nixpkgs"
 (root / "nixos.json").write_text(json.dumps(manifest))
@@ -298,27 +291,25 @@ if FIXTURE_PYTHON_FAIL=7 \
   return 1
 fi
 
-# Native argv fixtures reject the previously invalid common-option prefix.
+# Native argv fixtures: a bare root on opam's own upstream, then one switch.
+# The bootstrap never registers, selects or lists repositories itself.
 "$interpreter" - "$fixture_root/bin/opam" "$interpreter" "$fixture_shell" <<'PY'
 import pathlib
 import sys
 
 script = r"""import json
-import os
 import pathlib
 import sys
 
 args = sys.argv[1:]
-assert args[0] in ("init", "switch", "repository"), args
 root = pathlib.Path(args[args.index("--root") + 1])
-record = root / "fixture-repos.json"
-data = (
-    json.loads(record.read_text())
-    if record.exists()
-    else {"default": ["legacy"], "switches": {}, "urls": {}}
+record = root / "fixture-calls.json"
+calls = json.loads(record.read_text()) if record.exists() else []
+calls.append(args[:2])
+assert not any(
+    arg.startswith(("--repositories", "lcs-baseline-", "file:")) for arg in args
 )
 if args[0] == "init":
-    name = next(arg for arg in args if arg.startswith("lcs-baseline-"))
     assert all(
         flag in args
         for flag in (
@@ -331,15 +322,18 @@ if args[0] == "init":
     )
     root.mkdir(parents=True, exist_ok=True)
     (root / "config").touch()
-    data["default"] = [name]
-    data["urls"][name] = args[args.index(name) + 1]
 elif args[:2] == ["switch", "create"]:
     assert all(
         flag in args
         for flag in ("--no-switch", "--no-depexts", "--require-checksums")
     )
+    assert "ocaml-base-compiler.5.5.1" in args
     target = root / args[2] / "bin"
     target.mkdir(parents=True)
+    # Source builds start from an allowlisted environment; mark the root.
+    if (root / "fail-create").exists():
+        record.write_text(json.dumps(calls))
+        sys.exit(31)
     (target / "ocamlc").write_text(
         "#!" + FIXTURE_SHELL + '\ncase "$1" in\n'
         "-version) echo 5.5.1;;\n"
@@ -351,123 +345,66 @@ elif args[:2] == ["switch", "create"]:
     )
     for path in target.iterdir():
         path.chmod(0o700)
-    name = next(
-        arg.split("=", 1)[1]
-        for arg in args
-        if arg.startswith("--repositories=")
-    )
-    data["switches"][args[2]] = [name]
-elif args[:2] == ["repository", "add"]:
-    assert "--dont-select" in args
-    assert data["urls"].get(args[2], args[3]) == args[3]
-    if args[2] == "lcs-upstream" and os.environ.get("FIXTURE_OPAM_OFFLINE"):
-        sys.exit(40)
-    data["urls"][args[2]] = args[3]
-elif args[:2] == ["repository", "set-repos"]:
-    scope = next((x for x in args if x.startswith("--on-switches=")), None)
-    if scope:
-        data["switches"][scope.split("=", 1)[1]] = [args[2]]
-    else:
-        assert "--set-default" in args
-        data["default"] = [args[2]]
-elif args[:2] == ["repository", "list"]:
-    if "--all" in args:
-        for repo, url in data["urls"].items():
-            refs = (["<default>"] if repo in data["default"] else []) + [
-                switch
-                for switch, repos in data["switches"].items()
-                if repo in repos
-            ]
-            print(" ".join([repo, url, *refs]))
-    elif "--set-default" in args:
-        print("\n".join(data["default"]))
-    else:
-        scope = next(x for x in args if x.startswith("--switch="))
-        print("\n".join(data["switches"][scope.split("=", 1)[1]]))
-elif args[:2] == ["repository", "remove"]:
-    assert "--all-switches" in args
-    del data["urls"][args[2]]
 else:
     raise AssertionError(args)
-record.write_text(json.dumps(data))
+record.write_text(json.dumps(calls))
 """
 pathlib.Path(sys.argv[1]).write_text(
     "#!" + sys.argv[2] + "\nFIXTURE_SHELL = " + repr(sys.argv[3]) + "\n" + script
 )
 PY
 command chmod 700 "$fixture_root/bin/opam"
+
+_opam_calls() {
+  "$interpreter" -c 'import json, sys; print(json.load(open(sys.argv[1])))' \
+    "$1/fixture-calls.json"
+}
+
+# An existing root keeps its global selection and other switches.
 command mkdir -p "$OPAMROOT/extra"
 print -r -- 'switch: "extra"' > "$OPAMROOT/config"
 _bootstrap_fixture apply --only ocaml > /dev/null
-[[ "$(cat "$OPAMROOT/config")" == 'switch: "extra"' &&
-   -d "$OPAMROOT/extra" ]] || {
-  print -u2 'FAIL: opam recovery changed global or additional switches'
-  return 1
-}
 _bootstrap_fixture apply --only ocaml > /dev/null
-if OPAMROOT="$fixture_root/fresh-opam" FIXTURE_OPAM_OFFLINE=1 \
-  _bootstrap_fixture apply --only ocaml > /dev/null 2>&1; then
-  print -u2 'FAIL: unavailable upstream must leave a pending handover'
+[[ "$(cat "$OPAMROOT/config")" == 'switch: "extra"' &&
+   -d "$OPAMROOT/extra" &&
+   "$(_opam_calls "$OPAMROOT")" == "[['switch', 'create']]" ]] || {
+  print -u2 'FAIL: opam bootstrap changed existing selections or repeated work'
   return 1
-fi
+}
+
+# A fresh root is initialized bare, without an implicit global selection.
+OPAMROOT="$fixture_root/fresh-opam" _bootstrap_fixture apply --only ocaml \
+  > /dev/null
 [[ -f "$fixture_root/fresh-opam/config" &&
-   ! -s "$fixture_root/fresh-opam/config" ]] || {
-  print -u2 'FAIL: fresh opam acquired an implicit global selection'
+   ! -s "$fixture_root/fresh-opam/config" &&
+   "$(_opam_calls "$fixture_root/fresh-opam")" ==
+     "[['init', '--bare'], ['switch', 'create']]" ]] || {
+  print -u2 'FAIL: fresh opam root was not initialized bare'
   return 1
 }
-if OPAMROOT="$fixture_root/fresh-opam" \
-  _bootstrap_fixture verify --only ocaml > /dev/null 2>&1; then
-  print -u2 'FAIL: verification accepted an unfinished repository handover'
-  return 1
-fi
-command cp "$fixture_root/fresh-opam/fixture-repos.json" \
-  "$fixture_root/pending-repos.json"
-"$interpreter" - "$fixture_root/fresh-opam/fixture-repos.json" <<'PY'
-import json
-import pathlib
-import sys
 
-file = pathlib.Path(sys.argv[1])
-data = json.loads(file.read_text())
-for name in data["urls"]:
-    if name.startswith("lcs-baseline-"):
-        data["urls"][name] = "https://example.invalid/changed"
-file.write_text(json.dumps(data))
-PY
-if OPAMROOT="$fixture_root/fresh-opam" \
+# An interrupted switch stays for inspection; it is never replaced or reused.
+command mkdir -p "$fixture_root/broken-opam"
+command touch "$fixture_root/broken-opam/fail-create"
+if OPAMROOT="$fixture_root/broken-opam" \
   _bootstrap_fixture apply --only ocaml > /dev/null 2>&1; then
-  print -u2 'FAIL: pending handover overwrote a changed repository registration'
+  print -u2 'FAIL: failed switch creation was reported as success'
   return 1
 fi
-[[ "$(cat "$fixture_root/fresh-opam/fixture-repos.json")" ==
-   *https://example.invalid/changed* ]] || {
-  print -u2 'FAIL: pending handover changed an unexpected repository'
+command rm -f "$fixture_root/broken-opam/fail-create"
+for action in apply verify; do
+  if OPAMROOT="$fixture_root/broken-opam" \
+    _bootstrap_fixture "$action" --only ocaml > /dev/null 2>&1; then
+    print -u2 "FAIL: $action accepted an incomplete opam switch"
+    return 1
+  fi
+done
+[[ -d "$fixture_root/broken-opam/lcs-ocaml-5.5.1/bin" &&
+   "$(_opam_calls "$fixture_root/broken-opam")" ==
+     "[['init', '--bare'], ['switch', 'create']]" ]] || {
+  print -u2 'FAIL: incomplete opam switch was replaced or retried'
   return 1
 }
-command cp "$fixture_root/pending-repos.json" \
-  "$fixture_root/fresh-opam/fixture-repos.json"
-OPAMROOT="$fixture_root/fresh-opam" \
-  _bootstrap_fixture apply --only ocaml > /dev/null
-"$interpreter" - "$fixture_root" <<'PY'
-import json
-import pathlib
-import sys
-
-root = pathlib.Path(sys.argv[1])
-for name in ("opam", "fresh-opam"):
-    data = json.loads((root / name / "fixture-repos.json").read_text())
-    assert data["switches"]["lcs-ocaml-5.5.1"] == ["lcs-upstream"]
-    assert data["default"] == (
-        ["legacy"] if name == "opam" else ["lcs-upstream"]
-    )
-    assert all(not repo.startswith("lcs-baseline-") for repo in data["default"])
-    assert all(
-        not repo.startswith("lcs-baseline-")
-        for repos in data["switches"].values()
-        for repo in repos
-    )
-assert not list((root / "state/devrestore").glob("opam-*.json"))
-PY
 
 # Lock contention must fail before any selected runtime root is created.
 "$interpreter" - "$interpreter" "$recovery" "$fixture_root" <<'PY'

@@ -32,7 +32,6 @@ class Adapter:
     compiles = False
     # The manager script is sourced rather than executed (SDKMAN).
     sourced_manager = False
-    pending_reason = None
 
     def __init__(self, context):
         self.context = context
@@ -161,8 +160,6 @@ class Adapter:
                 self.context.nix_runtime(row)
             elif path.is_file():
                 row["state"] = "present"
-                if self.pending(row):
-                    row["reason"] = self.pending_reason
             elif prefix is not None and os.path.lexists(prefix):
                 row.update(
                     state="conflict",
@@ -176,13 +173,6 @@ class Adapter:
                     row.update(state="blocked", reason=str(error))
             rows.append(row)
         return rows
-
-    def pending(self, row):
-        """Whether interrupted bootstrap work on this runtime awaits resumption."""
-        return False
-
-    def before_apply(self):
-        """Work done under the apply lock before any runtime is inspected."""
 
     def preflight(self, missing):
         """Fail before any installation when a missing runtime cannot be built."""

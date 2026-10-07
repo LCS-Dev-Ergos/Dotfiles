@@ -14,10 +14,11 @@ and runtime semantics; the entry does not reproduce those decisions in Bash.
 
 Initial seeding, recovery of subsequently evolved state and project dependency
 reconstruction have separate acceptance criteria. Prefer native exports/locks
-for the latter two. New adapters should use supported manager interfaces first;
-artifact retention or multi-stage journals require a concrete recovery need.
-The existing retained-asset routes stay intact while simpler integrations are
-qualified one ecosystem at a time.
+for the latter two. Adapters use the manager's supported installation interface
+against its own upstream: the bootstrap declares exact versions, not artifacts.
+OCaml and the six toolchain adapters follow this model; Node and Python still
+seed from Nix-retained archives and sources until they move to `fnm install`
+and `pyenv install`.
 
 ## Architecture and Execution
 
@@ -51,14 +52,14 @@ flowchart TD
 
 | Component | Responsibility |
 | --- | --- |
-| `package.nix`, `assets.nix`, `policy.nix` | Compose the manifest, retain initial inputs, package the executor and run fixture checks. |
+| `package.nix`, `assets.nix`, `policy.nix` | Compose the manifest, retain the Node and Python initial inputs, package the executor and run fixture checks. |
 | `bootstrap.py`, `core/cli.py` | Stable executable entry, argument parsing, reporting and process exit status. |
 | `core/manifest.py` | Validate the generated manifest; each toolchain adapter validates its own declaration. |
 | `core/process.py`, `paths.py`, `errors.py` | The single process boundary with scoped child environments; writable roots and owned directories; operational errors. |
 | `core/engine.py` | Select adapters, inspect and verify runtimes, serialize mutation and dispatch installation. |
 | `core/setup.py` | Run the setup stages over the selected adapters: prerequisites, readiness, defaults, hooks, selection reports and shell qualification. |
 | `core/adapters/base.py` | The adapter contract and the behavior every ecosystem shares: planning, manager resolution, verification and selection reports. |
-| `adapters/node.py`, `python.py`, `ocaml.py` | Seed Node through FNM from a checked loopback archive, build CPython with the pinned python-build, create opam switches from the retained repository with checkpointed handover and GC roots. |
+| `adapters/node.py`, `python.py`, `ocaml.py` | Seed Node through FNM from a checked loopback archive, build CPython with the pinned python-build, create opam switches from the root's own upstream repositories. |
 | `adapters/toolchain.py` and one module per manager | rustup, GHCup, elan, rbenv, SDKMAN and juliaup: hashed installer acquisition, native installation, absence-only defaults and direct canaries. |
 
 From the repository root:

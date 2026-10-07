@@ -47,12 +47,6 @@ builtins.seq validatedBaseline {
       });
     }
   ) baseline.node;
-  opamRepository = fetchzip {
-    name = "development-bootstrap-opam-repository";
-    url = "https://codeload.github.com/ocaml/opam-repository/tar.gz/${baseline.ocaml.revision}";
-    hash = baseline.ocaml.sourceHash;
-    extension = "tar.gz";
-  };
   pythonDefinition = "${pythonBuildSource}/plugins/python-build/share/python-build/${baseline.python.version}";
   pythonCache = linkFarm "development-recovery-python-sources" (
     map (source: {

@@ -58,13 +58,6 @@ def validate_manifest(data):
     version(data["python"]["pythonBuildVersion"])
     for release in data["ocaml"]["versions"]:
         version(release)
-    if (
-        data["ocaml"]["repository"]
-        != "https://github.com/ocaml/opam-repository.git"
-    ):
-        raise BootstrapError("Unsupported opam repository")
-    if not re.fullmatch(r"[a-f0-9]{40}", data["ocaml"]["revision"]):
-        raise BootstrapError("opam repository must use an immutable revision")
     validate_toolchains(data)
     declared = {
         "node": versions,
