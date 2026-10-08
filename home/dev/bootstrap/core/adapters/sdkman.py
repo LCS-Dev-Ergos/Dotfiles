@@ -102,8 +102,12 @@ class SdkmanAdapter(LinkedToolchain):
         return ["default", self.candidate, self.identifier()]
 
 
-class SdkmanTool(SdkmanAdapter):
-    """A JVM build tool: it runs on the JDK that the `jvm` adapter installs."""
+class JdkTool:
+    """A toolchain that runs on the JDK the `jvm` adapter installs.
+
+    Mixed in before the manager's base class, whether the tool comes from
+    SDKMAN itself or from another manager (Coursier).
+    """
 
     requires = ("jvm",)
 
@@ -127,6 +131,10 @@ class SdkmanTool(SdkmanAdapter):
         return super().runtime_environment() | {
             "JAVA_HOME": str(self.java_home())
         }
+
+
+class SdkmanTool(JdkTool, SdkmanAdapter):
+    """A JVM build tool that SDKMAN installs beside the JDK."""
 
 
 class KotlinAdapter(SdkmanTool):
