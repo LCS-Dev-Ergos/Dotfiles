@@ -34,7 +34,7 @@ and Julia. Their initial identities are Rust 1.98.1, GHC 9.14.1, Cabal
 3.16.1.0, Lean 4.32.0, Ruby 4.0.6, Java 21.0.12.1 (SDKMAN candidate
 `21.0.12+1.1-tem`) and Julia 1.12.6.
 
-The core language set includes HLS 2.15.0.0 in GHCup's rows, with a server for
+The core language set includes HLS 2.14.0.0 in GHCup's rows, with a server for
 GHC 9.14.1, and Kotlin 2.4.21, Maven 3.10.0 and Gradle 9.8.1 as SDKMAN
 adapters that require `jvm` and run on its JDK. Each adapter declares what it
 requires, whether a run without `--only` selects it, its platforms and the

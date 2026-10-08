@@ -17,8 +17,10 @@ let
       haskell = {
         version = "9.14.1";
         cabal = "3.16.1.0";
-        # GHCup's recommended release; it ships a server for GHC 9.14.1.
-        hls = "2.15.0.0";
+        # The recommended release of GHCup's default metadata channel, which
+        # a fresh GHCup reads; both platforms' bindists ship a server for GHC
+        # 9.14.1. A release that only the vanilla channel lists fails there.
+        hls = "2.14.0.0";
       };
       lean.version = "4.32.0";
       ruby.version = "4.0.6";

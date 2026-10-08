@@ -21,7 +21,7 @@ from core.manifest import validate_toolchains
 
 SPECS = {
     "rust": {"version": "1.98.1"},
-    "haskell": {"version": "9.14.1", "cabal": "3.16.1.0", "hls": "2.15.0.0"},
+    "haskell": {"version": "9.14.1", "cabal": "3.16.1.0", "hls": "2.14.0.0"},
     "lean": {"version": "4.32.0"},
     "ruby": {"version": "4.0.6"},
     "jvm": {"version": "21.0.12.1", "candidate": "21.0.12+1.1-tem"},
@@ -277,7 +277,7 @@ class NativeTransitions(unittest.TestCase):
         (roots["haskell"] / "bin/ghc").symlink_to("../ghc/9.16.1/bin/ghc")
         (roots["haskell"] / "bin/cabal").symlink_to("cabal-3.18.0.0")
         (roots["haskell"] / "bin/haskell-language-server-wrapper").symlink_to(
-            "haskell-language-server-wrapper-2.14.0.0"
+            "haskell-language-server-wrapper-2.15.0.0"
         )
         for candidate, release in (
             ("java", "25.0.4-tem"),
@@ -364,7 +364,7 @@ class NativeTransitions(unittest.TestCase):
         ruby = rows.pop(("ruby", None))
         self.assertEqual((ruby["state"], ruby["path"]), ("external", ""))
         for (language, component), row in rows.items():
-            release = "2.14.0.0" if component else older[language][0]
+            release = "2.15.0.0" if component else older[language][0]
             with (
                 self.subTest(language=language, component=component),
                 patch.object(process, "run", return_value=release),
@@ -393,7 +393,7 @@ class NativeTransitions(unittest.TestCase):
             ("maven", "default", "maven", "3.10.0"),
             ("gradle", "default", "gradle", "9.8.1"),
             ("haskell", "set", "cabal", "3.16.1.0"),
-            ("haskell", "set", "hls", "2.15.0.0"),
+            ("haskell", "set", "hls", "2.14.0.0"),
         ):
             with self.subTest(command=expected):
                 self.assertIn(expected, calls)
@@ -406,7 +406,7 @@ class NativeTransitions(unittest.TestCase):
         for expected in (
             ("haskell", "install", "ghc", "9.14.1", "--no-set"),
             ("haskell", "install", "cabal", "3.16.1.0", "--no-set"),
-            ("haskell", "install", "hls", "2.15.0.0", "--no-set"),
+            ("haskell", "install", "hls", "2.14.0.0", "--no-set"),
             ("lean", "toolchain", "install", "leanprover/lean4:v4.32.0"),
             ("jvm", "install", "java", "21.0.12+1.1-tem"),
             ("kotlin", "install", "kotlin", "2.4.21"),
@@ -665,7 +665,7 @@ class NativeTransitions(unittest.TestCase):
         self.assertEqual(hls["state"], "missing")
         self.assertTrue(
             hls["path"].endswith(
-                "hls/2.15.0.0/bin/haskell-language-server-9.14.1"
+                "hls/2.14.0.0/bin/haskell-language-server-9.14.1"
             )
         )
         # The release is installed but serves other compilers only.
@@ -685,9 +685,9 @@ class NativeTransitions(unittest.TestCase):
                     kwargs["env"]["GHC_BIN"], str(haskell.binary())
                 )
                 if "--numeric-version" in args:
-                    return "2.15.0.0"
+                    return "2.14.0.0"
                 return (
-                    "haskell-language-server version: 2.15.0.0 "
+                    "haskell-language-server version: 2.14.0.0 "
                     f"(GHC: {compiler}) (PATH: fixture)"
                 )
 
@@ -696,7 +696,7 @@ class NativeTransitions(unittest.TestCase):
                 patch.object(process, "run", side_effect=run),
             ):
                 if supported:
-                    self.assertEqual(self.recovery.verify(hls), "2.15.0.0")
+                    self.assertEqual(self.recovery.verify(hls), "2.14.0.0")
                 else:
                     with self.assertRaisesRegex(
                         BootstrapError, "canary failed"
