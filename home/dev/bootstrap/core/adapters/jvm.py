@@ -8,6 +8,8 @@ from ..errors import BootstrapError
 from .toolchain import IDENTITY, LinkedToolchain
 
 # Fixed program and positional arguments; never interpolate shell source.
+# It runs under the package's Bash (sdkmanShell): SDKMAN needs Bash 4, and
+# macOS ships 3.2.
 SDK_SCRIPT = """source "$1" || exit
 shift
 sdkman_auto_answer=false
@@ -54,7 +56,7 @@ class JvmAdapter(LinkedToolchain):
             )
         return process.run(
             [
-                "/bin/bash",
+                self.recipe["sdkmanShell"],
                 "--noprofile",
                 "--norc",
                 "-c",

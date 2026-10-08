@@ -1,5 +1,6 @@
 {
   lib,
+  bash,
   makeWrapper,
   python3,
   stdenvNoCC,
@@ -27,12 +28,20 @@ let
     inherit (package) version;
     path = "${package}/bin/${name}";
   };
+  recipe = nativeManagers.bootstrap.${system};
+  sdkmanShell = lib.getExe bash;
   manifest = baseline // {
     platform = system;
     backend = runtimeManagerBackend;
     inherit policy;
-    setup = nativeManagers.bootstrap.${system} // {
+    setup = recipe // {
       shell = lib.getExe zsh;
+      inherit sdkmanShell;
+      installers = recipe.installers // {
+        jvm = recipe.installers.jvm // {
+          shell = sdkmanShell;
+        };
+      };
       # Interpolation copies both inputs into the store and records them as
       # manifest references. toString would only name the source path, which
       # garbage collection can remove from under an installed dev-bootstrap.
@@ -63,8 +72,9 @@ assert
   builtins.all builtins.hasContext [
     manifest.setup.shellProbe
     manifest.setup.shellConfig
+    manifest.setup.sdkmanShell
   ]
-  || throw "development-bootstrap: shell qualification inputs must be store references";
+  || throw "development-bootstrap: shell inputs must be store references";
 # Force declaration and target validation even when only drvPath is evaluated.
 builtins.seq baseline (
   stdenvNoCC.mkDerivation {

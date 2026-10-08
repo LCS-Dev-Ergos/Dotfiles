@@ -60,6 +60,7 @@ class NativeTransitions(unittest.TestCase):
             "setup": {
                 "managerDirectory": str(self.root / "bin"),
                 "buildEnvironment": {"PATH": "/usr/bin:/bin"},
+                "sdkmanShell": "/fixture/bash-5",
             },
             "policy": {},
         }
@@ -467,7 +468,8 @@ class NativeTransitions(unittest.TestCase):
             self.adapter("jvm").invoke("install", "java", "21.0.12+1.1-tem")
         args = runner.call_args.args[0]
         self.assertEqual(
-            args[:5], ["/bin/bash", "--noprofile", "--norc", "-c", SDK_SCRIPT]
+            args[:5],
+            ["/fixture/bash-5", "--noprofile", "--norc", "-c", SDK_SCRIPT],
         )
         self.assertEqual(args[-3:], ["install", "java", "21.0.12+1.1-tem"])
         self.assertEqual(runner.call_args.kwargs["cwd"], "/")

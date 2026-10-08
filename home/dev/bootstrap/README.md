@@ -133,6 +133,11 @@ readiness still checks every manager executable.
 A failed command's error carries the last 2,000 characters of stderr and of
 stdout, since some tools report the cause on stdout.
 
+SDKMAN's installer and every `sdk` call run under the package's own Bash
+(`sdkmanShell`), because SDKMAN 5.23 requires Bash 4 and macOS ships 3.2.
+SDKMAN still installs from its own upstream; only the driver shell is Nix's,
+as the shell probe's zsh is.
+
 Every normal apply route rejects execution as root and checks selected mutable
 roots and runtime containers before invoking installers. Symlinked containers
 and group/world-writable state are rejected. Only declared native package-manager

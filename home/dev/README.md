@@ -60,7 +60,7 @@ packages or certify every release.
 
 Nix evaluation and package builds populate only store outputs and disposable
 test roots. The executor uses literal argument arrays; SDKMAN's shell API uses
-a fixed Bash program with positional arguments. Installed manager state and
+a fixed Bash program with positional arguments, run by the package's Bash 5. Installed manager state and
 runtime prefixes remain outside the store. Ordinary upgrades and project
 selection stay with the native ecosystem managers.
 

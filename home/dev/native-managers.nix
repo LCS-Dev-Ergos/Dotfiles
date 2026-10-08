@@ -70,10 +70,11 @@ let
         "none"
       ];
     };
+    # SDKMAN 5.23 requires Bash 4, and macOS ships 3.2: the package runs this
+    # installer, and every `sdk` call, with its own Bash (sdkmanShell).
     jvm = {
       url = "https://get.sdkman.io?rcupdate=false";
       sha256 = "e030f9814f5c78ba704b7aee6cb57efd4406012b6735fc1c25dbbfa2aee0ef35";
-      shell = "/bin/bash";
       arguments = [ ];
     };
     julia = {
