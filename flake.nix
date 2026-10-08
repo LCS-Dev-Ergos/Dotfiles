@@ -93,7 +93,7 @@
       darwinHost = rec {
         system = "aarch64-darwin";
         runtimeManagerBackend = "native";
-        nativeFnmReady = false;
+        nativeFnmReady = true;
         username = "lcs-dev";
         homeDirectory = "/Users/${username}";
         dotfilesRoot = "${homeDirectory}/Dotfiles";
