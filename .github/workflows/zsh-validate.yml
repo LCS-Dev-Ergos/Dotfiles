@@ -76,7 +76,7 @@ jobs:
             --command bash -euo pipefail -c '
             mapfile -t nix_files < <(find flake.nix darwin home hosts -type f -name "*.nix" | sort)
             nixfmt --check "${nix_files[@]}" scripts/development-bootstrap.nix
-            actionlint .github/workflows/development-bootstrap.yml .github/workflows/zsh-validate.yml
+            actionlint .github/workflows/development-bootstrap.yml .github/workflows/development-bootstrap-native.yml .github/workflows/zsh-validate.yml
             ruff check --isolated --target-version py313 --select E4,E7,E9,F,B home/dev/bootstrap
             ruff format --isolated --target-version py313 --line-length 79 --check home/dev/bootstrap
             statix check .

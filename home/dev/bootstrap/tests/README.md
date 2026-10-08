@@ -12,13 +12,27 @@ automatic checks.
 | `bootstrap/` | Pre-Nix foundation entry, runtime CLI recovery and installed command aliases. |
 | `qualification/` | Manual checks against real native managers in disposable roots; excluded from automatic discovery. |
 
-`qualification/native-assets.zsh` installs the packaged Node archives and
-builds CPython with real FNM and pyenv. `qualification/native-opam.zsh` drives
-real opam through bare root initialization, switch creation, default
-selection, selection preservation, hook repair and an upstream update, with
-empty switches instead of compiler builds. They are the evidence that native
-managers accept the generated commands; fixtures cannot provide it. They need
-network access and minutes, so they stay outside the fast suites.
+`qualification/native-adapters.zsh` runs the packaged executor against the
+real native managers in one disposable root and an empty environment: `plan`,
+`apply`, `verify`, `verify --health`, then a second `apply` for each selected
+ecosystem. It writes per-step JSON, durations, disk use and a `summary.json`,
+and fails when the real home's entries or manager selections change, or when
+the second `apply` installs anything. The native package manager stays global;
+the summary lists any package it installed.
+
+```sh
+zsh home/dev/bootstrap/tests/qualification/native-adapters.zsh \
+  /path/to/package/bin/dev-bootstrap /path/to/logs node python
+```
+
+`qualification/native-opam.zsh` drives real opam through bare root
+initialization, switch creation, default selection, selection preservation,
+hook repair and an upstream update, with empty switches instead of compiler
+builds. These scripts are the evidence that native managers accept the
+generated commands; fixtures cannot provide it. They need network access and
+minutes, so they stay outside the fast suites; the `Development Bootstrap
+Native` workflow runs the adapter harness on demand on macOS and in an Arch
+container.
 
 Run the source checks from the repository root. Setup contracts evaluate the
 declared policy from `tests/manifest.nix` with Nix, without building the package:
