@@ -7,7 +7,7 @@ automatic checks.
 
 | Category | Coverage |
 | --- | --- |
-| `unit/` | Manifest input validation and CLI diagnostics. |
+| `unit/` | Manifest input validation, CLI diagnostics and selection metadata (requirements, defaults, platforms, consents). |
 | `integration/` | Native toolchain filesystem transitions, setup orchestration, child environments and shell adapters. |
 | `bootstrap/` | Pre-Nix foundation entry, runtime CLI recovery and installed command aliases. |
 | `qualification/` | Manual checks against real native managers in disposable roots; excluded from automatic discovery. |

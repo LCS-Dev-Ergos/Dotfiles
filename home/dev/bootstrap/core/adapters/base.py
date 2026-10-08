@@ -14,6 +14,8 @@ from ..errors import BootstrapError
 from ..paths import NIX_STORE, native_command, root_path
 
 NIXOS_MARKER = Path("/etc/NIXOS")
+# Every platform the package targets; platforms.nix holds the same list.
+PLATFORMS = ("aarch64-darwin", "x86_64-linux")
 # pyenv and rbenv record `system` as a global selection. The host PATH then
 # decides which runtime runs, so health reports such selections as external
 # instead of executing whatever happens to be found.
@@ -33,6 +35,16 @@ class Adapter:
     # The manager script is sourced rather than executed (SDKMAN).
     sourced_manager = False
 
+    # Selection metadata, reported in the catalog and enforced by the engine.
+    # Ecosystems that must be selected in the same run:
+    requires = ()
+    # Whether a run without --only includes this ecosystem:
+    default_selected = True
+    # Where this adapter is available:
+    platforms = PLATFORMS
+    # Terms an apply must name with --accept before anything is installed:
+    consents = ()
+
     def __init__(self, context):
         self.context = context
         self.roots = self.resolve_roots()
@@ -41,6 +53,20 @@ class Adapter:
     def declared(cls, data):
         """Whether the manifest declares a baseline for this ecosystem."""
         return True
+
+    @classmethod
+    def describe(cls, data):
+        """The catalog entry a frontend needs before any selection is made."""
+        return {
+            "language": cls.language,
+            "manager": cls.manager_name,
+            "requires": list(cls.requires),
+            "defaultSelected": cls.default_selected,
+            "platforms": list(cls.platforms),
+            "consents": list(cls.consents),
+            "available": cls.declared(data)
+            and data["platform"] in cls.platforms,
+        }
 
     def resolve_roots(self):
         """Map exported root variables to resolved paths, runtime root first."""

@@ -55,7 +55,7 @@ flowchart TD
 | `bootstrap.py`, `core/cli.py` | Stable executable entry, argument parsing, reporting and process exit status. |
 | `core/manifest.py` | Validate the generated manifest; each toolchain adapter validates its own declaration. |
 | `core/process.py`, `paths.py`, `errors.py` | The single process boundary with scoped child environments; writable roots and owned directories; operational errors. |
-| `core/engine.py` | Select adapters, inspect and verify runtimes, serialize mutation and dispatch installation. |
+| `core/engine.py` | Resolve the selection from the adapters' metadata, report the catalog, inspect and verify runtimes, serialize mutation and dispatch installation. |
 | `core/setup.py` | Run the setup stages over the selected adapters: prerequisites, readiness, defaults, hooks, selection reports and shell qualification. |
 | `core/adapters/base.py` | The adapter contract and the behavior every ecosystem shares: planning, manager resolution, verification and selection reports. |
 | `adapters/node.py`, `python.py`, `ocaml.py` | Install Node through FNM from nodejs.org into a staging root, build CPython with the native pyenv's python-build, create opam switches from the root's own upstream repositories. |
@@ -69,6 +69,22 @@ bash scripts/dev-bootstrap.sh plan --json
 bash scripts/dev-bootstrap.sh apply --only rust
 bash scripts/dev-bootstrap.sh verify --health --only rust
 ```
+
+## Selection
+
+Each adapter declares four selection fields in its class, which the engine
+enforces and every JSON report lists under `catalog`, selected or not:
+
+| Field | Meaning | Enforcement |
+| --- | --- | --- |
+| `requires` | Ecosystems that must be selected in the same run | An explicit `--only` without them fails and names the missing `--only` options; it is never widened silently. |
+| `default_selected` | Whether a run without `--only` includes the ecosystem | An optional ecosystem is reached only through `--only`. |
+| `platforms` | Where the adapter is available | Unavailable adapters are left out of an implicit selection, and an explicit one fails. |
+| `consents` | Terms an apply must name with `--accept` | `apply` stops before any lock, package or installer until each selected adapter's terms are accepted. |
+
+The selection runs in registry order, which lists every requirement before
+its dependents, so installation needs no separate dependency resolution. A
+frontend reads the catalog instead of duplicating this metadata.
 
 An installed `dev-bootstrap` accepts the same runtime arguments; `devrestore`
 is a compatibility alias to that executable. `--runtimes-only` skips prerequisite,

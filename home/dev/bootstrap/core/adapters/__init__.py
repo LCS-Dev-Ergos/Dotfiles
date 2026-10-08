@@ -1,4 +1,8 @@
-"""Ecosystem adapters in bootstrap order; `--only` accepts these names."""
+"""Ecosystem adapters in bootstrap order; `--only` accepts these names.
+
+An adapter follows every adapter it requires, so registry order is also a
+valid installation order.
+"""
 
 from .haskell import HaskellAdapter
 from .julia import JuliaAdapter

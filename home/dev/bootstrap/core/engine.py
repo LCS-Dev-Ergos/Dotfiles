@@ -11,23 +11,46 @@ from .errors import BootstrapError
 from .paths import root_path, writable_directory
 
 
-class Bootstrap:
-    """The selected ecosystem adapters behind one explicit interface."""
+def select(manifest, only):
+    """Resolve a selection in registry order, which installs requirements first.
 
-    def __init__(self, manifest, only):
-        self.data = manifest
-        selected = only or [
+    Without --only, every available default ecosystem is selected. An explicit
+    selection must be available here and include what each member requires;
+    it is never widened silently.
+    """
+    platform = manifest["platform"]
+    if not only:
+        return [
             language
             for language, adapter in ADAPTERS.items()
-            if adapter.declared(manifest)
+            if adapter.default_selected
+            and adapter.describe(manifest)["available"]
         ]
-        self.only = list(dict.fromkeys(selected))
-        if any(
-            not ADAPTERS[language].declared(manifest) for language in self.only
-        ):
+    for language in only:
+        adapter = ADAPTERS[language]
+        if not adapter.declared(manifest):
             raise BootstrapError(
                 "Selected native toolchain is absent from the baseline"
             )
+        if platform not in adapter.platforms:
+            raise BootstrapError(f"{language} is unavailable on {platform}")
+        missing = [name for name in adapter.requires if name not in only]
+        if missing:
+            raise BootstrapError(
+                f"{language} requires {', '.join(missing)}; select "
+                + " ".join(f"--only {name}" for name in missing)
+                + " as well"
+            )
+    return [language for language in ADAPTERS if language in only]
+
+
+class Bootstrap:
+    """The selected ecosystem adapters behind one explicit interface."""
+
+    def __init__(self, manifest, only, accepted=()):
+        self.data = manifest
+        self.only = select(manifest, only)
+        self.accepted = set(accepted)
         home = Path.home()
         # Existing hosts keep their lock and caches under these names.
         self.cache = (
@@ -46,6 +69,31 @@ class Bootstrap:
 
     def adapter(self, language):
         return self.adapters[language]
+
+    def catalog(self):
+        """Every adapter's selection metadata, whether selected or not."""
+        return [
+            dict(adapter.describe(self.data), selected=language in self.only)
+            for language, adapter in ADAPTERS.items()
+        ]
+
+    def require_consents(self):
+        """Refuse an apply until every selected adapter's terms are accepted."""
+        missing = sorted(
+            {
+                consent
+                for adapter in self.adapters.values()
+                for consent in adapter.consents
+            }
+            - self.accepted
+        )
+        if missing:
+            raise BootstrapError(
+                "The selection requires accepting "
+                + ", ".join(missing)
+                + "; review them, then rerun with "
+                + " ".join(f"--accept {name}" for name in missing)
+            )
 
     def manager(self, language):
         return self.adapter(language).manager()
@@ -162,6 +210,7 @@ class Bootstrap:
     def apply(self, rows, *, lock_held=False, evolved=False):
         """Preflight every selected runtime; serialize only explicit mutations."""
         if not lock_held:
+            self.require_consents()
             with self.locked():
                 return self.apply(rows, lock_held=True, evolved=evolved)
         if any(row["state"] in ("blocked", "conflict") for row in rows):

@@ -3,7 +3,8 @@
 import json
 import re
 
-from .adapters import TOOLCHAINS
+from .adapters import ADAPTERS, TOOLCHAINS
+from .adapters.base import PLATFORMS
 from .errors import BootstrapError
 
 
@@ -45,7 +46,7 @@ def validate_manifest(data):
     """Reject malformed declarations at the input boundary, before any work."""
     if data["schema"] != 1 or data["backend"] not in ("native", "nixpkgs"):
         raise BootstrapError("Unsupported baseline schema or backend")
-    if data["platform"] not in ("aarch64-darwin", "x86_64-linux"):
+    if data["platform"] not in PLATFORMS:
         raise BootstrapError("No bootstrap adapter for this platform")
     versions = [version(release) for release in data["node"]["versions"]]
     if len(set(versions)) != len(versions):
@@ -68,3 +69,8 @@ def validate_manifest(data):
             raise BootstrapError(
                 f"Default {language} version is absent from the baseline"
             )
+        for required in ADAPTERS[language].requires:
+            if required not in declared:
+                raise BootstrapError(
+                    f"{language} requires {required}, which is not declared"
+                )

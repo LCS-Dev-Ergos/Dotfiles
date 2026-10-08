@@ -27,6 +27,19 @@ def main():
         choices=("plan", "apply", "verify"),
     )
     parser.add_argument("--only", choices=tuple(ADAPTERS), action="append")
+    parser.add_argument(
+        "--accept",
+        choices=sorted(
+            {
+                name
+                for adapter in ADAPTERS.values()
+                for name in adapter.consents
+            }
+        ),
+        action="append",
+        default=[],
+        help="Accept terms a selected ecosystem requires before installation",
+    )
     parser.add_argument("--json", action="store_true")
     parser.add_argument(
         "--runtimes-only",
@@ -43,7 +56,9 @@ def main():
         parser.error("--health requires verify")
     os.umask(0o077)
     try:
-        context = Bootstrap(load_manifest(args.manifest), args.only)
+        context = Bootstrap(
+            load_manifest(args.manifest), args.only, accepted=args.accept
+        )
         setup = None
         if (
             not args.runtimes_only
@@ -98,6 +113,7 @@ def execute(context, setup, args):
         "platform": context.data["platform"],
         "backend": context.backend,
         "defaults": context.data["defaults"],
+        "catalog": context.catalog(),
         "observed": context.observed_state(),
         "runtimes": rows,
     }

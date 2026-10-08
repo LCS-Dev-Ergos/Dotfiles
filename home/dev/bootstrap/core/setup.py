@@ -262,6 +262,7 @@ class BootstrapSetup:
     def apply(self):
         """Run every stage and return the reported global selections."""
         context = self.context
+        context.require_consents()
         if os.geteuid() == 0:
             raise BootstrapError(
                 "Run bootstrap as the owning account, never as root"

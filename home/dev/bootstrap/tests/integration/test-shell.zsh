@@ -126,7 +126,10 @@ for manager_route in linked checkout; do
 import sys
 sys.path.insert(0, sys.argv[1])
 from core.engine import Bootstrap
-manifest = {"setup": {"managerDirectory": sys.argv[2], "managers": {"python": "pyenv"}}}
+manifest = {
+    "platform": "aarch64-darwin",
+    "setup": {"managerDirectory": sys.argv[2], "managers": {"python": "pyenv"}},
+}
 print(Bootstrap(manifest, ["python"]).manager("python").resolve())
 PYTHON
 )"
