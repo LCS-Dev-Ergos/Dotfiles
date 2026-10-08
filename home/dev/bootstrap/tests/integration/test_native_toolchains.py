@@ -29,6 +29,7 @@ SPECS = {
     "kotlin": {"version": "2.4.21"},
     "maven": {"version": "3.10.0"},
     "gradle": {"version": "9.8.1"},
+    "scala": {"version": "3.9.0"},
     "julia": {"version": "1.12.6"},
 }
 # Every declared row: one per toolchain, plus GHCup's Cabal and HLS.
@@ -248,12 +249,17 @@ class NativeTransitions(unittest.TestCase):
     def test_install_missing_only_preserves_additional_versions(self):
         self.managers()
         extra = self.executable(self.roots["ruby"] / "versions/4.1.0/bin/ruby")
-        with (
-            patch.object(
-                ToolchainAdapter, "install", side_effect=self.install_fixture
-            ),
-            patch.object(ToolchainAdapter, "verify", return_value="ok"),
-        ):
+        with ExitStack() as stack:
+            # Some managers stage their installation; replace every route.
+            for adapter in {type(a) for a in self.recovery.adapters.values()}:
+                stack.enter_context(
+                    patch.object(
+                        adapter, "install", side_effect=self.install_fixture
+                    )
+                )
+            stack.enter_context(
+                patch.object(ToolchainAdapter, "verify", return_value="ok")
+            )
             self.recovery.apply(self.recovery.plan())
             self.assertEqual(len(self.calls), ROWS)
             self.recovery.apply(self.recovery.plan())
@@ -293,6 +299,8 @@ class NativeTransitions(unittest.TestCase):
         config.parent.mkdir(parents=True)
         config.write_text('{"Default":"release"}')
         self.executable(roots["ruby"] / "shims/ruby")
+        for launcher in ("scala", "scalac"):
+            self.executable(self.adapter("scala").home / launcher)
         before = self.selections()
         with ExitStack() as stack:
             calls = self.invocations(stack)
@@ -313,6 +321,12 @@ class NativeTransitions(unittest.TestCase):
             "kotlin": ("2.3.21", "candidates/kotlin/2.3.21"),
             "maven": ("3.9.16", "candidates/maven/3.9.16"),
             "gradle": ("9.7.1", "candidates/gradle/9.7.1"),
+            "scala": (
+                "3.8.1",
+                "https/github.com/scala/scala3/releases/download/3.8.1/"
+                "scala3-3.8.1-aarch64-apple-darwin.tar.gz/"
+                "scala3-3.8.1-aarch64-apple-darwin",
+            ),
             "julia": ("1.10.9", "juliaup/julia-1.10.9"),
         }
         commands = {
@@ -323,6 +337,7 @@ class NativeTransitions(unittest.TestCase):
             "kotlin": "kotlin",
             "maven": "mvn",
             "gradle": "gradle",
+            "scala": "scalac",
             "julia": "julia",
         }
         for language, (_, prefix) in older.items():
@@ -358,6 +373,12 @@ class NativeTransitions(unittest.TestCase):
             )
         )
         (roots["ruby"] / "version").write_text("system\n")
+        # Coursier's launcher runs the older distribution it was installed for.
+        scala = roots["scala"] / older["scala"][1] / "bin/scala"
+        (self.adapter("scala").home / "scala").write_bytes(
+            f'#!/usr/bin/env sh\nexec "{scala}" "$@"\n'.encode()
+            + b"PK\x03\x04 appended app descriptor"
+        )
         rows = {
             (row["language"], row.get("component")): row
             for row in self.health()
@@ -398,6 +419,14 @@ class NativeTransitions(unittest.TestCase):
         ):
             with self.subTest(command=expected):
                 self.assertIn(expected, calls)
+        launchers = str(self.adapter("scala").home)
+        for name in ("scala", "scalac"):
+            with self.subTest(launcher=name):
+                self.assertIn(
+                    ("scala", "install", "--install-dir", launchers)
+                    + (f"{name}:3.9.0",),
+                    calls,
+                )
 
     def test_install_contracts_do_not_reset_default(self):
         with ExitStack() as stack:
@@ -417,6 +446,16 @@ class NativeTransitions(unittest.TestCase):
             with self.subTest(command=expected):
                 self.assertIn(expected, calls)
         self.assertTrue(all("default" not in call[1:3] for call in calls))
+        # Coursier fills its archive cache from a discarded staging directory,
+        # so the user's launchers, its global selection, stay untouched.
+        (scala,) = [call for call in calls if call[0] == "scala"]
+        self.assertEqual(
+            scala[1:3] + scala[4:], ("install", "--install-dir", "scala:3.9.0")
+        )
+        staging = Path(scala[3])
+        self.assertEqual(staging.parent, self.recovery.state)
+        self.assertFalse(staging.exists())
+        self.assertFalse(self.adapter("scala").home.exists())
 
     def test_direct_verification_rejects_proxy_and_version_mismatch(self):
         self.managers()
@@ -724,6 +763,123 @@ class NativeTransitions(unittest.TestCase):
         java.unlink()
         with self.assertRaisesRegex(BootstrapError, "needs an SDKMAN JDK"):
             self.recovery.verify(row)
+
+    def test_coursier_launcher_is_placed_without_running_it(self):
+        launcher = b"\x7fELF native cs fixture"
+        asset = gzip.compress(launcher)
+        scala = self.adapter("scala")
+        # Other applications' launchers do not make the directory occupied.
+        self.executable(scala.home / "sbt")
+        self.data["setup"]["installers"] = {
+            "scala": {
+                "url": "https://example.invalid/cs.gz",
+                "sha256": hashlib.sha256(asset).hexdigest(),
+                "size": len(asset),
+                "format": "gzip",
+            }
+        }
+        with (
+            patch(
+                "urllib.request.urlopen", return_value=io.BytesIO(asset)
+            ) as fetch,
+            patch.object(process, "run") as runner,
+        ):
+            scala.acquire()
+            scala.acquire()
+        manager = scala.home / "cs"
+        self.assertEqual(manager.read_bytes(), launcher)
+        self.assertTrue(os.access(manager, os.X_OK))
+        self.assertEqual(fetch.call_count, 1)
+        runner.assert_not_called()
+        self.assertEqual(scala.manager(), manager)
+
+    def test_coursier_roots_follow_the_platform_defaults(self):
+        # Roots are resolved, as the temporary directory may be a link.
+        home = Path.home().resolve()
+        for platform, binaries, cache in (
+            (
+                "aarch64-darwin",
+                home / "Library/Application Support/Coursier/bin",
+                home / "Library/Caches/Coursier/v1",
+            ),
+            (
+                "x86_64-linux",
+                home / ".local/share/coursier/bin",
+                self.root.resolve() / "cache/coursier/v1",
+            ),
+        ):
+            with self.subTest(platform=platform):
+                self.data["platform"] = platform
+                roots = (
+                    Bootstrap(self.data, ["jvm", "scala"])
+                    .adapter("scala")
+                    .roots
+                )
+                self.assertEqual(
+                    roots,
+                    {
+                        "COURSIER_ARCHIVE_CACHE": home
+                        / ".local/share/coursier/arc",
+                        "COURSIER_BIN_DIR": binaries,
+                        "COURSIER_CACHE": cache,
+                    },
+                )
+
+    def test_scala_selection_is_the_prebuilt_launcher_target(self):
+        self.managers()
+        scala = self.adapter("scala")
+        self.assertIsNone(scala.selection())
+        distribution = self.executable(scala.binary("3.9.1")).parent
+        launcher = scala.home / "scala"
+        launcher.write_bytes(
+            f'#!/usr/bin/env sh\nexec "{distribution / "scala"}" "$@"\n'.encode()
+            + b"PK\x03\x04 appended app descriptor"
+        )
+        self.assertEqual(scala.selection(), str(distribution / "scala"))
+        (row,) = scala.selected()
+        self.assertEqual(
+            (row["state"], row["path"]),
+            ("present", str(distribution / "scalac")),
+        )
+        # A JVM bootstrap launcher may download on start; it is reported,
+        # never executed.
+        launcher.write_bytes(b"#!/usr/bin/env sh\nnargs=$#\nPK\x03\x04")
+        (row,) = scala.selected()
+        self.assertEqual(row["state"], "blocked")
+        self.assertIn("prebuilt Scala distribution", row["reason"])
+
+    def test_scala_canary_compiles_and_runs_on_the_declared_jdk(self):
+        self.managers()
+        java = self.executable(self.adapter("jvm").binary())
+        scala = self.adapter("scala")
+        compiler = self.executable(scala.binary())
+        library = compiler.parent.parent / "lib/scala.jar"
+        library.parent.mkdir()
+        library.write_bytes(b"manifest-only jar")
+        calls = []
+
+        def run(args, **kwargs):
+            args = [str(arg) for arg in args]
+            calls.append((args, kwargs))
+            if "-version" in args:
+                return "Scala compiler version 3.9.0 -- Copyright"
+            return "bootstrap-ok" if Path(args[0]) == java else ""
+
+        row = {"language": "scala", "version": "3.9.0", "path": str(compiler)}
+        with patch.object(process, "run", side_effect=run):
+            self.assertEqual(self.recovery.verify(row), "3.9.0")
+        compile_args, run_args = calls[1][0], calls[2][0]
+        self.assertEqual(
+            [Path(arg).name for arg in compile_args],
+            ["scalac", "-d", "classes", "Main.scala"],
+        )
+        self.assertEqual(run_args[0], str(java))
+        self.assertTrue(run_args[2].endswith(os.pathsep + str(library)))
+        self.assertEqual(run_args[3], "canary")
+        for _, kwargs in calls:
+            self.assertEqual(
+                kwargs["env"]["JAVA_HOME"], str(java.parent.parent.resolve())
+            )
 
     def test_hls_must_serve_the_declared_ghc(self):
         self.managers()

@@ -16,7 +16,7 @@ Initial seeding, recovery of subsequently evolved state and project dependency
 reconstruction have separate acceptance criteria. Prefer native exports/locks
 for the latter two. Adapters use the manager's supported installation interface
 against its own upstream: the bootstrap declares exact versions, not artifacts.
-All twelve adapters follow this model, Node through `fnm install` and Python
+All thirteen adapters follow this model, Node through `fnm install` and Python
 through `pyenv install`.
 
 ## Architecture and Execution
@@ -59,8 +59,9 @@ flowchart TD
 | `core/setup.py` | Run the setup stages over the selected adapters: prerequisites, readiness, defaults, hooks, selection reports and shell qualification. |
 | `core/adapters/base.py` | The adapter contract and the behavior every ecosystem shares: planning, manager resolution, verification and selection reports. |
 | `adapters/node.py`, `python.py`, `ocaml.py` | Install Node through FNM from nodejs.org into a staging root, build CPython with the native pyenv's python-build, create opam switches from the root's own upstream repositories. |
-| `adapters/toolchain.py` and one module per manager | rustup, GHCup, elan, rbenv, SDKMAN and juliaup: hashed installer acquisition, native installation, absence-only defaults and direct canaries. |
+| `adapters/toolchain.py` and one module per manager | rustup, GHCup, elan, rbenv, SDKMAN, Coursier and juliaup: hashed installer acquisition, native installation, absence-only defaults and direct canaries. |
 | `adapters/sdkman.py` | The shared SDKMAN base: Java (`jvm.py`), then Kotlin, Maven and Gradle, which require `jvm` and run on its JDK. |
+| `adapters/coursier.py` | Scala through the pinned native `cs` launcher. The seed is the Scala distribution in Coursier's archive cache, filled from a discarded staging directory; the `scala` and `scalac` launchers are created only when absent. Requires `jvm` and runs on its JDK. |
 
 From the repository root:
 
@@ -78,7 +79,7 @@ enforces and every JSON report lists under `catalog`, selected or not:
 
 | Field | Meaning | Enforcement |
 | --- | --- | --- |
-| `requires` | Ecosystems that must be selected in the same run (Kotlin, Maven and Gradle require `jvm`) | An explicit `--only` without them fails and names the missing `--only` options; it is never widened silently. |
+| `requires` | Ecosystems that must be selected in the same run (Kotlin, Maven, Gradle and Scala require `jvm`) | An explicit `--only` without them fails and names the missing `--only` options; it is never widened silently. |
 | `default_selected` | Whether a run without `--only` includes the ecosystem | An optional ecosystem is reached only through `--only`. |
 | `platforms` | Where the adapter is available | Unavailable adapters are left out of an implicit selection, and an explicit one fails. |
 | `consents` | Terms an apply must name with `--accept` | `apply` stops before any lock, package or installer until each selected adapter's terms are accepted. |
@@ -193,19 +194,19 @@ Each integration must identify:
    followed by a preserving bootstrap rerun. Metadata refresh alone does not
    qualify a runtime or manager upgrade.
 
-Rust, Haskell, Lean, Ruby, JVM, Kotlin, Maven, Gradle and Julia are
+Rust, Haskell, Lean, Ruby, JVM, Kotlin, Maven, Gradle, Scala and Julia are
 implemented in `core/adapters/` and selected with the corresponding `--only`
 value. Their initial versions are declared in `runtime-baseline.nix`. These
 integrations use native manager installation interfaces instead of duplicating
 their download/extraction logic. Existing runtime health and fixture checks do
 not establish fresh-install acceptance for these routes.
 
-The broader workstation registry contains 34 logical domains: nine native
-bootstrap domains, ten existing shared Nix declarations and fifteen
+The broader workstation registry contains 34 logical domains: ten native
+bootstrap domains, ten existing shared Nix declarations and fourteen
 remaining cross-platform setup domains. The native domains include HLS within
 Haskell, and Kotlin, Maven and Gradle within the JVM. The remaining domains are
-Ada, Fortran, Free Pascal, Mojo, Scala, Conda, Lua, Perl, PHP, MIT Scheme,
-Racket, .NET, Android, Flutter and Swift. These counts describe implementation coverage, not
+Ada, Fortran, Free Pascal, Mojo, Conda, Lua, Perl, PHP, MIT Scheme, Racket,
+.NET, Android, Flutter and Swift. These counts describe implementation coverage, not
 clean-host or complete native-dependency reproducibility.
 
 | Ecosystem / owner | Initial declaration | Distinct behavior to qualify |
@@ -216,6 +217,7 @@ clean-host or complete native-dependency reproducibility.
 | Ruby / rbenv | Exact Ruby release through native ruby-build and declared native libraries | Reuse source-build isolation, preserve `.ruby-version`, and verify shims/extensions. Ruby-build and native libraries are rolling prerequisites, not retained immutable build inputs. [rbenv](https://github.com/rbenv/rbenv). |
 | JVM / SDKMAN | Explicit candidate/version/vendor identity for the chosen JDK | Use a controlled shell adapter with literal arguments for `sdk`. Preserve current candidates and `.sdkmanrc`; qualify noninteractive installation and default prompts. [SDKMAN usage](https://sdkman.io/usage/). |
 | Kotlin, Maven, Gradle / SDKMAN | Exact candidate versions, each its own adapter requiring `jvm` | Run on the declared JDK through `JAVA_HOME` (the selected one when the declared JDK is absent). Canaries compile and run a Kotlin program, start Maven's core and check it reports that JDK, and run an offline Gradle task without a daemon. `MAVEN_SKIP_RC` keeps `~/.mavenrc` out, and Gradle uses scratch user homes. |
+| Scala / Coursier | Exact Scala 3 release through the pinned native `cs` launcher | `cs install` into a staging directory extracts the prebuilt distribution into the archive cache without replacing the user's launchers, which are the global selection. Health resolves the `scala` launcher to the distribution it runs and never executes a JVM bootstrap launcher, which may download on start. The canary compiles with the distribution's `scalac` and runs the class on the declared JDK. Project selections (`build.sbt`, Scala CLI directives) are untouched. [Coursier install](https://get-coursier.io/docs/cli-install). |
 | Julia / juliaup | Exact initial version/channel mapping and artifacts | Preserve evolving defaults and directory overrides. Qualify version selection and project activation separately from package restoration. [juliaup](https://github.com/JuliaLang/juliaup). |
 
 Native macOS and CachyOS routes require separate qualification. NixOS needs

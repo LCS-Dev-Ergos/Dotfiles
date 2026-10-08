@@ -47,7 +47,7 @@ jobs:
         run: |
           for ecosystem in $ECOSYSTEMS; do
             case "$ecosystem" in
-              node|python|ocaml|rust|haskell|lean|ruby|jvm|kotlin|maven|gradle|julia) ;;
+              node|python|ocaml|rust|haskell|lean|ruby|jvm|kotlin|maven|gradle|scala|julia) ;;
               *) echo "Unsupported ecosystem: $ecosystem" >&2; exit 2 ;;
             esac
           done

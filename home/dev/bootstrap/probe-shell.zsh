@@ -33,8 +33,9 @@ for bootstrap_language in "${bootstrap_languages[@]}"; do
       source "$ZSH_CONFIG_DIR/languages/$bootstrap_language.zsh" || return 1
       ;;
     # PATH-only adapters; selections are inspected without proxies. The SDKMAN
-    # build tools are on PATH through 90-path.zsh, keyed on SDKMAN_DIR.
-    lean|julia|kotlin|maven|gradle) ;;
+    # build tools and Coursier's launchers are on PATH through 90-path.zsh,
+    # keyed on SDKMAN_DIR and COURSIER_BIN_DIR.
+    lean|julia|kotlin|maven|gradle|scala) ;;
     *) return 1 ;;
   esac
 done
@@ -78,11 +79,12 @@ for bootstrap_language in "${bootstrap_languages[@]}"; do
     ocaml)
       print -r -- ocaml$'\t'"$(whence -p ocamlc)"$'\t'"$(command ocamlc -version)"
       ;;
-    rust|haskell|lean|ruby|jvm|kotlin|maven|gradle|julia)
+    rust|haskell|lean|ruby|jvm|kotlin|maven|gradle|scala|julia)
       # Download-capable proxies are never executed to qualify a selection.
       # The parent validates the direct runtime; here verify shell exposure and
       # manager provenance against the same explicit roots and selector files.
       typeset runtime_command manager_command expected_proxy expected_name
+      typeset manager_variable
       case "$bootstrap_language" in
         rust) runtime_command=rustc; manager_command=rustup; expected_proxy="$CARGO_HOME/bin/rustc" ;;
         haskell) runtime_command=ghc; manager_command=ghcup; expected_proxy="$GHCUP_INSTALL_BASE_PREFIX/.ghcup/bin/ghc" ;;
@@ -92,6 +94,7 @@ for bootstrap_language in "${bootstrap_languages[@]}"; do
         kotlin) runtime_command=kotlin; manager_command=sdkman; expected_proxy="$SDKMAN_DIR/candidates/kotlin/current/bin/kotlin" ;;
         maven) runtime_command=mvn; manager_command=sdkman; expected_proxy="$SDKMAN_DIR/candidates/maven/current/bin/mvn" ;;
         gradle) runtime_command=gradle; manager_command=sdkman; expected_proxy="$SDKMAN_DIR/candidates/gradle/current/bin/gradle" ;;
+        scala) runtime_command=scala; manager_command=cs; expected_proxy="$COURSIER_BIN_DIR/scala" ;;
         julia) runtime_command=julia; manager_command=juliaup; expected_proxy="$JULIAUP_HOME/bin/julia" ;;
       esac
       typeset actual_runtime="$(whence -p "$runtime_command")"
@@ -99,7 +102,10 @@ for bootstrap_language in "${bootstrap_languages[@]}"; do
         print -u2 "Bootstrap $runtime_command is shadowed: $actual_runtime"
         return 1
       }
-      typeset manager_variable="DEV_BOOTSTRAP_NATIVE_${(U)manager_command}"
+      # Coursier's manager is named for the project, its command `cs`.
+      manager_variable="DEV_BOOTSTRAP_NATIVE_${(U)manager_command}"
+      [[ "$manager_command" != cs ]] ||
+        manager_variable=DEV_BOOTSTRAP_NATIVE_COURSIER
       if [[ "$manager_command" == sdkman ]]; then
         typeset sdkman_script="$SDKMAN_DIR/bin/sdkman-init.sh"
         [[ "${sdkman_script:A}" == "${${(P)manager_variable}:A}" ]] || return 1

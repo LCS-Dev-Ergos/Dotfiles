@@ -93,6 +93,26 @@ let
       ];
     };
   };
+  # Release assets above the 1 MiB script bound, pinned per platform with their
+  # exact size (2026-10-08). Coursier's native launcher needs no setup run.
+  releaseInstallers = {
+    aarch64-darwin = {
+      scala = {
+        url = "https://github.com/coursier/coursier/releases/download/v2.1.26/cs-aarch64-apple-darwin.gz";
+        sha256 = "8e4d36aa2565276f262af073f0999399e4c2f920f2fe436bb0ae67665eb505e9";
+        size = 29271147;
+        format = "gzip";
+      };
+    };
+    x86_64-linux = {
+      scala = {
+        url = "https://github.com/coursier/coursier/releases/download/v2.1.26/cs-x86_64-pc-linux.gz";
+        sha256 = "348e37bc2a8c706640e6b032c4551a0e055a7f1537485b4a91540e9d3598ec6d";
+        size = 30253002;
+        format = "gzip";
+      };
+    };
+  };
 in
 {
   homebrew = managerPackages;
@@ -108,7 +128,8 @@ in
   # Explicit post-Nix bootstrap routes; no OS foundation or system upgrade.
   bootstrap = {
     aarch64-darwin = {
-      inherit installers installerPackages managers;
+      inherit installerPackages managers;
+      installers = installers // releaseInstallers.aarch64-darwin;
       packageManager = "/opt/homebrew/bin/brew";
       managerDirectory = "/opt/homebrew/bin";
       query = [
@@ -168,7 +189,8 @@ in
       };
     };
     x86_64-linux = {
-      inherit installers installerPackages managers;
+      inherit installerPackages managers;
+      installers = installers // releaseInstallers.x86_64-linux;
       packageManager = "/usr/bin/pacman";
       managerDirectory = "/usr/bin";
       query = [ "-Qq" ];

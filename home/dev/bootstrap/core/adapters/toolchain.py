@@ -1,9 +1,9 @@
 """Managers that install exact toolchains into their own roots.
 
-rustup, GHCup, elan, rbenv, SDKMAN and juliaup share one lifecycle: acquire
-the manager, install a declared release through its native interface, select
-it only when no global selection exists, and verify the runtime directly.
-Probes never launch download-capable proxies.
+rustup, GHCup, elan, rbenv, SDKMAN, Coursier and juliaup share one lifecycle:
+acquire the manager, install a declared release through its native interface,
+select it only when no global selection exists, and verify the runtime
+directly. Probes never launch download-capable proxies.
 """
 
 import gzip

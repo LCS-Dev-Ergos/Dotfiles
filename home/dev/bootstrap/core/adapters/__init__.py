@@ -4,6 +4,7 @@ An adapter follows every adapter it requires, so registry order is also a
 valid installation order.
 """
 
+from .coursier import ScalaAdapter
 from .haskell import HaskellAdapter
 from .julia import JuliaAdapter
 from .jvm import JvmAdapter
@@ -30,6 +31,7 @@ ADAPTERS = {
         KotlinAdapter,
         MavenAdapter,
         GradleAdapter,
+        ScalaAdapter,
         JuliaAdapter,
     )
 }
