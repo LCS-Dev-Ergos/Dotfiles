@@ -32,7 +32,9 @@ for bootstrap_language in "${bootstrap_languages[@]}"; do
     node|python|ocaml|rust|haskell|ruby|jvm)
       source "$ZSH_CONFIG_DIR/languages/$bootstrap_language.zsh" || return 1
       ;;
-    lean|julia) ;; # PATH-only adapters; selections are inspected without proxies.
+    # PATH-only adapters; selections are inspected without proxies. The SDKMAN
+    # build tools are on PATH through 90-path.zsh, keyed on SDKMAN_DIR.
+    lean|julia|kotlin|maven|gradle) ;;
     *) return 1 ;;
   esac
 done
@@ -76,7 +78,7 @@ for bootstrap_language in "${bootstrap_languages[@]}"; do
     ocaml)
       print -r -- ocaml$'\t'"$(whence -p ocamlc)"$'\t'"$(command ocamlc -version)"
       ;;
-    rust|haskell|lean|ruby|jvm|julia)
+    rust|haskell|lean|ruby|jvm|kotlin|maven|gradle|julia)
       # Download-capable proxies are never executed to qualify a selection.
       # The parent validates the direct runtime; here verify shell exposure and
       # manager provenance against the same explicit roots and selector files.
@@ -87,6 +89,9 @@ for bootstrap_language in "${bootstrap_languages[@]}"; do
         lean) runtime_command=lean; manager_command=elan; expected_proxy="$ELAN_HOME/bin/lean" ;;
         ruby) runtime_command=ruby; manager_command=rbenv; expected_proxy="$RBENV_ROOT/shims/ruby" ;;
         jvm) runtime_command=java; manager_command=sdkman; expected_proxy="$SDKMAN_DIR/candidates/java/current/bin/java" ;;
+        kotlin) runtime_command=kotlin; manager_command=sdkman; expected_proxy="$SDKMAN_DIR/candidates/kotlin/current/bin/kotlin" ;;
+        maven) runtime_command=mvn; manager_command=sdkman; expected_proxy="$SDKMAN_DIR/candidates/maven/current/bin/mvn" ;;
+        gradle) runtime_command=gradle; manager_command=sdkman; expected_proxy="$SDKMAN_DIR/candidates/gradle/current/bin/gradle" ;;
         julia) runtime_command=julia; manager_command=juliaup; expected_proxy="$JULIAUP_HOME/bin/julia" ;;
       esac
       typeset actual_runtime="$(whence -p "$runtime_command")"

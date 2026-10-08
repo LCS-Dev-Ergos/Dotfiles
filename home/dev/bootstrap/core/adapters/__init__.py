@@ -13,6 +13,7 @@ from .ocaml import OcamlAdapter
 from .python import PythonAdapter
 from .ruby import RubyAdapter
 from .rust import RustAdapter
+from .sdkman import GradleAdapter, KotlinAdapter, MavenAdapter
 from .toolchain import ToolchainAdapter
 
 ADAPTERS = {
@@ -26,6 +27,9 @@ ADAPTERS = {
         LeanAdapter,
         RubyAdapter,
         JvmAdapter,
+        KotlinAdapter,
+        MavenAdapter,
+        GradleAdapter,
         JuliaAdapter,
     )
 }

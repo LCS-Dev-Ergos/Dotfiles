@@ -171,6 +171,10 @@ class Adapter:
         """The installation directory whose presence marks partial work."""
         return Path(row["path"]).parent.parent
 
+    def incomplete(self, row):
+        """Why a present prefix without the expected executable needs a person."""
+        return "Existing incomplete runtime; manual inspection required"
+
     def plan(self):
         """Inspect paths only. Present means installed, not yet validated."""
         rows = []
@@ -187,10 +191,7 @@ class Adapter:
             elif path.is_file():
                 row["state"] = "present"
             elif prefix is not None and os.path.lexists(prefix):
-                row.update(
-                    state="conflict",
-                    reason="Existing incomplete runtime; manual inspection required",
-                )
+                row.update(state="conflict", reason=self.incomplete(row))
             else:
                 try:
                     self.manager()

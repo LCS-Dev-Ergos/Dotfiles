@@ -64,13 +64,16 @@ class SelectionTests(unittest.TestCase):
             self.assertTrue(set(adapter.platforms) <= set(PLATFORMS))
 
     def test_explicit_selection_needs_its_requirements(self):
-        self.patched("julia", requires=("jvm",))
-        with self.assertRaisesRegex(
-            BootstrapError, "requires jvm; select --only jvm as well"
-        ):
-            Bootstrap(self.data, ["julia"])
-        context = Bootstrap(self.data, ["julia", "jvm", "julia"])
-        self.assertEqual(context.only, ["jvm", "julia"])
+        for language in ("kotlin", "maven", "gradle"):
+            with (
+                self.subTest(language=language),
+                self.assertRaisesRegex(
+                    BootstrapError, "requires jvm; select --only jvm as well"
+                ),
+            ):
+                Bootstrap(self.data, [language])
+        context = Bootstrap(self.data, ["gradle", "jvm", "kotlin", "gradle"])
+        self.assertEqual(context.only, ["jvm", "kotlin", "gradle"])
 
     def test_implicit_selection_skips_optional_and_unavailable_adapters(self):
         everything = Bootstrap(self.data, None).only
@@ -96,6 +99,7 @@ class SelectionTests(unittest.TestCase):
             },
         )
         self.assertFalse(catalog["ruby"]["available"])
+        self.assertEqual(catalog["kotlin"]["requires"], ["jvm"])
         # Explicit selection reaches an optional adapter, never a missing one.
         self.assertEqual(Bootstrap(self.data, ["julia"]).only, ["julia"])
         with self.assertRaisesRegex(BootstrapError, "unavailable on aarch64"):
@@ -124,7 +128,6 @@ class SelectionTests(unittest.TestCase):
         Bootstrap(self.data, ["rust"]).require_consents()
 
     def test_declared_dependents_need_their_requirements_declared(self):
-        self.patched("julia", requires=("jvm",))
         validate_manifest(self.data)
         broken = copy.deepcopy(self.data)
         del broken["nativeToolchains"]["jvm"]

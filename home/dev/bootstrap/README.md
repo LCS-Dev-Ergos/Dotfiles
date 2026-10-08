@@ -16,7 +16,7 @@ Initial seeding, recovery of subsequently evolved state and project dependency
 reconstruction have separate acceptance criteria. Prefer native exports/locks
 for the latter two. Adapters use the manager's supported installation interface
 against its own upstream: the bootstrap declares exact versions, not artifacts.
-All nine adapters follow this model, Node through `fnm install` and Python
+All twelve adapters follow this model, Node through `fnm install` and Python
 through `pyenv install`.
 
 ## Architecture and Execution
@@ -60,6 +60,7 @@ flowchart TD
 | `core/adapters/base.py` | The adapter contract and the behavior every ecosystem shares: planning, manager resolution, verification and selection reports. |
 | `adapters/node.py`, `python.py`, `ocaml.py` | Install Node through FNM from nodejs.org into a staging root, build CPython with the native pyenv's python-build, create opam switches from the root's own upstream repositories. |
 | `adapters/toolchain.py` and one module per manager | rustup, GHCup, elan, rbenv, SDKMAN and juliaup: hashed installer acquisition, native installation, absence-only defaults and direct canaries. |
+| `adapters/sdkman.py` | The shared SDKMAN base: Java (`jvm.py`), then Kotlin, Maven and Gradle, which require `jvm` and run on its JDK. |
 
 From the repository root:
 
@@ -77,7 +78,7 @@ enforces and every JSON report lists under `catalog`, selected or not:
 
 | Field | Meaning | Enforcement |
 | --- | --- | --- |
-| `requires` | Ecosystems that must be selected in the same run | An explicit `--only` without them fails and names the missing `--only` options; it is never widened silently. |
+| `requires` | Ecosystems that must be selected in the same run (Kotlin, Maven and Gradle require `jvm`) | An explicit `--only` without them fails and names the missing `--only` options; it is never widened silently. |
 | `default_selected` | Whether a run without `--only` includes the ecosystem | An optional ecosystem is reached only through `--only`. |
 | `platforms` | Where the adapter is available | Unavailable adapters are left out of an implicit selection, and an explicit one fails. |
 | `consents` | Terms an apply must name with `--accept` | `apply` stops before any lock, package or installer until each selected adapter's terms are accepted. |
@@ -169,7 +170,9 @@ setup stages call only that interface and never branch on a language. A
 manager that installs exact toolchains into its own root extends
 `ToolchainAdapter` and supplies data and small hooks: roots, binary paths,
 install and default arguments, and a canary. Additional components of an
-existing ecosystem (Cabal beside GHC) stay inside that ecosystem's adapter.
+existing ecosystem (Cabal and HLS beside GHC) stay inside that ecosystem's
+adapter. A separate tool that runs on another ecosystem (Kotlin on the JDK)
+gets its own adapter and declares that ecosystem in `requires`.
 
 Each integration must identify:
 
@@ -190,28 +193,29 @@ Each integration must identify:
    followed by a preserving bootstrap rerun. Metadata refresh alone does not
    qualify a runtime or manager upgrade.
 
-Rust, Haskell, Lean, Ruby, JVM and Julia are implemented in
-`core/adapters/` and selected with the corresponding `--only` value.
-Their initial versions are declared in `runtime-baseline.nix`. The six
+Rust, Haskell, Lean, Ruby, JVM, Kotlin, Maven, Gradle and Julia are
+implemented in `core/adapters/` and selected with the corresponding `--only`
+value. Their initial versions are declared in `runtime-baseline.nix`. These
 integrations use native manager installation interfaces instead of duplicating
 their download/extraction logic. Existing runtime health and fixture checks do
 not establish fresh-install acceptance for these routes.
 
 The broader workstation registry contains 34 logical domains: nine native
-bootstrap integrations, ten existing shared Nix declarations and fifteen
-remaining cross-platform setup domains. The remaining domains are Ada,
-Fortran, Free Pascal, Mojo, Scala, Conda, Lua, Perl, PHP, MIT Scheme, Racket,
-.NET, Android, Flutter and Swift. HLS and additional SDKMAN candidates are gaps
-within existing domains. These counts describe implementation coverage, not
+bootstrap domains, ten existing shared Nix declarations and fifteen
+remaining cross-platform setup domains. The native domains include HLS within
+Haskell, and Kotlin, Maven and Gradle within the JVM. The remaining domains are
+Ada, Fortran, Free Pascal, Mojo, Scala, Conda, Lua, Perl, PHP, MIT Scheme,
+Racket, .NET, Android, Flutter and Swift. These counts describe implementation coverage, not
 clean-host or complete native-dependency reproducibility.
 
 | Ecosystem / owner | Initial declaration | Distinct behavior to qualify |
 | --- | --- | --- |
 | Rust / rustup | Exact host toolchain with the native default profile | Preserve directory overrides and `rust-toolchain.toml`; check proxy exposure and a compiled program. Extra targets/components require explicit future declarations. [Override semantics](https://rust-lang.github.io/rustup/overrides.html). |
-| Haskell / GHCup | Exact GHC and Cabal identities | Installation and selection are distinct. Preserve project compiler choices. HLS is not part of this adapter and needs separate compatibility qualification. [GHCup guide](https://www.haskell.org/ghcup/guide/). |
+| Haskell / GHCup | Exact GHC, Cabal and HLS identities | Installation and selection are distinct. Preserve project compiler choices. Each HLS release ships servers for a fixed set of GHC releases; the declared one must include the declared GHC, whose server the canary starts with `GHC_BIN` naming that GHC, so the bindist launcher also checks its boot-package ABI. [GHCup guide](https://www.haskell.org/ghcup/guide/). |
 | Lean / elan | Exact Lean toolchain identity and artifact | Respect `lean-toolchain`; qualify Lean and Lake without changing project selection. [elan](https://github.com/leanprover/elan). |
 | Ruby / rbenv | Exact Ruby release through native ruby-build and declared native libraries | Reuse source-build isolation, preserve `.ruby-version`, and verify shims/extensions. Ruby-build and native libraries are rolling prerequisites, not retained immutable build inputs. [rbenv](https://github.com/rbenv/rbenv). |
-| JVM / SDKMAN | Explicit candidate/version/vendor identity for the chosen JDK; other candidates remain separate extensions | Use a controlled shell adapter with literal arguments for `sdk`. Preserve current candidates and `.sdkmanrc`; qualify noninteractive installation and default prompts. [SDKMAN usage](https://sdkman.io/usage/). |
+| JVM / SDKMAN | Explicit candidate/version/vendor identity for the chosen JDK | Use a controlled shell adapter with literal arguments for `sdk`. Preserve current candidates and `.sdkmanrc`; qualify noninteractive installation and default prompts. [SDKMAN usage](https://sdkman.io/usage/). |
+| Kotlin, Maven, Gradle / SDKMAN | Exact candidate versions, each its own adapter requiring `jvm` | Run on the declared JDK through `JAVA_HOME` (the selected one when the declared JDK is absent). Canaries compile and run a Kotlin program, start Maven's core and check it reports that JDK, and run an offline Gradle task without a daemon. `MAVEN_SKIP_RC` keeps `~/.mavenrc` out, and Gradle uses scratch user homes. |
 | Julia / juliaup | Exact initial version/channel mapping and artifacts | Preserve evolving defaults and directory overrides. Qualify version selection and project activation separately from package restoration. [juliaup](https://github.com/JuliaLang/juliaup). |
 
 Native macOS and CachyOS routes require separate qualification. NixOS needs
@@ -231,7 +235,7 @@ native binary builds. Juliaup's official installer also installs the declared
 initial Julia channel; recovery with an existing Julia selection and a missing
 manager stops for inspection rather than risking a default replacement.
 
-Rust/Lean/Julia shell probes check proxy provenance and filesystem-selected
+Rust/Lean/Julia and SDKMAN shell probes check proxy provenance and filesystem-selected
 runtime identities without invoking download-capable proxies. Direct runtime
 canaries establish execution separately; project override dispatch and deployed
 login-shell behavior remain native acceptance checks.

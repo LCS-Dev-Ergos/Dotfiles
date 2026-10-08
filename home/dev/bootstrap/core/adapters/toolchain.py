@@ -154,13 +154,21 @@ class ToolchainAdapter(Adapter):
 
     check_selected = check_runtime
 
+    def runtime_environment(self):
+        """What the runtime itself needs; the manager roots by default."""
+        return self.environment()
+
     def identity(self, row, path):
-        output = process.run(
-            [str(path), *self.identity_arguments],
-            env=self.environment(),
-            source_build=True,
-            cwd="/",
+        return self.parse_identity(
+            process.run(
+                [str(path), *self.identity_arguments],
+                env=self.runtime_environment(),
+                source_build=True,
+                cwd="/",
+            )
         )
+
+    def parse_identity(self, output):
         match = re.search(IDENTITY, output)
         if not match:
             raise BootstrapError(
@@ -175,7 +183,8 @@ class ToolchainAdapter(Adapter):
     def canary(self, row, path, *, complete):
         """Small local compiler/interpreter probes, with no package resolution."""
         environment = (
-            self.recipe.get("buildEnvironment", {}) | self.environment()
+            self.recipe.get("buildEnvironment", {})
+            | self.runtime_environment()
         )
         with tempfile.TemporaryDirectory(prefix="native-canary-") as directory:
 

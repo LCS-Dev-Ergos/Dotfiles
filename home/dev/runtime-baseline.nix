@@ -9,13 +9,16 @@ let
       ocaml = "5.5.1";
     }
     // builtins.mapAttrs (_: toolchain: toolchain.version) baseline.nativeToolchains;
-    # Exact initial identities, observed on the native host on 2026-10-07.
+    # Exact initial identities, observed on the native host on 2026-10-07;
+    # HLS and the SDKMAN build tools are the stable releases of 2026-10-08.
     # Ordinary manager updates and selections remain user-owned afterwards.
     nativeToolchains = {
       rust.version = "1.98.1";
       haskell = {
         version = "9.14.1";
         cabal = "3.16.1.0";
+        # GHCup's recommended release; it ships a server for GHC 9.14.1.
+        hls = "2.15.0.0";
       };
       lean.version = "4.32.0";
       ruby.version = "4.0.6";
@@ -23,6 +26,10 @@ let
         version = "21.0.12.1";
         candidate = "21.0.12+1.1-tem";
       };
+      # SDKMAN candidates that run on the JDK above; Maven 4 is still an RC.
+      kotlin.version = "2.4.21";
+      maven.version = "3.10.0";
+      gradle.version = "9.8.1";
       julia.version = "1.12.6";
     };
     # Native managers fetch these releases from their own upstreams: FNM from

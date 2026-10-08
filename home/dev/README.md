@@ -34,13 +34,15 @@ and Julia. Their initial identities are Rust 1.98.1, GHC 9.14.1, Cabal
 3.16.1.0, Lean 4.32.0, Ruby 4.0.6, Java 21.0.12.1 (SDKMAN candidate
 `21.0.12+1.1-tem`) and Julia 1.12.6.
 
-Each adapter declares what it requires, whether a run without `--only` selects
-it, its platforms and the terms an apply must accept; JSON reports list this as
-the `catalog`.
+The core language set includes HLS 2.15.0.0 in GHCup's rows, with a server for
+GHC 9.14.1, and Kotlin 2.4.21, Maven 3.10.0 and Gradle 9.8.1 as SDKMAN
+adapters that require `jvm` and run on its JDK. Each adapter declares what it
+requires, whether a run without `--only` selects it, its platforms and the
+terms an apply must accept; JSON reports list this as the `catalog`.
 
 Every adapter installs through its native manager at an exact version:
 `fnm install` for Node and `pyenv install` with the native python-build for
-Python, as for opam and the six toolchain managers. No runtime artifact is
+Python, as for opam and the toolchain managers. No runtime artifact is
 retained in the store, and Nix supplies no FNM or pyenv input; a configuration
 retires its remaining Nix FNM package through the `nativeFnmReady` checkpoint.
 The installed pyenv must already know the declared CPython release; bootstrap
@@ -58,7 +60,7 @@ packages or certify every release.
 | `bootstrap/bootstrap.py`, `bootstrap/core/cli.py` | Executable entry, argument handling and structured reporting |
 | `bootstrap/core/engine.py`, `setup.py` | Selection from the adapters' metadata, the catalog, mutation guards, shared lock, setup stages and selection reports |
 | `bootstrap/core/manifest.py`, `process.py`, `paths.py` | Manifest validation, the process boundary and filesystem/state boundaries |
-| `bootstrap/core/adapters/` | One adapter per ecosystem behind a shared contract: Node through FNM and Python through pyenv from their own upstreams, opam switches on the root's own upstream, and the native managers for Rust, Haskell, Lean, Ruby, JVM and Julia |
+| `bootstrap/core/adapters/` | One adapter per ecosystem behind a shared contract: Node through FNM and Python through pyenv from their own upstreams, opam switches on the root's own upstream, and the native managers for Rust, Haskell (GHC, Cabal, HLS), Lean, Ruby, JVM, Kotlin, Maven, Gradle and Julia |
 | `bootstrap/probe-shell.zsh` | Disposable startup context loading the production language adapters and PATH module |
 | `native-managers.nix` | Canonical package-manager routes, manager inventory and native build prerequisites |
 

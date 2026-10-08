@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 from core import process
 from core.adapters import TOOLCHAINS
-from core.adapters.jvm import SDK_SCRIPT
+from core.adapters.sdkman import SDK_SCRIPT
 from core.adapters.toolchain import ToolchainAdapter
 from core.engine import Bootstrap
 from core.errors import BootstrapError
@@ -21,12 +21,17 @@ from core.manifest import validate_toolchains
 
 SPECS = {
     "rust": {"version": "1.98.1"},
-    "haskell": {"version": "9.14.1", "cabal": "3.16.1.0"},
+    "haskell": {"version": "9.14.1", "cabal": "3.16.1.0", "hls": "2.15.0.0"},
     "lean": {"version": "4.32.0"},
     "ruby": {"version": "4.0.6"},
     "jvm": {"version": "21.0.12.1", "candidate": "21.0.12+1.1-tem"},
+    "kotlin": {"version": "2.4.21"},
+    "maven": {"version": "3.10.0"},
+    "gradle": {"version": "9.8.1"},
     "julia": {"version": "1.12.6"},
 }
+# Every declared row: one per toolchain, plus GHCup's Cabal and HLS.
+ROWS = len(SPECS) + 2
 
 
 class NativeTransitions(unittest.TestCase):
@@ -235,7 +240,7 @@ class NativeTransitions(unittest.TestCase):
         ):
             before = sorted(self.root.rglob("*"))
             rows = self.recovery.plan()
-            self.assertEqual(len(rows), 7)
+            self.assertEqual(len(rows), ROWS)
             self.assertTrue(all(row["state"] == "blocked" for row in rows))
             self.assertEqual(before, sorted(self.root.rglob("*")))
 
@@ -249,9 +254,9 @@ class NativeTransitions(unittest.TestCase):
             patch.object(ToolchainAdapter, "verify", return_value="ok"),
         ):
             self.recovery.apply(self.recovery.plan())
-            self.assertEqual(len(self.calls), 7)
+            self.assertEqual(len(self.calls), ROWS)
             self.recovery.apply(self.recovery.plan())
-            self.assertEqual(len(self.calls), 7)
+            self.assertEqual(len(self.calls), ROWS)
             self.assertTrue(extra.is_file())
             self.assertEqual(
                 self.recovery.observed_state()["installed"]["julia"],
@@ -271,9 +276,18 @@ class NativeTransitions(unittest.TestCase):
         (roots["ruby"] / "version").write_text("4.1.0\n")
         (roots["haskell"] / "bin/ghc").symlink_to("../ghc/9.16.1/bin/ghc")
         (roots["haskell"] / "bin/cabal").symlink_to("cabal-3.18.0.0")
-        current = roots["jvm"] / "candidates/java/current"
-        current.parent.mkdir(parents=True)
-        current.symlink_to("25.0.4-tem")
+        (roots["haskell"] / "bin/haskell-language-server-wrapper").symlink_to(
+            "haskell-language-server-wrapper-2.14.0.0"
+        )
+        for candidate, release in (
+            ("java", "25.0.4-tem"),
+            ("kotlin", "2.3.21"),
+            ("maven", "3.9.16"),
+            ("gradle", "9.7.1"),
+        ):
+            current = roots["jvm"] / "candidates" / candidate / "current"
+            current.parent.mkdir(parents=True)
+            current.symlink_to(release)
         config = roots["julia"] / "juliaup/juliaup.json"
         config.parent.mkdir(parents=True)
         config.write_text('{"Default":"release"}')
@@ -295,6 +309,9 @@ class NativeTransitions(unittest.TestCase):
             "lean": ("4.20.0", "toolchains/leanprover--lean4---v4.20.0"),
             "haskell": ("9.12.2", "ghc/9.12.2"),
             "jvm": ("17.0.12", "candidates/java/17.0.12-tem"),
+            "kotlin": ("2.3.21", "candidates/kotlin/2.3.21"),
+            "maven": ("3.9.16", "candidates/maven/3.9.16"),
+            "gradle": ("9.7.1", "candidates/gradle/9.7.1"),
             "julia": ("1.10.9", "juliaup/julia-1.10.9"),
         }
         commands = {
@@ -302,6 +319,9 @@ class NativeTransitions(unittest.TestCase):
             "lean": "lean",
             "haskell": "ghc",
             "jvm": "java",
+            "kotlin": "kotlin",
+            "maven": "mvn",
+            "gradle": "gradle",
             "julia": "julia",
         }
         for language, (_, prefix) in older.items():
@@ -316,7 +336,12 @@ class NativeTransitions(unittest.TestCase):
         )
         (roots["haskell"] / "bin/ghc").symlink_to("../ghc/9.12.2/bin/ghc")
         self.executable(roots["haskell"] / "bin/cabal")
-        (roots["jvm"] / "candidates/java/current").symlink_to("17.0.12-tem")
+        self.executable(
+            roots["haskell"] / "bin/haskell-language-server-wrapper"
+        )
+        for language in ("jvm", "kotlin", "maven", "gradle"):
+            prefix = roots[language] / older[language][1]
+            (prefix.parent / "current").symlink_to(prefix.name)
         (roots["julia"] / "juliaup/juliaup.json").write_text(
             json.dumps(
                 {
@@ -339,7 +364,7 @@ class NativeTransitions(unittest.TestCase):
         ruby = rows.pop(("ruby", None))
         self.assertEqual((ruby["state"], ruby["path"]), ("external", ""))
         for (language, component), row in rows.items():
-            release = "3.12.1.0" if component else older[language][0]
+            release = "2.14.0.0" if component else older[language][0]
             with (
                 self.subTest(language=language, component=component),
                 patch.object(process, "run", return_value=release),
@@ -364,7 +389,11 @@ class NativeTransitions(unittest.TestCase):
                 self.assertTrue(any(call[0] == language for call in calls))
         for expected in (
             ("jvm", "default", "java", "21.0.12+1.1-tem"),
+            ("kotlin", "default", "kotlin", "2.4.21"),
+            ("maven", "default", "maven", "3.10.0"),
+            ("gradle", "default", "gradle", "9.8.1"),
             ("haskell", "set", "cabal", "3.16.1.0"),
+            ("haskell", "set", "hls", "2.15.0.0"),
         ):
             with self.subTest(command=expected):
                 self.assertIn(expected, calls)
@@ -377,7 +406,12 @@ class NativeTransitions(unittest.TestCase):
         for expected in (
             ("haskell", "install", "ghc", "9.14.1", "--no-set"),
             ("haskell", "install", "cabal", "3.16.1.0", "--no-set"),
+            ("haskell", "install", "hls", "2.15.0.0", "--no-set"),
             ("lean", "toolchain", "install", "leanprover/lean4:v4.32.0"),
+            ("jvm", "install", "java", "21.0.12+1.1-tem"),
+            ("kotlin", "install", "kotlin", "2.4.21"),
+            ("maven", "install", "maven", "3.10.0"),
+            ("gradle", "install", "gradle", "9.8.1"),
         ):
             with self.subTest(command=expected):
                 self.assertIn(expected, calls)
@@ -550,6 +584,124 @@ class NativeTransitions(unittest.TestCase):
             self.assertEqual(self.recovery.verify(row), "21.0.12.1")
             with self.assertRaisesRegex(BootstrapError, "identity mismatch"):
                 self.recovery.verify(dict(row, version="21.0.12"))
+
+    def test_sdkman_tools_run_on_the_declared_jdk(self):
+        self.managers()
+        java = self.executable(self.adapter("jvm").binary())
+        self.executable(java.parent / "javac")
+        java_home = java.parent.parent.resolve()
+        calls = []
+
+        def run(args, **kwargs):
+            args = [str(arg) for arg in args]
+            calls.append((args, kwargs))
+            name = Path(args[0]).name
+            if name == "mvn":
+                return f"Apache Maven 3.10.0 (fixture)\nruntime: {java_home}"
+            if name == "gradle" and "--version" in args:
+                return "Gradle 9.8.1"
+            if name == "kotlin" and "-version" in args:
+                return "Kotlin version 2.4.21 (JRE 21.0.12.1+1-LTS)"
+            return "" if name == "kotlinc" else "bootstrap-ok"
+
+        for language in ("kotlin", "maven", "gradle"):
+            adapter = self.adapter(language)
+            path = self.executable(adapter.binary())
+            if language == "kotlin":
+                self.executable(path.parent / "kotlinc")
+            row = {
+                "language": language,
+                "version": SPECS[language]["version"],
+                "path": str(path),
+            }
+            with (
+                self.subTest(language=language),
+                patch.object(process, "run", side_effect=run),
+            ):
+                self.assertEqual(self.recovery.verify(row), row["version"])
+        for args, kwargs in calls:
+            self.assertEqual(kwargs["env"]["JAVA_HOME"], str(java_home))
+            self.assertTrue(kwargs["source_build"])
+            if Path(args[0]).name == "mvn":
+                self.assertEqual(kwargs["env"]["MAVEN_SKIP_RC"], "1")
+        programs = [[Path(arg).name for arg in args] for args, _ in calls]
+        self.assertIn(["kotlinc", "Main.kt", "-d", "classes"], programs)
+        self.assertIn(["kotlin", "-cp", "classes", "MainKt"], programs)
+        # Gradle state goes to scratch homes, never to the real ~/.gradle.
+        gradle = [(a, kw) for a, kw in calls if Path(a[0]).name == "gradle"]
+        self.assertNotEqual(
+            Path(gradle[0][1]["env"]["GRADLE_USER_HOME"]).parent, Path.home()
+        )
+        canary = gradle[1][0]
+        for flag in ("--no-daemon", "--offline", "--gradle-user-home"):
+            self.assertIn(flag, canary)
+        self.assertFalse((Path.home() / ".gradle").exists())
+        # Maven must start on the JDK it was given.
+        maven = self.adapter("maven")
+        row = {
+            "language": "maven",
+            "version": "3.10.0",
+            "path": str(maven.binary()),
+        }
+        with (
+            patch.object(
+                process,
+                "run",
+                return_value="Apache Maven 3.10.0\nruntime: /elsewhere",
+            ),
+            self.assertRaisesRegex(BootstrapError, "canary failed"),
+        ):
+            self.recovery.verify(row)
+        java.unlink()
+        with self.assertRaisesRegex(BootstrapError, "needs an SDKMAN JDK"):
+            self.recovery.verify(row)
+
+    def test_hls_must_serve_the_declared_ghc(self):
+        self.managers()
+        haskell = self.adapter("haskell")
+        hls = next(
+            row for row in haskell.plan() if row.get("component") == "hls"
+        )
+        self.assertEqual(hls["state"], "missing")
+        self.assertTrue(
+            hls["path"].endswith(
+                "hls/2.15.0.0/bin/haskell-language-server-9.14.1"
+            )
+        )
+        # The release is installed but serves other compilers only.
+        self.executable(
+            Path(hls["path"]).with_name("haskell-language-server-9.12.2")
+        )
+        conflict = next(
+            row for row in haskell.plan() if row.get("component") == "hls"
+        )
+        self.assertEqual(conflict["state"], "conflict")
+        self.assertIn("no server for GHC 9.14.1", conflict["reason"])
+        self.executable(Path(hls["path"]))
+        for compiler, supported in (("9.14.1", True), ("9.12.2", False)):
+
+            def run(args, compiler=compiler, **kwargs):
+                self.assertEqual(
+                    kwargs["env"]["GHC_BIN"], str(haskell.binary())
+                )
+                if "--numeric-version" in args:
+                    return "2.15.0.0"
+                return (
+                    "haskell-language-server version: 2.15.0.0 "
+                    f"(GHC: {compiler}) (PATH: fixture)"
+                )
+
+            with (
+                self.subTest(compiler=compiler),
+                patch.object(process, "run", side_effect=run),
+            ):
+                if supported:
+                    self.assertEqual(self.recovery.verify(hls), "2.15.0.0")
+                else:
+                    with self.assertRaisesRegex(
+                        BootstrapError, "canary failed"
+                    ):
+                        self.recovery.verify(hls)
 
     def test_dangling_selectors_do_not_authorize_default_replacement(self):
         for language in ("rust", "lean"):
