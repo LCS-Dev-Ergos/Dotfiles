@@ -113,9 +113,12 @@ def run(
     except (OSError, subprocess.TimeoutExpired) as error:
         raise BootstrapError(str(error)) from error
     if result.returncode not in success_codes:
-        raise BootstrapError(
-            f"{args[0]} exited {result.returncode}: {result.stderr[-2000:]}"
-        )
+        # Some tools print the cause on stdout: Homebrew reports a failed link
+        # step on stderr and the conflicting files on stdout. Keep both tails.
+        detail = result.stderr[-2000:].strip()
+        if result.stdout.strip():
+            detail += f"\nstdout: {result.stdout[-2000:].strip()}"
+        raise BootstrapError(f"{args[0]} exited {result.returncode}: {detail}")
     return result.stdout.strip()
 
 

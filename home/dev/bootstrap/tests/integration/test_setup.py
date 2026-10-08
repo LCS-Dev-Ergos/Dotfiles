@@ -506,6 +506,29 @@ class SetupTests(unittest.TestCase):
                     ):
                         self.actual_run(["fixture"], success_codes=accepted)
 
+    def test_failure_reports_both_output_tails(self):
+        stdout = "x" * 3000 + "Target /opt/homebrew/bin/idle3 already exists"
+        result = subprocess.CompletedProcess(
+            [], 1, stdout, "Error: The `brew link` step did not complete\n"
+        )
+        with (
+            patch("core.process.subprocess.run", return_value=result),
+            self.assertRaises(BootstrapError) as raised,
+        ):
+            self.actual_run(["brew"])
+        message = str(raised.exception)
+        self.assertIn("exited 1: Error: The `brew link` step", message)
+        self.assertIn("\nstdout: ", message)
+        self.assertTrue(message.endswith("bin/idle3 already exists"))
+        self.assertLess(len(message), 4200)
+        quiet = subprocess.CompletedProcess([], 1, "\n", "failed\n")
+        with (
+            patch("core.process.subprocess.run", return_value=quiet),
+            self.assertRaises(BootstrapError) as raised,
+        ):
+            self.actual_run(["fixture"])
+        self.assertEqual(str(raised.exception), "fixture exited 1: failed")
+
     def test_native_build_environment_is_scoped_to_source_compilation(self):
         self.data["setup"]["buildEnvironment"] = {
             "CC": "/fixture/native/cc",
