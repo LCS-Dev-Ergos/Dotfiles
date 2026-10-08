@@ -5,6 +5,7 @@
 # ============================================================================ #
 # Runs the packaged executor against real native managers in one disposable
 # root: plan, apply, verify, verify --health, then apply again, per ecosystem.
+# Each run also selects what the ecosystem requires, read from the catalog.
 # The executor starts from an empty environment, so no exported manager root
 # can redirect writes into the real home. The native package manager stays
 # global: packages it installs are reported, not undone.
@@ -39,8 +40,11 @@ print -r -- "root=$root"
 # Selections and settings the real managers keep under the real home.
 typeset -a guarded=(
   .local/share/fnm/aliases/default .pyenv/version .opam/config
-  .rustup/settings.toml .ghcup/bin/ghc .elan/settings.toml .rbenv/version
-  .sdkman/candidates/java/current .juliaup/juliaup.json
+  .rustup/settings.toml .ghcup/bin/ghc .ghcup/bin/cabal
+  .ghcup/bin/haskell-language-server-wrapper .elan/settings.toml
+  .rbenv/version .sdkman/candidates/java/current
+  .sdkman/candidates/kotlin/current .sdkman/candidates/maven/current
+  .sdkman/candidates/gradle/current .juliaup/juliaup.json
 )
 _snapshot_home() {
   local entry
@@ -77,18 +81,43 @@ _executor() {
 
 _snapshot_home > "$log/real-home-before.txt"
 _snapshot_packages > "$log/packages-before.txt"
-typeset language step name
+
+# The executor rejects a selection without its requirements; ask it for them.
+_executor plan --json > "$log/catalog.json" 2> "$log/catalog.err" || {
+  print -u2 'The executor did not report its catalog'
+  return 1
+}
+typeset -A requires
+typeset language required
+while IFS=$'\t' read -r language required; do
+  requires[$language]="$required"
+done < <("$analysis" -I -c '
+import json, sys
+for entry in json.load(open(sys.argv[1]))["catalog"]:
+    print(entry["language"], " ".join(entry["requires"]), sep="\t")
+' "$log/catalog.json")
+
+typeset step name
+typeset -a selection
 typeset -F start
 typeset -i index code failed=0
 : > "$log/steps.tsv"
 for language in "$@"; do
+  (( ${+requires[$language]} )) || {
+    print -u2 "Unknown ecosystem: $language"
+    return 2
+  }
+  selection=()
+  for required in ${=requires[$language]} "$language"; do
+    selection+=(--only "$required")
+  done
   index=0
   for step in plan apply verify 'verify --health' apply; do
     (( ++index ))
     name="$language-$index-${step// /}"
     start=$EPOCHREALTIME
     code=0
-    _executor ${=step} --only "$language" --json \
+    _executor ${=step} "${selection[@]}" --json \
       > "$log/$name.json" 2> "$log/$name.err" || code=$?
     printf '%s\t%s\t%d\t%.1f\n' "$language" "$step" "$code" \
       $(( EPOCHREALTIME - start )) >> "$log/steps.tsv"

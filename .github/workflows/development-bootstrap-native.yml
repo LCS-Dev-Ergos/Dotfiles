@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       ecosystems:
-        description: Space-separated ecosystems for the from-zero harness
+        description: Space-separated ecosystems for the from-zero harness (each also selects what it requires)
         required: true
         default: node python
 
@@ -47,7 +47,7 @@ jobs:
         run: |
           for ecosystem in $ECOSYSTEMS; do
             case "$ecosystem" in
-              node|python|ocaml|rust|haskell|lean|ruby|jvm|julia) ;;
+              node|python|ocaml|rust|haskell|lean|ruby|jvm|kotlin|maven|gradle|julia) ;;
               *) echo "Unsupported ecosystem: $ecosystem" >&2; exit 2 ;;
             esac
           done

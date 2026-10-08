@@ -15,14 +15,15 @@ automatic checks.
 `qualification/native-adapters.zsh` runs the packaged executor against the
 real native managers in one disposable root and an empty environment: `plan`,
 `apply`, `verify`, `verify --health`, then a second `apply` for each selected
-ecosystem. It writes per-step JSON, durations, disk use and a `summary.json`,
+ecosystem. Each run also selects what that ecosystem requires, as the
+executor's catalog reports it, so `kotlin` runs with `jvm`. It writes per-step JSON, durations, disk use and a `summary.json`,
 and fails when the real home's entries or manager selections change, or when
 the second `apply` installs anything. The native package manager stays global;
 the summary lists any package it installed.
 
 ```sh
 zsh home/dev/bootstrap/tests/qualification/native-adapters.zsh \
-  /path/to/package/bin/dev-bootstrap /path/to/logs node python
+  /path/to/package/bin/dev-bootstrap /path/to/logs node python jvm kotlin
 ```
 
 `qualification/native-opam.zsh` drives real opam through bare root
