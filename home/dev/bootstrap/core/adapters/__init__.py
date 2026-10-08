@@ -4,6 +4,7 @@ An adapter follows every adapter it requires, so registry order is also a
 valid installation order.
 """
 
+from .conda import CondaAdapter
 from .coursier import ScalaAdapter
 from .dotnet import DotnetAdapter
 from .haskell import HaskellAdapter
@@ -35,6 +36,7 @@ ADAPTERS = {
         ScalaAdapter,
         JuliaAdapter,
         DotnetAdapter,
+        CondaAdapter,
     )
 }
 TOOLCHAINS = {

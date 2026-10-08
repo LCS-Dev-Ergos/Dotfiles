@@ -109,6 +109,18 @@ let
       ];
     };
   };
+  # Miniforge3 installs conda and its base environment in batch mode, which
+  # never runs `conda init`.
+  miniforge = asset: {
+    url = "https://github.com/conda-forge/miniforge/releases/download/26.7.2-0/${asset.name}";
+    inherit (asset) sha256 size;
+    shell = "/bin/bash";
+    arguments = [
+      "-b"
+      "-p"
+      "{CONDA_ROOT_PREFIX}"
+    ];
+  };
   # Release assets above the 1 MiB script bound, pinned per platform with their
   # exact size (2026-10-08). Coursier's native launcher needs no setup run.
   releaseInstallers = {
@@ -119,6 +131,11 @@ let
         size = 29271147;
         format = "gzip";
       };
+      conda = miniforge {
+        name = "Miniforge3-26.7.2-0-MacOSX-arm64.sh";
+        sha256 = "d70bfa2e97afcda96927c9b9ca0e2316cb7750e4ce651c94388267cbe9588711";
+        size = 83747533;
+      };
     };
     x86_64-linux = {
       scala = {
@@ -126,6 +143,11 @@ let
         sha256 = "348e37bc2a8c706640e6b032c4551a0e055a7f1537485b4a91540e9d3598ec6d";
         size = 30253002;
         format = "gzip";
+      };
+      conda = miniforge {
+        name = "Miniforge3-26.7.2-0-Linux-x86_64.sh";
+        sha256 = "281b0ac7d550802efc81af633225a5e6116d29ae72f3ab4eae7168c3931a4c05";
+        size = 124514161;
       };
     };
   };

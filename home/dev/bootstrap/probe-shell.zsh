@@ -34,8 +34,9 @@ for bootstrap_language in "${bootstrap_languages[@]}"; do
       ;;
     # PATH-only adapters; selections are inspected without proxies. The SDKMAN
     # build tools and Coursier's launchers are on PATH through 90-path.zsh,
-    # keyed on SDKMAN_DIR and COURSIER_BIN_DIR; the .NET muxer on DOTNET_ROOT.
-    lean|julia|kotlin|maven|gradle|scala|dotnet) ;;
+    # keyed on SDKMAN_DIR and COURSIER_BIN_DIR; the .NET muxer on DOTNET_ROOT,
+    # and conda's condabin on CONDA_ROOT_PREFIX.
+    lean|julia|kotlin|maven|gradle|scala|dotnet|conda) ;;
     *) return 1 ;;
   esac
 done
@@ -79,7 +80,7 @@ for bootstrap_language in "${bootstrap_languages[@]}"; do
     ocaml)
       print -r -- ocaml$'\t'"$(whence -p ocamlc)"$'\t'"$(command ocamlc -version)"
       ;;
-    rust|haskell|lean|ruby|jvm|kotlin|maven|gradle|scala|julia|dotnet)
+    rust|haskell|lean|ruby|jvm|kotlin|maven|gradle|scala|julia|dotnet|conda)
       # Download-capable proxies are never executed to qualify a selection.
       # The parent validates the direct runtime; here verify shell exposure and
       # manager provenance against the same explicit roots and selector files.
@@ -97,6 +98,7 @@ for bootstrap_language in "${bootstrap_languages[@]}"; do
         scala) runtime_command=scala; manager_command=cs; expected_proxy="$COURSIER_BIN_DIR/scala" ;;
         julia) runtime_command=julia; manager_command=juliaup; expected_proxy="$JULIAUP_HOME/bin/julia" ;;
         dotnet) runtime_command=dotnet; manager_command=dotnet; expected_proxy="$DOTNET_ROOT/dotnet" ;;
+        conda) runtime_command=conda; manager_command=conda; expected_proxy="$CONDA_ROOT_PREFIX/condabin/conda" ;;
       esac
       typeset actual_runtime="$(whence -p "$runtime_command")"
       [[ -n "$actual_runtime" && "${actual_runtime:A}" == "${expected_proxy:A}" ]] || {
@@ -110,6 +112,10 @@ for bootstrap_language in "${bootstrap_languages[@]}"; do
       if [[ "$manager_command" == sdkman ]]; then
         typeset sdkman_script="$SDKMAN_DIR/bin/sdkman-init.sh"
         [[ "${sdkman_script:A}" == "${${(P)manager_variable}:A}" ]] || return 1
+      elif [[ "$manager_command" == conda ]]; then
+        # PATH exposes condabin's entry point; the manager is the base's own.
+        typeset conda_manager="$CONDA_ROOT_PREFIX/bin/conda"
+        [[ "${conda_manager:A}" == "${${(P)manager_variable}:A}" ]] || return 1
       else
         _bootstrap_manager_origin "$manager_command" "${(P)manager_variable}" || return 1
       fi

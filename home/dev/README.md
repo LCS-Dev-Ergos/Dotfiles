@@ -35,12 +35,13 @@ and Julia. Their initial identities are Rust 1.98.1, GHC 9.14.1, Cabal
 `21.0.12+1.1-tem`) and Julia 1.12.6.
 
 The core language set includes HLS 2.14.0.0 in GHCup's rows, with a server for
-GHC 9.14.1, and Kotlin 2.4.21, Maven 3.10.0 and Gradle 9.8.1 as SDKMAN
-adapters that require `jvm` and run on its JDK. Scala 3.9.0 comes through
-Coursier's pinned native launcher and also runs on that JDK, and the .NET
-SDK 10.0.401 comes from the hash-checked `dotnet-install` script. Each adapter
-declares what it requires, whether a run without `--only` selects it, its
-platforms and the terms an apply must accept; JSON reports list this as the
+GHC 9.14.1, and Kotlin 2.4.21, Maven 3.10.0 and Gradle 9.8.1 as SDKMAN adapters
+that require `jvm` and run on its JDK. Scala 3.9.0 comes through Coursier's
+pinned native launcher and also runs on that JDK, and the .NET SDK 10.0.401
+comes from the hash-checked `dotnet-install` script. Conda 26.7.2 comes from
+the matching Miniforge3 installer, and only `--only conda` selects it. Each
+adapter declares what it requires, whether a run without `--only` selects it,
+its platforms and the terms an apply must accept; JSON reports list this as the
 `catalog`.
 
 Every adapter installs through its native manager at an exact version:

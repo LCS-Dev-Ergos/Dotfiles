@@ -47,6 +47,7 @@ typeset -a guarded=(
   .sdkman/candidates/gradle/current .juliaup/juliaup.json
   .local/share/coursier/bin/scala
   'Library/Application Support/Coursier/bin/scala' .dotnet/dotnet
+  .miniforge3/bin/conda
 )
 _snapshot_home() {
   local entry

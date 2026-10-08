@@ -32,6 +32,7 @@ SPECS = {
     "scala": {"version": "3.9.0"},
     "julia": {"version": "1.12.6"},
     "dotnet": {"version": "10.0.401"},
+    "conda": {"version": "26.7.2"},
 }
 # Every declared row: one per toolchain, plus GHCup's Cabal and HLS.
 ROWS = len(SPECS) + 2
@@ -248,6 +249,11 @@ class NativeTransitions(unittest.TestCase):
             self.assertEqual(before, sorted(self.root.rglob("*")))
 
     def test_install_missing_only_preserves_additional_versions(self):
+        # Conda's manager lives in the base environment it installs, so a
+        # fabricated manager alone describes a broken base (a conflict).
+        self.recovery = Bootstrap(
+            self.data, [language for language in SPECS if language != "conda"]
+        )
         self.managers()
         extra = self.executable(self.roots["ruby"] / "versions/4.1.0/bin/ruby")
         with ExitStack() as stack:
@@ -262,9 +268,9 @@ class NativeTransitions(unittest.TestCase):
                 patch.object(ToolchainAdapter, "verify", return_value="ok")
             )
             self.recovery.apply(self.recovery.plan())
-            self.assertEqual(len(self.calls), ROWS)
+            self.assertEqual(len(self.calls), ROWS - 1)
             self.recovery.apply(self.recovery.plan())
-            self.assertEqual(len(self.calls), ROWS)
+            self.assertEqual(len(self.calls), ROWS - 1)
             self.assertTrue(extra.is_file())
             self.assertEqual(
                 self.recovery.observed_state()["installed"]["julia"],
@@ -331,6 +337,8 @@ class NativeTransitions(unittest.TestCase):
             "julia": ("1.10.9", "juliaup/julia-1.10.9"),
             # The muxer itself is the selection; it runs the newest SDK.
             "dotnet": ("9.0.318", None),
+            # Conda's base environment evolves in place.
+            "conda": ("26.3.2", None),
         }
         commands = {
             "rust": "rustc",
@@ -377,6 +385,7 @@ class NativeTransitions(unittest.TestCase):
             )
         )
         (roots["ruby"] / "version").write_text("system\n")
+        self.executable(roots["conda"] / "bin/python")
         # Coursier's launcher runs the older distribution it was installed for.
         scala = roots["scala"] / older["scala"][1] / "bin/scala"
         (self.adapter("scala").home / "scala").write_bytes(
@@ -410,8 +419,9 @@ class NativeTransitions(unittest.TestCase):
             calls = self.invocations(stack)
             for adapter in self.recovery.adapters.values():
                 adapter.initialize_default()
-        # The .NET muxer runs the newest SDK; nothing records a selection.
-        unselected = {"dotnet"}
+        # The .NET muxer runs the newest SDK and conda's base environment is
+        # the only global one; nothing records a selection.
+        unselected = {"dotnet", "conda"}
         for language in TOOLCHAINS:
             with self.subTest(language=language):
                 self.assertEqual(
@@ -445,6 +455,11 @@ class NativeTransitions(unittest.TestCase):
                 patch.object(self.adapter("dotnet"), "run_installer")
             )
             for row in self.recovery.plan():
+                if row["language"] == "conda":
+                    # Acquisition installs the base environment.
+                    with self.assertRaisesRegex(BootstrapError, "installer"):
+                        self.adapter("conda").install(row)
+                    continue
                 self.adapter(row["language"]).install(row)
         installer.assert_called_once_with()
         for expected in (
@@ -647,7 +662,15 @@ class NativeTransitions(unittest.TestCase):
 
     def test_verified_installer_runs_once_and_receives_literal_roots(self):
         payload = b"verified installer fixture"
-        for language in ("rust", "haskell", "lean", "jvm", "julia", "dotnet"):
+        for language in (
+            "rust",
+            "haskell",
+            "lean",
+            "jvm",
+            "julia",
+            "dotnet",
+            "conda",
+        ):
             with self.subTest(language=language):
                 adapter = self.adapter(language)
                 root = adapter.home
@@ -1004,6 +1027,35 @@ class NativeTransitions(unittest.TestCase):
         with patch.object(dotnet, "invoke") as invoke:
             dotnet.initialize_default()
         invoke.assert_not_called()
+
+    def test_conda_base_reports_through_its_interpreter(self):
+        self.managers()
+        conda = self.adapter("conda")
+        python = self.executable(conda.binary())
+        calls = []
+
+        def run(args, **kwargs):
+            calls.append([str(arg) for arg in args])
+            return "26.7.2" if "__version__" in args[-1] else "bootstrap-ok"
+
+        row = {"language": "conda", "version": "26.7.2", "path": str(python)}
+        with patch.object(process, "run", side_effect=run):
+            self.assertEqual(self.recovery.verify(row), "26.7.2")
+        # The conda CLI, which can reach the network, never runs.
+        self.assertTrue(all(call[0] == str(python) for call in calls))
+        self.assertTrue(all(call[1] == "-I" for call in calls))
+        (selected,) = conda.selected()
+        self.assertEqual(
+            (selected["state"], selected["path"]), ("present", str(python))
+        )
+        self.assertIsNone(conda.selection())
+        with patch.object(conda, "invoke") as invoke:
+            conda.initialize_default()
+        invoke.assert_not_called()
+        # A prefix without its interpreter needs inspection, not a reinstall.
+        python.unlink()
+        (row,) = conda.plan()
+        self.assertEqual(row["state"], "conflict")
 
     def test_hls_must_serve_the_declared_ghc(self):
         self.managers()

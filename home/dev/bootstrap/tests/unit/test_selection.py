@@ -76,8 +76,22 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(context.only, ["jvm", "kotlin", "gradle"])
 
     def test_implicit_selection_skips_optional_and_unavailable_adapters(self):
-        everything = Bootstrap(self.data, None).only
-        self.assertEqual(everything, list(ADAPTERS))
+        implicit = Bootstrap(self.data, None)
+        self.assertEqual(
+            implicit.only,
+            [name for name in ADAPTERS if ADAPTERS[name].default_selected],
+        )
+        # Conda is reached only through --only and never reported missing.
+        self.assertNotIn("conda", implicit.only)
+        self.assertNotIn("conda", {row["language"] for row in implicit.plan()})
+        conda = next(
+            row for row in implicit.catalog() if row["language"] == "conda"
+        )
+        self.assertEqual(
+            (conda["available"], conda["selected"], conda["defaultSelected"]),
+            (True, False, False),
+        )
+        self.assertEqual(Bootstrap(self.data, ["conda"]).only, ["conda"])
         self.patched("julia", default_selected=False)
         self.patched("ruby", platforms=("x86_64-linux",))
         context = Bootstrap(self.data, None)
