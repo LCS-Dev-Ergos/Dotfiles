@@ -6,9 +6,11 @@ it only when no global selection exists, and verify the runtime directly.
 Probes never launch download-capable proxies.
 """
 
+import gzip
 import hashlib
 import os
 import re
+import shutil
 import tempfile
 import tomllib
 import urllib.request
@@ -20,7 +22,10 @@ from .base import Adapter
 
 RELEASE = r"[0-9]+\.[0-9]+\.[0-9]+"
 IDENTITY = r"[0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?"
+# Mutable script endpoints stay below this bound; a release asset declares
+# its exact size instead.
 INSTALLER_LIMIT = 1024 * 1024
+CHUNK = 1024 * 1024
 
 
 class ToolchainAdapter(Adapter):
@@ -56,57 +61,91 @@ class ToolchainAdapter(Adapter):
     def guard_acquisition(self):
         """Refuse to reinstall a manager over state that needs inspection."""
 
+    def occupied(self):
+        """Whether the manager home holds state an installer could overwrite."""
+        return self.home.exists() and any(self.home.iterdir())
+
     def acquire(self):
-        """Only apply reaches the network; hash every bounded installer first."""
+        """Only apply reaches the network; verify every installer before use."""
         try:
             self.manager()
             return
         except BootstrapError:
             if self.language not in self.recipe.get("installers", {}):
                 raise
-        if self.home.exists() and any(self.home.iterdir()):
+        if self.occupied():
             raise BootstrapError(
                 "Inspect incomplete native manager root before acquisition: "
                 f"{self.home}"
             )
         self.guard_acquisition()
+        self.run_installer()
+        self.manager()
+
+    def run_installer(self):
+        """Fetch the declared installer, verify it, then hand it over once."""
         recipe = self.recipe["installers"][self.language]
-        with urllib.request.urlopen(recipe["url"], timeout=60) as response:
-            payload = response.read(INSTALLER_LIMIT + 1)
+        with tempfile.TemporaryDirectory(
+            prefix="native-manager-", dir=self.context.state
+        ) as directory:
+            payload = self.fetch_installer(recipe, Path(directory))
+            self.install_manager(recipe, payload, directory)
+
+    def fetch_installer(self, recipe, directory):
+        """Stream the declared bytes to disk; nothing runs unless they match.
+
+        A release asset's declared size also bounds the download, so a large
+        installer never sits in memory and a longer stream stops early.
+        """
+        limit = recipe.get("size", INSTALLER_LIMIT)
+        digest = hashlib.sha256()
+        received = 0
+        path = directory / "installer"
+        with (
+            urllib.request.urlopen(recipe["url"], timeout=60) as response,
+            path.open("wb") as file,
+        ):
+            while chunk := response.read(CHUNK):
+                received += len(chunk)
+                if received > limit:
+                    break
+                digest.update(chunk)
+                file.write(chunk)
         if (
-            len(payload) > INSTALLER_LIMIT
-            or hashlib.sha256(payload).hexdigest() != recipe["sha256"]
+            received > limit
+            or received != recipe.get("size", received)
+            or digest.hexdigest() != recipe["sha256"]
         ):
             raise BootstrapError(
                 f"Native {self.language} installer checksum/size mismatch; "
                 "refresh its declaration"
             )
-        with tempfile.TemporaryDirectory(
-            prefix="native-manager-", dir=self.context.state
-        ) as directory:
-            script = Path(directory) / "installer"
-            script.write_bytes(payload)
-            environment = (
-                self.recipe.get("buildEnvironment", {})
-                | self.environment()
-                | recipe.get("environment", {})
-            )
-            bindings = {**self.environment(), "version": self.spec["version"]}
-            process.run(
-                [
-                    recipe["shell"],
-                    str(script),
-                    *(
-                        part.format_map(bindings)
-                        for part in recipe["arguments"]
-                    ),
-                ],
-                env=environment,
-                source_build=True,
-                cwd=directory,
-                timeout=1800,
-            )
-        self.manager()
+        if recipe.get("format") != "gzip":
+            return path
+        unpacked = directory / "installer.unpacked"
+        with gzip.open(path) as source, unpacked.open("wb") as target:
+            shutil.copyfileobj(source, target)
+        return unpacked
+
+    def install_manager(self, recipe, payload, directory):
+        """Run a verified installer script with its declared arguments."""
+        environment = (
+            self.recipe.get("buildEnvironment", {})
+            | self.environment()
+            | recipe.get("environment", {})
+        )
+        bindings = {**self.environment(), "version": self.spec["version"]}
+        process.run(
+            [
+                recipe["shell"],
+                str(payload),
+                *(part.format_map(bindings) for part in recipe["arguments"]),
+            ],
+            env=environment,
+            source_build=True,
+            cwd=directory,
+            timeout=1800,
+        )
 
     def readiness(self):
         output = self.invoke("--version", timeout=30)

@@ -224,7 +224,11 @@ insufficient. A native package name does not lock its future binary or
 dependency closure.
 
 Official manager installer scripts are hash-checked before execution; a changed
-upstream script fails closed until its declaration is reviewed. These hashes do
+upstream script fails closed until its declaration is reviewed. A script from a
+mutable endpoint must stay below 1 MiB. A larger installer is a versioned
+release asset declared per platform with its exact size, which also bounds the
+download; it is streamed to disk and runs, or is placed, only once its size and
+digest match. A `gzip` asset is unpacked after verification. These hashes do
 not pin every payload downloaded by the upstream installer. FNM does not verify
 Node's published checksums, so Node's integrity rests on HTTPS to nodejs.org,
 which the policy names explicitly; python-build verifies the checksums embedded

@@ -40,6 +40,13 @@ def validate_toolchains(data):
             raise BootstrapError(
                 "Native installers require HTTPS and an exact SHA256"
             )
+        size = spec.get("size", 1)
+        if type(size) is not int or size <= 0:
+            raise BootstrapError(
+                "Installer sizes must be positive byte counts"
+            )
+        if spec.get("format", "gzip") != "gzip":
+            raise BootstrapError("Unsupported installer format")
 
 
 def validate_manifest(data):

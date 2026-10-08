@@ -1,6 +1,7 @@
 """Filesystem state transitions; no native installs, providers or downloads."""
 
 import copy
+import gzip
 import hashlib
 import io
 import json
@@ -464,6 +465,74 @@ class NativeTransitions(unittest.TestCase):
             with self.assertRaisesRegex(BootstrapError, "checksum/size"):
                 self.adapter("lean").acquire()
             runner.assert_not_called()
+
+    def test_release_installers_match_their_exact_size(self):
+        payload = b"release asset fixture"
+        compressed = gzip.compress(payload)
+        lean = self.adapter("lean")
+        for label, body, size, accepted in (
+            ("exact", payload, len(payload), True),
+            ("longer", payload + b"!", len(payload), False),
+            ("shorter", payload[:-1], len(payload), False),
+            ("gzip", compressed, len(compressed), True),
+        ):
+            recipe = {
+                "url": "https://example.invalid/asset",
+                "sha256": hashlib.sha256(body[:size]).hexdigest(),
+                "size": size,
+                "shell": "/bin/sh",
+                "arguments": [],
+            }
+            if label == "gzip":
+                recipe["format"] = "gzip"
+            self.data["setup"]["installers"] = {"lean": recipe}
+            received = []
+
+            def install(recipe, path, directory, received=received):
+                received.append(Path(path).read_bytes())
+
+            with (
+                self.subTest(case=label),
+                patch("urllib.request.urlopen", return_value=io.BytesIO(body)),
+                patch.object(lean, "install_manager", side_effect=install),
+            ):
+                if accepted:
+                    lean.run_installer()
+                    self.assertEqual(received, [payload])
+                else:
+                    with self.assertRaisesRegex(
+                        BootstrapError, "checksum/size"
+                    ):
+                        lean.run_installer()
+                    self.assertEqual(received, [])
+
+    def test_installer_declarations_reject_bad_sizes_and_formats(self):
+        valid = {
+            "url": "https://example.invalid/asset",
+            "sha256": "0" * 64,
+            "size": 1,
+        }
+        validate_toolchains(
+            dict(self.data, setup={"installers": {"lean": valid}})
+        )
+        for field, value in (
+            ("size", 0),
+            ("size", True),
+            ("size", "12"),
+            ("format", "zip"),
+        ):
+            with (
+                self.subTest(field=field, value=value),
+                self.assertRaises(BootstrapError),
+            ):
+                validate_toolchains(
+                    dict(
+                        self.data,
+                        setup={
+                            "installers": {"lean": {**valid, field: value}}
+                        },
+                    )
+                )
 
     def test_julia_existing_selection_blocks_manager_reinstallation(self):
         self.data["setup"]["installers"] = {
