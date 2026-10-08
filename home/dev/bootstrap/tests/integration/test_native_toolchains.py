@@ -531,14 +531,15 @@ class NativeTransitions(unittest.TestCase):
         payload = b"release asset fixture"
         compressed = gzip.compress(payload)
         lean = self.adapter("lean")
-        for label, body, size, accepted in (
-            ("exact", payload, len(payload), True),
-            ("longer", payload + b"!", len(payload), False),
-            ("shorter", payload[:-1], len(payload), False),
-            ("gzip", compressed, len(compressed), True),
+        for label, body, size, accepted, name in (
+            ("exact", payload, len(payload), True, "Miniforge3-0-Linux.sh"),
+            ("longer", payload + b"!", len(payload), False, "asset"),
+            ("shorter", payload[:-1], len(payload), False, "asset"),
+            ("gzip", compressed, len(compressed), True, "cs-x86_64.gz"),
+            ("endpoint", payload, len(payload), True, ""),
         ):
             recipe = {
-                "url": "https://example.invalid/asset",
+                "url": f"https://example.invalid/{name}",
                 "sha256": hashlib.sha256(body[:size]).hexdigest(),
                 "size": size,
                 "shell": "/bin/sh",
@@ -550,7 +551,7 @@ class NativeTransitions(unittest.TestCase):
             received = []
 
             def install(recipe, path, directory, received=received):
-                received.append(Path(path).read_bytes())
+                received.append((Path(path).name, Path(path).read_bytes()))
 
             with (
                 self.subTest(case=label),
@@ -559,7 +560,11 @@ class NativeTransitions(unittest.TestCase):
             ):
                 if accepted:
                     lean.run_installer()
-                    self.assertEqual(received, [payload])
+                    # Installers may check their own file name.
+                    expected = {"gzip": "cs-x86_64", "endpoint": "installer"}
+                    self.assertEqual(
+                        received, [(expected.get(label, name), payload)]
+                    )
                 else:
                     with self.assertRaisesRegex(
                         BootstrapError, "checksum/size"

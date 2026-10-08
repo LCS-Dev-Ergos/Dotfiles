@@ -13,6 +13,7 @@ import re
 import shutil
 import tempfile
 import tomllib
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -26,6 +27,7 @@ IDENTITY = r"[0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?"
 # its exact size instead.
 INSTALLER_LIMIT = 1024 * 1024
 CHUNK = 1024 * 1024
+FILE_NAME = r"[A-Za-z0-9][A-Za-z0-9._-]*"
 
 
 class ToolchainAdapter(Adapter):
@@ -100,7 +102,12 @@ class ToolchainAdapter(Adapter):
         limit = recipe.get("size", INSTALLER_LIMIT)
         digest = hashlib.sha256()
         received = 0
-        path = directory / "installer"
+        # Installers may check their own name: Miniforge's must end in .sh.
+        # Keep a release asset's plain file name; endpoints get a fixed one.
+        name = Path(urllib.parse.urlsplit(recipe["url"]).path).name
+        if not re.fullmatch(FILE_NAME, name):
+            name = "installer"
+        path = directory / name
         with (
             urllib.request.urlopen(recipe["url"], timeout=60) as response,
             path.open("wb") as file,
@@ -122,7 +129,9 @@ class ToolchainAdapter(Adapter):
             )
         if recipe.get("format") != "gzip":
             return path
-        unpacked = directory / "installer.unpacked"
+        unpacked = directory / (
+            name.removesuffix(".gz") if name.endswith(".gz") else "unpacked"
+        )
         with gzip.open(path) as source, unpacked.open("wb") as target:
             shutil.copyfileobj(source, target)
         return unpacked
