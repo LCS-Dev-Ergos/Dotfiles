@@ -1,4 +1,12 @@
 -- Native Hyprland 0.56.2. The legacy HyDE tree is intentionally not sourced.
+-- Hyprland resolves the managed link before it sets package.path, which
+-- points require at the store. Search the real config directory first: it
+-- holds legion.lua and HyprMod's staging file.
+local config_home = os.getenv("XDG_CONFIG_HOME")
+if not config_home or config_home == "" then
+    config_home = os.getenv("HOME") .. "/.config"
+end
+package.path = config_home .. "/hypr/?.lua;" .. package.path
 require("legion")
 
 hl.env("XCURSOR_SIZE", "24")
