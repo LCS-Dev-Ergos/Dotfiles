@@ -31,6 +31,7 @@ export USER=fixture-one
 unset PYENV_ROOT GOPATH ANDROID_HOME SDKMAN_DIR FNM_DIR FNM_MULTISHELL_PATH
 unset OPAM_SWITCH_PREFIX NPM_CONFIG_PREFIX
 unset RBENV_ROOT CARGO_HOME ELAN_HOME GHCUP_INSTALL_BASE_PREFIX JULIAUP_HOME
+unset COURSIER_BIN_DIR DOTNET_ROOT CONDA_ROOT_PREFIX
 unset LCS_RUNTIME_MANAGER_BACKEND LCS_NATIVE_FNM_READY
 
 command mkdir -p \
@@ -116,23 +117,27 @@ _assert_order "$FNM_DIR" "$HOME/.nix-profile/bin"
 
 # A changed native root must invalidate a warm cache on both platforms. Each
 # manager directory must also beat a fallback supplied by a Nix profile.
-typeset host_kind root_variable root_suffix iteration root_dir
+# A suffix of "." names the root itself, as for the .NET muxer directory.
+typeset host_kind root_variable root_suffix iteration root_dir entry
 for host_kind in Linux macOS; do
   PLATFORM="$host_kind"
   for root_variable root_suffix in \
       RBENV_ROOT shims CARGO_HOME bin ELAN_HOME bin \
       GHCUP_INSTALL_BASE_PREFIX .ghcup/bin JULIAUP_HOME bin \
-      SDKMAN_DIR candidates/java/current/bin; do
+      SDKMAN_DIR candidates/java/current/bin COURSIER_BIN_DIR . \
+      DOTNET_ROOT .; do
     for iteration in one two; do
       root_dir="$fixture_root/$root_variable-$iteration"
+      entry="$root_dir"
+      [[ "$root_suffix" == . ]] || entry+="/$root_suffix"
       export "$root_variable=$root_dir"
-      command mkdir -p "$root_dir/$root_suffix"
+      command mkdir -p "$entry"
       PATH="$base_path"
       zsh_rebuild_path
-      _assert_order "$root_dir/$root_suffix" "$HOME/.nix-profile/bin"
+      _assert_order "$entry" "$HOME/.nix-profile/bin"
       PATH="$base_path"
       zsh_rebuild_path
-      _assert_order "$root_dir/$root_suffix" "$HOME/.nix-profile/bin"
+      _assert_order "$entry" "$HOME/.nix-profile/bin"
       if [[ "$iteration" == two && "$PATH" == *"$fixture_root/$root_variable-one/"* ]]; then
         print -u2 "FAIL: $host_kind cache ignores $root_variable"
         return 1
@@ -140,6 +145,20 @@ for host_kind in Linux macOS; do
     done
     unset "$root_variable"
   done
+
+  # Miniforge stays behind the system tools, yet its root is cache identity.
+  for iteration in one two; do
+    export CONDA_ROOT_PREFIX="$fixture_root/conda-$iteration"
+    command mkdir -p "$CONDA_ROOT_PREFIX/condabin"
+    PATH="$base_path"
+    zsh_rebuild_path
+    _assert_order /bin "$CONDA_ROOT_PREFIX/condabin"
+    if [[ "$iteration" == two && "$PATH" == *"$fixture_root/conda-one/"* ]]; then
+      print -u2 "FAIL: $host_kind cache ignores CONDA_ROOT_PREFIX"
+      return 1
+    fi
+  done
+  unset CONDA_ROOT_PREFIX
 done
 
 print -r -- 'PASS: native runtime roots, cache identity and active opam precedence'

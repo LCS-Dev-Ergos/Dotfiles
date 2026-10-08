@@ -21,9 +21,10 @@ _conda_lazy_init() {
   # Arch specific path.
   if [[ "$PLATFORM" == 'Linux' && -f "/opt/miniconda3/bin/conda" ]]; then
     conda_path="/opt/miniconda3/bin/conda"
-    # User path (macOS or other Linux).
-  elif [[ -f "$HOME/.miniforge3/bin/conda" ]]; then
-    conda_path="$HOME/.miniforge3/bin/conda"
+    # User path (macOS or other Linux); CONDA_ROOT_PREFIX is conda's own name
+    # for the base prefix, which the bootstrap also installs Miniforge into.
+  elif [[ -f "${CONDA_ROOT_PREFIX:-$HOME/.miniforge3}/bin/conda" ]]; then
+    conda_path="${CONDA_ROOT_PREFIX:-$HOME/.miniforge3}/bin/conda"
   fi
 
   if [[ -n "$conda_path" ]]; then
@@ -46,7 +47,8 @@ _conda_lazy_init() {
   fi
 }
 
-if [[ -f "/opt/miniconda3/bin/conda" || -f "$HOME/.miniforge3/bin/conda" ]]; then
+if [[ -f "/opt/miniconda3/bin/conda" ||
+      -f "${CONDA_ROOT_PREFIX:-$HOME/.miniforge3}/bin/conda" ]]; then
   # ---------------------------------------------------------------------------
   # conda
   # @description Lazily initializes Conda, then runs its command.

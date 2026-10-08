@@ -82,7 +82,7 @@ zsh_rebuild_path() {
 
   # Bump whenever priority semantics change so live shells cannot reuse a
   # structurally valid cache containing the previous order.
-  local cache_version="15"
+  local cache_version="16"
   local cache_signature="${cache_version}|${stable_original_path}|${PLATFORM}"
   cache_signature+="|${HOME}|${USER}|${XDG_DATA_HOME}"
   cache_signature+="|${OPAM_SWITCH_PREFIX}"
@@ -90,6 +90,7 @@ zsh_rebuild_path() {
   cache_signature+="|${PYENV_ROOT}|${SDKMAN_DIR}"
   cache_signature+="|${RBENV_ROOT}|${CARGO_HOME}|${ELAN_HOME}"
   cache_signature+="|${GHCUP_INSTALL_BASE_PREFIX}|${JULIAUP_HOME}"
+  cache_signature+="|${COURSIER_BIN_DIR}|${DOTNET_ROOT}|${CONDA_ROOT_PREFIX}"
   cache_signature+="|${GOPATH}|${ANDROID_HOME}"
   cache_signature+="|${FNM_DIR}|${NPM_CONFIG_PREFIX}"
   # The template below is part of the key too: its resolved file changes
@@ -162,6 +163,8 @@ zsh_rebuild_path() {
       "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/maven/current/bin"
       "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/kotlin/current/bin"
       "${SDKMAN_DIR:-$HOME/.sdkman}/candidates/gradle/current/bin"
+      "${COURSIER_BIN_DIR:-$HOME/Library/Application Support/Coursier/bin}"
+      "${DOTNET_ROOT:-$HOME/.dotnet}"
 
       # ------------------ Nix ------------------ #
       # Declaratively managed tools win over duplicate Homebrew formulae.
@@ -184,7 +187,6 @@ zsh_rebuild_path() {
       "/usr/sbin" "/sbin"
 
       # --------- Functional Languages ---------- #
-      "$HOME/Library/Application Support/Coursier/bin"
       "$HOME/.cabal/bin"
       "$HOME/.dotnet/tools" # dotnet global tools (csharp-ls, etc.)
 
@@ -197,7 +199,8 @@ zsh_rebuild_path() {
       "$HOME/.perl5/bin"
       "$HOME/.fpc-deluxe/fpc/bin/aarch64-darwin"
       "${GOPATH:+$GOPATH/bin}"
-      "$HOME/.miniforge3/condabin" "$HOME/.miniforge3/bin"
+      "${CONDA_ROOT_PREFIX:-$HOME/.miniforge3}/condabin"
+      "${CONDA_ROOT_PREFIX:-$HOME/.miniforge3}/bin"
       "${ANDROID_HOME:+$ANDROID_HOME/platform-tools}"
       "${ANDROID_HOME:+$ANDROID_HOME/cmdline-tools/latest/bin}"
 
@@ -242,6 +245,8 @@ zsh_rebuild_path() {
       "${JULIAUP_HOME:-$HOME/.juliaup}/bin"
       "${GHCUP_INSTALL_BASE_PREFIX:-$HOME}/.ghcup/bin"
       "${ELAN_HOME:-$HOME/.elan}/bin"
+      "${COURSIER_BIN_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/coursier/bin}"
+      "${DOTNET_ROOT:-$HOME/.dotnet}"
 
       # ------------------ Nix ------------------ #
       # Declaratively managed tools win over system and Linuxbrew copies.
@@ -260,7 +265,6 @@ zsh_rebuild_path() {
 
       # --------- Functional Languages ---------- #
       "$HOME/.cabal/bin"
-      "$HOME/.local/share/coursier/bin"
       "$HOME/.dotnet/tools" # dotnet global tools (csharp-ls, etc.)
 
       # ------ User and App-Specific Paths ------ #
@@ -271,7 +275,9 @@ zsh_rebuild_path() {
       "$HOME/.npm/bin"
       "$HOME/.perl5/bin"
       "${GOPATH:+$GOPATH/bin}"
-      "/opt/miniconda3/condabin" "$HOME/.miniforge3/condabin" "$HOME/.miniforge3/bin"
+      "/opt/miniconda3/condabin"
+      "${CONDA_ROOT_PREFIX:-$HOME/.miniforge3}/condabin"
+      "${CONDA_ROOT_PREFIX:-$HOME/.miniforge3}/bin"
       "${ANDROID_HOME:+$ANDROID_HOME/platform-tools}"
       "${ANDROID_HOME:+$ANDROID_HOME/cmdline-tools/latest/bin}"
       "$HOME/.local/share/JetBrains/Toolbox/scripts"

@@ -62,6 +62,14 @@ export SBT_OPTS="-Xmx3g -Xms512m -XX:+UseG1GC -XX:MaxMetaspaceSize=1g -XX:Reserv
 # launcher then fails with exit 127; keep the archives with application data.
 export COURSIER_ARCHIVE_CACHE="${XDG_DATA_HOME:-$HOME/.local/share}/coursier/arc"
 
+# ----------- .NET Configs ----------- #
+# dotnet-install keeps SDKs under ~/.dotnet. Apphost launchers, global tools
+# among them, read DOTNET_ROOT to find that runtime; without an installation
+# there they must keep finding the system-wide one, so export it only then.
+if [[ -z "${DOTNET_ROOT:-}" && -x "$HOME/.dotnet/dotnet" ]]; then
+  export DOTNET_ROOT="$HOME/.dotnet"
+fi
+
 # ----------- Clang-Format ----------- #
 # Clang-Format Configuration.
 export CLANG_FORMAT_CONFIG="$HOME/.config/clang-format/.clang-format"
