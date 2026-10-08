@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       ecosystems:
-        description: Space-separated ecosystems for the from-zero harness (each also selects what it requires)
+        description: Ecosystems for the from-zero harness, space-separated within a job and comma-separated between jobs (each also selects what it requires)
         required: true
-        default: node python
+        default: python, ocaml, haskell, node rust lean ruby julia, jvm kotlin maven gradle scala dotnet conda
 
 permissions:
   contents: read
@@ -18,22 +18,63 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
-env:
-  ECOSYSTEMS: ${{ inputs.ecosystems }}
-
 jobs:
+  # The compiler builds (CPython, the OCaml switches) and GHC with HLS each get
+  # their own job by default, so every job stays well inside its time limit and
+  # one slow ecosystem never delays the others' evidence.
+  groups:
+    name: Split the ecosystems into jobs
+    runs-on: ubuntu-24.04
+    outputs:
+      groups: ${{ steps.split.outputs.groups }}
+    env:
+      REQUEST: ${{ inputs.ecosystems }}
+    steps:
+      - name: Validate and split the selection
+        id: split
+        run: |
+          groups='[]'
+          IFS=',' read -r -a jobs <<< "$REQUEST"
+          for job in "${jobs[@]}"; do
+            read -r -a members <<< "$job"
+            (( ${#members[@]} )) || continue
+            for ecosystem in "${members[@]}"; do
+              case "$ecosystem" in
+                node|python|ocaml|rust|haskell|lean|ruby|jvm|kotlin|maven|gradle|scala|julia|dotnet|conda) ;;
+                *) echo "Unsupported ecosystem: $ecosystem" >&2; exit 2 ;;
+              esac
+            done
+            groups=$(jq -c --arg ecosystems "${members[*]}" \
+              --arg id "$(IFS=-; echo "${members[*]}")" \
+              '. + [{id: $id, ecosystems: $ecosystems}]' <<< "$groups")
+          done
+          if [[ $groups == '[]' ]]; then
+            echo 'No ecosystem selected' >&2
+            exit 2
+          fi
+          if [[ $(jq '[.[].id] | length != (unique | length)' <<< "$groups") == true ]]; then
+            echo 'A job is listed twice' >&2
+            exit 2
+          fi
+          echo "groups=$groups" >> "$GITHUB_OUTPUT"
+
   native:
-    name: Native harness (${{ matrix.name }})
+    name: Native harness (${{ matrix.platform }}, ${{ matrix.group.ecosystems }})
+    needs: groups
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
+        platform: [macOS, Arch container]
+        group: ${{ fromJSON(needs.groups.outputs.groups) }}
         include:
-          - os: macos-15
-            name: macOS
-          - os: ubuntu-24.04
-            name: Arch container
+          - platform: macOS
+            os: macos-15
+          - platform: Arch container
+            os: ubuntu-24.04
+    env:
+      ECOSYSTEMS: ${{ matrix.group.ecosystems }}
     defaults:
       run:
         shell: bash
@@ -42,15 +83,6 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false
-
-      - name: Validate the selected ecosystems
-        run: |
-          for ecosystem in $ECOSYSTEMS; do
-            case "$ecosystem" in
-              node|python|ocaml|rust|haskell|lean|ruby|jvm|kotlin|maven|gradle|scala|julia|dotnet|conda) ;;
-              *) echo "Unsupported ecosystem: $ecosystem" >&2; exit 2 ;;
-            esac
-          done
 
       - name: Install Nix
         uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
@@ -102,7 +134,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: development-bootstrap-native-${{ matrix.os }}
+          name: development-bootstrap-native-${{ matrix.os }}-${{ matrix.group.id }}
           path: ${{ runner.temp }}/native
           if-no-files-found: ignore
           retention-days: 14

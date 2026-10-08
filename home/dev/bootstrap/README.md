@@ -272,9 +272,12 @@ Neither workflow installs native compilers or activates a workstation.
 `.github/workflows/development-bootstrap-native.yml` is dispatched manually. It
 builds the package and runs `tests/qualification/native-adapters.zsh` for the
 selected ecosystems on a macOS runner and in an Arch container, with real
-managers, downloads and builds. The container runs the executor as an
-unprivileged account whose passwordless `sudo` covers only pacman. Acceptance
-of a complete CachyOS workstation takes place outside CI.
+managers, downloads and builds. Its input lists jobs separated by commas, each
+a space-separated list of ecosystems run in one disposable root. The default
+covers every adapter in five jobs per platform, with CPython, the OCaml
+compilers and GHC each in a job of their own. The container runs the executor
+as an unprivileged account whose passwordless `sudo` covers only pacman.
+Acceptance of a complete CachyOS workstation takes place outside CI.
 
 ## Test Model
 
