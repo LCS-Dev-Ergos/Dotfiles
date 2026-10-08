@@ -48,56 +48,22 @@ _bootstrap_fixture() {
     --manifest "$fixture_root/baseline.json" "$@"
 }
 
-"$interpreter" - "$fixture_root" "$fixture_shell" "$recovery" \
-  "$baseline_manifest" <<'PY'
-import hashlib
-import io
+"$interpreter" - "$fixture_root" "$baseline_manifest" <<'PY'
 import json
 import pathlib
 import sys
-import tarfile
 
 root = pathlib.Path(sys.argv[1])
-node = ("#!" + sys.argv[2] + "\necho v24.21.0\n").encode()
-archive = root / "node.tar.gz"
-with tarfile.open(archive, "w:gz") as tar:
-    info = tarfile.TarInfo("node-v24.21.0-darwin-arm64/bin/node")
-    info.mode, info.size = 0o755, len(node)
-    tar.addfile(info, io.BytesIO(node))
-digest = hashlib.sha256(archive.read_bytes()).hexdigest()
-python_cache = root / "python-cache"
-python_cache.mkdir()
-(python_cache / "source.tar.gz").write_bytes(b"locked source")
-python_digest = hashlib.sha256(b"locked source").hexdigest()
-cache = root / "cache/devrestore/artifacts"
-cache.mkdir(parents=True)
-(cache / digest).write_bytes(archive.read_bytes())
 manifest = {
     "schema": 1,
     "platform": "aarch64-darwin",
     "backend": "native",
     "defaults": {"node": "24.21.0", "python": "3.14.7", "ocaml": "5.5.1"},
-    "policy": json.loads(pathlib.Path(sys.argv[4]).read_text())["policy"],
-    "node": [
-        {
-            "version": "24.21.0",
-            "hashes": {"aarch64-darwin": digest},
-            "archive": str(archive),
-            "filename": "node-v24.21.0-darwin-arm64.tar.gz",
-        }
-    ],
-    "python": {
-        "version": "3.14.7",
-        "pythonBuildVersion": "2.8.8",
-        "builder": str(root / "locked-python-build"),
-        "definition": str(root / "definitions/3.14.7"),
-        "sourceCache": str(python_cache),
-        "sources": [{"name": "source.tar.gz", "sha256": python_digest}],
-    },
+    "policy": json.loads(pathlib.Path(sys.argv[2]).read_text())["policy"],
+    "node": {"versions": ["24.21.0"]},
+    "python": {"version": "3.14.7"},
     "ocaml": {"versions": ["5.5.1"]},
 }
-(root / "definitions").mkdir()
-(root / "definitions/3.14.7").touch()
 (root / "baseline.json").write_text(json.dumps(manifest))
 manifest["backend"] = "nixpkgs"
 (root / "nixos.json").write_text(json.dumps(manifest))
@@ -111,18 +77,25 @@ output="$(PATH=/nonexistent _bootstrap_fixture plan --only node --json)"
   return 1
 }
 
-# FNM changes its staging default; the real root must retain its own.
-print -rl -- "#!$fixture_shell" \
-  'if [ "$1" = --version ]; then echo "fnm 1.39.0"; exit; fi' \
-  'test "$1" = --fnm-dir || exit 9' \
-  'root=$2; prefix="$root/node-versions/v24.21.0/installation"' \
-  'mkdir -p "$prefix" "$root/aliases"' \
-  'tar -xzf "$FIXTURE_ARCHIVE" --strip-components=1 -C "$prefix"' \
-  'ln -s "$root/node-versions/v24.21.0/installation" "$root/aliases/default"' \
-  > "$fixture_root/bin/fnm"
+# FNM downloads from the named upstream into a staging root and tags its first
+# release as default there; the real root must retain its own selection.
+command cat > "$fixture_root/bin/fnm" <<EOF
+#!$fixture_shell
+if [ "\$1" = --version ]; then echo "fnm 1.39.0"; exit; fi
+test "\$1" = --fnm-dir || exit 9
+root=\$2
+test "\$3 \$4" = "--node-dist-mirror https://nodejs.org/dist" || exit 10
+test "\$5 \$6" = "install 24.21.0" || exit 11
+test -z "\${FNM_NODE_DIST_MIRROR:-}\${FNM_ARCH:-}" || exit 12
+prefix="\$root/node-versions/v24.21.0/installation"
+mkdir -p "\$prefix/bin" "\$root/aliases"
+test ! -e "\$HOME/fail-node-download" || exit 13
+printf '#!%s\\necho v24.21.0\\n' "$fixture_shell" > "\$prefix/bin/node"
+chmod 700 "\$prefix/bin/node"
+ln -s "\$prefix" "\$root/aliases/default"
+EOF
 command chmod 700 "$fixture_root/bin/fnm"
 command cp "$fixture_root/bin/fnm" "$fixture_root/fnm-fixture"
-export FIXTURE_ARCHIVE="$fixture_root/node.tar.gz"
 command mkdir -p "$FNM_DIR/node-versions/v99.0.0/installation" \
   "$FNM_DIR/aliases"
 command ln -s ../node-versions/v99.0.0/installation "$FNM_DIR/aliases/default"
@@ -139,7 +112,9 @@ command rm "$fixture_root/bin/fnm"
 _bootstrap_fixture apply --only node > /dev/null
 _bootstrap_fixture verify --only node > /dev/null
 command cp "$fixture_root/fnm-fixture" "$fixture_root/bin/fnm"
-FNM_DIR="$fixture_root/fresh-fnm" \
+# Inherited mirror and architecture settings must not reach FNM.
+FNM_NODE_DIST_MIRROR=http://127.0.0.1:9/dist FNM_ARCH=x64 \
+  FNM_DIR="$fixture_root/fresh-fnm" \
   _bootstrap_fixture apply --only node > /dev/null
 [[ ! -e "$fixture_root/fresh-fnm/aliases/default" ]] || {
   print -u2 'FAIL: a fresh FNM root acquired an implicit default'
@@ -164,21 +139,17 @@ if "$interpreter" "$recovery" --manifest "$fixture_root/nixos.json" \
   return 1
 fi
 
-# Missing runtimes must not bypass archive integrity checks or touch a Git tree.
-command cp "$fixture_root/fnm-fixture" "$fixture_root/bin/fnm"
-"$interpreter" - "$fixture_root/node.tar.gz" <<'PY'
-import pathlib
-import sys
-
-pathlib.Path(sys.argv[1]).write_bytes(b"corrupt archive")
-PY
+# A failed download leaves neither a release nor its staging root behind.
+command touch "$HOME/fail-node-download"
 if FNM_DIR="$fixture_root/new-fnm" \
   _bootstrap_fixture apply --only node > /dev/null 2>&1; then
-  print -u2 'FAIL: apply accepted a damaged archive'
+  print -u2 'FAIL: apply reported a failed download as success'
   return 1
 fi
-[[ ! -e "$fixture_root/new-fnm" ]] || {
-  print -u2 'FAIL: damaged Node archive created a runtime root'
+command rm "$HOME/fail-node-download"
+[[ ! -e "$fixture_root/new-fnm/node-versions/v24.21.0" &&
+   -z "$(print -l -- "$fixture_root"/new-fnm/.devrestore-*(N))" ]] || {
+  print -u2 'FAIL: failed Node download left partial state in the root'
   return 1
 }
 command mkdir -p "$fixture_root/repository/.git"
@@ -188,32 +159,36 @@ if FNM_DIR="$fixture_root/repository/generated" \
   return 1
 fi
 
-# Python uses the locked build definition, never inherited prefix/install flags.
-print -rl -- "#!$fixture_shell" \
-  'test "$1" = rehash || exit 8' \
-  'mkdir -p "$PYENV_ROOT/shims"' > "$fixture_root/bin/pyenv"
-print -rl -- "#!$fixture_shell" \
-  'if [ "$1" = --version ]; then echo "python-build 2.8.8"; exit; fi' \
-  'test -z "${PYTHON_PREFIX_PATH:-}${MAKE_INSTALL_OPTS:-}" || exit 9' \
-  'test -z "${MAKEFLAGS:-}${MAKEOVERRIDES:-}${MAKEOPTS:-}${MAKE:-}" || exit 9' \
-  'test -z "${PYTHON_BUILD_BUILD_PATH:-}" || exit 9' \
-  'test -z "${HAS_CHECKSUM_SUPPORT_compute_sha2:-}" || exit 9' \
-  'test "${1##*/}" = 3.14.7 || exit 10' \
-  'mkdir -p "$2/bin"' \
-  'test ! -e "$HOME/abort-python-build" || exit 42' \
-  "printf '#!%s\\n' '$fixture_shell' > \"\$2/bin/python\"" \
-  'printf '\''case "$*" in\n'\'' >> "$2/bin/python"' \
-  'printf '\''*platform.python_version*) echo 3.14.7;;\n'\'' \
-    >> "$2/bin/python"' \
-  'printf '\''*) exit "${FIXTURE_PYTHON_FAIL:-0}";;\nesac\n'\'' \
-    >> "$2/bin/python"' \
-  'chmod 700 "$2/bin/python"' > "$fixture_root/locked-python-build"
-command chmod 700 "$fixture_root/bin/pyenv" "$fixture_root/locked-python-build"
-# An independently updated native builder must never be consulted by bootstrap.
-print -rl -- "#!$fixture_shell" \
-  'touch "$HOME/native-builder-called"; echo "python-build 99.0.0"; exit 9' \
-  > "$fixture_root/bin/python-build"
-command chmod 700 "$fixture_root/bin/python-build"
+# Python builds through the native pyenv, never with inherited prefix, install
+# or checksum overrides, and only for a release its python-build knows.
+command cat > "$fixture_root/bin/pyenv" <<EOF
+#!$fixture_shell
+case "\$1 \${2:-}" in
+  'rehash '*) mkdir -p "\$PYENV_ROOT/shims"; exit ;;
+  'install --list')
+    echo 'Available versions:'
+    test -e "\$HOME/no-python-definition" || echo '  3.14.7'
+    exit ;;
+  'install 3.14.7') ;;
+  *) exit 8 ;;
+esac
+test -z "\${PYTHON_PREFIX_PATH:-}\${MAKE_INSTALL_OPTS:-}" || exit 9
+test -z "\${MAKEFLAGS:-}\${MAKEOVERRIDES:-}\${MAKEOPTS:-}\${MAKE:-}" || exit 9
+test -z "\${PYTHON_BUILD_BUILD_PATH:-}\${PYENV_VERSION:-}" || exit 9
+test -z "\${HAS_CHECKSUM_SUPPORT_compute_sha2:-}" || exit 9
+prefix="\$PYENV_ROOT/versions/3.14.7"
+mkdir -p "\$prefix/bin"
+test ! -e "\$HOME/abort-python-build" || exit 42
+cat > "\$prefix/bin/python" <<'PYTHON'
+#!$fixture_shell
+case "\$*" in
+  *platform.python_version*) echo 3.14.7 ;;
+  *) exit "\${FIXTURE_PYTHON_FAIL:-0}" ;;
+esac
+PYTHON
+chmod 700 "\$prefix/bin/python"
+EOF
+command chmod 700 "$fixture_root/bin/pyenv"
 command mkdir -p "$PYENV_ROOT/versions/other"
 print -r -- 'other' > "$PYENV_ROOT/version"
 # The upstream SHA verifier must not fail open when utilities are missing.
@@ -230,9 +205,20 @@ fi
   return 1
 }
 command rm "$fixture_root/bin/shasum"
+command touch "$HOME/no-python-definition"
+if output="$(PYENV_ROOT="$fixture_root/undefined-python" \
+  _bootstrap_fixture apply --only python 2>&1 >/dev/null)"; then
+  print -u2 'FAIL: Python proceeded without a native build definition'
+  return 1
+fi
+command rm "$HOME/no-python-definition"
+[[ "$output" == *'upgrade pyenv'* && ! -e "$fixture_root/undefined-python" ]] || {
+  print -u2 'FAIL: a missing definition must stop before any Python root'
+  return 1
+}
 PYTHON_PREFIX_PATH="$PYENV_ROOT/versions/other" MAKE_INSTALL_OPTS='unsafe' \
   MAKEFLAGS="prefix=$fixture_root/unrelated" MAKEOVERRIDES='prefix=unsafe' \
-  MAKEOPTS='unsafe' MAKE='unsafe' \
+  MAKEOPTS='unsafe' MAKE='unsafe' PYENV_VERSION=other \
   PYTHON_BUILD_BUILD_PATH="$fixture_root/unrelated" \
   HAS_CHECKSUM_SUPPORT_compute_sha2=0 \
   _bootstrap_fixture apply --only python > /dev/null
@@ -242,21 +228,6 @@ PYTHON_PREFIX_PATH="$PYENV_ROOT/versions/other" MAKE_INSTALL_OPTS='unsafe' \
   print -u2 'FAIL: Python recovery changed defaults or an unrelated prefix'
   return 1
 }
-[[ ! -e "$HOME/native-builder-called" ]] || {
-  print -u2 'FAIL: native Python builder was executed'
-  return 1
-}
-print -r -- 'corrupt' > "$fixture_root/python-cache/source.tar.gz"
-if PYENV_ROOT="$fixture_root/corrupt-python" \
-  _bootstrap_fixture apply --only python > /dev/null 2>&1; then
-  print -u2 'FAIL: Python accepted a damaged source cache'
-  return 1
-fi
-[[ ! -e "$fixture_root/corrupt-python" ]] || {
-  print -u2 'FAIL: damaged source cache created a Python root'
-  return 1
-}
-print -rn -- 'locked source' > "$fixture_root/python-cache/source.tar.gz"
 command touch "$HOME/abort-python-build"
 if PYENV_ROOT="$fixture_root/interrupted-python" \
   _bootstrap_fixture apply --only python > /dev/null 2>&1; then
@@ -438,7 +409,7 @@ with (root / "state/devrestore/apply.lock").open("a") as lock:
     assert not (root / "lock-python").exists()
 PY
 
-print -r -- 'PASS: restoration, integrity, preservation and failure contracts'
+print -r -- 'PASS: restoration, upstream, preservation and failure contracts'
 
 # ============================================================================ #
 # End of tests/bootstrap/test-recovery.zsh

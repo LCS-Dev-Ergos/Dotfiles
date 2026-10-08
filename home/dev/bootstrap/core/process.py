@@ -65,6 +65,8 @@ def run(
         "PYENV_VERSION",
         "FNM_MULTISHELL_PATH",
         "FNM_COREPACK_ENABLED",
+        "FNM_NODE_DIST_MIRROR",
+        "FNM_ARCH",
         "OCAMLLIB",
         "OCAML_TOPLEVEL_PATH",
         "CAML_LD_LIBRARY_PATH",

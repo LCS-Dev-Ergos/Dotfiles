@@ -1,13 +1,7 @@
-"""Node through FNM, seeded from Nix-retained archives over loopback."""
+"""Node through FNM, installed from nodejs.org into a staging root."""
 
-import hashlib
-import http.server
 import os
-import shutil
-import tarfile
 import tempfile
-import threading
-from contextlib import contextmanager
 from pathlib import Path
 
 from .. import process
@@ -53,13 +47,13 @@ class NodeAdapter(Adapter):
     def baseline(self):
         return [
             self.row(
-                release["version"],
+                release,
                 self.root
                 / "node-versions"
-                / f"v{release['version']}"
+                / f"v{release}"
                 / "installation/bin/node",
             )
-            for release in self.context.data["node"]
+            for release in self.context.data["node"]["versions"]
         ]
 
     def prefix(self, row):
@@ -102,146 +96,36 @@ class NodeAdapter(Adapter):
             cwd=str(self.context.state),
         )
 
-    # Installation from the retained archive ----------------------------------
-
-    def artifact(self, release):
-        """Validate the Nix-fetched archive before any manager mutation."""
-        path = Path(release["archive"])
-        if not path.is_absolute():
-            raise BootstrapError("Node archive must be an absolute path")
-        with path.open("rb") as handle:
-            if (
-                hashlib.file_digest(handle, "sha256").hexdigest()
-                != release["hashes"][self.context.data["platform"]]
-            ):
-                raise BootstrapError("Node archive checksum mismatch")
-        return path
-
-    @staticmethod
-    @contextmanager
-    def mirror(release, archive):
-        """FNM's HTTP-only mirror consumes one immutable archive over loopback."""
-        route = f"/v{release['version']}/{release['filename']}"
-
-        class ArchiveHandler(http.server.BaseHTTPRequestHandler):
-            def do_GET(self):
-                if self.path != route:
-                    self.send_error(404)
-                    return
-                self.send_response(200)
-                self.send_header("Content-Length", str(archive.stat().st_size))
-                self.end_headers()
-                with archive.open("rb") as source:
-                    shutil.copyfileobj(source, self.wfile)
-
-            def log_message(self, *_args):
-                pass
-
-        server = http.server.ThreadingHTTPServer(
-            ("127.0.0.1", 0), ArchiveHandler
-        )
-        worker = threading.Thread(target=server.serve_forever, daemon=True)
-        worker.start()
-        try:
-            yield f"http://127.0.0.1:{server.server_port}"
-        finally:
-            server.shutdown()
-            server.server_close()
-            worker.join()
-
-    @staticmethod
-    def verify_tree(archive, installation):
-        """Compare FNM extraction with the locked archive before executing Node."""
-        expected = set()
-        with tarfile.open(archive) as tar:
-            for member in tar:
-                relative = Path(*Path(member.name).parts[1:])
-                if not relative.parts:
-                    continue
-                if member.name.startswith("/") or ".." in relative.parts:
-                    raise BootstrapError("Unsafe archive member")
-                path = installation / relative
-                if member.isfile():
-                    expected.add(relative)
-                    if path.is_symlink() or not path.is_file():
-                        raise BootstrapError(
-                            f"Node extraction mismatch: {relative}"
-                        )
-                    with (
-                        path.open("rb") as handle,
-                        tar.extractfile(member) as archived,
-                    ):
-                        if (
-                            hashlib.file_digest(handle, "sha256").digest()
-                            != hashlib.file_digest(archived, "sha256").digest()
-                        ):
-                            raise BootstrapError(
-                                f"Node extraction checksum mismatch: {relative}"
-                            )
-                elif member.issym():
-                    expected.add(relative)
-                    if (
-                        not path.is_symlink()
-                        or os.readlink(path) != member.linkname
-                    ):
-                        raise BootstrapError(
-                            f"Node extraction link mismatch: {relative}"
-                        )
-                    if not path.resolve().is_relative_to(
-                        installation.resolve()
-                    ):
-                        raise BootstrapError(
-                            "Node archive link escapes its installation"
-                        )
-                elif not member.isdir():
-                    raise BootstrapError("Unsupported Node archive member")
-        actual = {
-            path.relative_to(installation)
-            for path in installation.rglob("*")
-            if path.is_file() or path.is_symlink()
-        }
-        if actual != expected:
-            raise BootstrapError(
-                "Node extraction contains missing or additional files"
-            )
+    # Installation ------------------------------------------------------------
 
     def install(self, row):
-        release = next(
-            item
-            for item in self.context.data["node"]
-            if item["version"] == row["version"]
-        )
-        archive = self.artifact(release)
+        """Install into a staging root, verify there, then move into place.
+
+        FNM tags the first release it installs as `default`. Staging keeps
+        that alias out of the real root, where defaults are initialized only
+        when absent, and an interrupted download leaves no partial release.
+        """
         writable_directory(self.root)
         writable_directory(self.root / "node-versions")
         with tempfile.TemporaryDirectory(
             prefix=".devrestore-", dir=self.root
         ) as temporary:
-            staged_root = Path(temporary)
-            with self.mirror(release, archive) as mirror:
-                process.run(
-                    [
-                        str(self.manager()),
-                        *self.context.arguments(
-                            "nodeInstall",
-                            staging=temporary,
-                            mirror=mirror,
-                            version=row["version"],
-                        ),
-                    ],
-                    env={
-                        "FNM_COREPACK_ENABLED": "false",
-                        "NO_PROXY": "127.0.0.1",
-                        "no_proxy": "127.0.0.1",
-                    },
-                    timeout=self.context.data["policy"]["timeouts"]["node"],
-                    cwd=temporary,
-                )
-            staged = staged_root / "node-versions" / f"v{row['version']}"
-            self.verify_tree(archive, staged / "installation")
+            process.run(
+                [
+                    str(self.manager()),
+                    *self.context.arguments(
+                        "nodeInstall",
+                        staging=temporary,
+                        version=row["version"],
+                    ),
+                ],
+                env={"FNM_COREPACK_ENABLED": "false"},
+                timeout=self.context.data["policy"]["timeouts"]["node"],
+                cwd=temporary,
+            )
+            staged = Path(temporary) / "node-versions" / f"v{row['version']}"
             self.verify(dict(row, path=str(staged / "installation/bin/node")))
             target = self.root / "node-versions" / staged.name
-            target.parent.mkdir(mode=0o700, exist_ok=True)
             if os.path.lexists(target):
                 raise BootstrapError(
                     "Node target appeared during installation; refusing overwrite"

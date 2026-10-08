@@ -42,12 +42,8 @@ class SetupTests(unittest.TestCase):
         self.provided = set()
         self.data = copy.deepcopy(declared_manifest())
         self.data.update(backend="native", platform="aarch64-darwin")
-        self.data["python"].update(
-            builder=str(self.bin / "python-build"),
-            sourceCache=str(self.root),
-            sources=[],
-            definition=str(self.root / "definition"),
-        )
+        # Releases the fixture pyenv's python-build reports it can build.
+        self.definitions = ["3.13.5", self.data["python"]["version"]]
         self.data["setup"] = {
             "packageManager": str(self.bin / "brew"),
             "managerDirectory": str(self.bin),
@@ -130,6 +126,13 @@ class SetupTests(unittest.TestCase):
                 "pyenv": "pyenv 2.8.8",
                 "opam": "2.6.0",
             }[name]
+        if name == "pyenv" and args[1:] == ["install", "--list"]:
+            self.assertEqual(kwargs["env"]["PYENV_ROOT"], str(self.pyenv))
+            return "\n".join(
+                ["Available versions:", *(f"  {v}" for v in self.definitions)]
+            )
+        if name == "pyenv" and args[1] == "install":
+            return ""
         if args[1:] == ["list", "--formula"] or args[1:] == ["-Qq"]:
             return "\n".join(sorted(self.installed))
         if args[1] == "-T":
@@ -146,8 +149,6 @@ class SetupTests(unittest.TestCase):
                 if manager in self.installed:
                     self.executable(self.bin / manager)
             return ""
-        if name == "python-build":
-            return "python-build 2.8.8"
         if name == "sudo" and args[1:] == ["-n", "/usr/bin/true"]:
             return ""
         if name == "fnm" and "default" in args:
@@ -242,15 +243,19 @@ class SetupTests(unittest.TestCase):
         return code, json.loads(output.getvalue())
 
     def mutations(self):
+        # Listing python-build definitions reads state; it installs nothing.
         return [
             event
             for event in self.events
-            if event[0] == "runtime"
-            or "install" in event
-            or "-S" in event
-            or "default" in event
-            or "global" in event
-            or event[1:3] == ("switch", "set")
+            if "--list" not in event
+            and (
+                event[0] == "runtime"
+                or "install" in event
+                or "-S" in event
+                or "default" in event
+                or "global" in event
+                or event[1:3] == ("switch", "set")
+            )
         ]
 
     def test_empty_roots_and_second_apply(self):
@@ -408,6 +413,14 @@ class SetupTests(unittest.TestCase):
                     self.setup.apply()
                 self.assertEqual(self.mutations(), [])
 
+    def test_unknown_python_definition_fails_before_installation(self):
+        self.scope(["python"])
+        self.definitions = ["3.13.5"]
+        with self.assertRaisesRegex(BootstrapError, "upgrade pyenv"):
+            self.setup.apply()
+        self.assertNotIn("runtime", [event[0] for event in self.events])
+        self.assertFalse((self.pyenv / "versions").exists())
+
     def test_partial_prefix_blocks_provisioning(self):
         row = self.recovery.adapter("python").baseline()[0]
         Path(row["path"]).parent.mkdir(parents=True)
@@ -526,7 +539,7 @@ class SetupTests(unittest.TestCase):
         builder = next(
             k
             for a, k in calls
-            if "--version" not in a and Path(a[0]).name == "python-build"
+            if Path(a[0]).name == "pyenv" and a[1] == "install"
         )
         ocaml_build = next(
             k for a, k in calls if a[1:3] == ["switch", "create"]
@@ -616,7 +629,7 @@ class SetupTests(unittest.TestCase):
                 self.assertEqual({e[0] for e in invocations}, {str(expected)})
                 self.assertEqual(
                     {e[1] for e in invocations},
-                    {"--version", "global", "rehash"},
+                    {"--version", "global", "install", "rehash"},
                 )
 
     def test_default_failure_preserves_completed_work_on_retry(self):

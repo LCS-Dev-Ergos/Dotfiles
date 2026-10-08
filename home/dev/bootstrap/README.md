@@ -16,9 +16,8 @@ Initial seeding, recovery of subsequently evolved state and project dependency
 reconstruction have separate acceptance criteria. Prefer native exports/locks
 for the latter two. Adapters use the manager's supported installation interface
 against its own upstream: the bootstrap declares exact versions, not artifacts.
-OCaml and the six toolchain adapters follow this model; Node and Python still
-seed from Nix-retained archives and sources until they move to `fnm install`
-and `pyenv install`.
+All nine adapters follow this model, Node through `fnm install` and Python
+through `pyenv install`.
 
 ## Architecture and Execution
 
@@ -37,7 +36,7 @@ flowchart TD
     Foundation -->|Yes| Package["Standalone Nix package from flake.lock"]
     Baseline["runtime-baseline.nix + native-managers.nix"] --> Validation["platforms.nix + validate.nix"]
     Validation --> Package
-    Assets["assets.nix + policy.nix"] --> Package
+    Policy["policy.nix"] --> Package
     Package --> CLI["bootstrap.py → core.cli → engine.Bootstrap"]
     CLI -->|plan| Inspect["Read filesystem state"]
     CLI -->|verify / verify --health| Verify["Direct runtime checks and canaries"]
@@ -52,14 +51,14 @@ flowchart TD
 
 | Component | Responsibility |
 | --- | --- |
-| `package.nix`, `assets.nix`, `policy.nix` | Compose the manifest, retain the Node and Python initial inputs, package the executor and run fixture checks. |
+| `package.nix`, `policy.nix` | Compose the manifest and literal argv policy, package the executor and run fixture checks. |
 | `bootstrap.py`, `core/cli.py` | Stable executable entry, argument parsing, reporting and process exit status. |
 | `core/manifest.py` | Validate the generated manifest; each toolchain adapter validates its own declaration. |
 | `core/process.py`, `paths.py`, `errors.py` | The single process boundary with scoped child environments; writable roots and owned directories; operational errors. |
 | `core/engine.py` | Select adapters, inspect and verify runtimes, serialize mutation and dispatch installation. |
 | `core/setup.py` | Run the setup stages over the selected adapters: prerequisites, readiness, defaults, hooks, selection reports and shell qualification. |
 | `core/adapters/base.py` | The adapter contract and the behavior every ecosystem shares: planning, manager resolution, verification and selection reports. |
-| `adapters/node.py`, `python.py`, `ocaml.py` | Seed Node through FNM from a checked loopback archive, build CPython with the pinned python-build, create opam switches from the root's own upstream repositories. |
+| `adapters/node.py`, `python.py`, `ocaml.py` | Install Node through FNM from nodejs.org into a staging root, build CPython with the native pyenv's python-build, create opam switches from the root's own upstream repositories. |
 | `adapters/toolchain.py` and one module per manager | rustup, GHCup, elan, rbenv, SDKMAN and juliaup: hashed installer acquisition, native installation, absence-only defaults and direct canaries. |
 
 From the repository root:
@@ -89,12 +88,12 @@ arguments or operational failures.
 
 ## Common Boundaries
 
-Nix declares initial identities, immutable artifacts and helpers, platform
-prerequisites, installer arguments and manager CLI floors. Package evaluation
-and builds never initialize a real manager root. The explicit executor owns
-locking, prerequisite checks, additive installation, absence-only defaults,
-health checks and shell qualification. Source builds and network installation
-remain outside activation and shell startup.
+Nix declares initial identities, platform prerequisites, installer arguments
+and manager CLI floors. Package evaluation and builds never initialize a real
+manager root. The explicit executor owns locking, prerequisite checks, additive
+installation, absence-only defaults, health checks and shell qualification.
+Source builds and network installation remain outside activation and shell
+startup.
 
 Each adapter's `manager()` is the single native-manager resolver for setup,
 runtime installation and shell expectations. Existing supported pyenv
@@ -192,7 +191,10 @@ dependency closure.
 
 Official manager installer scripts are hash-checked before execution; a changed
 upstream script fails closed until its declaration is reviewed. These hashes do
-not pin every payload downloaded by the upstream installer. Manager acquisition
+not pin every payload downloaded by the upstream installer. FNM does not verify
+Node's published checksums, so Node's integrity rests on HTTPS to nodejs.org,
+which the policy names explicitly; python-build verifies the checksums embedded
+in its definitions. Manager acquisition
 and exact runtime installation require network availability. The new adapters
 provide reproducible initial version intent, not an offline archive or identical
 native binary builds. Juliaup's official installer also installs the declared

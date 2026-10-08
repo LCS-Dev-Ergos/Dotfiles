@@ -47,15 +47,10 @@ def validate_manifest(data):
         raise BootstrapError("Unsupported baseline schema or backend")
     if data["platform"] not in ("aarch64-darwin", "x86_64-linux"):
         raise BootstrapError("No bootstrap adapter for this platform")
-    versions = [version(item["version"]) for item in data["node"]]
+    versions = [version(release) for release in data["node"]["versions"]]
     if len(set(versions)) != len(versions):
         raise BootstrapError("Duplicate Node identity")
-    for item in data["node"]:
-        digest = item["hashes"].get(data["platform"], "")
-        if not re.fullmatch(r"[a-f0-9]{64}", digest):
-            raise BootstrapError("Missing pinned Node artifact hash")
     version(data["python"]["version"])
-    version(data["python"]["pythonBuildVersion"])
     for release in data["ocaml"]["versions"]:
         version(release)
     validate_toolchains(data)

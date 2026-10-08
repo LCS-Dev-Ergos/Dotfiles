@@ -1,6 +1,5 @@
-"""CPython through pyenv, built by the pinned python-build from retained sources."""
+"""CPython through pyenv's own python-build, from python.org sources."""
 
-import hashlib
 import os
 import re
 from pathlib import Path
@@ -10,8 +9,8 @@ from ..errors import BootstrapError
 from ..paths import writable_directory
 from .base import SELECTION_NAME, SYSTEM_SELECTION, Adapter
 
-# The declared baseline must provide every extension module python-build
-# compiles from the retained sources, including 3.14's Zstandard support.
+# The declared prerequisites must provide every extension module python-build
+# compiles, including 3.14's Zstandard support.
 BUILD_CANARY = (
     "import ssl, sqlite3, bz2, lzma, ctypes, readline, tkinter, venv; "
     "import zlib, compression.zstd as zstd; "
@@ -130,34 +129,34 @@ class PythonAdapter(Adapter):
 
     # Source build ------------------------------------------------------------
 
-    def check_builder(self):
-        expected = (
-            f"python-build {self.context.data['python']['pythonBuildVersion']}"
+    def definitions(self):
+        """The CPython releases the native python-build knows how to build."""
+        output = process.run(
+            [
+                str(self.manager()),
+                *self.context.arguments("pythonDefinitions"),
+            ],
+            env={"PYENV_ROOT": str(self.root)},
+            cwd=str(self.context.state),
         )
-        if process.run(
-            [self.context.data["python"]["builder"], "--version"]
-        ) != (expected):
-            raise BootstrapError(
-                f"Python recovery requires immutable {expected}"
-            )
+        return {line.strip() for line in output.splitlines()}
 
     def preflight(self, missing):
+        # python-build skips its embedded checksums without a SHA256 utility.
         process.checksum_support()
-        self.check_builder()
+        available = self.definitions()
+        unknown = sorted(
+            row["version"]
+            for row in missing
+            if row["version"] not in available
+        )
+        if unknown:
+            raise BootstrapError(
+                "Native pyenv has no definition for Python "
+                f"{', '.join(unknown)}; upgrade pyenv and retry"
+            )
 
     def install(self, row):
-        self.check_builder()
-        declaration = self.context.data["python"]
-        source_cache = Path(declaration["sourceCache"])
-        for source in declaration.get("sources", []):
-            with (source_cache / source["name"]).open("rb") as file:
-                if (
-                    hashlib.file_digest(file, "sha256").hexdigest()
-                    != source["sha256"]
-                ):
-                    raise BootstrapError(
-                        f"Python source checksum mismatch: {source['name']}"
-                    )
         target = self.root / "versions" / row["version"]
         if os.path.lexists(target):
             raise BootstrapError("Python target appeared; refusing overwrite")
@@ -166,17 +165,14 @@ class PythonAdapter(Adapter):
         writable_directory(self.root / "versions")
         process.run(
             [
-                declaration["builder"],
+                str(self.manager()),
                 *self.context.arguments(
-                    "pythonBuild",
-                    definition=str(Path(declaration["definition"])),
-                    target=str(target),
+                    "pythonInstall", version=row["version"]
                 ),
             ],
             env={
                 **self.recipe.get("buildEnvironment", {}),
                 "PYENV_ROOT": str(self.root),
-                "PYTHON_BUILD_CACHE_PATH": declaration["sourceCache"],
             },
             source_build=True,
             timeout=self.context.data["policy"]["timeouts"]["python"],

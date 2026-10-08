@@ -15,7 +15,7 @@ let
     };
   };
   # Exercise invalid declarations at the evaluation boundary, independently
-  # from the executor's runtime checks and without fetching native assets.
+  # from the executor's runtime checks.
   rejectedDeclarations = {
     rejectsBootstrapPlatform.system = "aarch64-linux";
     rejectsBootstrapBackend.backend = "unknown";
@@ -23,18 +23,9 @@ let
       defaults = builtins.removeAttrs baseline.defaults [ "node" ];
     };
     rejectsUndeclaredNodeDefault = withDefaults { node = "0.0.0"; };
-    rejectsPythonSourceMismatch = withDefaults { python = "0.0.0"; };
+    rejectsPythonVersionMismatch = withDefaults { python = "0.0.0"; };
     rejectsUndeclaredOcamlDefault = withDefaults { ocaml = "0.0.0"; };
     rejectsNativeVersionMismatch = withDefaults { rust = "0.0.0"; };
-    rejectsMissingPlatformHash.baseline = baseline // {
-      node = map (
-        release:
-        release
-        // {
-          hashes = builtins.removeAttrs release.hashes [ "x86_64-linux" ];
-        }
-      ) baseline.node;
-    };
   };
   packageNames =
     backend: ready:

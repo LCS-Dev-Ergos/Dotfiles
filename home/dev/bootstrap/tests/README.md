@@ -21,7 +21,7 @@ managers accept the generated commands; fixtures cannot provide it. They need
 network access and minutes, so they stay outside the fast suites.
 
 Run the source checks from the repository root. Setup contracts evaluate the
-declared policy from `tests/manifest.nix` with Nix, without building assets:
+declared policy from `tests/manifest.nix` with Nix, without building the package:
 
 ```sh
 python3 -B home/dev/bootstrap/tests/run.py source

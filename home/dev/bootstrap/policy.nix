@@ -14,11 +14,13 @@
     repository = 1800;
   };
   commands = {
+    # Name the upstream explicitly; an inherited mirror setting must not
+    # redirect the download.
     nodeInstall = [
       "--fnm-dir"
       "{staging}"
       "--node-dist-mirror"
-      "{mirror}"
+      "https://nodejs.org/dist"
       "install"
       "{version}"
       "--progress"
@@ -48,9 +50,13 @@
       "--enable-shell-hook"
       "--shell=zsh"
     ];
-    pythonBuild = [
-      "{definition}"
-      "{target}"
+    pythonDefinitions = [
+      "install"
+      "--list"
+    ];
+    pythonInstall = [
+      "install"
+      "{version}"
     ];
     pythonRehash = [ "rehash" ];
     opamCommon = [

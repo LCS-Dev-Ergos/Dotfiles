@@ -34,23 +34,27 @@ and Julia. Their initial identities are Rust 1.98.1, GHC 9.14.1, Cabal
 3.16.1.0, Lean 4.32.0, Ruby 4.0.6, Java 21.0.12.1 (SDKMAN candidate
 `21.0.12+1.1-tem`) and Julia 1.12.6.
 
-Native pyenv retains its everyday lifecycle. Bootstrap uses an independently
-pinned python-build 2.8.8 helper, so changing the native builder does not change
-the declared initial installation route. Manager compatibility minimums are
-interface checks; they do not pin native packages or certify every release.
+Every adapter installs through its native manager at an exact version:
+`fnm install` for Node and `pyenv install` with the native python-build for
+Python, as for opam and the six toolchain managers. No runtime artifact is
+retained in the store, and Nix supplies no FNM or pyenv input; a configuration
+retires its remaining Nix FNM package through the `nativeFnmReady` checkpoint.
+The installed pyenv must already know the declared CPython release; bootstrap
+stops with an upgrade instruction otherwise.
+Manager compatibility minimums are interface checks; they do not pin native
+packages or certify every release.
 
 ## Architecture
 
 | Component | Responsibility |
 | --- | --- |
-| `runtime-baseline.nix` | Initial runtime identities, source revisions and hashes, descriptive defaults |
-| `bootstrap/assets.nix` | Nix-fetched Node archives, standalone Python helper and complete source cache |
+| `runtime-baseline.nix` | Exact initial runtime identities and descriptive defaults |
 | `bootstrap/policy.nix` | Literal command arguments, manager CLI floors and timeouts |
-| `bootstrap/package.nix` | Generated manifest, helper closure, wrapper and isolated contract checks |
+| `bootstrap/package.nix` | Generated manifest, wrapper and isolated contract checks |
 | `bootstrap/bootstrap.py`, `bootstrap/core/cli.py` | Executable entry, argument handling and structured reporting |
 | `bootstrap/core/engine.py`, `setup.py` | Adapter selection, mutation guards, shared lock, setup stages and selection reports |
 | `bootstrap/core/manifest.py`, `process.py`, `paths.py` | Manifest validation, the process boundary and filesystem/state boundaries |
-| `bootstrap/core/adapters/` | One adapter per ecosystem behind a shared contract: Node/Python seeding, opam switches on the root's own upstream, and the native managers for Rust, Haskell, Lean, Ruby, JVM and Julia |
+| `bootstrap/core/adapters/` | One adapter per ecosystem behind a shared contract: Node through FNM and Python through pyenv from their own upstreams, opam switches on the root's own upstream, and the native managers for Rust, Haskell, Lean, Ruby, JVM and Julia |
 | `bootstrap/probe-shell.zsh` | Disposable startup context loading the production language adapters and PATH module |
 | `native-managers.nix` | Canonical package-manager routes, manager inventory and native build prerequisites |
 
@@ -82,9 +86,9 @@ NixOS uses nixpkgs and the required language adapters. Existing ecosystem
 managers remain available. An additional package manager is appropriate only
 when a selected platform installation requires it. Current Nix-owned compiler
 modules keep their role. Full NixOS coverage and native manager/SDK artifact
-retention are outside the qualified baseline. Node archives
-and the Python build definition are pinned by the bootstrap, while OCaml installs
-from opam's own upstream; native library closures still require qualification.
+retention are outside the qualified baseline. Every
+adapter installs from its manager's upstream at an exact version; native
+library closures still require qualification.
 
 ## Clean-Host Entry
 
@@ -127,8 +131,8 @@ evidence does not replace an installation on a pristine operating system.
 On Arch/CachyOS, use the same entry after the native OS/Nix foundation exists;
 automatic foundation installation is deliberately macOS-only.
 The entry enables flakes per invocation without changing the lockfile. Its
-default operation is `plan`. Nix may acquire/build the bootstrap package and
-its declared assets even for planning; `--only` restricts native operations,
+default operation is `plan`. Nix may acquire/build the bootstrap package even
+for planning; `--only` restricts native operations,
 not realization of the shared package. Use `--check-foundation` for a zero-download
 foundation check. No global Python, uv or extra package manager is needed to start it.
 
@@ -218,26 +222,26 @@ avoid concurrent installation into the same roots. A failed source build may
 leave an incomplete new prefix/switch: inspect it before retrying. Recovery
 never removes that state automatically or rolls back native packages.
 
-Node uses native FNM in an isolated staging root. Nix fetches the official
-platform archive once; a temporary loopback server exposes only that archive
-to FNM's HTTP mirror interface. No second upstream download occurs during
-installation. The staged tree is compared against the declared SHA256 before
-Node executes or enters the real root. FNM's automatic first-install default
-remains confined to staging. Existing installations receive identity/canary
-checks, not retroactive artifact provenance.
+Node uses native FNM in an isolated staging root. FNM downloads the declared
+release from nodejs.org, named explicitly in the policy; inherited mirror and
+architecture settings are cleared. FNM does not verify Node's published
+checksums, so integrity rests on HTTPS to that upstream, as for the other
+managers' downloads. The staged release passes identity and canary checks
+before it enters the real root. FNM's automatic first-install default remains
+confined to staging, and a failed download leaves nothing in the real root.
 
-Python uses the immutable standalone helper and definition from the pinned pyenv
-source, with Nix-fetched CPython, OpenSSL and readline archives. Cache checksums
-are validated before building; the helper rechecks each archive it consumes.
-The prefix is passed explicitly, while inherited prefix/install flags, make
-variable overrides and checksum-cache controls are cleared. A working SHA256
-verifier is mandatory. Native `pyenv rehash` refreshes shims after installation.
+Python uses `pyenv install` with the native pyenv's python-build. It downloads
+CPython, and any dependency its definition bundles, from their upstreams and
+verifies the checksums embedded in the definition. The release must appear in
+the native definition list before any build starts, and a working SHA256
+verifier is mandatory. Inherited prefix/install flags, make variable overrides,
+checksum-cache controls and pyenv hooks are cleared by the source-build
+environment. Native `pyenv rehash` refreshes shims after installation.
 Verification requires SSL, SQLite, compression (including Zstandard), ctypes,
 readline, tkinter and venv. Source compilation uses platform-declared native
 compiler paths and build-tool search paths for Python and OCaml; these overrides
 are scoped to compilation and do not change interactive C/C++ ownership. The native compiler, libraries and SDK remain host prerequisites rather
-than a complete build lock. The helper is distinct from the native pyenv package
-and the builder used for ordinary `pyenv install` operations.
+than a complete build lock.
 
 The OCaml adapter creates `lcs-ocaml-<version>` switches from the opam root's
 own repositories, with required source checksums and automatic OS-package

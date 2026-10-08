@@ -7,7 +7,6 @@
   nodejs_24,
   nodejs_26,
   python314,
-  callPackage,
   coreutils,
   diffutils,
   writeText,
@@ -22,7 +21,6 @@ let
     inherit system;
     backend = runtimeManagerBackend;
   };
-  assets = callPackage ./assets.nix { inherit baseline; };
   policy = import ./policy.nix;
   pythonRuntime = python314.withPackages (packages: [ packages.tkinter ]);
   nixRuntime = name: package: {
@@ -41,15 +39,6 @@ let
       shellProbe = "${./probe-shell.zsh}";
       shellConfig = "${../../shells/zsh/config}";
     };
-    node = if runtimeManagerBackend == "native" then assets.node else baseline.node;
-    python =
-      baseline.python
-      // lib.optionalAttrs (runtimeManagerBackend == "native") {
-        builder = "${assets.pythonBuilder}/bin/python-build";
-        definition = assets.pythonDefinition;
-        sourceCache = toString assets.pythonCache;
-      };
-    inherit (baseline) ocaml;
     # Exact versions are checked at runtime; never substitute a nearby release.
     nixRuntimes = lib.optionalAttrs (runtimeManagerBackend == "nixpkgs") {
       "node-${nodejs_24.version}" = nixRuntime "node" nodejs_24;
@@ -68,7 +57,7 @@ let
   );
 in
 assert
-  builtins.attrNames nativeManagers.bootstrap == builtins.attrNames platforms
+  builtins.attrNames nativeManagers.bootstrap == platforms
   || throw "development-bootstrap: native setup recipes must cover exactly the supported platforms";
 assert
   builtins.all builtins.hasContext [
@@ -145,7 +134,7 @@ builtins.seq baseline (
     meta = {
       description = "Explicit bootstrap of the shared development baseline";
       mainProgram = "dev-bootstrap";
-      platforms = builtins.attrNames platforms;
+      inherit platforms;
     };
   }
 )

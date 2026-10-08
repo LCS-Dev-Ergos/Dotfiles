@@ -25,8 +25,8 @@ BASELINE = {
         "ocaml": "5.5.1",
         "rust": "1.98.1",
     },
-    "node": [{"version": "24.21.0", "hashes": {"aarch64-darwin": "a" * 64}}],
-    "python": {"version": "3.14.7", "pythonBuildVersion": "2.8.8"},
+    "node": {"versions": ["24.21.0"]},
+    "python": {"version": "3.14.7"},
     "ocaml": {"versions": ["5.5.1"]},
     "nativeToolchains": {"rust": {"version": "1.98.1"}},
 }

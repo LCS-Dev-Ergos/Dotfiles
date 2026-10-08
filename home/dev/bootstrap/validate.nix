@@ -5,8 +5,7 @@
   backend ? null,
 }:
 let
-  platforms = builtins.attrNames (import ./platforms.nix);
-  nodeVersions = map (release: release.version) baseline.node;
+  platforms = import ./platforms.nix;
   nativeNames = builtins.attrNames baseline.nativeToolchains;
   requiredDefaults = [
     "node"
@@ -29,17 +28,14 @@ assert require (
 assert require (
   builtins.attrNames baseline.defaults == builtins.sort builtins.lessThan requiredDefaults
 ) "defaults must cover exactly the declared toolchains";
-assert require (builtins.elem baseline.defaults.node nodeVersions)
+assert require (builtins.elem baseline.defaults.node baseline.node.versions)
   "Node default is absent from the baseline";
 assert require (
   baseline.defaults.python == baseline.python.version
-) "Python default and source version disagree";
+) "Python default and declared version disagree";
 assert require (builtins.elem baseline.defaults.ocaml baseline.ocaml.versions)
   "OCaml default is absent from the baseline";
 assert require (builtins.all (
   name: baseline.defaults.${name} == baseline.nativeToolchains.${name}.version
 ) nativeNames) "native toolchain defaults and versions disagree";
-assert require (builtins.all (
-  release: builtins.attrNames release.hashes == platforms
-) baseline.node) "Node archive hashes must cover exactly the supported platforms";
 baseline
