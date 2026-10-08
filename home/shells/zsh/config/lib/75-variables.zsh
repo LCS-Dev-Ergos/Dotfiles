@@ -70,6 +70,10 @@ if [[ -z "${DOTNET_ROOT:-}" && -x "$HOME/.dotnet/dotnet" ]]; then
   export DOTNET_ROOT="$HOME/.dotnet"
 fi
 
+# The .NET CLI sends usage telemetry unless this is set before it runs; the
+# development bootstrap sets it for its own calls only.
+export DOTNET_CLI_TELEMETRY_OPTOUT=1
+
 # ----------- Clang-Format ----------- #
 # Clang-Format Configuration.
 export CLANG_FORMAT_CONFIG="$HOME/.config/clang-format/.clang-format"
