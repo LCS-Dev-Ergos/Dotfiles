@@ -1,4 +1,4 @@
-"""OCaml through opam: one switch per declared compiler, from opam's upstream."""
+"""OCaml through opam: a switch per declared compiler, from opam's upstream."""
 
 import os
 import re
@@ -9,6 +9,11 @@ from .. import process
 from ..errors import BootstrapError
 from ..paths import writable_directory
 from .base import SELECTION_NAME, Adapter
+
+# The compiler package a switch's invariant installs, which is what
+# `opam switch list` reports as the switch's compiler.
+COMPILER = re.compile(r'"ocaml-base-compiler\.([0-9][0-9A-Za-z.~+-]*)"')
+STATE_LIMIT = 1024 * 1024
 
 
 class OcamlAdapter(Adapter):
@@ -28,8 +33,39 @@ class OcamlAdapter(Adapter):
     def readiness(self):
         self.check_manager_release()
 
-    def switch(self, version):
+    def seed(self, version):
         return f"lcs-ocaml-{version}"
+
+    def switch(self, version):
+        """The switch that holds a declared compiler release.
+
+        A switch whose invariant resolved to exactly that compiler (opam's
+        compiler column) already holds it, so we adopt it instead of building
+        a copy; if an upgrade later moves its compiler, the next apply builds
+        our seed. A switch created without a compiler in its invariant never
+        counts. Our own seed wins when present, which keeps an interrupted
+        creation visible for inspection.
+        """
+        seed = self.seed(version)
+        if os.path.lexists(self.root / seed):
+            return seed
+        for name in self.installed():
+            if self.compiler(name) == version:
+                return name
+        return seed
+
+    def compiler(self, name):
+        state = self.root / name / ".opam-switch/switch-state"
+        try:
+            with state.open(encoding="utf-8", errors="replace") as stream:
+                text = stream.read(STATE_LIMIT)
+        except OSError:
+            return None
+        invariant = re.search(
+            r"^compiler:\s*\[(.*?)\]", text, re.MULTILINE | re.DOTALL
+        )
+        match = invariant and COMPILER.search(invariant.group(1))
+        return match.group(1) if match else None
 
     def baseline(self):
         return [
@@ -133,7 +169,9 @@ class OcamlAdapter(Adapter):
                 *self.context.arguments("opamInit"),
                 timeout=timeouts["repository"],
             )
-        switch = self.switch(row["version"])
+        # An adopted switch without its compiler is the user's to repair;
+        # the declared release gets its own seed beside it.
+        switch = self.seed(row["version"])
         # Planning saw no switch; one appearing since then belongs to someone
         # else, and an interrupted creation stays for manual inspection.
         if os.path.lexists(self.root / switch):
@@ -146,3 +184,4 @@ class OcamlAdapter(Adapter):
             env=self.recipe.get("buildEnvironment", {}),
             source_build=True,
         )
+        row["path"] = str(self.root / switch / "bin/ocamlc")

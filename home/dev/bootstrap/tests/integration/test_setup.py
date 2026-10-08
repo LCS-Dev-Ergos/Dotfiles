@@ -283,6 +283,48 @@ class SetupTests(unittest.TestCase):
         self.setup.apply()
         self.assertEqual(self.mutations(), [])
 
+    def test_switch_with_the_declared_compiler_is_adopted(self):
+        first, second = self.data["ocaml"]["versions"]
+        # `work` resolved its invariant to the second compiler; `loose` has
+        # the first one installed but no compiler in its invariant.
+        for name, version, invariant in (
+            ("work", second, f'compiler: ["ocaml-base-compiler.{second}"]\n'),
+            ("loose", first, ""),
+        ):
+            switch = self.opam / name
+            (switch / ".opam-switch").mkdir(parents=True)
+            (switch / ".opam-switch/switch-state").write_text(
+                invariant + f'installed: ["ocaml-base-compiler.{version}"]\n'
+            )
+            self.executable(switch / "bin/ocamlc")
+            self.versions[str(switch / "bin/ocamlc")] = version
+        (self.opam / "config").write_text('switch: "loose"\n')
+        rows = {
+            row["version"]: row
+            for row in self.recovery.plan()
+            if row["language"] == "ocaml"
+        }
+        self.assertEqual(
+            rows[second]["path"], str(self.opam / "work/bin/ocamlc")
+        )
+        self.assertEqual(rows[second]["state"], "present")
+        seed = self.opam / f"lcs-ocaml-{first}/bin/ocamlc"
+        self.assertEqual(rows[first]["path"], str(seed))
+        self.events.clear()
+        self.setup.apply()
+        self.assertEqual(
+            [
+                event
+                for event in self.events
+                if event[:2] == ("runtime", "ocaml")
+            ],
+            [("runtime", "ocaml", first)],
+        )
+        self.assertEqual(
+            (self.opam / "config").read_text(), 'switch: "loose"\n'
+        )
+        self.assertEqual(self.recovery.verify(rows[second]), second)
+
     def test_evolved_runtime_and_defaults_are_preserved(self):
         self.setup.apply()
         python = self.pyenv / "versions/next/bin/python"
@@ -581,7 +623,17 @@ class SetupTests(unittest.TestCase):
             calls.append((args, kwargs))
             return ""
 
+        # An adopted switch that lost its compiler is left alone: the seed is
+        # created beside it, and the row then describes the seed.
+        release = self.data["ocaml"]["versions"][0]
+        adopted = self.opam / "adopted/.opam-switch"
+        adopted.mkdir(parents=True)
+        (adopted / "switch-state").write_text(
+            f'compiler: ["ocaml-base-compiler.{release}"]\n'
+        )
         row = next(r for r in self.recovery.plan() if r["language"] == "ocaml")
+        self.assertEqual(row["path"], str(self.opam / "adopted/bin/ocamlc"))
+        seed = self.opam / f"lcs-ocaml-{release}"
         with (
             patch.object(process, "run", opam_process),
             patch.object(OcamlAdapter, "verify"),
@@ -595,6 +647,9 @@ class SetupTests(unittest.TestCase):
         ocaml_build = next(
             k for a, k in calls if a[1:3] == ["switch", "create"]
         )
+        created = next(a for a, k in calls if a[1:3] == ["switch", "create"])
+        self.assertEqual(created[3], seed.name)
+        self.assertEqual(row["path"], str(seed / "bin/ocamlc"))
         for language, invocation in (
             ("python", builder),
             ("ocaml", ocaml_build),

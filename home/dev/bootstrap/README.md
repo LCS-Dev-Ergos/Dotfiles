@@ -58,7 +58,7 @@ flowchart TD
 | `core/engine.py` | Resolve the selection from the adapters' metadata, report the catalog, inspect and verify runtimes, serialize mutation and dispatch installation. |
 | `core/setup.py` | Run the setup stages over the selected adapters: prerequisites, readiness, defaults, hooks, selection reports and shell qualification. |
 | `core/adapters/base.py` | The adapter contract and the behavior every ecosystem shares: planning, manager resolution, verification and selection reports. |
-| `adapters/node.py`, `python.py`, `ocaml.py` | Install Node through FNM from nodejs.org into a staging root, build CPython with the native pyenv's python-build, create opam switches from the root's own upstream repositories. |
+| `adapters/node.py`, `python.py`, `ocaml.py` | Install Node through FNM from nodejs.org into a staging root, build CPython with the native pyenv's python-build, adopt an opam switch already holding a declared compiler or create one from the root's own upstream repositories. |
 | `adapters/toolchain.py` and one module per manager | rustup, GHCup, elan, rbenv, SDKMAN, Coursier and juliaup: hashed installer acquisition, native installation, absence-only defaults and direct canaries. |
 | `adapters/sdkman.py` | The shared SDKMAN base: Java (`jvm.py`), then Kotlin, Maven and Gradle, which require `jvm` and run on its JDK. |
 | `adapters/coursier.py` | Scala through the pinned native `cs` launcher. The seed is the Scala distribution in Coursier's archive cache, filled from a discarded staging directory; the `scala` and `scalac` launchers are created only when absent. Requires `jvm` and runs on its JDK. |

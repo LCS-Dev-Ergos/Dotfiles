@@ -255,9 +255,14 @@ compiler paths and build-tool search paths for Python and OCaml; these overrides
 are scoped to compilation and do not change interactive C/C++ ownership. The native compiler, libraries and SDK remain host prerequisites rather
 than a complete build lock.
 
-The OCaml adapter creates `lcs-ocaml-<version>` switches from the opam root's
-own repositories, with required source checksums and automatic OS-package
-installation disabled. A fresh root is initialized bare on opam's default
+The OCaml adapter adopts an existing switch whose invariant resolved to exactly
+a declared compiler (the compiler column of `opam switch list`), so a root that
+already holds that release gets no copy; a switch created without a compiler in
+its invariant is never adopted. A release without such a switch gets an
+`lcs-ocaml-<version>` switch, created from the opam root's own repositories,
+with required source checksums and automatic OS-package installation disabled.
+When an upgrade moves an adopted switch to another compiler, the next `apply`
+creates the seed switch for the declared release. A fresh root is initialized bare on opam's default
 upstream (`https://opam.ocaml.org`) with Zsh hooks, without writing shell
 configuration or selecting a global switch. Existing roots keep their
 repositories and global/project selections; the bootstrap never registers or
