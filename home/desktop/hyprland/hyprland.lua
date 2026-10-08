@@ -4,12 +4,20 @@ require("legion")
 hl.env("XCURSOR_SIZE", "24")
 hl.env("HYPRCURSOR_SIZE", "24")
 hl.config({
-    general = { gaps_in = 5, gaps_out = 10, border_size = 2, layout = "dwindle" },
+    general = {
+        gaps_in = 5,
+        gaps_out = 10,
+        border_size = 2,
+        layout = "dwindle",
+        col = { active_border = "0xffffffff" },
+    },
     decoration = { rounding = 10, blur = { enabled = true, size = 3, passes = 1 } },
     dwindle = { preserve_split = true },
     misc = { disable_hyprland_logo = true, force_default_wallpaper = 0 },
     input = { follow_mouse = 1, touchpad = { natural_scroll = true } },
 })
+hl.animation({ leaf = "global", enabled = true, speed = 6.0, bezier = "default" })
+hl.animation({ leaf = "borderangle", enabled = true, speed = 1.0, bezier = "default" })
 
 hl.on("hyprland.start", function()
     -- UWSM exports the ready display before starting session services.
@@ -59,4 +67,12 @@ local hardware = {
 }
 for key, command in pairs(hardware) do
     hl.bind(key, hl.dsp.exec_cmd(command), { locked = true, repeating = true })
+end
+
+-- HyprMod stages GUI changes in hyprland-gui.lua. It appends its own include
+-- to this file unless it finds the line below, and that rewrite replaces the
+-- managed link with a copy. Port the settings worth keeping into these files,
+-- then delete the staging file.
+if package.searchpath("hyprland-gui", package.path) then
+    require("hyprland-gui")
 end

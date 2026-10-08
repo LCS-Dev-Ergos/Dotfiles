@@ -57,7 +57,10 @@ ownership remains in the shared Zsh modules.
 
 Native Hyprland uses the Lua configuration in `home/desktop/hyprland/`.
 `hyprland.lua` loads `legion.lua`, which defines host-specific input and
-display settings. The startup hook calls `uwsm finalize` once the compositor
+display settings. HyprMod writes GUI changes to the unmanaged
+`~/.config/hypr/hyprland-gui.lua`, which `hyprland.lua` loads last when it
+exists. Settings worth keeping move into the managed files, and the staging
+file is deleted. The startup hook calls `uwsm finalize` once the compositor
 environment is ready. UWSM owns environment import, XDG autostart, session
 startup and teardown; Home Manager's Hyprland systemd integration is disabled
 to avoid a competing lifecycle.
