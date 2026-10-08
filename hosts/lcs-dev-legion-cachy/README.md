@@ -143,6 +143,17 @@ Activate only the completed generation, from KDE or a recoverable TTY:
 HOME_MANAGER_BACKUP_EXT=<unique-backup-suffix> <generation>/activate
 ```
 
+The suffix renames a colliding file in place (`~/.zshrc` becomes
+`~/.zshrc.<suffix>`); activation stops instead when that name already exists,
+so each activation needs a fresh suffix. The generation installs the
+`home-manager` command from the flake's Home Manager input. Later switches
+build with it first, then activate the same build:
+
+```sh
+home-manager build --flake ~/Dotfiles
+home-manager switch --flake ~/Dotfiles -b <unique-backup-suffix>
+```
+
 If an earlier generation exists, its activation script restores managed
 configuration. First-activation recovery instead requires restoring the
 recorded profile state and backed-up collision files. Home Manager rollback
