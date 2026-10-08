@@ -124,6 +124,15 @@ validation and literal argv prevent accidental interpretation of identifiers;
 they cannot make an arbitrary recipe safe. Project files and inherited build
 settings are excluded from bootstrap command construction.
 
+Homebrew exits 1 when it installs a formula but cannot link it over a file
+that another formula owns, for example an old `openssl@1.1`. Setup then
+queries the package manager again and fails only if a requested package is
+still missing. Build prerequisites are used through their opt prefixes, and
+readiness still checks every manager executable.
+
+A failed command's error carries the last 2,000 characters of stderr and of
+stdout, since some tools report the cause on stdout.
+
 Every normal apply route rejects execution as root and checks selected mutable
 roots and runtime containers before invoking installers. Symlinked containers
 and group/world-writable state are rejected. Only declared native package-manager

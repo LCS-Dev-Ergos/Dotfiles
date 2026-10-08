@@ -40,6 +40,10 @@ class SetupTests(unittest.TestCase):
         self.probe = None
         self.installed = set()
         self.provided = set()
+        # Formulae the fixture Homebrew installs but cannot link, and ones
+        # it fails to install.
+        self.unlinked = set()
+        self.uninstallable = set()
         self.data = copy.deepcopy(declared_manifest())
         self.data.update(backend="native", platform="aarch64-darwin")
         # Releases the fixture pyenv's python-build reports it can build.
@@ -144,10 +148,15 @@ class SetupTests(unittest.TestCase):
             self.assertNotIn("-Sy", args)
             self.assertNotIn("-Syu", args)
             start = args.index("--formula") + 1 if "--formula" in args else 4
-            self.installed.update(args[start:])
+            self.installed.update(set(args[start:]) - self.uninstallable)
             for manager in self.data["setup"]["managers"].values():
                 if manager in self.installed:
                     self.executable(self.bin / manager)
+            if self.unlinked & set(args[start:]):
+                raise BootstrapError(
+                    "brew exited 1: Error: The `brew link` step did not "
+                    "complete successfully"
+                )
             return ""
         if name == "sudo" and args[1:] == ["-n", "/usr/bin/true"]:
             return ""
@@ -458,6 +467,21 @@ class SetupTests(unittest.TestCase):
         self.assertTrue(
             all(r["state"] == "present" for r in self.setup.health())
         )
+
+    def test_unlinked_but_installed_formulae_do_not_fail_the_stage(self):
+        self.unlinked = {"sqlite"}
+        self.setup.prerequisites()
+        self.assertIn("sqlite", self.installed)
+        installs = [event for event in self.events if "--formula" in event]
+        self.assertEqual(
+            [event[1] for event in installs], ["list", "install", "list"]
+        )
+        # A package the failed command did not install still fails it.
+        self.installed.clear()
+        (self.bin / "pyenv").unlink()
+        self.uninstallable = {"pyenv"}
+        with self.assertRaisesRegex(BootstrapError, "brew link"):
+            self.setup.prerequisites()
 
     def test_arch_accepts_installed_dependency_providers(self):
         self.scope(["python"])

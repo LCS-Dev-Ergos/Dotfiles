@@ -99,6 +99,40 @@ class BootstrapSetup:
             raise BootstrapError(
                 f"Post-Nix foundation missing: {package_manager}"
             )
+        missing = self.missing_packages(package_manager, required)
+        if not missing:
+            return
+        state = str(self.context.state)
+        privilege = self.recipe["privilege"]
+        command = [str(package_manager), *self.recipe["install"], *missing]
+        if privilege:
+            # sudo -n never prompts. Without cached credentials, stop before
+            # any change and name the command instead of failing mid-install.
+            try:
+                process.run([*privilege, "/usr/bin/true"], cwd=state)
+            except BootstrapError as error:
+                raise BootstrapError(
+                    "Missing native packages need administrator rights: run "
+                    "`sudo -v` in this terminal and retry, or install them "
+                    "with: " + shlex.join([Path(privilege[0]).name, *command])
+                ) from error
+        try:
+            process.run(
+                [*privilege, *command],
+                env=self.recipe["environment"],
+                timeout=1800,
+                cwd=state,
+            )
+        except BootstrapError:
+            # Homebrew exits 1 when it installs a formula but cannot link it
+            # over a file another formula owns, such as an old openssl@1.1.
+            # Build prerequisites are used through their opt prefixes, and
+            # readiness still checks every manager executable, so only a
+            # package that is still missing fails this stage.
+            if self.missing_packages(package_manager, required):
+                raise
+
+    def missing_packages(self, package_manager, required):
         environment = self.recipe["environment"]
         state = str(self.context.state)
         if self.recipe.get("missingQuery"):
@@ -118,36 +152,15 @@ class BootstrapSetup:
                 raise BootstrapError(
                     "Unexpected native dependency query output"
                 )
-        else:
-            installed = set(
-                process.run(
-                    [str(package_manager), *self.recipe["query"]],
-                    env=environment,
-                    cwd=state,
-                ).splitlines()
-            )
-            missing = sorted(required - installed)
-        if not missing:
-            return
-        privilege = self.recipe["privilege"]
-        command = [str(package_manager), *self.recipe["install"], *missing]
-        if privilege:
-            # sudo -n never prompts. Without cached credentials, stop before
-            # any change and name the command instead of failing mid-install.
-            try:
-                process.run([*privilege, "/usr/bin/true"], cwd=state)
-            except BootstrapError as error:
-                raise BootstrapError(
-                    "Missing native packages need administrator rights: run "
-                    "`sudo -v` in this terminal and retry, or install them "
-                    "with: " + shlex.join([Path(privilege[0]).name, *command])
-                ) from error
-        process.run(
-            [*privilege, *command],
-            env=environment,
-            timeout=1800,
-            cwd=state,
+            return missing
+        installed = set(
+            process.run(
+                [str(package_manager), *self.recipe["query"]],
+                env=environment,
+                cwd=state,
+            ).splitlines()
         )
+        return sorted(required - installed)
 
     def readiness(self):
         for adapter in self.adapters:
