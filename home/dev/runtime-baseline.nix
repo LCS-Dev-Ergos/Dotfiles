@@ -10,7 +10,7 @@ let
     }
     // builtins.mapAttrs (_: toolchain: toolchain.version) baseline.nativeToolchains;
     # Exact initial identities, observed on the native host on 2026-10-07;
-    # HLS, the SDKMAN build tools and Scala are the stable releases of
+    # HLS, the SDKMAN build tools, Scala and .NET are the stable releases of
     # 2026-10-08.
     # Ordinary manager updates and selections remain user-owned afterwards.
     nativeToolchains = {
@@ -36,6 +36,8 @@ let
       # Coursier's `scala` app; it runs on the JDK above.
       scala.version = "3.9.0";
       julia.version = "1.12.6";
+      # The current LTS feature band; dotnet-install fetches it by version.
+      dotnet.version = "10.0.401";
     };
     # Native managers fetch these releases from their own upstreams: FNM from
     # nodejs.org, pyenv's python-build from python.org with the checksums its

@@ -34,8 +34,8 @@ for bootstrap_language in "${bootstrap_languages[@]}"; do
       ;;
     # PATH-only adapters; selections are inspected without proxies. The SDKMAN
     # build tools and Coursier's launchers are on PATH through 90-path.zsh,
-    # keyed on SDKMAN_DIR and COURSIER_BIN_DIR.
-    lean|julia|kotlin|maven|gradle|scala) ;;
+    # keyed on SDKMAN_DIR and COURSIER_BIN_DIR; the .NET muxer on DOTNET_ROOT.
+    lean|julia|kotlin|maven|gradle|scala|dotnet) ;;
     *) return 1 ;;
   esac
 done
@@ -79,7 +79,7 @@ for bootstrap_language in "${bootstrap_languages[@]}"; do
     ocaml)
       print -r -- ocaml$'\t'"$(whence -p ocamlc)"$'\t'"$(command ocamlc -version)"
       ;;
-    rust|haskell|lean|ruby|jvm|kotlin|maven|gradle|scala|julia)
+    rust|haskell|lean|ruby|jvm|kotlin|maven|gradle|scala|julia|dotnet)
       # Download-capable proxies are never executed to qualify a selection.
       # The parent validates the direct runtime; here verify shell exposure and
       # manager provenance against the same explicit roots and selector files.
@@ -96,6 +96,7 @@ for bootstrap_language in "${bootstrap_languages[@]}"; do
         gradle) runtime_command=gradle; manager_command=sdkman; expected_proxy="$SDKMAN_DIR/candidates/gradle/current/bin/gradle" ;;
         scala) runtime_command=scala; manager_command=cs; expected_proxy="$COURSIER_BIN_DIR/scala" ;;
         julia) runtime_command=julia; manager_command=juliaup; expected_proxy="$JULIAUP_HOME/bin/julia" ;;
+        dotnet) runtime_command=dotnet; manager_command=dotnet; expected_proxy="$DOTNET_ROOT/dotnet" ;;
       esac
       typeset actual_runtime="$(whence -p "$runtime_command")"
       [[ -n "$actual_runtime" && "${actual_runtime:A}" == "${expected_proxy:A}" ]] || {

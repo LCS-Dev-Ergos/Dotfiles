@@ -16,7 +16,7 @@ Initial seeding, recovery of subsequently evolved state and project dependency
 reconstruction have separate acceptance criteria. Prefer native exports/locks
 for the latter two. Adapters use the manager's supported installation interface
 against its own upstream: the bootstrap declares exact versions, not artifacts.
-All thirteen adapters follow this model, Node through `fnm install` and Python
+All fourteen adapters follow this model, Node through `fnm install` and Python
 through `pyenv install`.
 
 ## Architecture and Execution
@@ -62,6 +62,7 @@ flowchart TD
 | `adapters/toolchain.py` and one module per manager | rustup, GHCup, elan, rbenv, SDKMAN, Coursier and juliaup: hashed installer acquisition, native installation, absence-only defaults and direct canaries. |
 | `adapters/sdkman.py` | The shared SDKMAN base: Java (`jvm.py`), then Kotlin, Maven and Gradle, which require `jvm` and run on its JDK. |
 | `adapters/coursier.py` | Scala through the pinned native `cs` launcher. The seed is the Scala distribution in Coursier's archive cache, filled from a discarded staging directory; the `scala` and `scalac` launchers are created only when absent. Requires `jvm` and runs on its JDK. |
+| `adapters/dotnet.py` | The .NET SDK through the hash-checked `dotnet-install` script, which is also its acquisition: no version manager, no global selection, the muxer in `DOTNET_ROOT` and projects' `global.json`. |
 
 From the repository root:
 
@@ -194,19 +195,19 @@ Each integration must identify:
    followed by a preserving bootstrap rerun. Metadata refresh alone does not
    qualify a runtime or manager upgrade.
 
-Rust, Haskell, Lean, Ruby, JVM, Kotlin, Maven, Gradle, Scala and Julia are
-implemented in `core/adapters/` and selected with the corresponding `--only`
+Rust, Haskell, Lean, Ruby, JVM, Kotlin, Maven, Gradle, Scala, Julia and .NET
+are implemented in `core/adapters/` and selected with the corresponding `--only`
 value. Their initial versions are declared in `runtime-baseline.nix`. These
 integrations use native manager installation interfaces instead of duplicating
 their download/extraction logic. Existing runtime health and fixture checks do
 not establish fresh-install acceptance for these routes.
 
-The broader workstation registry contains 34 logical domains: ten native
-bootstrap domains, ten existing shared Nix declarations and fourteen
+The broader workstation registry contains 34 logical domains: eleven native
+bootstrap domains, ten existing shared Nix declarations and thirteen
 remaining cross-platform setup domains. The native domains include HLS within
 Haskell, and Kotlin, Maven and Gradle within the JVM. The remaining domains are
 Ada, Fortran, Free Pascal, Mojo, Conda, Lua, Perl, PHP, MIT Scheme, Racket,
-.NET, Android, Flutter and Swift. These counts describe implementation coverage, not
+Android, Flutter and Swift. These counts describe implementation coverage, not
 clean-host or complete native-dependency reproducibility.
 
 | Ecosystem / owner | Initial declaration | Distinct behavior to qualify |
@@ -218,6 +219,7 @@ clean-host or complete native-dependency reproducibility.
 | JVM / SDKMAN | Explicit candidate/version/vendor identity for the chosen JDK | Use a controlled shell adapter with literal arguments for `sdk`. Preserve current candidates and `.sdkmanrc`; qualify noninteractive installation and default prompts. [SDKMAN usage](https://sdkman.io/usage/). |
 | Kotlin, Maven, Gradle / SDKMAN | Exact candidate versions, each its own adapter requiring `jvm` | Run on the declared JDK through `JAVA_HOME` (the selected one when the declared JDK is absent). Canaries compile and run a Kotlin program, start Maven's core and check it reports that JDK, and run an offline Gradle task without a daemon. `MAVEN_SKIP_RC` keeps `~/.mavenrc` out, and Gradle uses scratch user homes. |
 | Scala / Coursier | Exact Scala 3 release through the pinned native `cs` launcher | `cs install` into a staging directory extracts the prebuilt distribution into the archive cache without replacing the user's launchers, which are the global selection. Health resolves the `scala` launcher to the distribution it runs and never executes a JVM bootstrap launcher, which may download on start. The canary compiles with the distribution's `scalac` and runs the class on the declared JDK. Project selections (`build.sbt`, Scala CLI directives) are untouched. [Coursier install](https://get-coursier.io/docs/cli-install). |
+| .NET / dotnet-install | Exact SDK release, installed side by side into `DOTNET_ROOT` | No version manager: the script installs one SDK per run with `--skip-non-versioned-files`, keeping a newer muxer, and readiness lists SDKs, so a runtime-only root gets the SDK beside it. The muxer runs the newest SDK unless a project's `global.json` pins one, so there is no global selection; exact verification pins the declared SDK with a scratch `global.json`, and health runs the muxer unpinned. The canary builds and runs a console program with no package source, so it cannot download. Every call disables telemetry and keeps CLI and NuGet state in scratch directories. [dotnet-install](https://learn.microsoft.com/dotnet/core/tools/dotnet-install-script). |
 | Julia / juliaup | Exact initial version/channel mapping and artifacts | Preserve evolving defaults and directory overrides. Qualify version selection and project activation separately from package restoration. [juliaup](https://github.com/JuliaLang/juliaup). |
 
 Native macOS and CachyOS routes require separate qualification. NixOS needs
@@ -234,7 +236,9 @@ digest match. A `gzip` asset is unpacked after verification. These hashes do
 not pin every payload downloaded by the upstream installer. FNM does not verify
 Node's published checksums, so Node's integrity rests on HTTPS to nodejs.org,
 which the policy names explicitly; python-build verifies the checksums embedded
-in its definitions. Manager acquisition
+in its definitions. `dotnet-install` checks only that the SDK archive's size
+matches the server's, so the SDK's integrity likewise rests on HTTPS to
+Microsoft's download host. Manager acquisition
 and exact runtime installation require network availability. The new adapters
 provide reproducible initial version intent, not an offline archive or identical
 native binary builds. Juliaup's official installer also installs the declared

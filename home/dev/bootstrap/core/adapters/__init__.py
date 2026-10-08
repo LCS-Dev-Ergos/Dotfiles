@@ -5,6 +5,7 @@ valid installation order.
 """
 
 from .coursier import ScalaAdapter
+from .dotnet import DotnetAdapter
 from .haskell import HaskellAdapter
 from .julia import JuliaAdapter
 from .jvm import JvmAdapter
@@ -33,6 +34,7 @@ ADAPTERS = {
         GradleAdapter,
         ScalaAdapter,
         JuliaAdapter,
+        DotnetAdapter,
     )
 }
 TOOLCHAINS = {

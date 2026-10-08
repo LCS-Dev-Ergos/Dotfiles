@@ -31,6 +31,7 @@ SPECS = {
     "gradle": {"version": "9.8.1"},
     "scala": {"version": "3.9.0"},
     "julia": {"version": "1.12.6"},
+    "dotnet": {"version": "10.0.401"},
 }
 # Every declared row: one per toolchain, plus GHCup's Cabal and HLS.
 ROWS = len(SPECS) + 2
@@ -328,6 +329,8 @@ class NativeTransitions(unittest.TestCase):
                 "scala3-3.8.1-aarch64-apple-darwin",
             ),
             "julia": ("1.10.9", "juliaup/julia-1.10.9"),
+            # The muxer itself is the selection; it runs the newest SDK.
+            "dotnet": ("9.0.318", None),
         }
         commands = {
             "rust": "rustc",
@@ -341,9 +344,10 @@ class NativeTransitions(unittest.TestCase):
             "julia": "julia",
         }
         for language, (_, prefix) in older.items():
-            self.executable(
-                roots[language] / prefix / "bin" / commands[language]
-            )
+            if prefix:
+                self.executable(
+                    roots[language] / prefix / "bin" / commands[language]
+                )
         (roots["rust"] / "settings.toml").write_text(
             'default_toolchain = "1.90.0-aarch64-apple-darwin"\n'
         )
@@ -390,7 +394,7 @@ class NativeTransitions(unittest.TestCase):
             with (
                 self.subTest(language=language, component=component),
                 patch.object(process, "run", return_value=release),
-                patch.object(ToolchainAdapter, "canary"),
+                patch.object(type(self.adapter(language)), "canary"),
             ):
                 self.assertEqual(row["state"], "present")
                 self.assertEqual(
@@ -406,9 +410,14 @@ class NativeTransitions(unittest.TestCase):
             calls = self.invocations(stack)
             for adapter in self.recovery.adapters.values():
                 adapter.initialize_default()
+        # The .NET muxer runs the newest SDK; nothing records a selection.
+        unselected = {"dotnet"}
         for language in TOOLCHAINS:
             with self.subTest(language=language):
-                self.assertTrue(any(call[0] == language for call in calls))
+                self.assertEqual(
+                    any(call[0] == language for call in calls),
+                    language not in unselected,
+                )
         for expected in (
             ("jvm", "default", "java", "21.0.12+1.1-tem"),
             ("kotlin", "default", "kotlin", "2.4.21"),
@@ -431,8 +440,13 @@ class NativeTransitions(unittest.TestCase):
     def test_install_contracts_do_not_reset_default(self):
         with ExitStack() as stack:
             calls = self.invocations(stack)
+            # dotnet-install is the installer and runs without a manager.
+            installer = stack.enter_context(
+                patch.object(self.adapter("dotnet"), "run_installer")
+            )
             for row in self.recovery.plan():
                 self.adapter(row["language"]).install(row)
+        installer.assert_called_once_with()
         for expected in (
             ("haskell", "install", "ghc", "9.14.1", "--no-set"),
             ("haskell", "install", "cabal", "3.16.1.0", "--no-set"),
@@ -468,10 +482,18 @@ class NativeTransitions(unittest.TestCase):
                     patch.object(
                         process, "run", return_value=row["version"]
                     ) as runner,
-                    patch.object(ToolchainAdapter, "canary"),
+                    patch.object(
+                        type(self.adapter(row["language"])), "canary"
+                    ),
                 ):
                     self.assertEqual(self.recovery.verify(row), row["version"])
-                    self.assertEqual(runner.call_args.args[0][0], row["path"])
+                    # An installed .NET SDK runs through its muxer.
+                    executable = (
+                        str(self.adapter("dotnet").manager())
+                        if row["language"] == "dotnet"
+                        else row["path"]
+                    )
+                    self.assertEqual(runner.call_args.args[0][0], executable)
                 with (
                     patch.object(process, "run", return_value="0.0.1"),
                     self.assertRaisesRegex(
@@ -620,7 +642,7 @@ class NativeTransitions(unittest.TestCase):
 
     def test_verified_installer_runs_once_and_receives_literal_roots(self):
         payload = b"verified installer fixture"
-        for language in ("rust", "haskell", "lean", "jvm", "julia"):
+        for language in ("rust", "haskell", "lean", "jvm", "julia", "dotnet"):
             with self.subTest(language=language):
                 adapter = self.adapter(language)
                 root = adapter.home
@@ -880,6 +902,103 @@ class NativeTransitions(unittest.TestCase):
             self.assertEqual(
                 kwargs["env"]["JAVA_HOME"], str(java.parent.parent.resolve())
             )
+
+    def test_dotnet_root_shares_the_cli_user_directory(self):
+        dotnet = self.adapter("dotnet")
+        self.data["setup"]["installers"] = {
+            "dotnet": {"url": "https://example.invalid/dotnet-install.sh"}
+        }
+        # Global tools and first-use sentinels do not block acquisition.
+        self.executable(dotnet.root / "tools/csharp-ls")
+        (dotnet.root / "10.0.201.dotnetFirstUseSentinel").touch()
+        muxer = dotnet.manager_candidates()[0]
+        with patch.object(
+            dotnet, "run_installer", side_effect=lambda: self.executable(muxer)
+        ) as installer:
+            dotnet.acquire()
+        installer.assert_called_once_with()
+        # An installation layout without its muxer needs inspection.
+        muxer.unlink()
+        (dotnet.root / "sdk").mkdir()
+        with (
+            patch.object(dotnet, "run_installer") as installer,
+            self.assertRaisesRegex(BootstrapError, "Inspect incomplete"),
+        ):
+            dotnet.acquire()
+        installer.assert_not_called()
+
+    def test_dotnet_pins_the_sdk_and_builds_offline(self):
+        self.managers()
+        dotnet = self.adapter("dotnet")
+        muxer = dotnet.manager()
+        sdk = self.executable(dotnet.binary())
+        calls = []
+
+        def run(args, *, cwd, env, **kwargs):
+            work = Path(cwd)
+            pin = work / "global.json"
+            calls.append(
+                {
+                    "args": [str(arg) for arg in args],
+                    "env": env,
+                    "work": work,
+                    "pin": json.loads(pin.read_text())
+                    if pin.exists()
+                    else None,
+                    "files": {
+                        path.name: path.read_text()
+                        for path in work.iterdir()
+                        if path.is_file() and path.name != "global.json"
+                    },
+                }
+            )
+            if args[-1] == "--version":
+                return "10.0.401"
+            return "bootstrap-ok" if str(args[-1]).endswith(".dll") else ""
+
+        row = {"language": "dotnet", "version": "10.0.401", "path": str(sdk)}
+        with patch.object(process, "run", side_effect=run):
+            self.assertEqual(self.recovery.verify(row), "10.0.401")
+        self.assertEqual(
+            [call["args"][1:] for call in calls][:3],
+            [["--version"], ["--version"], calls[2]["args"][1:]],
+        )
+        build = calls[2]["args"]
+        self.assertEqual(build[1], "build")
+        self.assertIn("-p:UseSharedCompilation=false", build)
+        self.assertEqual(Path(calls[3]["args"][1]).name, "canary.dll")
+        for call in calls:
+            self.assertEqual(call["args"][0], str(muxer))
+            # The SDK under test is selected the way a project selects one.
+            self.assertEqual(
+                call["pin"],
+                {"sdk": {"version": "10.0.401", "rollForward": "disable"}},
+            )
+            self.assertEqual(call["env"]["DOTNET_CLI_TELEMETRY_OPTOUT"], "1")
+            # CLI and NuGet state stay in scratch, not the real home.
+            self.assertEqual(call["env"]["HOME"], str(call["work"]))
+            self.assertEqual(call["env"]["DOTNET_CLI_HOME"], str(call["work"]))
+        files = calls[2]["files"]
+        self.assertIn(
+            "<TargetFramework>net10.0</TargetFramework>",
+            files["canary.csproj"],
+        )
+        self.assertIn("<clear />", files["nuget.config"])
+        # Health runs the muxer as a shell would: the newest SDK, no pin.
+        calls.clear()
+        (selected,) = dotnet.selected()
+        self.assertEqual(
+            (selected["state"], selected["path"]), ("present", str(muxer))
+        )
+        with patch.object(process, "run", side_effect=run):
+            self.assertEqual(
+                self.recovery.verify(selected, exact=False), "10.0.401"
+            )
+        self.assertTrue(all(call["pin"] is None for call in calls))
+        self.assertIsNone(dotnet.selection())
+        with patch.object(dotnet, "invoke") as invoke:
+            dotnet.initialize_default()
+        invoke.assert_not_called()
 
     def test_hls_must_serve_the_declared_ghc(self):
         self.managers()

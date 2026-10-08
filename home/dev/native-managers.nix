@@ -77,6 +77,22 @@ let
       sha256 = "e030f9814f5c78ba704b7aee6cb57efd4406012b6735fc1c25dbbfa2aee0ef35";
       arguments = [ ];
     };
+    # .NET has no version manager: the script installs one exact SDK per run,
+    # beside any other in DOTNET_ROOT, and keeps an existing muxer.
+    dotnet = {
+      url = "https://dot.net/v1/dotnet-install.sh";
+      sha256 = "082f7685e156738a1b2e2ed8381a621870d4ce8e8c59278034556f05c186eb2e";
+      shell = "/bin/bash";
+      arguments = [
+        "--version"
+        "{version}"
+        "--install-dir"
+        "{DOTNET_ROOT}"
+        "--no-path"
+        "--skip-non-versioned-files"
+      ];
+      environment.DOTNET_CLI_TELEMETRY_OPTOUT = "1";
+    };
     julia = {
       url = "https://install.julialang.org";
       sha256 = "f6df6bf41ccae382466efdf00848c33670a33ea0030313d8594e676d6b297cf5";
@@ -226,6 +242,8 @@ in
           "numactl"
           "xz"
         ];
+        # The runtime's globalization support.
+        dotnet = [ "icu" ];
       };
       sdkProbe = [ ];
       buildEnvironment = {
