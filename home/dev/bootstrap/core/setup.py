@@ -195,7 +195,17 @@ class BootstrapSetup:
             prefix="dev-bootstrap-shell-"
         ) as temporary:
             root = Path(temporary)
+            # Production .zshenv exposes the package manager's directory
+            # (Homebrew) before the language adapters load. The terminal that
+            # runs bootstrap may predate it, for example right after this run
+            # installed Homebrew, so the probe starts from that order too.
+            search = [self.recipe["managerDirectory"]] + [
+                entry
+                for entry in os.environ.get("PATH", "").split(os.pathsep)
+                if entry
+            ]
             environment = {
+                "PATH": os.pathsep.join(dict.fromkeys(search)),
                 "HOME": str(root),
                 "ZDOTDIR": str(root),
                 "XDG_CACHE_HOME": str(root / "cache"),

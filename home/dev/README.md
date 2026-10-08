@@ -191,8 +191,10 @@ manifests. `apply` reports global selections instead of failing on them, and
 verifies that the production adapters and PATH module resolve the expected
 native managers and the verified selections in a disposable Zsh context.
 The controlled probe uses an interactive Zsh with user startup files disabled,
-so real opam hooks initialize. It does not establish acceptance of a deployed
-`.zshrc`.
+so real opam hooks initialize. Its PATH starts with the native package manager's
+directory, as production `.zshenv` exposes Homebrew before the language adapters
+load; the invoking terminal may predate that entry. It does not establish
+acceptance of a deployed `.zshrc`.
 
 `--runtimes-only` skips native provisioning, initial defaults and effective-shell
 qualification, retaining the original additive restoration interface. Both CLI

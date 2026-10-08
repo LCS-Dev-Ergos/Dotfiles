@@ -177,6 +177,10 @@ class SetupTests(unittest.TestCase):
             return ""
         if name == "zsh":
             self.assertEqual(args[1], "-fi")
+            self.assertEqual(
+                kwargs["env"]["PATH"].split(os.pathsep)[0],
+                self.data["setup"]["managerDirectory"],
+            )
             self.assertNotEqual(kwargs["env"]["HOME"], str(self.root / "home"))
             self.assertEqual(kwargs["env"]["LCS_NATIVE_FNM_READY"], "1")
             self.probe = kwargs["env"]["DEV_BOOTSTRAP_ONLY"].split()
