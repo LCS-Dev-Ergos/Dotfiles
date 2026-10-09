@@ -7,6 +7,7 @@ iterate adapters through this interface and never branch on a language.
 
 import os
 import re
+import shutil
 from pathlib import Path
 
 from .. import process
@@ -175,6 +176,31 @@ class Adapter:
         """Why a present prefix without the expected executable needs a person."""
         return "Existing incomplete runtime; manual inspection required"
 
+    def owned_prefix(self, row):
+        """The prefix an install creates, if it lies strictly inside the root.
+
+        Only such a prefix is journaled, and so only it can ever be discarded;
+        a root itself (Miniforge's whole prefix) never is.
+        """
+        prefix = self.prefix(row)
+        if prefix is None:
+            return None
+        root = self.root.resolve()
+        resolved = prefix.parent.resolve() / prefix.name
+        if resolved == root or not resolved.is_relative_to(root):
+            return None
+        return prefix
+
+    def discard(self, prefix):
+        """Remove what an interrupted install of ours left in the prefix."""
+        if prefix is None or not os.path.lexists(prefix):
+            return
+        if prefix.is_symlink() or not prefix.is_dir():
+            raise BootstrapError(
+                f"Interrupted installation is not a directory: {prefix}"
+            )
+        shutil.rmtree(prefix)
+
     def plan(self):
         """Inspect paths only. Present means installed, not yet validated."""
         rows = []
@@ -190,6 +216,17 @@ class Adapter:
                 self.context.nix_runtime(row)
             elif path.is_file():
                 row["state"] = "present"
+            elif (
+                prefix is not None
+                and os.path.lexists(prefix)
+                and str(self.owned_prefix(row)) in self.context.interrupted()
+            ):
+                row.update(
+                    state="missing",
+                    interrupted=True,
+                    reason="An interrupted apply left this installation "
+                    "incomplete; apply removes it and installs it again",
+                )
             elif prefix is not None and os.path.lexists(prefix):
                 row.update(state="conflict", reason=self.incomplete(row))
             else:

@@ -138,10 +138,16 @@ process-global PATH changes. An intentional SDK override belongs in the
 declaration; inherited `SDKROOT` and `DEVELOPER_DIR` are not build inputs.
 
 Mutable roots, caches and locks remain outside the repository and store.
-Installation is additive. Incomplete prefixes are reported for inspection,
-never automatically deleted or overwritten. Defaults are initialized only
-when absent; malformed existing selectors are errors. Resumable journals
-belong only to operations whose manager semantics require multiple stages.
+Installation is additive. Before an install creates a runtime prefix inside a
+manager root, `apply` records it in `installing.json` in its state directory
+and clears the record once the runtime verifies. A prefix that is incomplete
+and recorded there was left by an interrupted or failed install: `plan`
+reports it as `missing` with `interrupted`, and the next `apply` removes it,
+through the manager where it keeps its own records (`opam switch remove`,
+`rustup toolchain uninstall`), and installs it again. Any other incomplete
+prefix is a `conflict` reported for inspection and never deleted or
+overwritten. A manager root itself is never recorded. Defaults are
+initialized only when absent; malformed existing selectors are errors.
 
 The repository, generated manifest and native manager installations are trusted
 code inputs. `--manifest` is not a sandbox for third-party recipes: the manifest
@@ -176,8 +182,9 @@ Ctrl-C, SIGTERM or SIGHUP ends that group (SIGTERM, then SIGKILL after 30
 seconds), so no build or download keeps writing once bootstrap has stopped.
 The interrupted command unwinds, which releases the lock and removes its
 temporary directories, names the stage it was in and exits with 128 plus the
-signal number. A following `plan` reports any prefix the manager left
-incomplete.
+signal number. Some managers clean up after themselves (python-build,
+ruby-build, a failed rustup download); what opam or rustup leave when stopped
+mid-install is replaced by the next `apply`, as described above.
 
 ## Extending an Ecosystem
 

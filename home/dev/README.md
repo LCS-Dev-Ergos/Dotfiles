@@ -266,8 +266,9 @@ creates the seed switch for the declared release. A fresh root is initialized ba
 upstream (`https://opam.ocaml.org`) with Zsh hooks, without writing shell
 configuration or selecting a global switch. Existing roots keep their
 repositories and global/project selections; the bootstrap never registers or
-selects repositories. An interrupted creation leaves an incomplete switch that
-planning reports for inspection; it is never deleted or reused automatically.
+selects repositories. An interrupted creation of a seed switch is removed with
+`opam switch remove` and created again by the next `apply`; an incomplete
+switch bootstrap did not start is reported for inspection and never deleted.
 Verification of an existing compiler compiles and runs a small bytecode program. Project dependency locks
 and existing switch exports remain separate inputs.
 

@@ -68,8 +68,9 @@ def main():
         if args.action == "apply" and setups:
             stage = f" during {setups[0].stage}"
         print(
-            f"dev-bootstrap: interrupted{stage}; the lock is released. Run "
-            "plan to find any incomplete prefix, then apply again.",
+            f"dev-bootstrap: interrupted{stage}; the lock is released. Apply "
+            "again to finish: it replaces what the interrupted installation "
+            "left.",
             file=sys.stderr,
         )
         return 128 + signum

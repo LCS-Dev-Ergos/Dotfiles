@@ -43,8 +43,8 @@ class OcamlAdapter(Adapter):
         compiler column) already holds it, so we adopt it instead of building
         a copy; if an upgrade later moves its compiler, the next apply builds
         our seed. A switch created without a compiler in its invariant never
-        counts. Our own seed wins when present, which keeps an interrupted
-        creation visible for inspection.
+        counts. Our own seed wins when present, so an interrupted creation of
+        it is what the next apply replaces.
         """
         seed = self.seed(version)
         if os.path.lexists(self.root / seed):
@@ -89,6 +89,20 @@ class OcamlAdapter(Adapter):
             )
             if output != "recovery-ok":
                 raise BootstrapError("OCaml compile/run canary failed")
+
+    def discard(self, prefix):
+        # opam also records the switch in its root; let it drop that record
+        # first. A creation interrupted before registration is unknown to
+        # opam, which then refuses, and only the directory remains.
+        if prefix is not None and os.path.lexists(prefix):
+            try:
+                self.run(
+                    *self.context.arguments("opamRemove", switch=prefix.name),
+                    timeout=600,
+                )
+            except BootstrapError:
+                pass
+        super().discard(prefix)
 
     def remediation(self, row):
         prefix = Path(row["path"]).parent.parent
@@ -178,8 +192,9 @@ class OcamlAdapter(Adapter):
         # An adopted switch without its compiler is the user's to repair;
         # the declared release gets its own seed beside it.
         switch = self.seed(row["version"])
-        # Planning saw no switch; one appearing since then belongs to someone
-        # else, and an interrupted creation stays for manual inspection.
+        # Planning saw no switch, or the engine has just discarded our own
+        # interrupted one; a switch appearing since then belongs to someone
+        # else.
         if os.path.lexists(self.root / switch):
             raise BootstrapError("opam switch appeared; refusing overwrite")
         self.run(

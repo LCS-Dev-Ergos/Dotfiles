@@ -442,6 +442,22 @@ class NativeTransitions(unittest.TestCase):
                 self.assertIn("canary failed", row["reason"])
                 self.assertEqual(row.get("remediation"), remedy)
 
+    def test_only_a_prefix_inside_its_root_can_be_discarded(self):
+        # Miniforge's runtime prefix is its whole root: never journaled.
+        conda = self.adapter("conda")
+        self.assertIsNone(conda.owned_prefix(conda.baseline()[0]))
+        rust = self.adapter("rust")
+        row = rust.baseline()[0]
+        prefix = rust.owned_prefix(row)
+        self.assertEqual(prefix, Path(row["path"]).parents[1])
+        prefix.parent.mkdir(parents=True)
+        target = self.root / "elsewhere"
+        target.mkdir()
+        prefix.symlink_to(target)
+        with self.assertRaisesRegex(BootstrapError, "not a directory"):
+            rust.discard(prefix)
+        self.assertTrue(target.is_dir())
+
     def test_initial_defaults_use_literal_manager_commands(self):
         with ExitStack() as stack:
             calls = self.invocations(stack)

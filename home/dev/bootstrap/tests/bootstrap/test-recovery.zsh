@@ -239,17 +239,37 @@ command rm "$HOME/abort-python-build"
   print -u2 'FAIL: interrupted prefix was unexpectedly removed'
   return 1
 }
+# The failed build is journaled as ours: the next apply replaces it.
 output="$(PYENV_ROOT="$fixture_root/interrupted-python" \
   _bootstrap_fixture plan --only python --json)"
-[[ "$output" == *'"state": "conflict"'* ]] || {
-  print -u2 'FAIL: interrupted prefix was not reported as a conflict'
+[[ "$output" == *'"interrupted": true'* ]] || {
+  print -u2 'FAIL: interrupted prefix was not reported for replacement'
   return 1
 }
-if PYENV_ROOT="$fixture_root/interrupted-python" \
+PYENV_ROOT="$fixture_root/interrupted-python" \
+  _bootstrap_fixture apply --only python > /dev/null
+[[ -x "$fixture_root/interrupted-python/versions/3.14.7/bin/python" ]] || {
+  print -u2 'FAIL: retry did not replace the interrupted Python prefix'
+  return 1
+}
+# An incomplete prefix bootstrap did not start stays for inspection.
+command mkdir -p "$fixture_root/foreign-python/versions/3.14.7/bin"
+output="$(PYENV_ROOT="$fixture_root/foreign-python" \
+  _bootstrap_fixture plan --only python --json)"
+[[ "$output" == *'"state": "conflict"'* ]] || {
+  print -u2 'FAIL: a foreign incomplete prefix was not reported as a conflict'
+  return 1
+}
+if PYENV_ROOT="$fixture_root/foreign-python" \
   _bootstrap_fixture apply --only python > /dev/null 2>&1; then
-  print -u2 'FAIL: retry overwrote an incomplete Python prefix'
+  print -u2 'FAIL: apply overwrote a foreign incomplete Python prefix'
   return 1
 fi
+[[ -d "$fixture_root/foreign-python/versions/3.14.7/bin" &&
+   ! -e "$fixture_root/foreign-python/versions/3.14.7/bin/python" ]] || {
+  print -u2 'FAIL: a foreign incomplete Python prefix was changed'
+  return 1
+}
 _bootstrap_fixture apply --only python > /dev/null
 command mkdir -p "$PYENV_ROOT/.git" "$PYENV_ROOT/bin"
 print -rl -- '[remote "origin"]' 'url = https://github.com/pyenv/pyenv.git' \
@@ -293,6 +313,10 @@ if args[0] == "init":
     )
     root.mkdir(parents=True, exist_ok=True)
     (root / "config").touch()
+elif args[:2] == ["switch", "remove"]:
+    import shutil
+
+    shutil.rmtree(root / args[2])
 elif args[:2] == ["switch", "create"]:
     assert all(
         flag in args
@@ -354,7 +378,7 @@ OPAMROOT="$fixture_root/fresh-opam" _bootstrap_fixture apply --only ocaml \
   return 1
 }
 
-# An interrupted switch stays for inspection; it is never replaced or reused.
+# A failed switch creation of ours is removed through opam and created again.
 command mkdir -p "$fixture_root/broken-opam"
 command touch "$fixture_root/broken-opam/fail-create"
 if OPAMROOT="$fixture_root/broken-opam" \
@@ -363,17 +387,17 @@ if OPAMROOT="$fixture_root/broken-opam" \
   return 1
 fi
 command rm -f "$fixture_root/broken-opam/fail-create"
-for action in apply verify; do
-  if OPAMROOT="$fixture_root/broken-opam" \
-    _bootstrap_fixture "$action" --only ocaml > /dev/null 2>&1; then
-    print -u2 "FAIL: $action accepted an incomplete opam switch"
-    return 1
-  fi
-done
-[[ -d "$fixture_root/broken-opam/lcs-ocaml-5.5.1/bin" &&
+if OPAMROOT="$fixture_root/broken-opam" \
+  _bootstrap_fixture verify --only ocaml > /dev/null 2>&1; then
+  print -u2 'FAIL: verify accepted an incomplete opam switch'
+  return 1
+fi
+OPAMROOT="$fixture_root/broken-opam" \
+  _bootstrap_fixture apply --only ocaml > /dev/null
+[[ -x "$fixture_root/broken-opam/lcs-ocaml-5.5.1/bin/ocamlc" &&
    "$(_opam_calls "$fixture_root/broken-opam")" ==
-     "[['init', '--bare'], ['switch', 'create']]" ]] || {
-  print -u2 'FAIL: incomplete opam switch was replaced or retried'
+     "[['init', '--bare'], ['switch', 'create'], ['switch', 'remove'], ['switch', 'create']]" ]] || {
+  print -u2 'FAIL: interrupted opam switch was not replaced through opam'
   return 1
 }
 

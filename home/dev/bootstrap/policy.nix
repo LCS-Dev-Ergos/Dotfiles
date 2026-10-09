@@ -41,6 +41,11 @@
       "set"
       "{switch}"
     ];
+    opamRemove = [
+      "switch"
+      "remove"
+      "{switch}"
+    ];
     opamHooks = [
       "init"
       "--reinit"

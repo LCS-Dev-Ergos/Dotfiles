@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from ..errors import BootstrapError
 from .toolchain import SettingsToolchain
 
 HOSTS = {
@@ -44,6 +45,16 @@ class RustAdapter(SettingsToolchain):
 
     def default_arguments(self):
         return ["default", self.spec["version"]]
+
+    def discard(self, prefix):
+        # rustup keeps per-toolchain update state beside the directory; let it
+        # remove both. A toolchain it does not recognize stays for rmtree.
+        if prefix is not None and prefix.is_dir() and not prefix.is_symlink():
+            try:
+                self.invoke("toolchain", "uninstall", prefix.name, timeout=600)
+            except BootstrapError:
+                pass
+        super().discard(prefix)
 
     def exercise(self, executable, work, call):
         source = work / "main.rs"

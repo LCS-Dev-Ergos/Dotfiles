@@ -296,7 +296,7 @@ class BootstrapSetup:
             tarfile.TarError,
         ) as error:
             raise BootstrapError(
-                f"{self.stage}: {error}. Retry apply after resolving this stage; "
-                "inspect incomplete prefixes rather than deleting them automatically."
+                f"{self.stage}: {error}. Retry apply after resolving this "
+                "stage; plan reports any incomplete installation."
             ) from error
         return selections

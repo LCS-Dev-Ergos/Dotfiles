@@ -39,6 +39,8 @@ class SetupTests(unittest.TestCase):
         self.events = []
         self.versions = {}
         self.failure = None
+        # (language, version) whose fixture install is interrupted.
+        self.interrupt = None
         self.shadow = False
         self.probe = None
         self.installed = set()
@@ -113,6 +115,10 @@ class SetupTests(unittest.TestCase):
     def install_runtime(self, row):
         self.events.append(("runtime", row["language"], row["version"]))
         path = Path(row["path"])
+        if (row["language"], row["version"]) == self.interrupt:
+            # A manager stopped mid-install leaves its prefix incomplete.
+            (path.parent.parent / "partial").mkdir(parents=True)
+            raise KeyboardInterrupt
         self.executable(path)
         self.versions[str(path)] = row["version"]
         if row["language"] == "ocaml":
@@ -178,6 +184,9 @@ class SetupTests(unittest.TestCase):
             self.assertEqual(kwargs["env"]["PYENV_ROOT"], str(self.pyenv))
             self.executable(self.pyenv / "shims/python")
             return ""
+        if name == "opam" and args[1:3] == ["switch", "remove"]:
+            # An unregistered switch: opam refuses, the directory remains.
+            raise BootstrapError("opam exited 5: No switch found")
         if name == "opam" and args[1:3] == ["switch", "set"]:
             (self.opam / "config").write_text('switch: "' + args[3] + '"\n')
             return ""
@@ -324,6 +333,42 @@ class SetupTests(unittest.TestCase):
             self.recovery.adapter("ocaml").remediation(local),
             ["opam", "switch", "reinstall", str(self.root / "project")],
         )
+
+    def test_interrupted_installation_is_discarded_and_retried(self):
+        release = self.data["ocaml"]["versions"][0]
+        seed = self.opam / f"lcs-ocaml-{release}"
+        self.interrupt = ("ocaml", release)
+        with self.assertRaises(KeyboardInterrupt):
+            self.setup.apply()
+        self.assertTrue((seed / "partial").is_dir())
+        row = next(
+            r
+            for r in self.recovery.plan()
+            if (r["language"], r["version"]) == ("ocaml", release)
+        )
+        self.assertEqual((row["state"], row["interrupted"]), ("missing", True))
+        self.interrupt = None
+        self.events.clear()
+        self.setup.apply()
+        self.assertIn(("runtime", "ocaml", release), self.events)
+        self.assertFalse((seed / "partial").exists())
+        self.assertEqual(self.recovery.interrupted(), frozenset())
+        # A record without its prefix is dropped before it can vouch for a
+        # directory someone else creates there later.
+        self.recovery.journal(self.opam / "vanished", started=True)
+        self.setup.apply()
+        self.assertEqual(self.recovery.interrupted(), frozenset())
+        # A prefix the journal does not name stays the user's to inspect.
+        (seed / "bin/ocamlc").unlink()
+        state = next(
+            r["state"]
+            for r in self.recovery.plan()
+            if (r["language"], r["version"]) == ("ocaml", release)
+        )
+        self.assertEqual(state, "conflict")
+        with self.assertRaisesRegex(BootstrapError, "incomplete runtimes"):
+            self.setup.apply()
+        self.assertTrue(seed.is_dir())
 
     def test_switch_with_the_declared_compiler_is_adopted(self):
         first, second = self.data["ocaml"]["versions"]
