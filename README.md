@@ -335,7 +335,7 @@ portals, wallet access and rollback are verified in a running session.
 | --- | --- | --- | --- |
 | `zsh-validate.yml` | Push and pull request on configuration paths | Ubuntu 24.04, macOS 26, latest Ubuntu and macOS | Formatting, lint and policy checks; pinned-toolchain freshness; flake evaluation for both systems; `cpp-tools` and `llvm-darwin-toolchain` builds; the Zsh suite on Linux and macOS |
 | `development-bootstrap.yml` | Push and pull request on bootstrap paths | Ubuntu 24.04 (x86_64), macOS 15 (arm64) | Bootstrap source contracts, ownership checks and the packaged executor's tests |
-| `development-bootstrap-native.yml` | Manual dispatch; every adapter by default, in five jobs per platform | macOS 15, Arch Linux container on Ubuntu 24.04 | Real managers, downloads and builds from an empty root; the real home stays unchanged; a rerun installs nothing |
+| `development-bootstrap-native.yml` | Manual dispatch; every adapter by default, in five jobs per platform | macOS 15, Arch Linux container on Ubuntu 24.04 | Real managers, downloads and builds from an empty root; the real home stays unchanged; a rerun installs nothing; optionally manager updates, package upgrades, user evolution and interruptions |
 
 ## Contributing
 

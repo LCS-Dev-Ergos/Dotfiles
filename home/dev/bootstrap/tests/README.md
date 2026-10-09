@@ -26,14 +26,45 @@ zsh home/dev/bootstrap/tests/qualification/native-adapters.zsh \
   /path/to/package/bin/dev-bootstrap /path/to/logs node python jvm kotlin
 ```
 
+`qualification/native-lifecycle.zsh` takes the same arguments and checks that
+bootstrap coexists with the managers' ordinary evolution, in one root for the
+whole selection. After a from-zero `apply` it runs each manager's own update
+(`rustup update`, `ghcup upgrade`, `elan self update`, `sdk selfupdate`,
+`juliaup self update`, `opam update`, `cs update`), then user evolution: an
+extra release and a changed default where that is cheap (`fnm default 22`,
+`rustup default 1.97.0`, `pyenv global system`, `cs install scala:3.8.1`, and
+so on). After each phase, `apply` must install nothing and change no
+selection, the seeds must pass exact verification and health must pass. With
+`DEV_BOOTSTRAP_PACKAGE_UPGRADES=1` it also upgrades the declared Homebrew
+formulae, or runs `pacman -Syu`, before health: the native ABI drift check.
+Package upgrades are global, so set it only on disposable hosts.
+
+`qualification/native-interruption.zsh` takes `LANGUAGE:SIGINT`,
+`LANGUAGE:SIGTERM` or `LANGUAGE:network[:BYTES]` scenarios, each in a fresh
+root. A signal goes to the executor once the language's installation runs; a
+network scenario routes HTTPS through `cut-proxy.py`, which drops every tunnel
+after the byte budget. The interrupted run must exit with 128 plus the signal
+(2 for the network), leave the lock free and no process behind, and a plain
+retry must complete.
+
+```sh
+zsh home/dev/bootstrap/tests/qualification/native-interruption.zsh \
+  /path/to/package/bin/dev-bootstrap /path/to/logs \
+  python:SIGINT ocaml:SIGTERM rust:network:41943040
+```
+
+`common.zsh` holds what these scripts share: the disposable root, the empty
+executor environment, the real-home and package snapshots and the catalog's
+requirements.
+
 `qualification/native-opam.zsh` drives real opam through bare root
 initialization, switch creation, default selection, selection preservation,
 hook repair and an upstream update, with empty switches instead of compiler
 builds. These scripts are the evidence that native managers accept the
 generated commands; fixtures cannot provide it. They need network access and
 minutes, so they stay outside the fast suites; the `Development Bootstrap
-Native` workflow runs the adapter harness on demand on macOS and in an Arch
-container.
+Native` workflow runs the adapter, lifecycle and interruption harnesses on
+demand on macOS and in an Arch container.
 
 Run the source checks from the repository root. Setup contracts evaluate the
 declared policy from `tests/manifest.nix` with Nix, without building the package:

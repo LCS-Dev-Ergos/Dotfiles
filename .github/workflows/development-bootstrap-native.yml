@@ -6,8 +6,13 @@ name: Development Bootstrap Native
 on:
   workflow_dispatch:
     inputs:
+      harness:
+        description: adapters (from zero), lifecycle (manager updates, package upgrades and user evolution) or interruption (LANGUAGE:SIGINT, LANGUAGE:SIGTERM or LANGUAGE:network[:BYTES] scenarios)
+        type: choice
+        options: [adapters, lifecycle, interruption]
+        default: adapters
       ecosystems:
-        description: Ecosystems for the from-zero harness, space-separated within a job and comma-separated between jobs (each also selects what it requires)
+        description: Ecosystems or interruption scenarios, space-separated within a job and comma-separated between jobs (each ecosystem also selects what it requires)
         required: true
         default: python, ocaml, haskell, node rust lean ruby julia, jvm kotlin maven gradle scala dotnet conda
 
@@ -28,6 +33,7 @@ jobs:
     outputs:
       groups: ${{ steps.split.outputs.groups }}
     env:
+      HARNESS: ${{ inputs.harness }}
       REQUEST: ${{ inputs.ecosystems }}
     steps:
       - name: Validate and split the selection
@@ -38,14 +44,24 @@ jobs:
           for job in "${jobs[@]}"; do
             read -r -a members <<< "$job"
             (( ${#members[@]} )) || continue
-            for ecosystem in "${members[@]}"; do
+            for member in "${members[@]}"; do
+              ecosystem=${member%%:*}
               case "$ecosystem" in
                 node|python|ocaml|rust|haskell|lean|ruby|jvm|kotlin|maven|gradle|scala|julia|dotnet|conda) ;;
                 *) echo "Unsupported ecosystem: $ecosystem" >&2; exit 2 ;;
               esac
+              if [[ $HARNESS == interruption ]]; then
+                [[ $member =~ ^[a-z]+:(SIGINT|SIGTERM|network(:[0-9]+)?)$ ]] || {
+                  echo "Unsupported interruption scenario: $member" >&2
+                  exit 2
+                }
+              elif [[ $member != "$ecosystem" ]]; then
+                echo "Scenarios need the interruption harness: $member" >&2
+                exit 2
+              fi
             done
             groups=$(jq -c --arg ecosystems "${members[*]}" \
-              --arg id "$(IFS=-; echo "${members[*]}")" \
+              --arg id "$(IFS=-; echo "${members[*]//:/-}")" \
               '. + [{id: $id, ecosystems: $ecosystems}]' <<< "$groups")
           done
           if [[ $groups == '[]' ]]; then
@@ -59,7 +75,7 @@ jobs:
           echo "groups=$groups" >> "$GITHUB_OUTPUT"
 
   native:
-    name: Native harness (${{ matrix.platform }}, ${{ matrix.group.ecosystems }})
+    name: Native ${{ inputs.harness }} (${{ matrix.platform }}, ${{ matrix.group.ecosystems }})
     needs: groups
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
@@ -75,6 +91,10 @@ jobs:
             os: ubuntu-24.04
     env:
       ECOSYSTEMS: ${{ matrix.group.ecosystems }}
+      HARNESS: native-${{ inputs.harness }}.zsh
+      # Runner images are disposable, so the lifecycle harness may upgrade
+      # native packages there.
+      DEV_BOOTSTRAP_PACKAGE_UPGRADES: "1"
     defaults:
       run:
         shell: bash
@@ -99,7 +119,7 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           # shellcheck disable=SC2086
-          zsh home/dev/bootstrap/tests/qualification/native-adapters.zsh \
+          zsh "home/dev/bootstrap/tests/qualification/$HARNESS" \
             "$DEV_BOOTSTRAP" "$RUNNER_TEMP/native" $ECOSYSTEMS
 
       # The executor refuses root, so an unprivileged account runs it with
@@ -112,7 +132,8 @@ jobs:
             --volume /nix:/nix:ro \
             --volume "$PWD:/work:ro" \
             --volume "$RUNNER_TEMP/native:/logs" \
-            --env DEV_BOOTSTRAP --env ECOSYSTEMS \
+            --env DEV_BOOTSTRAP --env ECOSYSTEMS --env HARNESS \
+            --env DEV_BOOTSTRAP_PACKAGE_UPGRADES \
             archlinux:base-devel \
             bash -euo pipefail -c '
               pacman -Syu --noconfirm --needed sudo zsh python
@@ -123,8 +144,9 @@ jobs:
               chown builder /logs
               status=0
               cd /tmp
-              sudo -u builder -H zsh \
-                /work/home/dev/bootstrap/tests/qualification/native-adapters.zsh \
+              sudo -u builder -H \
+                DEV_BOOTSTRAP_PACKAGE_UPGRADES="$DEV_BOOTSTRAP_PACKAGE_UPGRADES" \
+                zsh "/work/home/dev/bootstrap/tests/qualification/$HARNESS" \
                 "$DEV_BOOTSTRAP" /logs $ECOSYSTEMS || status=$?
               chmod -R a+rX /logs
               exit "$status"
@@ -134,7 +156,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: development-bootstrap-native-${{ matrix.os }}-${{ matrix.group.id }}
+          name: development-bootstrap-${{ inputs.harness }}-${{ matrix.os }}-${{ matrix.group.id }}
           path: ${{ runner.temp }}/native
           if-no-files-found: ignore
           retention-days: 14

@@ -15,105 +15,26 @@
 emulate -L zsh
 setopt err_return pipefail
 umask 077
-zmodload zsh/datetime
 
 typeset executable="${1:?Provide the dev-bootstrap executable}"
 typeset log="${2:?Provide a log directory}"
 shift 2
 (( $# )) || { print -u2 'Provide at least one language'; return 2; }
 [[ -x "$executable" ]] || { print -u2 "Not executable: $executable"; return 2; }
-typeset analysis="${DEV_BOOTSTRAP_ANALYSIS_PYTHON:-$(whence -p python3)}"
-[[ -x "$analysis" ]] || { print -u2 'The report needs python3'; return 2; }
-
-typeset root
-root="$(mktemp -d "${TMPDIR:-/tmp}/bootstrap-native-adapters.XXXXXX")" || return 1
-root="${root:A}"
-[[ -d "$root" && "$root:t" == bootstrap-native-adapters.* ]] || return 1
-command mkdir -p "$log" "$root"/{home,tmp,cache,state,data,config}
-log="${log:A}"
-if [[ "${DEV_BOOTSTRAP_KEEP_ROOT:-0}" != 1 ]]; then
-  trap 'command rm -rf -- "$root"' EXIT
-fi
-trap 'exit 130' INT TERM HUP
-print -r -- "root=$root"
-
-# Selections and settings the real managers keep under the real home.
-typeset -a guarded=(
-  .local/share/fnm/aliases/default .pyenv/version .opam/config
-  .rustup/settings.toml .ghcup/bin/ghc .ghcup/bin/cabal
-  .ghcup/bin/haskell-language-server-wrapper .elan/settings.toml
-  .rbenv/version .sdkman/candidates/java/current
-  .sdkman/candidates/kotlin/current .sdkman/candidates/maven/current
-  .sdkman/candidates/gradle/current .juliaup/juliaup.json
-  .local/share/coursier/bin/scala
-  'Library/Application Support/Coursier/bin/scala' .dotnet/dotnet
-  .miniforge3/bin/conda
-)
-_snapshot_home() {
-  local entry
-  command ls -A "$HOME"
-  for entry in "${guarded[@]}"; do
-    if [[ -L "$HOME/$entry" ]]; then
-      print -r -- "$entry link $(command readlink "$HOME/$entry")"
-    elif [[ -f "$HOME/$entry" ]]; then
-      print -r -- "$entry file $(command cksum < "$HOME/$entry")"
-    else
-      print -r -- "$entry absent"
-    fi
-  done
-}
-_snapshot_packages() {
-  if [[ -x /opt/homebrew/bin/brew ]]; then
-    HOMEBREW_NO_AUTO_UPDATE=1 /opt/homebrew/bin/brew list --formula -1
-  elif [[ -x /usr/bin/pacman ]]; then
-    /usr/bin/pacman -Qq
-  fi
-}
-_executor() {
-  local -a proxies=()
-  local name
-  for name in HTTP_PROXY HTTPS_PROXY NO_PROXY http_proxy https_proxy no_proxy; do
-    [[ -n "${(P)name:-}" ]] && proxies+=("$name=${(P)name}")
-  done
-  command env -i HOME="$root/home" USER="$USER" LOGNAME="$USER" \
-    PATH=/usr/local/bin:/usr/bin:/bin LANG=C.UTF-8 TERM=dumb \
-    TMPDIR="$root/tmp" XDG_CACHE_HOME="$root/cache" \
-    XDG_STATE_HOME="$root/state" XDG_DATA_HOME="$root/data" \
-    XDG_CONFIG_HOME="$root/config" "${proxies[@]}" "$executable" "$@"
-}
+source "${0:A:h}/common.zsh" || return 2
 
 _snapshot_home > "$log/real-home-before.txt"
 _snapshot_packages > "$log/packages-before.txt"
+_requirements || return 1
 
-# The executor rejects a selection without its requirements; ask it for them.
-_executor plan --json > "$log/catalog.json" 2> "$log/catalog.err" || {
-  print -u2 'The executor did not report its catalog'
-  return 1
-}
-typeset -A requires
-typeset language required
-while IFS=$'\t' read -r language required; do
-  requires[$language]="$required"
-done < <("$analysis" -I -c '
-import json, sys
-for entry in json.load(open(sys.argv[1]))["catalog"]:
-    print(entry["language"], " ".join(entry["requires"]), sep="\t")
-' "$log/catalog.json")
-
-typeset step name
+typeset language step name
 typeset -a selection
 typeset -F start
 typeset -i index code failed=0
 : > "$log/steps.tsv"
 for language in "$@"; do
-  (( ${+requires[$language]} )) || {
-    print -u2 "Unknown ecosystem: $language"
-    return 2
-  }
-  selection=()
-  for required in ${=requires[$language]} "$language"; do
-    selection+=(--only "$required")
-  done
+  _selection "$language" || return 2
+  selection=("${reply[@]}")
   index=0
   for step in plan apply verify 'verify --health' apply; do
     (( ++index ))
