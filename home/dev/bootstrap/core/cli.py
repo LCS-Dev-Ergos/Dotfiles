@@ -10,9 +10,10 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from .adapters import ADAPTERS
-from .engine import Bootstrap
+from .engine import Bootstrap, select
 from .errors import BootstrapError, Interrupted
 from .manifest import load_manifest
+from .selection import load_selection, save_selection, selection_path
 from .setup import BootstrapSetup
 
 # The JSON report's schema; Interfaces.md says what changes it.
@@ -31,7 +32,23 @@ def main():
         default="plan",
         choices=("plan", "apply", "verify"),
     )
-    parser.add_argument("--only", choices=tuple(ADAPTERS), action="append")
+    chosen = parser.add_mutually_exclusive_group()
+    chosen.add_argument(
+        "--only",
+        choices=tuple(ADAPTERS),
+        action="append",
+        help="Select an ecosystem instead of the saved selection; repeatable",
+    )
+    chosen.add_argument(
+        "--all",
+        action="store_true",
+        help="Select every default ecosystem, ignoring the saved selection",
+    )
+    parser.add_argument(
+        "--save-selection",
+        action="store_true",
+        help="Save the --only selection for later runs, or forget it with --all",
+    )
     parser.add_argument(
         "--accept",
         choices=sorted(
@@ -59,6 +76,8 @@ def main():
     args = parser.parse_args()
     if args.health and args.action != "verify":
         parser.error("--health requires verify")
+    if args.save_selection and not (args.only or args.all):
+        parser.error("--save-selection requires --only or --all")
     os.umask(0o077)
     # The setup in use, so an interruption can name its stage.
     setups = []
@@ -107,9 +126,21 @@ def termination():
 def run(args, setups):
     """Execute the parsed command; expected failures exit 2."""
     try:
-        context = Bootstrap(
-            load_manifest(args.manifest), args.only, accepted=args.accept
-        )
+        manifest = load_manifest(args.manifest)
+        only, origin = choose(args, manifest)
+        context = Bootstrap(manifest, only, accepted=args.accept)
+        if origin["source"] == "file" and not args.json:
+            print(
+                f"dev-bootstrap: selection saved in {origin['path']}; "
+                "--all ignores it",
+                file=sys.stderr,
+            )
+        if args.save_selection:
+            # Saved once the selection is known to be valid here, whatever
+            # the action then reports.
+            save_selection(
+                selection_path(), context.only if args.only else None
+            )
         setup = None
         if (
             not args.runtimes_only
@@ -119,6 +150,7 @@ def run(args, setups):
             setup = BootstrapSetup(context)
             setups.append(setup)
         result = execute(context, setup, args)
+        result["selection"] = origin
         report(result, args.json)
         return (
             0
@@ -138,6 +170,29 @@ def run(args, setups):
     ) as error:
         print(f"dev-bootstrap: {error}", file=sys.stderr)
         return 2
+
+
+def choose(args, manifest):
+    """The ecosystems this run selects, and where that choice came from.
+
+    --only replaces the saved selection and --all ignores it; without
+    either, a saved selection applies to every action.
+    """
+    if args.only:
+        return args.only, {"source": "only"}
+    if args.all:
+        return None, {"source": "all"}
+    path = selection_path()
+    saved = load_selection(path)
+    if saved is None:
+        return None, {"source": "default"}
+    try:
+        select(manifest, saved)
+    except BootstrapError as error:
+        raise BootstrapError(
+            f"{error} (saved selection {path}; --all ignores it)"
+        ) from error
+    return saved, {"source": "file", "path": str(path)}
 
 
 def execute(context, setup, args):

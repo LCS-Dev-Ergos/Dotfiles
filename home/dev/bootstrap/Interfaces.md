@@ -104,6 +104,7 @@ interruption exits 128 plus the signal number.
 | `setup` | Native setup | `stages`, `nativeManagers` (`language`, `state`, `path` or `reason`), `packageManager`, `privilegedPackages`. |
 | `selections` | `apply` | Global selection rows, verified for health, which never fail the command. |
 | `verification` | `verify --health` | `health`. |
+| `selection` | Always | `source`: `only`, `all`, `file` (with `path`, the saved selection) or `default`. |
 
 ### Catalog Entry
 

@@ -16,6 +16,7 @@ No operation defaults to plan. Runtime options pass literally to dev-bootstrap.
 then continues with the requested operation. Administrative authentication may
 be required. Existing foundations are never replaced or upgraded by this entry.
 Use apply --only LANGUAGE to limit installation; omit apply to avoid runtimes.
+--only ... --save-selection keeps that selection for later runs; --all ignores it.
 EOF
 }
 

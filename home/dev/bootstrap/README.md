@@ -90,6 +90,23 @@ The selection runs in registry order, which lists every requirement before
 its dependents, so installation needs no separate dependency resolution. A
 frontend reads the catalog instead of duplicating this metadata.
 
+A machine can save its selection in
+`$XDG_CONFIG_HOME/dev-bootstrap/selection.json`. `plan`, `apply` and `verify`
+without `--only` use it; `--only` replaces it for one run and `--all` ignores
+it, selecting every default ecosystem. `--save-selection` with `--only`
+records that selection, validated like any explicit one, and with `--all`
+deletes the file; it is the only option that makes `plan` write. Every report
+names the source under `selection`. A saved selection naming an unknown
+ecosystem, or missing a requirement, fails with the file's path. The file may
+be a link declared elsewhere, such as by Home Manager: it is read but never
+replaced.
+
+```sh
+bash scripts/dev-bootstrap.sh plan --only jvm --only kotlin --save-selection
+bash scripts/dev-bootstrap.sh verify --health   # jvm and kotlin
+bash scripts/dev-bootstrap.sh plan --all        # every default ecosystem
+```
+
 An installed `dev-bootstrap` accepts the same runtime arguments; `devrestore`
 is a deprecated alias to that executable, kept for one release cycle. `--runtimes-only` skips prerequisite,
 default and shell setup but retains mutation guards and locking. `plan` reads

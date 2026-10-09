@@ -186,8 +186,11 @@ After Home Manager activation, the same interface is available as `dev-bootstrap
 `devrestore` and the `development-recovery` flake package remain deprecated
 aliases to this implementation, with the same manager roots and lock.
 An omitted operation defaults to `plan`. `--only node`, `--only python` and
-`--only ocaml` restrict the operation; repeated selectors combine them. Planning
-reports paths and blockers without running managers, downloading or writing.
+`--only ocaml` restrict the operation; repeated selectors combine them. Without
+`--only`, a selection saved with `--save-selection` applies, and `--all`
+ignores it (see the bootstrap README). Planning
+reports paths and blockers without running managers, downloading or writing,
+except the selection file `--save-selection` asks for.
 `present` means a path exists; `verify` establishes its version and canaries.
 JSON additionally reports global selections and installed version/switch names.
 Planning succeeds even with missing prerequisites; verification returns nonzero

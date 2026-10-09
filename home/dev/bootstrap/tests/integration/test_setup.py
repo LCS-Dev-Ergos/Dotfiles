@@ -247,8 +247,16 @@ class SetupTests(unittest.TestCase):
             (self.opam / "config").read_text(),
         )
 
-    def cli(self, *arguments):
-        """Run the CLI in-process so the process boundary stays mocked."""
+    def cli(self, *arguments, scoped=True):
+        """Run the CLI in-process so the process boundary stays mocked.
+
+        A scoped call selects the fixture's languages with --only; an
+        unscoped one leaves the choice to the saved selection or --all.
+        """
+        code, output, _ = self.cli_output(*arguments, "--json", scoped=scoped)
+        return code, json.loads(output)
+
+    def cli_output(self, *arguments, scoped=False):
         manifest = self.root / "manifest.json"
         manifest.write_text(json.dumps(self.data))
         argv = [
@@ -256,20 +264,23 @@ class SetupTests(unittest.TestCase):
             "--manifest",
             str(manifest),
             *arguments,
-            "--json",
-            *(f"--only={language}" for language in self.recovery.only),
+            *(
+                f"--only={language}"
+                for language in (self.recovery.only if scoped else ())
+            ),
         ]
-        output = io.StringIO()
+        output, errors = io.StringIO(), io.StringIO()
         umask = os.umask(0o077)
         try:
             with (
                 patch.object(sys, "argv", argv),
                 contextlib.redirect_stdout(output),
+                contextlib.redirect_stderr(errors),
             ):
                 code = cli.main()
         finally:
             os.umask(umask)
-        return code, json.loads(output.getvalue())
+        return code, output.getvalue(), errors.getvalue()
 
     def mutations(self):
         # Listing python-build definitions reads state; it installs nothing.
@@ -313,6 +324,7 @@ class SetupTests(unittest.TestCase):
             "observed",
             "runtimes",
             "setup",
+            "selection",
         }
         for arguments, extra in (
             (("plan",), set()),
@@ -343,6 +355,102 @@ class SetupTests(unittest.TestCase):
                             "external",
                         ),
                     )
+
+    def test_saved_selection_applies_until_replaced_or_ignored(self):
+        saved = self.root / "home/.config/dev-bootstrap/selection.json"
+        fixture = {"node", "python", "ocaml"}
+        # The fixture installs first: the CLI's own adapters are real.
+        self.setup.apply()
+        code, result = self.cli("plan", "--save-selection")
+        self.assertEqual((code, result["selection"]), (0, {"source": "only"}))
+        self.assertEqual(
+            json.loads(saved.read_text()),
+            {"schema": 1, "ecosystems": ["node", "python", "ocaml"]},
+        )
+        self.assertEqual(saved.stat().st_mode & 0o077, 0)
+        # Every action without --only uses it, apply included; without it
+        # they would select every default ecosystem.
+        for action in ("plan", "apply", "verify"):
+            with self.subTest(action=action):
+                _, result = self.cli(action, scoped=False)
+                self.assertEqual(
+                    result["selection"],
+                    {"source": "file", "path": str(saved)},
+                )
+                self.assertEqual(
+                    {row["language"] for row in result["runtimes"]}, fixture
+                )
+        _, _, errors = self.cli_output("plan")
+        self.assertIn(f"selection saved in {saved}", errors)
+        # --only replaces it for one run, --all ignores it.
+        self.scope(["python"])
+        _, result = self.cli("plan")
+        self.assertEqual(result["selection"], {"source": "only"})
+        self.assertEqual(
+            {row["language"] for row in result["runtimes"]}, {"python"}
+        )
+        _, result = self.cli("plan", "--all", scoped=False)
+        self.assertEqual(result["selection"], {"source": "all"})
+        self.assertLess(
+            fixture, {row["language"] for row in result["runtimes"]}
+        )
+        self.assertTrue(saved.is_file())
+        # --all --save-selection forgets it.
+        self.cli("plan", "--all", "--save-selection", scoped=False)
+        self.assertFalse(saved.exists())
+        _, result = self.cli("plan", scoped=False)
+        self.assertEqual(result["selection"], {"source": "default"})
+
+    def test_unusable_saved_selection_names_the_file(self):
+        saved = self.root / "home/.config/dev-bootstrap/selection.json"
+        saved.parent.mkdir(parents=True)
+        for content, message in (
+            ({"schema": 1, "ecosystems": ["node", "cobol"]}, "cobol"),
+            ({"schema": 2, "ecosystems": ["node"]}, "schema 1"),
+            ({"schema": 1, "ecosystems": []}, "non-empty"),
+            ({"schema": 1, "ecosystems": ["kotlin"]}, "requires jvm"),
+        ):
+            with self.subTest(content=content):
+                saved.write_text(json.dumps(content))
+                code, text, errors = self.cli_output("plan")
+                self.assertEqual((code, text), (2, ""))
+                self.assertIn(message, errors)
+                self.assertIn(str(saved), errors)
+        # --all never reads it.
+        code, _ = self.cli("plan", "--all", scoped=False)
+        self.assertEqual(code, 0)
+
+    def test_declared_selection_is_read_but_never_replaced(self):
+        declared = self.root / "declared.json"
+        declared.write_text(json.dumps({"schema": 1, "ecosystems": ["ocaml"]}))
+        saved = self.root / "home/.config/dev-bootstrap/selection.json"
+        saved.parent.mkdir(parents=True)
+        saved.symlink_to(declared)
+        _, result = self.cli("plan", scoped=False)
+        self.assertEqual(
+            {row["language"] for row in result["runtimes"]}, {"ocaml"}
+        )
+        for arguments in (("--only", "node"), ("--all",)):
+            with self.subTest(arguments=arguments):
+                code, _, errors = self.cli_output(
+                    "plan", *arguments, "--save-selection"
+                )
+                self.assertEqual(code, 2)
+                self.assertIn("where it is declared", errors)
+                self.assertTrue(saved.is_symlink())
+
+    def test_save_selection_needs_a_choice_to_save(self):
+        with (
+            self.assertRaises(SystemExit) as raised,
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            self.cli_output("plan", "--save-selection")
+        self.assertEqual(raised.exception.code, 2)
+        with (
+            self.assertRaises(SystemExit),
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            self.cli_output("plan", "--all", "--only", "node")
 
     def test_broken_compiled_runtimes_report_a_rebuild(self):
         self.setup.apply()
