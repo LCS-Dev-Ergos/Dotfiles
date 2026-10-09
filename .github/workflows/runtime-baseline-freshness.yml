@@ -1,0 +1,46 @@
+name: Runtime Baseline Freshness
+
+# Compares every exact pin of the development bootstrap with its upstream.
+# The job fails when a patch release is installable or an installer script
+# drifted, so GitHub notifies the owner; the summary lists every finding.
+# Nothing is written back: advancing the pins is a reviewed local --apply.
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Check upstream releases
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
+
+      # The read-only job token only lifts the GitHub API's anonymous rate
+      # limit; the updater sends it to api.github.com and nowhere else.
+      - name: Check the runtime baseline
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -o pipefail
+          nix develop --impure \
+            --expr 'import ./scripts/development-bootstrap.nix { target = "freshness"; }' \
+            --command python3 scripts/update-runtime-baseline.py --check --markdown |
+            tee -a "$GITHUB_STEP_SUMMARY"
