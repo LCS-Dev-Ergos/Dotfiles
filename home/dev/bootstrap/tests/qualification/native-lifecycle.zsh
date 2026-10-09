@@ -99,10 +99,13 @@ _step() {
 # -----------------------------------------------------------------------------
 # _manager
 # @description Runs a manager command as a user would, in the root.
+# @option --tolerated Record the exit status without failing the run.
 # @arg $1 string Log name.
 # @arg $@ string The command.
 # -----------------------------------------------------------------------------
 _manager() {
+  local tolerated=0
+  [[ "$1" == --tolerated ]] && { tolerated=1; shift; }
   local name="$1" code=0
   shift
   start=$EPOCHREALTIME
@@ -111,7 +114,7 @@ _manager() {
   printf 'manager\t%s\t%d\t%.1f\n' "$name" "$code" \
     $(( EPOCHREALTIME - start )) >> "$log/steps.tsv"
   printf '%-28s exit=%d %6.1fs\n' "$name" "$code" $(( EPOCHREALTIME - start ))
-  (( code == 0 )) || failed=1
+  (( code == 0 || tolerated )) || failed=1
 }
 
 _sdk() {
@@ -133,9 +136,17 @@ if [[ "${DEV_BOOTSTRAP_PACKAGE_UPGRADES:-0}" == 1 ]]; then
     typeset -a installed_packages=(
       ${(f)"$(/opt/homebrew/bin/brew list --formula -1)"}
     )
-    _manager update-packages env HOMEBREW_NO_INSTALL_CLEANUP=1 \
-      /opt/homebrew/bin/brew upgrade --formula \
-      "${(@)declared_packages:*installed_packages}"
+    typeset -a upgrade=("${(@)declared_packages:*installed_packages}")
+    # Homebrew exits 1 when it installs a formula but cannot link it over a
+    # file another formula owns (a runner's openssl@1.1 owns bin/openssl).
+    # Runtimes use the opt prefixes, so what counts is that nothing declared
+    # is still outdated afterwards.
+    _manager --tolerated update-packages env HOMEBREW_NO_INSTALL_CLEANUP=1 \
+      HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1 \
+      /opt/homebrew/bin/brew upgrade --formula "${upgrade[@]}"
+    _manager update-packages-current sh -c \
+      'test -z "$(/opt/homebrew/bin/brew outdated --formula --quiet "$@")"' \
+      sh "${upgrade[@]}"
   elif [[ -x /usr/bin/pacman ]]; then
     _manager update-packages sudo -n /usr/bin/pacman -Syu --noconfirm
   fi
@@ -154,10 +165,19 @@ _step 5-health-updated verify --health
 
 # 3. User evolution, kept cheap: where adding a release means a compiler
 # build (Python, Ruby, OCaml) or a large download (Lean, a JDK, .NET), only
-# the default changes.
-_has node && _manager evolve-node fnm install 22
-_has node && _manager evolve-node-default fnm default 22
-_has python && _manager evolve-python pyenv global system
+# the default changes. Each language whose recorded selection changes is
+# listed, so a vacuous evolution fails the run.
+typeset -a evolved=()
+if _has node; then
+  _manager evolve-node fnm install 22
+  _manager evolve-node-default fnm default 22
+  evolved+=(node)
+fi
+# `system` needs a host interpreter: the Arch image has Python, not Ruby.
+if _has python && [[ -x /usr/bin/python3 ]]; then
+  _manager evolve-python pyenv global system
+  evolved+=(python)
+fi
 if _has ocaml; then
   _manager evolve-ocaml opam switch set "$(
     "$analysis" -I -c '
@@ -166,29 +186,55 @@ rows = json.load(open(sys.argv[1]))["runtimes"]
 print(sorted(r["path"] for r in rows if r["language"] == "ocaml")[0]
       .rsplit("/bin/", 1)[0].rsplit("/", 1)[1])
 ' "$log/2-plan-updated.json")"
+  evolved+=(ocaml)
 fi
-_has rust && _manager evolve-rust rustup toolchain install 1.97.0 \
-  --profile minimal
-_has rust && _manager evolve-rust-default rustup default 1.97.0
-_has haskell && _manager evolve-cabal ghcup install cabal 3.14.2.0
-_has haskell && _manager evolve-cabal-default ghcup set cabal 3.14.2.0
-_has ruby && _manager evolve-ruby rbenv global system
-_has kotlin && _sdk evolve-kotlin install kotlin 2.4.20
-_has kotlin && _sdk evolve-kotlin-default default kotlin 2.4.20
-_has maven && _sdk evolve-maven install maven 3.9.16
-_has maven && _sdk evolve-maven-default default maven 3.9.16
-_has scala && _manager evolve-scala cs install scala:3.8.1 scalac:3.8.1
-_has julia && _manager evolve-julia juliaup add 1.11
-_has julia && _manager evolve-julia-default juliaup default 1.11
+if _has rust; then
+  _manager evolve-rust rustup toolchain install 1.97.0 --profile minimal
+  _manager evolve-rust-default rustup default 1.97.0
+  evolved+=(rust)
+fi
+# The Cabal selection is a link the report does not record; it is checked
+# directly after the evolved apply.
+if _has haskell; then
+  _manager evolve-cabal ghcup install cabal 3.14.2.0
+  _manager evolve-cabal-default ghcup set cabal 3.14.2.0
+fi
+if _has ruby && [[ -x /usr/bin/ruby ]]; then
+  _manager evolve-ruby rbenv global system
+  evolved+=(ruby)
+fi
+if _has kotlin; then
+  _sdk evolve-kotlin install kotlin 2.4.20
+  _sdk evolve-kotlin-default default kotlin 2.4.20
+  evolved+=(kotlin)
+fi
+if _has maven; then
+  _sdk evolve-maven install maven 3.9.16
+  _sdk evolve-maven-default default maven 3.9.16
+  evolved+=(maven)
+fi
+if _has scala; then
+  _manager evolve-scala cs install scala:3.8.1 scalac:3.8.1
+  evolved+=(scala)
+fi
+if _has julia; then
+  _manager evolve-julia juliaup add 1.11
+  _manager evolve-julia-default juliaup default 1.11
+  evolved+=(julia)
+fi
 _step 6-plan-evolved plan
 _step 7-apply-evolved apply
 _step 8-verify-evolved verify
 _step 9-health-evolved verify --health
+if _has haskell; then
+  _manager kept-cabal sh -c \
+    'test "$(readlink "$HOME/.ghcup/bin/cabal")" = cabal-3.14.2.0'
+fi
 
 _snapshot_home > "$log/real-home-after.txt"
 _snapshot_packages > "$log/packages-after.txt"
 
-"$analysis" -I - "$log" <<'PY' || failed=1
+"$analysis" -I - "$log" "${evolved[@]}" <<'PY' || failed=1
 import json
 import pathlib
 import sys
@@ -223,6 +269,7 @@ report = {
         for language, selection in evolved["globalSelections"].items()
         if selection != updated["globalSelections"][language]
     ),
+    "expectedEvolution": sorted(sys.argv[2:]),
 }
 (log / "summary.json").write_text(json.dumps(report, indent=2) + "\n")
 print(json.dumps({k: v for k, v in report.items() if k != "steps"}, indent=2))
@@ -230,7 +277,7 @@ ok = (
     report["realHomeUnchanged"]
     and report["applyKeptUpdatedState"]
     and report["applyKeptEvolvedState"]
-    and report["evolvedSelections"]
+    and set(report["expectedEvolution"]) <= set(report["evolvedSelections"])
 )
 sys.exit(0 if ok else 1)
 PY
