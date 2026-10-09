@@ -215,7 +215,6 @@ _: {
       "calibre"
       "copilot-cli"
       "d12frosted/emacs-plus/emacs-plus-app"
-      "dotnet-sdk"
       "font-sf-mono"
       "font-sf-pro"
       "ghostty"
