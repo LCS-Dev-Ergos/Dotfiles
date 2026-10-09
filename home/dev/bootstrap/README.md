@@ -171,6 +171,14 @@ operations request elevation; the Python executor remains under the owning
 account. The bootstrap lock serializes its own invocations, not simultaneous
 manual manager operations. Avoid running upgrades concurrently with bootstrap.
 
+Each manager or installer call runs in its own process group. A timeout,
+Ctrl-C, SIGTERM or SIGHUP ends that group (SIGTERM, then SIGKILL after 30
+seconds), so no build or download keeps writing once bootstrap has stopped.
+The interrupted command unwinds, which releases the lock and removes its
+temporary directories, names the stage it was in and exits with 128 plus the
+signal number. A following `plan` reports any prefix the manager left
+incomplete.
+
 ## Extending an Ecosystem
 
 Introduce one bounded integration at a time. An ecosystem is one subclass of

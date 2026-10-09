@@ -2,9 +2,14 @@
 
 import os
 import shutil
+import signal
 import subprocess
 
 from .errors import BootstrapError
+
+# Seconds an interrupted child's process group gets to clean up after SIGTERM
+# (python-build and ruby-build remove their partial prefix) before SIGKILL.
+GRACE = 30
 
 # Source builds inherit account/temporary paths and network transport settings.
 # Compiler, SDK and package-discovery inputs must come from the declaration.
@@ -100,16 +105,7 @@ def run(
     clean.update({"LC_ALL": "C", "GIT_TERMINAL_PROMPT": "0"})
     clean.update(env or {})
     try:
-        result = subprocess.run(
-            args,
-            env=clean,
-            stdin=subprocess.DEVNULL,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            cwd=cwd,
-            check=False,
-        )
+        result = complete(args, env=clean, timeout=timeout, cwd=cwd)
     except (OSError, subprocess.TimeoutExpired) as error:
         raise BootstrapError(str(error)) from error
     if result.returncode not in success_codes:
@@ -120,6 +116,49 @@ def run(
             detail += f"\nstdout: {result.stdout[-2000:].strip()}"
         raise BootstrapError(f"{args[0]} exited {result.returncode}: {detail}")
     return result.stdout.strip()
+
+
+def complete(args, *, env, timeout, cwd):
+    """Run a child in its own process group, which ends with the call.
+
+    Managers leave compilers and downloads running below them. When the call
+    times out or bootstrap is interrupted, we end the whole group, so nothing
+    keeps writing into a prefix after the lock is released. A terminal's
+    Ctrl-C reaches only bootstrap, which then stops the group the same way.
+    """
+    with subprocess.Popen(
+        args,
+        env=env,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        cwd=cwd,
+        start_new_session=True,
+    ) as child:
+        try:
+            stdout, stderr = child.communicate(timeout=timeout)
+        except BaseException:
+            stop(child)
+            raise
+    return subprocess.CompletedProcess(args, child.returncode, stdout, stderr)
+
+
+def stop(child):
+    """SIGTERM the child's process group, then SIGKILL what remains.
+
+    A group already gone reports ESRCH, or EPERM on macOS while only zombies
+    remain; neither may replace the exception that stopped the call.
+    """
+    try:
+        os.killpg(child.pid, signal.SIGTERM)
+        child.wait(timeout=GRACE)
+    except (ProcessLookupError, PermissionError, subprocess.TimeoutExpired):
+        pass
+    try:
+        os.killpg(child.pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        pass
 
 
 def checksum_support():

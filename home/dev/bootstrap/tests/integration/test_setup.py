@@ -6,9 +6,11 @@ import fcntl
 import io
 import json
 import os
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -22,6 +24,7 @@ from core.errors import BootstrapError
 from core.paths import writable_directory
 from core.setup import BootstrapSetup
 from tests.declaration import declared_manifest
+from tests.unit.test_process import gone
 
 implementation = Path(__file__).resolve().parents[2]
 
@@ -598,7 +601,7 @@ class SetupTests(unittest.TestCase):
             result = subprocess.CompletedProcess([], code, "zlib\n", "")
             with (
                 self.subTest(code=code, accepted=accepted),
-                patch("core.process.subprocess.run", return_value=result),
+                patch("core.process.complete", return_value=result),
             ):
                 if code in accepted:
                     self.assertEqual(
@@ -617,7 +620,7 @@ class SetupTests(unittest.TestCase):
             [], 1, stdout, "Error: The `brew link` step did not complete\n"
         )
         with (
-            patch("core.process.subprocess.run", return_value=result),
+            patch("core.process.complete", return_value=result),
             self.assertRaises(BootstrapError) as raised,
         ):
             self.actual_run(["brew"])
@@ -628,7 +631,7 @@ class SetupTests(unittest.TestCase):
         self.assertLess(len(message), 4200)
         quiet = subprocess.CompletedProcess([], 1, "\n", "failed\n")
         with (
-            patch("core.process.subprocess.run", return_value=quiet),
+            patch("core.process.complete", return_value=quiet),
             self.assertRaises(BootstrapError) as raised,
         ):
             self.actual_run(["fixture"])
@@ -832,6 +835,44 @@ class SetupTests(unittest.TestCase):
             self.setup.prerequisites()
         self.assertIn("sudo " + str(self.bin / "brew"), str(raised.exception))
         self.assertFalse(any("-S" in event for event in self.events))
+
+    def test_interrupted_apply_releases_the_lock_and_stops_its_child(self):
+        # The package manager hangs with a child of its own, as a build does.
+        pidfile = self.root / "worker.pid"
+        (self.bin / "brew").write_text(
+            f'#!/bin/sh\nsleep 60 & echo $! > "{pidfile}"; wait\n'
+        )
+        manifest = self.root / "manifest.json"
+        manifest.write_text(json.dumps(self.data))
+        lock = self.root / "state/devrestore/apply.lock"
+        for signum in (signal.SIGTERM, signal.SIGINT):
+            with self.subTest(signal=signum.name):
+                pidfile.unlink(missing_ok=True)
+                command = subprocess.Popen(
+                    [
+                        sys.executable,
+                        str(implementation / "bootstrap.py"),
+                        "--manifest",
+                        str(manifest),
+                        "apply",
+                    ],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+                deadline = time.monotonic() + 30
+                while not pidfile.is_file() or not pidfile.read_text():
+                    self.assertLess(time.monotonic(), deadline)
+                    time.sleep(0.05)
+                worker = int(pidfile.read_text())
+                command.send_signal(signum)
+                _, stderr = command.communicate(timeout=60)
+                self.assertEqual(command.returncode, 128 + signum, stderr)
+                self.assertIn("interrupted during prerequisites", stderr)
+                self.assertNotIn("Traceback", stderr)
+                self.assertTrue(gone(worker))
+                with lock.open("a") as file:
+                    fcntl.flock(file, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
     def test_cli_import_preserves_structured_stage_errors(self):
         (self.bin / "brew").unlink()

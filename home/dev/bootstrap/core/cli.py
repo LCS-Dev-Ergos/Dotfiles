@@ -3,13 +3,15 @@
 import argparse
 import json
 import os
+import signal
 import sys
 import tarfile
+from contextlib import contextmanager
 from pathlib import Path
 
 from .adapters import ADAPTERS
 from .engine import Bootstrap
-from .errors import BootstrapError
+from .errors import BootstrapError, Interrupted
 from .manifest import load_manifest
 from .setup import BootstrapSetup
 
@@ -55,6 +57,48 @@ def main():
     if args.health and args.action != "verify":
         parser.error("--health requires verify")
     os.umask(0o077)
+    # The setup in use, so an interruption can name its stage.
+    setups = []
+    try:
+        with termination():
+            return run(args, setups)
+    except (KeyboardInterrupt, Interrupted) as error:
+        signum = getattr(error, "signum", signal.SIGINT)
+        stage = ""
+        if args.action == "apply" and setups:
+            stage = f" during {setups[0].stage}"
+        print(
+            f"dev-bootstrap: interrupted{stage}; the lock is released. Run "
+            "plan to find any incomplete prefix, then apply again.",
+            file=sys.stderr,
+        )
+        return 128 + signum
+
+
+@contextmanager
+def termination():
+    """Turn SIGTERM and SIGHUP into an exception, like Ctrl-C.
+
+    Unwinding releases the lock, removes temporary directories and stops the
+    running child's process group; the default action would skip all three.
+    """
+
+    def interrupt(signum, frame):
+        raise Interrupted(signum)
+
+    previous = {
+        signum: signal.signal(signum, interrupt)
+        for signum in (signal.SIGTERM, signal.SIGHUP)
+    }
+    try:
+        yield
+    finally:
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
+
+
+def run(args, setups):
+    """Execute the parsed command; expected failures exit 2."""
     try:
         context = Bootstrap(
             load_manifest(args.manifest), args.only, accepted=args.accept
@@ -66,6 +110,7 @@ def main():
             and context.backend == "native"
         ):
             setup = BootstrapSetup(context)
+            setups.append(setup)
         result = execute(context, setup, args)
         report(result, args.json)
         return (
