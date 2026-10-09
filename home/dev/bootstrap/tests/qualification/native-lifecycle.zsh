@@ -193,8 +193,8 @@ if _has rust; then
   _manager evolve-rust-default rustup default 1.97.0
   evolved+=(rust)
 fi
-# The Cabal selection is a link the report does not record; it is checked
-# directly after the evolved apply.
+# The report does not record the Cabal selection; the selected cabal's own
+# release is checked after the evolved apply.
 if _has haskell; then
   _manager evolve-cabal ghcup install cabal 3.14.2.0
   _manager evolve-cabal-default ghcup set cabal 3.14.2.0
@@ -228,7 +228,7 @@ _step 8-verify-evolved verify
 _step 9-health-evolved verify --health
 if _has haskell; then
   _manager kept-cabal sh -c \
-    'test "$(readlink "$HOME/.ghcup/bin/cabal")" = cabal-3.14.2.0'
+    'test "$("$HOME/.ghcup/bin/cabal" --numeric-version)" = 3.14.2.0'
 fi
 
 _snapshot_home > "$log/real-home-after.txt"
