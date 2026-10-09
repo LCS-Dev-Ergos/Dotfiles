@@ -6,6 +6,7 @@ import fcntl
 import io
 import json
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -27,6 +28,9 @@ from tests.declaration import declared_manifest
 from tests.unit.test_process import gone
 
 implementation = Path(__file__).resolve().parents[2]
+# Resolved before setUp narrows PATH: a Linux build sandbox has no sleep in
+# /usr/bin or /bin.
+SLEEP = shutil.which("sleep")
 
 
 class SetupTests(unittest.TestCase):
@@ -930,7 +934,7 @@ class SetupTests(unittest.TestCase):
         # The package manager hangs with a child of its own, as a build does.
         pidfile = self.root / "worker.pid"
         (self.bin / "brew").write_text(
-            f'#!/bin/sh\nsleep 60 & echo $! > "{pidfile}"; wait\n'
+            f'#!/bin/sh\n"{SLEEP}" 60 & echo $! > "{pidfile}"; wait\n'
         )
         manifest = self.root / "manifest.json"
         manifest.write_text(json.dumps(self.data))
