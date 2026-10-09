@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
 # shellcheck shell=zsh
 # ============================================================================ #
-# +++++++++++++++++++++++ NATIVE INTERRUPTION QUALIFICATION ++++++++++++++++++ #
+# ++++++++++++++++++++ NATIVE INTERRUPTION QUALIFICATION +++++++++++++++++++++ #
 # ============================================================================ #
 # Interrupts a real apply during its runtime stage and checks the recovery,
 # each scenario in its own disposable home:
@@ -78,7 +78,7 @@ except BlockingIOError:
     print("held")
 except FileNotFoundError:
     print("absent")
-' "$root/state/devrestore/apply.lock"
+' "$root/state/dev-bootstrap/apply.lock"
 }
 
 : > "$log/scenarios.tsv"

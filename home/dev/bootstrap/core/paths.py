@@ -75,6 +75,36 @@ def writable_directory(path, *, create=True):
         )
 
 
+def renamed_directory(parent, name, legacy):
+    """The directory that holds ``name``'s content until apply moves it.
+
+    Reads find an earlier release's ``legacy`` directory in place, so a plan
+    sees its journal without writing anything.
+    """
+    if not os.path.lexists(parent / name) and os.path.lexists(parent / legacy):
+        return parent / legacy
+    return parent / name
+
+
+def migrate_directory(parent, name, legacy):
+    """Rename ``legacy`` to ``name`` once, while only ``legacy`` exists.
+
+    The directory keeps its inodes, so a lock an earlier release still holds
+    in it keeps excluding us. Once ``name`` exists we leave a ``legacy``
+    directory alone: only an earlier release recreates it.
+    """
+    current, previous = parent / name, parent / legacy
+    if os.path.lexists(current) or not os.path.lexists(previous):
+        return
+    writable_directory(previous, create=False)
+    try:
+        os.rename(previous, current)
+    except FileNotFoundError:
+        # A concurrent apply moved it first.
+        if not current.is_dir():
+            raise
+
+
 def read_json_object(path):
     """Treat damaged manager state as an operational error, never as empty state."""
     try:

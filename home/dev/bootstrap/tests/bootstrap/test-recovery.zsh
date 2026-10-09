@@ -148,7 +148,7 @@ if FNM_DIR="$fixture_root/new-fnm" \
 fi
 command rm "$HOME/fail-node-download"
 [[ ! -e "$fixture_root/new-fnm/node-versions/v24.21.0" &&
-   -z "$(print -l -- "$fixture_root"/new-fnm/.devrestore-*(N))" ]] || {
+   -z "$(print -l -- "$fixture_root"/new-fnm/.dev-bootstrap-*(N))" ]] || {
   print -u2 'FAIL: failed Node download left partial state in the root'
   return 1
 }
@@ -410,7 +410,7 @@ import subprocess
 import sys
 
 root = pathlib.Path(sys.argv[3])
-with (root / "state/devrestore/apply.lock").open("a") as lock:
+with (root / "state/dev-bootstrap/apply.lock").open("a") as lock:
     fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     env = dict(os.environ, PYENV_ROOT=str(root / "lock-python"))
     result = subprocess.run(

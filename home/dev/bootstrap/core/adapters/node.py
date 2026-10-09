@@ -108,7 +108,7 @@ class NodeAdapter(Adapter):
         writable_directory(self.root)
         writable_directory(self.root / "node-versions")
         with tempfile.TemporaryDirectory(
-            prefix=".devrestore-", dir=self.root
+            prefix=".dev-bootstrap-", dir=self.root
         ) as temporary:
             process.run(
                 [

@@ -18,9 +18,11 @@ not a complete implementation for every ecosystem manager.
 
 `dev-bootstrap` joins native prerequisite provisioning, manager readiness,
 additive runtime installation, absent-default initialization, missing-hook
-repair and controlled fresh-shell qualification. `devrestore` is a symlink to
-the same executable; the legacy flake package/check names alias the same output.
-Manager roots, OCaml switch names, cache locations and lock identity are retained.
+repair and controlled fresh-shell qualification. `devrestore` is a deprecated
+symlink to the same executable; the legacy flake package/check names alias the
+same output. Manager roots and OCaml switch names are retained; bootstrap's
+state and cache move from `devrestore` to `dev-bootstrap` once, on the first
+`apply`.
 Neither activation nor shell startup performs provisioning.
 
 The bootstrap covers Node, Python and OCaml, plus the six native toolchain
@@ -181,7 +183,7 @@ nix run .#dev-bootstrap -- verify --json
 ```
 
 After Home Manager activation, the same interface is available as `dev-bootstrap`.
-`devrestore` and the `development-recovery` flake package remain compatibility
+`devrestore` and the `development-recovery` flake package remain deprecated
 aliases to this implementation, with the same manager roots and lock.
 An omitted operation defaults to `plan`. `--only node`, `--only python` and
 `--only ocaml` restrict the operation; repeated selectors combine them. Planning
@@ -208,7 +210,8 @@ acceptance of a deployed `.zshrc`.
 
 `--runtimes-only` skips native provisioning, initial defaults and effective-shell
 qualification, retaining the original additive restoration interface. Both CLI
-names support the same options and use `$XDG_STATE_HOME/devrestore/apply.lock`.
+names support the same options and use `$XDG_STATE_HOME/dev-bootstrap/apply.lock`
+(`devrestore` before the first `apply` of this release moves it).
 The `nixpkgs` backend retains its exact-runtime interface and does not invoke
 native provisioning. `--health` requires the native setup adapter.
 

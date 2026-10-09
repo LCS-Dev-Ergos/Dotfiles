@@ -91,7 +91,7 @@ its dependents, so installation needs no separate dependency resolution. A
 frontend reads the catalog instead of duplicating this metadata.
 
 An installed `dev-bootstrap` accepts the same runtime arguments; `devrestore`
-is a compatibility alias to that executable. `--runtimes-only` skips prerequisite,
+is a deprecated alias to that executable, kept for one release cycle. `--runtimes-only` skips prerequisite,
 default and shell setup but retains mutation guards and locking. `plan` reads
 state without launching managers. `verify` checks exact baseline identities
 and the baseline's complete build canaries. `verify --health` checks that each
@@ -138,6 +138,12 @@ process-global PATH changes. An intentional SDK override belongs in the
 declaration; inherited `SDKROOT` and `DEVELOPER_DIR` are not build inputs.
 
 Mutable roots, caches and locks remain outside the repository and store.
+Bootstrap's own state (`apply.lock`, `installing.json`) lives in
+`$XDG_STATE_HOME/dev-bootstrap` and its cache in `$XDG_CACHE_HOME/dev-bootstrap`.
+Releases before the rename used `devrestore` for both: `plan` and `verify`
+read such a directory in place, and the first `apply` renames it once, so a
+pending journal and a lock an earlier process holds carry over. A `devrestore`
+directory that appears after that is left alone.
 Installation is additive. Before an install creates a runtime prefix inside a
 manager root, `apply` records it in `installing.json` in its state directory
 and clears the record once the runtime verifies. A prefix that is incomplete

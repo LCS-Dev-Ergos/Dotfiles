@@ -78,7 +78,7 @@ class OcamlAdapter(Adapter):
 
     def canary(self, row, path, *, complete):
         with tempfile.TemporaryDirectory(
-            prefix="devrestore-ocaml-"
+            prefix="dev-bootstrap-ocaml-"
         ) as temporary:
             work = Path(temporary)
             source = work / "hello.ml"

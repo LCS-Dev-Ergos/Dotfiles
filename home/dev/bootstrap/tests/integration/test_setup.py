@@ -419,6 +419,62 @@ class SetupTests(unittest.TestCase):
             self.setup.apply()
         self.assertTrue(seed.is_dir())
 
+    def test_earlier_release_state_moves_once(self):
+        # Releases before the rename kept the journal, lock and cache under
+        # "devrestore": a plan reads them there, the first apply moves them.
+        release = self.data["ocaml"]["versions"][0]
+        self.interrupt = ("ocaml", release)
+        with self.assertRaises(KeyboardInterrupt):
+            self.setup.apply()
+        state, cache = self.root / "state", self.root / "cache"
+        (state / "dev-bootstrap").rename(state / "devrestore")
+        (cache / "devrestore").mkdir(mode=0o700, parents=True)
+        (cache / "devrestore/kept").write_text("cached\n")
+        row = next(
+            r
+            for r in self.recovery.plan()
+            if (r["language"], r["version"]) == ("ocaml", release)
+        )
+        self.assertEqual((row["state"], row["interrupted"]), ("missing", True))
+        self.assertFalse((state / "dev-bootstrap").exists())
+        self.interrupt = None
+        self.events.clear()
+        self.setup.apply()
+        self.assertIn(("runtime", "ocaml", release), self.events)
+        self.assertFalse((state / "devrestore").exists())
+        self.assertTrue((state / "dev-bootstrap/apply.lock").is_file())
+        self.assertEqual(self.recovery.interrupted(), frozenset())
+        self.assertTrue((cache / "dev-bootstrap/kept").is_file())
+        # Only an earlier release recreates the old name; we leave it be.
+        (state / "devrestore").mkdir(mode=0o700)
+        self.setup.apply()
+        self.assertEqual(list((state / "devrestore").iterdir()), [])
+
+    def test_lock_held_by_an_earlier_release_still_excludes(self):
+        legacy = self.root / "state/devrestore"
+        legacy.mkdir(mode=0o700, parents=True)
+        descriptor = os.open(
+            legacy / "apply.lock", os.O_CREAT | os.O_RDWR, 0o600
+        )
+        with os.fdopen(descriptor, "a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            with self.assertRaisesRegex(BootstrapError, "Another recovery"):
+                with self.recovery.locked():
+                    pass
+        self.assertFalse(legacy.exists())
+        with self.recovery.locked():
+            pass
+
+    def test_redirected_earlier_release_state_is_refused(self):
+        target = self.root / "elsewhere"
+        target.mkdir(mode=0o700)
+        (self.root / "state").mkdir()
+        (self.root / "state/devrestore").symlink_to(target)
+        with self.assertRaisesRegex(BootstrapError, "symlink"):
+            with self.recovery.locked():
+                pass
+        self.assertFalse((self.root / "state/dev-bootstrap").exists())
+
     def test_switch_with_the_declared_compiler_is_adopted(self):
         first, second = self.data["ocaml"]["versions"]
         # `work` resolved its invariant to the second compiler; `loose` has
@@ -938,7 +994,7 @@ class SetupTests(unittest.TestCase):
         )
         manifest = self.root / "manifest.json"
         manifest.write_text(json.dumps(self.data))
-        lock = self.root / "state/devrestore/apply.lock"
+        lock = self.root / "state/dev-bootstrap/apply.lock"
         for signum in (signal.SIGTERM, signal.SIGINT):
             with self.subTest(signal=signum.name):
                 pidfile.unlink(missing_ok=True)

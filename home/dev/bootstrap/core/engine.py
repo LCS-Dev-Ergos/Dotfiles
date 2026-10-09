@@ -10,7 +10,18 @@ from pathlib import Path
 
 from .adapters import ADAPTERS
 from .errors import BootstrapError
-from .paths import read_json_object, root_path, writable_directory
+from .paths import (
+    migrate_directory,
+    read_json_object,
+    renamed_directory,
+    root_path,
+    writable_directory,
+)
+
+# Our directory under XDG_CACHE_HOME and XDG_STATE_HOME, and the name releases
+# before the rename used; apply moves the latter once.
+STATE_NAME = "dev-bootstrap"
+LEGACY_STATE_NAME = "devrestore"
 
 
 def select(manifest, only):
@@ -54,16 +65,23 @@ class Bootstrap:
         self.only = select(manifest, only)
         self.accepted = set(accepted)
         home = Path.home()
-        # Existing hosts keep their lock and caches under these names.
-        self.cache = (
-            root_path("XDG_CACHE_HOME", home / ".cache") / "devrestore"
-        )
-        self.state = (
-            root_path("XDG_STATE_HOME", home / ".local/state") / "devrestore"
-        )
+        self.cache_home = root_path("XDG_CACHE_HOME", home / ".cache")
+        self.state_home = root_path("XDG_STATE_HOME", home / ".local/state")
         self.adapters = {
             language: ADAPTERS[language](self) for language in self.only
         }
+
+    @property
+    def cache(self):
+        return renamed_directory(
+            self.cache_home, STATE_NAME, LEGACY_STATE_NAME
+        )
+
+    @property
+    def state(self):
+        return renamed_directory(
+            self.state_home, STATE_NAME, LEGACY_STATE_NAME
+        )
 
     @property
     def backend(self):
@@ -221,6 +239,10 @@ class Bootstrap:
         for adapter in self.adapters.values():
             for path in adapter.mutable_directories():
                 writable_directory(path, create=False)
+        # Plans read an earlier release's state in place; the first
+        # mutation moves it, before anything is created beside it.
+        for parent in (self.cache_home, self.state_home):
+            migrate_directory(parent, STATE_NAME, LEGACY_STATE_NAME)
         writable_directory(self.cache, create=False)
         writable_directory(self.state)
         descriptor = os.open(
