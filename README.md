@@ -190,6 +190,10 @@ through `scripts/development-bootstrap.nix` from the nixpkgs revision in
 - Versions are declared in `home/dev/runtime-baseline.nix`. After the initial
   installation, each ecosystem manager owns upgrades, additional releases and
   project selection.
+- `scripts/update-runtime-baseline.py --check` compares every declared release
+  and installer with its upstream, and `--apply` advances patch releases; a
+  weekly workflow runs the check. The procedure is in
+  [home/dev/README.md](home/dev/README.md#keeping-the-baseline-current).
 - A rerun adds missing baseline entries and leaves later upgrades, additional
   releases and project selections in place.
 - Foundation installation runs only the installers for missing foundations:

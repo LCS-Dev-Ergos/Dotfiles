@@ -32,16 +32,15 @@ on a clean supported host, native dependency retention, deployed-shell
 acceptance and a NixOS target are separate qualification requirements.
 
 Six native toolchain integrations cover Rust, GHC/Cabal, Lean/Lake, Ruby, Java
-and Julia. Their initial identities are Rust 1.98.1, GHC 9.14.1, Cabal
-3.16.1.0, Lean 4.32.0, Ruby 4.0.6, Java 21.0.12.1 (SDKMAN candidate
-`21.0.12+1.1-tem`) and Julia 1.12.6.
+and Julia. Their exact identities, with the SDKMAN candidate beside the Java
+release, live in `runtime-baseline.nix`; this README does not repeat them.
 
-The core language set includes HLS 2.14.0.0 in GHCup's rows, with a server for
-GHC 9.14.1, and Kotlin 2.4.21, Maven 3.10.0 and Gradle 9.8.1 as SDKMAN adapters
-that require `jvm` and run on its JDK. Scala 3.9.0 comes through Coursier's
-pinned native launcher and also runs on that JDK, and the .NET SDK 10.0.401
-comes from the hash-checked `dotnet-install` script. Conda 26.7.2 comes from
-the matching Miniforge3 installer, and only `--only conda` selects it. Each
+The core language set includes HLS in GHCup's rows, with a server for the
+declared GHC, and Kotlin, Maven and Gradle as SDKMAN adapters that require
+`jvm` and run on its JDK. Scala comes through Coursier's pinned native launcher
+and also runs on that JDK, and the .NET SDK comes from the hash-checked
+`dotnet-install` script. Conda comes from the matching Miniforge3 installer,
+and only `--only conda` selects it. Each
 adapter declares what it requires, whether a run without `--only` selects it,
 its platforms and the terms an apply must accept; JSON reports list this as the
 `catalog`.
@@ -156,9 +155,10 @@ runtime, so entering a development shell and adding uv would duplicate that role
 
 ## Runtime Baseline and Recovery
 
-`runtime-baseline.nix` is the shared declaration: Node 24.21.0 and 26.10.0,
-Python 3.14.7, and OCaml 5.4.1/5.5.1. Intended defaults are initialized
-only when absent during explicit native bootstrap. Existing global selections
+`runtime-baseline.nix` is the shared declaration: two Node releases, one
+Python release, two OCaml releases and the native toolchains above, each at an
+exact version. Intended defaults are initialized only when absent during
+explicit native bootstrap. Existing global selections
 and project manifests retain control. Inspect the
 declaration and plan without changing manager state:
 
@@ -284,11 +284,63 @@ Nix store are rejected. Canonical Git-installed pyenv is an explicit exception:
 its own ignored versions directory remains within the manager checkout. Private
 recovery subdirectories reject symlink redirects and shared write permissions.
 
+## Keeping the Baseline Current
+
+Exact pins do not move on their own. `scripts/update-runtime-baseline.py`
+compares every release in `runtime-baseline.nix`, and the release assets and
+installer scripts in `native-managers.nix`, with their official upstreams:
+
+```sh
+scripts/update-runtime-baseline.py --check            # every ecosystem
+scripts/update-runtime-baseline.py --check rust dotnet
+```
+
+Each finding has a state. `update` is a newer patch release in the declared
+line, or the newest stable release of a tool without maintenance lines,
+installable on both platforms through its manager. `pending` is a release the
+manager cannot install yet, such as a CPython release that the latest pyenv
+does not define. `line` is a newer line (Node 28, Python 3.15, JDK 25, a new
+.NET channel), and `drift` is an installer script whose bytes no longer match
+the pinned hash. GHCup's metadata needs PyYAML, so the script reruns itself in
+the locked `freshness` shell of `scripts/development-bootstrap.nix` when Nix is
+available. `GITHUB_TOKEN`, when set, is sent to `api.github.com` only.
+
+The weekly `Runtime Baseline Freshness` workflow runs `--check` and fails when
+an `update` or a `drift` exists; its summary lists every finding.
+
+To advance the baseline:
+
+1. Run `scripts/update-runtime-baseline.py --apply` and review `git diff`. It
+   applies `update` findings; `--line ECOSYSTEM` also moves that ecosystem to
+   its newest line. Node, Python and OCaml lines are edited by hand, because
+   they change declared release lists or the nixpkgs runtime attributes.
+2. For `drift`, read the script saved under
+   `~/.cache/update-runtime-baseline/installers/`, then record it with
+   `--accept-installer NAME`. The command refuses if upstream changed again
+   after the review.
+3. Build the bootstrap package, then run the native CI adapters for the
+   changed ecosystems:
+   `gh workflow run development-bootstrap-native.yml -f harness=adapters -f ecosystems='rust julia'`.
+4. On each host, `dev-bootstrap apply` installs the new releases beside the
+   previous ones. It initializes a default only when none exists, so move the
+   selection with the manager: `rustup default`, `fnm default`, `pyenv global`,
+   `rbenv global`, `elan default`, `ghcup set`, `sdk default`, `juliaup
+   default`, `opam switch`. The .NET muxer runs the newest SDK by itself.
+5. Remove a previous release with its manager once nothing uses it, for
+   example `rustup toolchain uninstall 1.98.1`. `dotnet-install` has no
+   uninstaller: delete `~/.dotnet/sdk/<version>` and the runtimes that SDK
+   brought under `~/.dotnet/shared/` and `~/.dotnet/host/fxr/`.
+
+A Node or Python patch release also needs the same release in the locked
+nixpkgs for the `nixpkgs` backend; until then that backend reports it blocked.
+
 ## NixOS Runtime Boundary
 
 With the explicit `nixpkgs` backend, the manifest retains exact store paths for
-both Node releases and a Python 3.14.7 environment containing tkinter. It does
-not download foreign binaries or substitute nearby versions. Python's controlled
+both Node releases and the declared Python, as an environment containing
+tkinter. It does not download foreign binaries or substitute nearby versions:
+a declared release that the locked nixpkgs does not carry is reported as
+blocked until nixpkgs catches up. Python's controlled
 Nix wrapper uses safe-path/user-site exclusion flags; native Python uses isolated
 mode. These paths can be verified without native manager installation.
 

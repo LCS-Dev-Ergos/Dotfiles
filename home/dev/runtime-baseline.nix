@@ -9,10 +9,9 @@ let
       ocaml = "5.5.1";
     }
     // builtins.mapAttrs (_: toolchain: toolchain.version) baseline.nativeToolchains;
-    # Exact initial identities, observed on the native host on 2026-10-07;
-    # HLS, the SDKMAN build tools, Scala, .NET and conda are the stable
-    # releases of 2026-10-08.
-    # Ordinary manager updates and selections remain user-owned afterwards.
+    # Exact identities. scripts/update-runtime-baseline.py reports newer
+    # upstream releases and advances patch releases; ordinary manager updates
+    # and selections remain user-owned.
     nativeToolchains = {
       rust.version = "1.98.1";
       haskell = {
@@ -38,8 +37,8 @@ let
       julia.version = "1.12.6";
       # The current LTS feature band; dotnet-install fetches it by version.
       dotnet.version = "10.0.401";
-      # Selected only by `--only conda`. Miniforge3 26.7.2-0 ships conda 26.7.2;
-      # refresh its installers in native-managers.nix together with it.
+      # Selected only by `--only conda`. Miniforge3 <version>-<build> ships
+      # this conda; its installers in native-managers.nix move together with it.
       conda.version = "26.7.2";
     };
     # Native managers fetch these releases from their own upstreams: FNM from

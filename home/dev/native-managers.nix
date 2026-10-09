@@ -33,8 +33,9 @@ let
     "zlib"
     "zstd"
   ];
-  # Audited official installer bytes (2026-10-07), fetched only by explicit apply.
-  # Mutable endpoints fail closed on drift; manager updates remain native.
+  # Audited official installer bytes, fetched only by explicit apply. Mutable
+  # endpoints fail closed on drift; scripts/update-runtime-baseline.py reports
+  # it and records a reviewed replacement. Manager updates remain native.
   installers = {
     rust = {
       url = "https://sh.rustup.rs";
@@ -122,7 +123,7 @@ let
     ];
   };
   # Release assets above the 1 MiB script bound, pinned per platform with their
-  # exact size (2026-10-08). Coursier's native launcher needs no setup run.
+  # exact size. Coursier's native launcher needs no setup run.
   releaseInstallers = {
     aarch64-darwin = {
       scala = {
