@@ -3,8 +3,9 @@
 # ============================================================================ #
 # +++++++++++++++++++++++++ SCRIPT REGRESSION TESTS ++++++++++++++++++++++++++ #
 # ============================================================================ #
-# Focused regression tests for the repository-level Bash policy checks and the
-# pinned-input updater. Nothing here touches the network or the Nix store.
+# Focused regression tests for the repository-level Bash policy checks, the
+# pinned-input updater and the runtime baseline updater. Nothing here touches
+# the network or the Nix store.
 #
 # Usage:
 #   bash scripts/tests/run.sh
@@ -18,7 +19,7 @@ export LC_ALL=C
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 
-for required_command in bash chmod cp env git grep mkdir mktemp mv nix rm sed; do
+for required_command in bash chmod cp env git grep mkdir mktemp mv nix python3 rm sed; do
   if ! command -v "$required_command" >/dev/null 2>&1; then
     printf 'Script regression tests require %s.\n' "$required_command" >&2
     exit 2
@@ -365,6 +366,12 @@ if ! grep -qx 'flake update --flake .* commit-pin git-pin gitlab-pin query-pin t
   cat "$nix_log" "$pin_fixture/flake.nix" >&2
   exit 1
 fi
+
+printf 'Runtime baseline updater\n'
+# Recorded upstream data and temporary copies of the declarations; the real
+# nix only evaluates them.
+expect_status 'runtime baseline updater' 0 \
+  python3 -B "$repo_root/scripts/tests/test_update_runtime_baseline.py"
 
 printf 'Script regression tests passed.\n'
 

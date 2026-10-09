@@ -263,6 +263,7 @@
               pkgs.bash
               pkgs.deadnix
               pkgs.nixfmt
+              pkgs.python3
               pkgs.ripgrep
               pkgs.shellcheck
               pkgs.statix

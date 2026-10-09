@@ -16,11 +16,16 @@ let
       pkgs.bash
       pkgs.deadnix
       pkgs.nixfmt
+      pkgs.python3
       pkgs.ripgrep
       pkgs.ruff
       pkgs.shellcheck
       pkgs.statix
     ];
+  };
+  # scripts/update-runtime-baseline.py reads GHCup's YAML metadata.
+  targets.freshness = pkgs.mkShellNoCC {
+    packages = [ (pkgs.python3.withPackages (python: [ python.pyyaml ])) ];
   };
 in
 targets.${target}
