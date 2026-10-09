@@ -283,6 +283,45 @@ class SetupTests(unittest.TestCase):
         self.setup.apply()
         self.assertEqual(self.mutations(), [])
 
+    def test_broken_compiled_runtimes_report_a_rebuild(self):
+        self.setup.apply()
+        canaries = []
+
+        # A host library upgrade breaks the selected Python's extension
+        # modules and the selected switch's bytecode runtime.
+        def broken(args):
+            if "import ssl" in " ".join(args):
+                canaries.append(args[-1])
+                return True
+            return Path(args[0]).name == "ocamlrun"
+
+        self.failure = broken
+        code, result = self.cli("verify", "--health")
+        self.assertEqual(code, 1)
+        rows = {row["language"]: row for row in result["runtimes"]}
+        python = self.data["defaults"]["python"]
+        switch = "lcs-ocaml-" + self.data["defaults"]["ocaml"]
+        for language, remedy in (
+            ("python", f"pyenv install --force {python}"),
+            ("ocaml", f"opam switch reinstall {switch}"),
+        ):
+            with self.subTest(language=language):
+                self.assertEqual(rows[language]["state"], "conflict")
+                self.assertEqual(rows[language]["remediation"], remedy)
+        self.assertEqual(rows["node"]["state"], "ok")
+        self.assertNotIn("remediation", rows["node"])
+        # Health loads every extension module that links a host library.
+        imported = set(canaries[0].removeprefix("import ").split(", "))
+        self.assertLessEqual(
+            {"ssl", "sqlite3", "ctypes", "readline", "lzma", "bz2", "zlib"},
+            imported,
+        )
+        local = {"path": str(self.root / "project/_opam/bin/ocamlc")}
+        self.assertEqual(
+            self.recovery.adapter("ocaml").remediation(local),
+            ["opam", "switch", "reinstall", str(self.root / "project")],
+        )
+
     def test_switch_with_the_declared_compiler_is_adopted(self):
         first, second = self.data["ocaml"]["versions"]
         # `work` resolved its invariant to the second compiler; `loose` has

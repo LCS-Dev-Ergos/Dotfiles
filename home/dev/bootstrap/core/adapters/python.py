@@ -18,8 +18,10 @@ BUILD_CANARY = (
     "db = sqlite3.connect(':memory:'); "
     "assert db.execute('select 2').fetchone() == (2,)"
 )
-# A selected Python, of any release, needs what package installation uses.
-HEALTH_CANARY = "import ssl, venv, zlib"
+# A selected Python, of any release, must still load every extension module
+# that links a host library, so a native library upgrade that breaks one shows
+# up in health. Tk stays out: a headless build may omit it on purpose.
+HEALTH_CANARY = "import ssl, sqlite3, ctypes, readline, lzma, bz2, zlib, venv"
 
 
 class PythonAdapter(Adapter):
@@ -83,6 +85,12 @@ class PythonAdapter(Adapter):
                 BUILD_CANARY if complete else HEALTH_CANARY,
             ]
         )
+
+    def remediation(self, row):
+        if row.get("owner") != self.manager_name:
+            return None
+        release = Path(row["path"]).parent.parent.name
+        return ["pyenv", "install", "--force", release]
 
     def selection(self):
         marker = self.root / "version"

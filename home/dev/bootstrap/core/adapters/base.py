@@ -220,6 +220,14 @@ class Adapter:
         """Exercise the runtime; complete=False is the release-agnostic check."""
         raise NotImplementedError
 
+    def remediation(self, row):
+        """The manager command that rebuilds a failing runtime, or None.
+
+        Runtimes compiled against host libraries name one, since a native
+        library upgrade can break them. It is reported, never run.
+        """
+        return None
+
     def verify(self, row, *, exact=True):
         """Exact baseline identity, or (exact=False) any working selection.
 

@@ -90,6 +90,12 @@ class OcamlAdapter(Adapter):
             if output != "recovery-ok":
                 raise BootstrapError("OCaml compile/run canary failed")
 
+    def remediation(self, row):
+        prefix = Path(row["path"]).parent.parent
+        # A local switch is named by its project directory.
+        switch = str(prefix.parent) if prefix.name == "_opam" else prefix.name
+        return ["opam", "switch", "reinstall", switch]
+
     def selection(self):
         config = self.root / "config"
         if not config.is_file():

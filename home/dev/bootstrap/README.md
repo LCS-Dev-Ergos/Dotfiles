@@ -98,7 +98,13 @@ and the baseline's complete build canaries. `verify --health` checks that each
 global selection runs, at any release and without changing it; there is no
 version floor. A selection the manager delegates to the host (`system` for
 pyenv and rbenv, `fnm default system`) is reported as `external` and not
-executed, because the host PATH decides which runtime it is. `apply` reports
+executed, because the host PATH decides which runtime it is. Health loads
+every extension that links a host library (Python's `ssl`, `sqlite3`,
+`ctypes`, `readline`, `lzma`, `bz2` and `zlib`; Ruby's OpenSSL, zlib and
+Psych), so a native library upgrade that breaks a compiled runtime surfaces
+as a `conflict`. A conflicting runtime compiled against host libraries
+(Python, Ruby, an opam switch) also carries `remediation`, the manager command
+that rebuilds it, which is reported and never run. `apply` reports
 global selections under `selections` instead of failing on them: they belong
 to the native managers. The fresh-shell check covers verified selections only.
 Verification runs executables and temporary canaries, so it is not a filesystem-

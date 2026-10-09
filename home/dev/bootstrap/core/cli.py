@@ -137,6 +137,8 @@ def report(result, as_json):
         )
         if row.get("reason"):
             print(f"         {row['reason']}")
+        if row.get("remediation"):
+            print(f"         remedy: {row['remediation']}")
     for row in result.get("selections", []):
         if row["state"] != "ok":
             print(
@@ -144,3 +146,5 @@ def report(result, as_json):
                 f"{'selected':8} {row['path'] or '-'}"
             )
             print(f"         {row['reason']}")
+            if row.get("remediation"):
+                print(f"         remedy: {row['remediation']}")

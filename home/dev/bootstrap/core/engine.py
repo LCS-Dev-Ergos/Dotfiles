@@ -2,6 +2,7 @@
 
 import fcntl
 import os
+import shlex
 import stat
 from contextlib import contextmanager
 from pathlib import Path
@@ -168,6 +169,9 @@ class Bootstrap:
                 row["state"] = "ok"
             except BootstrapError as error:
                 row.update(state="conflict", reason=str(error))
+                remedy = adapter.remediation(row)
+                if remedy:
+                    row["remediation"] = shlex.join(remedy)
         return rows
 
     @contextmanager

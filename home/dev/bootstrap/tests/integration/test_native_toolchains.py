@@ -414,6 +414,34 @@ class NativeTransitions(unittest.TestCase):
                 ):
                     self.recovery.verify(row)
 
+    def test_compiled_runtimes_name_their_rebuild_command(self):
+        # A failing canary is a conflict; only a runtime compiled against
+        # host libraries carries the manager command that rebuilds it.
+        self.managers()
+        rows = []
+        for language, relative, remedy in (
+            (
+                "ruby",
+                "versions/3.4.1/bin/ruby",
+                "rbenv install --force 3.4.1",
+            ),
+            ("rust", "toolchains/1.90.0-aarch64-apple-darwin/bin/rustc", None),
+        ):
+            path = self.executable(self.adapter(language).root / relative)
+            rows.append(
+                (
+                    self.adapter(language).row("1.0.0", path, state="present"),
+                    remedy,
+                )
+            )
+        with patch.object(process, "run", return_value="3.4.1 1.90.0"):
+            self.recovery.qualify([row for row, _ in rows], exact=False)
+        for row, remedy in rows:
+            with self.subTest(language=row["language"]):
+                self.assertEqual(row["state"], "conflict")
+                self.assertIn("canary failed", row["reason"])
+                self.assertEqual(row.get("remediation"), remedy)
+
     def test_initial_defaults_use_literal_manager_commands(self):
         with ExitStack() as stack:
             calls = self.invocations(stack)

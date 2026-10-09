@@ -39,6 +39,10 @@ class RubyAdapter(ToolchainAdapter):
             return None
         return super().selected_runtime()
 
+    def remediation(self, row):
+        release = Path(row["path"]).parent.parent.name
+        return ["rbenv", "install", "--force", release]
+
     def install_arguments(self, row):
         return ["install", "--skip-existing", row["version"]]
 
@@ -60,7 +64,9 @@ class RubyAdapter(ToolchainAdapter):
                 executable,
                 "--disable-gems",
                 "-e",
-                'require "openssl"; require "zlib"; abort unless 1+1==2; '
-                'puts "bootstrap-ok"',
+                # The extensions that link host libraries: OpenSSL, zlib and
+                # libyaml. Fiddle (libffi) left the default gems in Ruby 4.0.
+                'require "openssl"; require "zlib"; require "psych"; '
+                'abort unless 1+1==2; puts "bootstrap-ok"',
             ]
         )
