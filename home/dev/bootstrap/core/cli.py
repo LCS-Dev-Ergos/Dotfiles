@@ -15,6 +15,9 @@ from .errors import BootstrapError, Interrupted
 from .manifest import load_manifest
 from .setup import BootstrapSetup
 
+# The JSON report's schema; Interfaces.md says what changes it.
+REPORT_SCHEMA = 1
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -158,6 +161,7 @@ def execute(context, setup, args):
         exact = not (args.health or (setup and args.action == "apply"))
         context.qualify(rows, exact=exact)
     result = {
+        "schema": REPORT_SCHEMA,
         "action": args.action,
         "platform": context.data["platform"],
         "backend": context.backend,

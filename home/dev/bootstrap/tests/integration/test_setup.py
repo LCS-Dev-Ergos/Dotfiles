@@ -295,6 +295,51 @@ class SetupTests(unittest.TestCase):
         self.setup.apply()
         self.assertEqual(self.mutations(), [])
 
+    def test_reports_follow_schema_one(self):
+        # Interfaces.md documents these fields; a change bumps the schema.
+        # The fixture installs first: the CLI's own adapters are real.
+        self.setup.apply()
+        common = {
+            "schema",
+            "action",
+            "platform",
+            "backend",
+            "defaults",
+            "catalog",
+            "observed",
+            "runtimes",
+            "setup",
+        }
+        for arguments, extra in (
+            (("plan",), set()),
+            (("apply",), {"selections"}),
+            (("verify",), set()),
+            (("verify", "--health"), {"verification"}),
+        ):
+            with self.subTest(arguments=arguments):
+                _, result = self.cli(*arguments)
+                self.assertEqual(set(result), common | extra)
+                self.assertEqual(result["schema"], 1)
+                self.assertEqual(
+                    set(result["observed"]), {"globalSelections", "installed"}
+                )
+                for row in result["runtimes"]:
+                    self.assertLessEqual(
+                        {"language", "version", "path", "owner", "state"},
+                        set(row),
+                    )
+                    self.assertIn(
+                        row["state"],
+                        (
+                            "missing",
+                            "present",
+                            "ok",
+                            "conflict",
+                            "blocked",
+                            "external",
+                        ),
+                    )
+
     def test_broken_compiled_runtimes_report_a_rebuild(self):
         self.setup.apply()
         canaries = []

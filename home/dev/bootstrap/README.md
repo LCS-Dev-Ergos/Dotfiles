@@ -188,6 +188,9 @@ mid-install is replaced by the next `apply`, as described above.
 
 ## Extending an Ecosystem
 
+The adapter contract and the JSON report are versioned interfaces, described
+member by member in [Interfaces.md](Interfaces.md).
+
 Introduce one bounded integration at a time. An ecosystem is one subclass of
 `adapters.base.Adapter`, registered in `adapters/__init__.py`; the engine and
 setup stages call only that interface and never branch on a language. A
