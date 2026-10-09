@@ -81,6 +81,8 @@ def termination():
 
     Unwinding releases the lock, removes temporary directories and stops the
     running child's process group; the default action would skip all three.
+    A signal the caller ignores (nohup ignores SIGHUP) stays ignored, as
+    Python itself leaves an ignored SIGINT alone.
     """
 
     def interrupt(signum, frame):
@@ -89,6 +91,7 @@ def termination():
     previous = {
         signum: signal.signal(signum, interrupt)
         for signum in (signal.SIGTERM, signal.SIGHUP)
+        if signal.getsignal(signum) != signal.SIG_IGN
     }
     try:
         yield

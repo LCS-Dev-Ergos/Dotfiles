@@ -8,8 +8,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from core import process
-from core.errors import BootstrapError
+from core import cli, process
+from core.errors import BootstrapError, Interrupted
 
 
 def gone(pid, seconds=10):
@@ -78,6 +78,20 @@ class ProcessGroupTests(unittest.TestCase):
             self.assertRaisesRegex(BootstrapError, "timed out"),
         ):
             process.run(self.worker(seconds=2), timeout=0.5)
+
+
+class TerminationTests(unittest.TestCase):
+    def test_termination_signals_raise_unless_the_caller_ignores_them(self):
+        for signum in (signal.SIGTERM, signal.SIGHUP):
+            self.addCleanup(signal.signal, signum, signal.getsignal(signum))
+        signal.signal(signal.SIGHUP, signal.SIG_IGN)
+        with cli.termination():
+            self.assertEqual(signal.getsignal(signal.SIGHUP), signal.SIG_IGN)
+            with self.assertRaises(Interrupted) as raised:
+                os.kill(os.getpid(), signal.SIGTERM)
+                time.sleep(1)
+        self.assertEqual(raised.exception.signum, signal.SIGTERM)
+        self.assertEqual(signal.getsignal(signal.SIGHUP), signal.SIG_IGN)
 
 
 if __name__ == "__main__":
