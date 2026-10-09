@@ -16,18 +16,20 @@ def main():
         "--category", choices=("unit", "integration", "bootstrap")
     )
     parser.add_argument(
-        "--manifest", default=os.environ.get("DEVRESTORE_MANIFEST")
+        "--manifest", default=os.environ.get("DEV_BOOTSTRAP_TEST_MANIFEST")
     )
     args = parser.parse_args()
     if args.phase == "package" and not args.manifest:
         parser.error(
-            "package checks require --manifest or DEVRESTORE_MANIFEST"
+            "package checks require --manifest or DEV_BOOTSTRAP_TEST_MANIFEST"
         )
     if args.manifest:
-        os.environ["DEVRESTORE_MANIFEST"] = str(Path(args.manifest).resolve())
+        os.environ["DEV_BOOTSTRAP_TEST_MANIFEST"] = str(
+            Path(args.manifest).resolve()
+        )
     elif args.phase == "source":
         # Source checks evaluate tests/manifest.nix (see tests/declaration.py).
-        os.environ.pop("DEVRESTORE_MANIFEST", None)
+        os.environ.pop("DEV_BOOTSTRAP_TEST_MANIFEST", None)
 
     directory = Path(__file__).resolve().parent
     categories = (
@@ -48,7 +50,9 @@ def main():
     if not result.wasSuccessful():
         return 1
     if args.phase == "package":
-        environment = dict(os.environ, DEVRESTORE_PYTHON=sys.executable)
+        environment = dict(
+            os.environ, DEV_BOOTSTRAP_TEST_PYTHON=sys.executable
+        )
         shell = os.environ.get("DEV_BOOTSTRAP_TEST_ZSH", "zsh")
         scripts = {
             "integration": "test-shell.zsh",

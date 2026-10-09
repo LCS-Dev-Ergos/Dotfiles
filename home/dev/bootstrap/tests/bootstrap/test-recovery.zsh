@@ -23,9 +23,9 @@ trap '
 ' EXIT
 trap 'exit 130' INT TERM HUP
 
-typeset recovery="${DEVRESTORE_SOURCE:-$test_root/bootstrap.py}"
-typeset interpreter="${DEVRESTORE_PYTHON:-$(whence -p python3)}"
-typeset baseline_manifest="${DEVRESTORE_MANIFEST:-${1:?Provide a manifest}}"
+typeset recovery="${DEV_BOOTSTRAP_TEST_SOURCE:-$test_root/bootstrap.py}"
+typeset interpreter="${DEV_BOOTSTRAP_TEST_PYTHON:-$(whence -p python3)}"
+typeset baseline_manifest="${DEV_BOOTSTRAP_TEST_MANIFEST:-${1:?Provide a manifest}}"
 export HOME="$fixture_root/home"
 export XDG_CACHE_HOME="$fixture_root/cache"
 export XDG_DATA_HOME="$fixture_root/data"

@@ -26,7 +26,7 @@ typeset shell_config="${DEV_BOOTSTRAP_SHELL_CONFIG:-\
 $test_root/../../shells/zsh/config}"
 typeset fixture_shell="$(whence -p sh)"
 typeset fixture_zsh="${DEV_BOOTSTRAP_TEST_ZSH:-$(whence -p zsh)}"
-typeset fixture_python="${DEVRESTORE_PYTHON:-$(whence -p python3)}"
+typeset fixture_python="${DEV_BOOTSTRAP_TEST_PYTHON:-$(whence -p python3)}"
 typeset fixture_utilities="${DEV_BOOTSTRAP_TEST_UTILITIES:-/usr/bin:/bin}"
 export HOME="$fixture_root/home"
 export XDG_CACHE_HOME="$fixture_root/cache"

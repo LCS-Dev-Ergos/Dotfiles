@@ -21,11 +21,11 @@ fixture_root="${fixture_root:A}"
 trap 'command rm -rf -- "$fixture_root"' EXIT
 trap 'exit 130' INT TERM HUP
 
-typeset interpreter="${DEVRESTORE_PYTHON:-$(whence -p python3)}"
-typeset native_opam="${DEVRESTORE_NATIVE_OPAM:-/opt/homebrew/bin/opam}"
+typeset interpreter="${DEV_BOOTSTRAP_TEST_PYTHON:-$(whence -p python3)}"
+typeset native_opam="${DEV_BOOTSTRAP_TEST_OPAM:-/opt/homebrew/bin/opam}"
 typeset manifest="${1:?Provide the packaged baseline manifest}"
 [[ -x "$native_opam" && "${native_opam:A}" != /nix/store/* ]] || return 1
-export DEVRESTORE_NATIVE_OPAM="$native_opam"
+export DEV_BOOTSTRAP_TEST_OPAM="$native_opam"
 export HOME="$fixture_root/home"
 export XDG_CACHE_HOME="$fixture_root/cache"
 export XDG_STATE_HOME="$fixture_root/state"
@@ -48,7 +48,7 @@ from core.paths import writable_directory
 from core.setup import BootstrapSetup
 manifest = load_manifest(pathlib.Path(sys.argv[2]))
 # Qualify the explicitly selected executable, never the caller's PATH.
-executable = pathlib.Path(os.environ['DEVRESTORE_NATIVE_OPAM'])
+executable = pathlib.Path(os.environ['DEV_BOOTSTRAP_TEST_OPAM'])
 recipe = manifest.setdefault('setup', {})
 recipe['managerDirectory'] = str(executable.parent)
 recipe['managers'] = {**recipe.get('managers', {}), 'ocaml': executable.name}

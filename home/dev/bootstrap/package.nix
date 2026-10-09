@@ -101,9 +101,9 @@ builtins.seq baseline (
       # Shell fixtures run the entry directly; keep bytecode out of the
       # source tree that installPhase copies.
       export PYTHONDONTWRITEBYTECODE=1
-      export DEVRESTORE_SOURCE="$PWD/bootstrap.py"
-      export DEVRESTORE_PYTHON=${lib.getExe python3}
-      export DEVRESTORE_MANIFEST=${fixtureManifest}
+      export DEV_BOOTSTRAP_TEST_SOURCE="$PWD/bootstrap.py"
+      export DEV_BOOTSTRAP_TEST_PYTHON=${lib.getExe python3}
+      export DEV_BOOTSTRAP_TEST_MANIFEST=${fixtureManifest}
       export DEV_BOOTSTRAP_TEST_HELPERS=${../../shells/zsh/config/tests/helpers.zsh}
       export DEV_BOOTSTRAP_TEST_UTILITIES=${
         lib.makeBinPath [
