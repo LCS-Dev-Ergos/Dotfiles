@@ -327,7 +327,7 @@ To advance the baseline:
    `rbenv global`, `elan default`, `ghcup set`, `sdk default`, `juliaup
    default`, `opam switch`. The .NET muxer runs the newest SDK by itself.
 5. Remove a previous release with its manager once nothing uses it, for
-   example `rustup toolchain uninstall 1.98.1`. `dotnet-install` has no
+   example `rustup toolchain uninstall <release>`. `dotnet-install` has no
    uninstaller: delete `~/.dotnet/sdk/<version>` and the runtimes that SDK
    brought under `~/.dotnet/shared/` and `~/.dotnet/host/fxr/`.
 

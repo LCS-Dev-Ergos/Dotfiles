@@ -4,7 +4,7 @@ let
   baseline = {
     schema = 1;
     defaults = {
-      node = "26.10.0";
+      node = "26.11.1";
       python = baseline.python.version;
       ocaml = "5.5.1";
     }
@@ -13,7 +13,7 @@ let
     # upstream releases and advances patch releases; ordinary manager updates
     # and selections remain user-owned.
     nativeToolchains = {
-      rust.version = "1.98.1";
+      rust.version = "1.99.0";
       haskell = {
         version = "9.14.1";
         cabal = "3.16.1.0";
@@ -22,8 +22,8 @@ let
         # 9.14.1. A release that only the vanilla channel lists fails there.
         hls = "2.14.0.0";
       };
-      lean.version = "4.32.0";
-      ruby.version = "4.0.6";
+      lean.version = "4.34.1";
+      ruby.version = "4.0.7";
       jvm = {
         version = "21.0.12.1";
         candidate = "21.0.12+1.1-tem";
@@ -34,7 +34,7 @@ let
       gradle.version = "9.8.1";
       # Coursier's `scala` app; it runs on the JDK above.
       scala.version = "3.9.0";
-      julia.version = "1.12.6";
+      julia.version = "1.12.7";
       # The current LTS feature band; dotnet-install fetches it by version.
       dotnet.version = "10.0.401";
       # Selected only by `--only conda`. Miniforge3 <version>-<build> ships
@@ -46,9 +46,9 @@ let
     # definitions carry. No artifact is retained in the store.
     node.versions = [
       "24.21.0"
-      "26.10.0"
+      "26.11.1"
     ];
-    python.version = "3.14.7";
+    python.version = "3.14.8";
     ocaml = {
       versions = [
         "5.4.1"
