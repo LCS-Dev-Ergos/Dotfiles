@@ -318,7 +318,9 @@ command):
    --apply`) and review `git diff`. It applies `update` findings;
    `--line ECOSYSTEM` also moves that ecosystem to its newest line. Node,
    Python and OCaml lines are edited by hand, because they change declared
-   release lists or the nixpkgs runtime attributes.
+   release lists or the nixpkgs runtime attributes. Every release a pin
+   leaves is recorded under `retired` in `runtime-baseline.nix`, at the same
+   attribute path it was declared at.
 2. For `drift`, read the script saved under
    `~/.cache/update-runtime-baseline/installers/`, then record it with
    `--accept-installer NAME`. The command refuses if upstream changed again

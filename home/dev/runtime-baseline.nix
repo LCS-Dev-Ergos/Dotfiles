@@ -57,7 +57,7 @@ let
     };
     # Releases the pins above used to declare, each at the same attribute
     # path. `dev-bootstrap prune` removes them where they are still
-    # installed.
+    # installed; the updater's --apply adds every release it replaces.
     retired = {
       nativeToolchains = {
         julia.version = [ "1.12.6" ];

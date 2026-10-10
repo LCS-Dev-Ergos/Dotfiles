@@ -11,6 +11,7 @@ import hashlib
 import io
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -484,6 +485,102 @@ class Rewrite(unittest.TestCase):
                 [model.Edit(self.baseline, '"0.0.0"', '"1"', ("x",))]
             )
         self.assertEqual(self.baseline.read_text(), self.original)
+
+
+class Retirement(unittest.TestCase):
+    """The `retired` block, which --apply extends with replaced releases."""
+
+    def setUp(self):
+        self.baseline = copy_declarations(self)
+        moved = patch.object(declarations, "BASELINE", self.baseline)
+        moved.start()
+        self.addCleanup(moved.stop)
+        self.declared = declarations.evaluate(self.baseline)
+
+    def move(self, path, old, new, *scopes):
+        finding = model.Finding(
+            path.split(".")[0],
+            path,
+            old,
+            new,
+            model.Kind.UPDATE,
+            retires=((path, old),),
+        )
+        edits = [declarations.baseline_edit(old, new, path, *scopes)]
+        return finding, edits
+
+    def apply(self, *moves):
+        findings = [finding for finding, _ in moves]
+        edits = [edit for _, group in moves for edit in group]
+        edits.append(declarations.retirement(self.declared, findings))
+        declarations.apply_edits(edits)
+        nixfmt = shutil.which("nixfmt")
+        if nixfmt:
+            check = subprocess.run(
+                [nixfmt, "--check", str(self.baseline)], capture_output=True
+            )
+            self.assertEqual(check.returncode, 0, check.stderr)
+        return declarations.evaluate(self.baseline)
+
+    def test_the_block_renders_as_written(self):
+        match = declarations.RETIRED.search(self.baseline.read_text())
+        assert match
+        indent = match["indent"]
+        rendered = declarations.render(self.declared["retired"], indent)
+        self.assertEqual(f"{indent}retired = {rendered};\n", match.group())
+
+    def test_replaced_releases_are_retired_at_their_paths(self):
+        node = self.declared["defaults"]["node"]
+        hls = self.declared["nativeToolchains"]["haskell"]["hls"]
+        after = self.apply(
+            self.move("node.versions", node, "99.0.0", "defaults.node"),
+            self.move("nativeToolchains.haskell.hls", hls, "9.0.0.0"),
+        )
+        retired = after["retired"]
+        self.assertIn(node, retired["node"]["versions"])
+        self.assertEqual(retired["nativeToolchains"]["haskell"]["hls"], [hls])
+        self.assertEqual(after["defaults"]["node"], "99.0.0")
+
+    def test_a_release_declared_again_leaves_the_list(self):
+        current = self.declared["python"]["version"]
+        (old,) = self.declared["retired"]["python"]["version"]
+        after = self.apply(
+            self.move("python.version", current, old, "defaults.python")
+        )
+        self.assertEqual(after["retired"]["python"]["version"], [current])
+
+    def test_a_retired_value_matching_a_moved_pin_survives(self):
+        # The rewrite of the pin also matches inside the block; the block's
+        # rendering, applied last, puts the retired value back.
+        rust = self.declared["nativeToolchains"]["rust"]["version"]
+        text = self.baseline.read_text()
+        (node,) = self.declared["retired"]["node"]["versions"]
+        self.baseline.write_text(
+            text.replace(
+                f'node.versions = [ "{node}" ];',
+                f'node.versions = [ "{rust}" ];',
+            )
+        )
+        self.declared = declarations.evaluate(self.baseline)
+        after = self.apply(
+            self.move(
+                "nativeToolchains.rust.version",
+                rust,
+                "99.0.0",
+                "defaults.rust",
+            )
+        )
+        self.assertEqual(after["retired"]["node"]["versions"], [rust])
+        self.assertIn(
+            rust, after["retired"]["nativeToolchains"]["rust"]["version"]
+        )
+
+    def test_nothing_retired_without_a_replacement(self):
+        self.assertIsNone(
+            declarations.retirement(
+                self.declared, [model.Finding("rust", "rust", "1.0.0")]
+            )
+        )
 
 
 class Entry(unittest.TestCase):

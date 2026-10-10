@@ -59,6 +59,7 @@ class Track:
                 edits=edits,
                 line_edits=edits if self.movable_lines else None,
                 lines=pinned == newest,
+                retires=((self.declaration, pinned),),
             )
         return found
 

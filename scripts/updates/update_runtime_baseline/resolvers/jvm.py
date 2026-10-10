@@ -76,6 +76,7 @@ def resolve(upstream: Source, baseline: dict, managers: dict) -> list:
     pinned = spec["version"]
     feature = numeric(pinned)[0]
     name = f"jvm {feature}"
+    retires = ((VERSION, pinned), (CANDIDATE, spec["candidate"]))
 
     def edits(version, candidate):
         return [
@@ -98,6 +99,7 @@ def resolve(upstream: Source, baseline: dict, managers: dict) -> list:
                     Kind.UPDATE,
                     f"SDKMAN {candidate}",
                     functools.partial(edits, identity, candidate),
+                    retires,
                 )
             )
         else:
@@ -134,6 +136,7 @@ def resolve(upstream: Source, baseline: dict, managers: dict) -> list:
                 functools.partial(edits, release[0], candidate)
                 if release and candidate
                 else None,
+                retires if candidate else (),
             )
         )
     return found or [Finding("jvm", name, pinned)]

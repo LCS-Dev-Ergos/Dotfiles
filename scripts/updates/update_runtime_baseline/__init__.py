@@ -14,12 +14,13 @@ Findings are classified:
   drift    an installer script's bytes no longer match the pinned hash.
 
 Only update and drift are actionable. --apply rewrites update findings, and
-line findings of the ecosystems named with --line, by exact replacement;
-every source resolves first, the rewritten files are re-evaluated, and both
-files are restored if anything but the intended values changed. Drifted
-installer bytes are saved for review; --accept-installer records the hash of
-those reviewed bytes, and refuses if upstream changed again. The updater
-never builds, stages, commits or switches.
+line findings of the ecosystems named with --line, by exact replacement, and
+lists each replaced release under `retired`; every source resolves first,
+the rewritten files are re-evaluated, and both files are restored if
+anything but the intended values changed. Drifted installer bytes are saved
+for review; --accept-installer records the hash of those reviewed bytes, and
+refuses if upstream changed again. The updater never builds, stages, commits
+or switches.
 
 Modules: `versions` (release arithmetic), `model` (findings, edits and
 classification), `upstream` (bounded HTTPS), `declarations` (Nix evaluation

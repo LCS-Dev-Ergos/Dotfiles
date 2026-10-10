@@ -6,7 +6,7 @@ import shutil
 import sys
 
 from . import declarations
-from .declarations import ROOT, apply_edits, evaluate
+from .declarations import ROOT, apply_edits, evaluate, retirement
 from .model import MANUAL_LINES, Finding, Kind, SourceError
 from .report import render_markdown, render_text
 from .resolvers import ECOSYSTEMS, NEEDS_YAML, RESOLVERS, installers
@@ -144,13 +144,21 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     try:
         # Build every rewrite, downloads included, before writing anything.
-        edits = [edit for f in chosen for edit in f.edits()]
+        edits: list = [edit for f in chosen for edit in f.edits()]
+        retired = retirement(baseline, chosen)
+        if retired:
+            edits.append(retired)
         apply_edits(edits)
     except SourceError as error:
         return fail(error)
     print()
     for f in chosen:
         print(f"applied  {f.name}: {f.pinned} -> {f.available}")
+    if retired:
+        print(
+            "Retired the replaced releases; `dev-bootstrap prune` removes "
+            "them where they are still installed."
+        )
     print(
         "Next: build, run the native CI adapters for these ecosystems, then "
         "apply on each host (see home/dev/README.md)."

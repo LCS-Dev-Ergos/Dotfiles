@@ -2,6 +2,7 @@
 
 import enum
 import functools
+import re
 from collections.abc import Callable, Collection
 from dataclasses import dataclass
 from pathlib import Path
@@ -50,7 +51,33 @@ class Edit:
         return text.replace(self.old, self.new)
 
 
+@dataclass(frozen=True, slots=True)
+class BlockEdit:
+    """Replace the one region of `path` that `pattern` matches with `new`.
+
+    Block edits apply after every exact replacement, so a value that an
+    `Edit` also matched inside the region is overwritten by the rendering.
+    """
+
+    path: Path
+    pattern: re.Pattern[str]
+    new: str
+    scopes: tuple[str, ...]
+
+    def apply(self, text: str) -> str:
+        matches = list(self.pattern.finditer(text))
+        if len(matches) != 1:
+            raise SourceError(
+                f"{self.path.name}: expected one block matching "
+                f"{self.pattern.pattern!r}, found {len(matches)}"
+            )
+        start, end = matches[0].span()
+        return text[:start] + self.new + text[end:]
+
+
 Edits = Callable[[], list[Edit]]
+# (declaration path, release) pairs that a rewrite stops declaring.
+Retired = tuple[tuple[str, str], ...]
 
 
 @dataclass(slots=True)
@@ -58,7 +85,8 @@ class Finding:
     """One pin compared with its upstream.
 
     `edits` builds the rewrite only when applied: for release assets it
-    downloads them to record their hash.
+    downloads them to record their hash. `retires` names what the rewrite
+    replaces, which the baseline then lists under `retired`.
     """
 
     ecosystem: str
@@ -68,6 +96,7 @@ class Finding:
     kind: Kind = Kind.CURRENT
     note: str = ""
     edits: Edits | None = None
+    retires: Retired = ()
 
     @property
     def actionable(self) -> bool:
@@ -84,6 +113,7 @@ def classify(
     edits: Callable[[str], list[Edit]] | None = None,
     line_edits: Callable[[str], list[Edit]] | None = None,
     lines: bool = True,
+    retires: Retired = (),
 ) -> list[Finding]:
     """Findings for one pinned release among an upstream's stable releases.
 
@@ -108,6 +138,7 @@ def classify(
                     version,
                     Kind.UPDATE,
                     edits=functools.partial(edits, version) if edits else None,
+                    retires=retires,
                 )
             )
             break
@@ -140,6 +171,7 @@ def classify(
                 Kind.LINE,
                 manual or (f"not installable yet: {reason}" if reason else ""),
                 edits=move,
+                retires=retires if move else (),
             )
         )
     return found or [Finding(ecosystem, name, pinned)]

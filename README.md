@@ -197,9 +197,9 @@ configuration is active, the [Justfile](Justfile) runs the same operations:
   project selection.
 - `scripts/updates/update-runtime-baseline.py --check` (`just baseline`)
   compares every declared release and installer with its upstream, and
-  `--apply` advances patch releases; a weekly workflow runs the check.
-  `prune` removes the releases listed as retired that a host still has. The
-  procedure is in
+  `--apply` advances patch releases and records each replaced one as
+  retired; a weekly workflow runs the check. `prune` then removes the retired
+  releases a host still has. The procedure is in
   [home/dev/README.md](home/dev/README.md#keeping-the-baseline-current).
 - A rerun adds missing baseline entries and leaves later upgrades, additional
   releases and project selections in place.

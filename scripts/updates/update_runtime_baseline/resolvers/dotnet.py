@@ -36,6 +36,7 @@ def resolve(upstream: Source, baseline: dict, managers: dict) -> list:
     major, minor, patch = numeric(pinned)
     channel = f"{major}.{minor}"
     name = f"dotnet {channel}.{patch // 100}xx"
+    retires = ((DECLARATION, pinned),)
 
     def edits(version):
         return [baseline_edit(pinned, version, DECLARATION, "defaults.dotnet")]
@@ -50,6 +51,7 @@ def resolve(upstream: Source, baseline: dict, managers: dict) -> list:
             {v for v in available if band(v) == band(pinned)},
             0,
             edits=edits,
+            retires=retires,
         )
         if finding.kind != Kind.CURRENT
     ]
@@ -77,6 +79,7 @@ def resolve(upstream: Source, baseline: dict, managers: dict) -> list:
                     Kind.LINE,
                     f".NET {channels[0]}",
                     lambda: edits(newest[0]),
+                    retires,
                 )
             )
     elif bands:
@@ -89,6 +92,7 @@ def resolve(upstream: Source, baseline: dict, managers: dict) -> list:
                 Kind.LINE,
                 "a newer feature band",
                 lambda: edits(bands[0]),
+                retires,
             )
         )
     return found or [Finding("dotnet", name, pinned)]
