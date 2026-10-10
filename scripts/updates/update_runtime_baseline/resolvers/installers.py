@@ -40,8 +40,10 @@ def save_for_review(name: str, data: bytes) -> tuple[str, Path]:
     digest = hashlib.sha256(data).hexdigest()
     path = review_path(name, digest)
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    if not path.exists():
-        path.write_bytes(data)
+    # Rewritten unless it already holds exactly these bytes; a link there
+    # is replaced, never followed.
+    if path.is_symlink() or not path.is_file() or path.read_bytes() != data:
+        declarations.replace_file(path, data, 0o600)
     return digest, path
 
 

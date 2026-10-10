@@ -18,9 +18,12 @@ Exit status: 0 nothing actionable or applied, 1 actionable findings
 """
 
 import sys
+from pathlib import Path
 
 # A checkout is not a place for bytecode caches.
 sys.dont_write_bytecode = True
+# Named explicitly: -P and PYTHONSAFEPATH leave the script's directory out.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from update_runtime_baseline.cli import main  # noqa: E402
 

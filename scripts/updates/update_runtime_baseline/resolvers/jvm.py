@@ -53,7 +53,7 @@ def sdkman_candidate(
             f"{SDKMAN_LISTS}/java/{platform}/versions/list?installed="
         )
         identifiers |= set(
-            re.findall(rf"\b({feature}\.[0-9][^\s|]*-tem)\b", table)
+            re.findall(rf"\b({feature}\.[0-9][0-9A-Za-z.+_-]*-tem)\b", table)
         )
     target = urllib.parse.quote(release_name)
     for identifier in sorted(identifiers, key=numeric, reverse=True):

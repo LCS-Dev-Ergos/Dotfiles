@@ -67,13 +67,20 @@ def needs_yaml(selected: list[str]) -> bool:
 
 
 def reexecute(argv: list[str]) -> None:
-    """Run again in the locked shell that provides PyYAML for GHCup's data."""
-    expression = f'import {SHELLS} {{ target = "freshness"; }}'
+    """Run again in the locked shell that provides PyYAML for GHCup's data.
+
+    nix runs from the checkout's root with a relative path: a Nix path
+    literal cannot spell every absolute checkout path, one with a space
+    among them.
+    """
+    shell = SHELLS.relative_to(ROOT)
+    expression = f'import ./{shell} {{ target = "freshness"; }}'
     if os.environ.get(SHELL_MARKER) or not shutil.which("nix"):
         raise SourceError(
-            "GHCup's metadata needs PyYAML; run inside: nix develop "
-            f"--impure --expr '{expression}'"
+            "GHCup's metadata needs PyYAML; from the repository root, run "
+            f"inside: nix develop --impure --expr '{expression}'"
         )
+    os.chdir(ROOT)
     os.execvpe(
         "nix",
         [
@@ -98,7 +105,14 @@ def resolve(
     for name in selected:
         try:
             findings += RESOLVERS[name](upstream, baseline, managers)
-        except (SourceError, KeyError, TypeError, ValueError) as error:
+        # A reply in an unexpected shape fails its ecosystem, not the run.
+        except (
+            SourceError,
+            LookupError,
+            TypeError,
+            ValueError,
+            AttributeError,
+        ) as error:
             errors.append((name, f"{type(error).__name__}: {error}"))
     return findings, errors
 

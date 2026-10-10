@@ -32,7 +32,8 @@ def installer_scopes(name: str) -> tuple[str, ...]:
 def miniforge_version(tag: str) -> str | None:
     """Miniforge3 release X-N ships conda X."""
     version, _, build = tag.partition("-")
-    return version if stable(version) and build.isdigit() else None
+    digits = build.isascii() and build.isdigit()
+    return version if stable(version) and digits else None
 
 
 def coursier_version(tag: str) -> str | None:
@@ -100,7 +101,7 @@ class ReleaseAssets:
         self, upstream, installers, pinned, tag, releases, version
     ) -> list[Edit]:
         release = releases[version]
-        new_tag = release["tag_name"]
+        new_tag = declarations.release_identifier(release["tag_name"])
         moves = [
             Edit(
                 declarations.MANAGERS,
@@ -128,9 +129,11 @@ class ReleaseAssets:
         for platform, template in self.assets.items():
             installer = installers[platform]
             asset = published[template.format(tag=release["tag_name"])]
-            digest = upstream.download(
-                asset["browser_download_url"], asset["size"]
-            )
+            size = asset.get("size")
+            # Written into the declaration as a Nix integer.
+            if type(size) is not int or size <= 0:
+                raise SourceError(f"{asset['name']}: no byte count ({size!r})")
+            digest = upstream.download(asset["browser_download_url"], size)
             if asset.get("digest") not in (None, f"sha256:{digest}"):
                 raise SourceError(
                     f"{asset['name']}: GitHub's digest disagrees with the bytes"
@@ -146,7 +149,7 @@ class ReleaseAssets:
                 Edit(
                     declarations.MANAGERS,
                     f"size = {installer['size']};",
-                    f"size = {asset['size']};",
+                    f"size = {size};",
                     scope,
                 ),
             ]

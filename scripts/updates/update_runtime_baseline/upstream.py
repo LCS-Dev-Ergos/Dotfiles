@@ -1,6 +1,7 @@
 """Bounded HTTPS access to the upstreams the resolvers read."""
 
 import hashlib
+import http.client
 import json
 import urllib.error
 import urllib.parse
@@ -14,7 +15,13 @@ TIMEOUT = 60
 USER_AGENT = "dotfiles-update-runtime-baseline"
 # Only this host receives GITHUB_TOKEN.
 GITHUB_API = "api.github.com"
-NETWORK_ERRORS = (urllib.error.URLError, TimeoutError, OSError)
+# HTTPException covers a truncated or malformed reply, which is no OSError.
+NETWORK_ERRORS = (
+    urllib.error.URLError,
+    http.client.HTTPException,
+    TimeoutError,
+    OSError,
+)
 
 
 class Source(Protocol):

@@ -8,9 +8,11 @@ evaluated by the real `nix eval`. Nothing here touches the network.
 import contextlib
 import copy
 import hashlib
+import http.client
 import io
 import os
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -27,6 +29,9 @@ from update_runtime_baseline.resolvers import (  # noqa: E402
     RESOLVERS,
     installers,
     sources,
+)
+from update_runtime_baseline.resolvers import (  # noqa: E402
+    assets as sources_assets,
 )
 
 BASELINE = {
@@ -256,6 +261,46 @@ class Resolvers(unittest.TestCase):
         self.assertEqual(candidate.new, '"21.0.13-tem"')
         self.assertEqual(version.new, '"21.0.13"')
 
+    def test_jvm_ignores_a_candidate_that_is_not_an_identifier(self):
+        target = (
+            "https://github.com/adoptium/temurin21-binaries/releases/"
+            "download/jdk-21.0.13%2B11/x.tar.gz"
+        )
+        upstream = self.jvm_upstream(target)
+        crafted = "21.0.13${builtins.currentSystem}-tem"
+        for platform in sources.SDKMAN_PLATFORMS:
+            upstream.responses[
+                f"{sources.SDKMAN_LISTS}/java/{platform}/versions/list"
+                "?installed="
+            ] = f" Temurin | | 21.0.13 | {crafted}\n"
+            upstream.redirects[
+                f"{sources.SDKMAN_BROKER}/java/{crafted}/{platform}"
+            ] = target
+        (finding,) = RESOLVERS["jvm"](upstream, BASELINE, {})
+        self.assertEqual(finding.kind, "pending")
+
+    def test_release_assets_are_checked_before_they_are_written(self):
+        conda = RESOLVERS["conda"]
+        self.assertIsNone(sources_assets.miniforge_version("25.1.1-\u00b2"))
+        tag = "25.1.1-0"
+        release = {
+            "tag_name": tag,
+            "assets": [
+                {
+                    "name": template.format(tag=tag),
+                    "size": "1; extra = 2",
+                    "browser_download_url": "https://example.invalid/x",
+                }
+                for template in conda.assets.values()
+            ],
+        }
+        installers_by_platform = {
+            platform: {"sha256": "0" * 64, "size": 1}
+            for platform in declarations.PLATFORMS
+        }
+        with self.assertRaisesRegex(model.SourceError, "no byte count"):
+            conda.asset_edits(FakeUpstream(), installers_by_platform, release)
+
     def test_jvm_is_pending_until_sdkman_serves_the_release(self):
         upstream = self.jvm_upstream("https://elsewhere.invalid/old.tar.gz")
         (finding,) = RESOLVERS["jvm"](upstream, BASELINE, {})
@@ -423,6 +468,19 @@ class Installers(unittest.TestCase):
                 after[platform]["installers"]["rust"]["sha256"], digest
             )
 
+    def test_a_review_copy_replaces_a_link_without_following_it(self):
+        data = b"#!/bin/sh\necho reviewed\n"
+        target = self.root / "elsewhere"
+        target.write_bytes(b"keep")
+        link = installers.review_path("rust", hashlib.sha256(data).hexdigest())
+        link.parent.mkdir(parents=True)
+        link.symlink_to(target)
+        _, path = installers.save_for_review("rust", data)
+        self.assertEqual(target.read_bytes(), b"keep")
+        self.assertFalse(path.is_symlink())
+        self.assertEqual(path.read_bytes(), data)
+        self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
+
     def test_unknown_installer_is_refused(self):
         with self.assertRaisesRegex(model.SourceError, "choose from"):
             installers.accept(["scala"], FakeUpstream(), self.managers)
@@ -455,9 +513,13 @@ class Rewrite(unittest.TestCase):
         return model.Edit(self.baseline, f'"{self.node}"', f'"{new}"', scopes)
 
     def test_only_the_intended_values_change(self):
+        mode = stat.S_IMODE(self.baseline.stat().st_mode)
+        listing = sorted(os.listdir(self.baseline.parent))
         declarations.apply_edits(
             [self.edit("99.0.0", "node.versions", "defaults.node")]
         )
+        self.assertEqual(stat.S_IMODE(self.baseline.stat().st_mode), mode)
+        self.assertEqual(sorted(os.listdir(self.baseline.parent)), listing)
         after = declarations.evaluate(self.baseline)
         self.assertEqual(after["defaults"]["node"], "99.0.0")
         self.assertIn("99.0.0", after["node"]["versions"])
@@ -478,6 +540,14 @@ class Rewrite(unittest.TestCase):
         with self.assertRaisesRegex(model.SourceError, "does not evaluate"):
             declarations.apply_edits([edit])
         self.assertEqual(self.baseline.read_text(), self.original)
+
+    def test_upstream_releases_are_plain_identifiers(self):
+        for value in ('1.0"; x = "y', "${x}", "1 0", "", None):
+            with (
+                self.subTest(value=value),
+                self.assertRaisesRegex(model.SourceError, "identifier"),
+            ):
+                declarations.baseline_edit("1.0.0", value, "x")
 
     def test_a_missing_value_writes_nothing(self):
         with self.assertRaisesRegex(model.SourceError, "not found"):
@@ -630,6 +700,33 @@ class Entry(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertIn("connection refused", output)
 
+    def test_a_reply_in_an_unexpected_shape_is_an_error_row(self):
+        upstream = FakeUpstream({sources.NODE_INDEX: ["v26.11.1"]})
+        code, output = self.run_main(["--check", "node"], upstream)
+        self.assertEqual(code, 2)
+        self.assertIn("error    node: AttributeError", output)
+
+    def test_the_locked_shell_is_named_relative_to_the_checkout(self):
+        calls = []
+        with (
+            patch.dict(os.environ, {}, clear=False) as environment,
+            patch.object(cli.shutil, "which", lambda name: "/bin/nix"),
+            patch.object(cli.os, "chdir", lambda path: calls.append(path)),
+            patch.object(
+                cli.os, "execvpe", lambda *args: calls.append(args[1])
+            ),
+        ):
+            environment.pop(cli.SHELL_MARKER, None)
+            cli.reexecute(["--check", "haskell"])
+        directory, argv = calls
+        self.assertEqual(directory, declarations.ROOT)
+        expression = argv[argv.index("--expr") + 1]
+        self.assertTrue(
+            expression.startswith(
+                "import ./scripts/bootstrap/development-bootstrap.nix "
+            )
+        )
+
     def test_markdown_lists_only_findings(self):
         code, output = self.run_main(
             ["--check", "--markdown", "rust"], self.rust("1.99.0")
@@ -662,6 +759,17 @@ class Transport(unittest.TestCase):
         self.assertNotIn("Authorization", api.headers)
         self.assertNotIn("Authorization", raw.unredirected_hdrs)
         self.assertNotIn("Authorization", raw.headers)
+
+    def test_a_truncated_reply_is_a_source_error(self):
+        with (
+            patch.object(
+                transport.OPENER,
+                "open",
+                side_effect=http.client.IncompleteRead(b""),
+            ),
+            self.assertRaisesRegex(model.SourceError, "IncompleteRead"),
+        ):
+            transport.Upstream().fetch("https://example.invalid/")
 
     def test_plain_http_is_refused(self):
         with self.assertRaisesRegex(model.SourceError, "non-HTTPS"):

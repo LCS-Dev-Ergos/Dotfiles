@@ -1,13 +1,18 @@
 """The Nix declarations the updater reads and rewrites.
 
 Rewrites are exact text replacements, checked by evaluating the files again:
-only the attribute paths an edit names may change.
+only the attribute paths an edit names may change. A release read from an
+upstream reaches a declaration only as a plain identifier, so no reply can
+write Nix syntax. Files are replaced atomically.
 """
 
+import contextlib
 import copy
 import json
+import os
 import re
 import subprocess
+import tempfile
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any
@@ -25,6 +30,31 @@ RETIRED = re.compile(
     re.MULTILINE | re.DOTALL,
 )
 RELEASE = re.compile(r"[0-9A-Za-z][0-9A-Za-z.+_-]*")
+
+
+def release_identifier(value: Any) -> str:
+    """An upstream release, checked before it is written into Nix source."""
+    if not isinstance(value, str) or not RELEASE.fullmatch(value):
+        raise SourceError(f"not a release identifier: {value!r}")
+    return value
+
+
+def replace_file(path: Path, data: bytes, mode: int) -> None:
+    """Replace `path` whole, or leave it as it was; a link is not followed."""
+    descriptor, temporary = tempfile.mkstemp(
+        dir=path.parent, prefix=f".{path.name}."
+    )
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(temporary, mode)
+        os.replace(temporary, path)
+    except BaseException:
+        with contextlib.suppress(FileNotFoundError):
+            os.unlink(temporary)
+        raise
 
 
 def evaluate(path: Path) -> Any:
@@ -72,13 +102,14 @@ def within(path: str, scopes: Iterable[str]) -> bool:
 
 
 def baseline_edit(old: str, new: str, *scopes: str) -> Edit:
-    return Edit(BASELINE, f'"{old}"', f'"{new}"', scopes)
+    return Edit(BASELINE, f'"{old}"', f'"{release_identifier(new)}"', scopes)
 
 
 def apply_edits(edits: Sequence[Edit | BlockEdit], evaluate=evaluate) -> None:
     """Rewrite in place; restore every file unless only the scopes changed."""
     files = sorted({edit.path for edit in edits})
-    originals = {path: path.read_text() for path in files}
+    originals = {path: path.read_text(encoding="utf-8") for path in files}
+    modes = {path: path.stat().st_mode & 0o777 for path in files}
     before = {path: flatten(evaluate(path)) for path in files}
     rewritten = dict(originals)
     # Exact replacements first; a block rendering then has the last word.
@@ -86,7 +117,7 @@ def apply_edits(edits: Sequence[Edit | BlockEdit], evaluate=evaluate) -> None:
         rewritten[edit.path] = edit.apply(rewritten[edit.path])
     try:
         for path in files:
-            path.write_text(rewritten[path])
+            replace_file(path, rewritten[path].encode(), modes[path])
         for path in files:
             after = flatten(evaluate(path))
             scopes = [
@@ -107,7 +138,7 @@ def apply_edits(edits: Sequence[Edit | BlockEdit], evaluate=evaluate) -> None:
                 )
     except BaseException:
         for path, text in originals.items():
-            path.write_text(text)
+            replace_file(path, text.encode(), modes[path])
         raise
 
 
@@ -121,8 +152,7 @@ def render(value: Any, indent: str) -> str:
     inner = indent + "  "
     if isinstance(value, list):
         for release in value:
-            if not isinstance(release, str) or not RELEASE.fullmatch(release):
-                raise SourceError(f"not a release identifier: {release!r}")
+            release_identifier(release)
         items = [json.dumps(r) for r in sorted(set(value), key=numeric)]
         if len(items) < 2:
             return f"[ {' '.join(items)} ]" if items else "[ ]"

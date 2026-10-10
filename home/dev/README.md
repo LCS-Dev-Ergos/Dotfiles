@@ -305,8 +305,11 @@ does not define. `line` is a newer line (Node 28, Python 3.15, JDK 25, a new
 .NET channel), and `drift` is an installer script whose bytes no longer match
 the pinned hash. GHCup's metadata needs PyYAML, so the script reruns itself in
 the locked `freshness` shell of `scripts/bootstrap/development-bootstrap.nix`
-when Nix is available. `GITHUB_TOKEN`, when set, is sent to `api.github.com`
-only.
+when Nix is available. Upstreams are read over HTTPS only, with bounded
+replies, and `GITHUB_TOKEN`, when set, is sent to `api.github.com` only. A
+value from an upstream reaches a declaration only as a plain release
+identifier, a byte count or a locally computed hash, so no reply can write
+Nix syntax; a reply in an unexpected shape fails its ecosystem only.
 
 The weekly `Runtime Baseline Freshness` workflow runs `--check` and fails when
 an `update` or a `drift` exists; its summary lists every finding.
