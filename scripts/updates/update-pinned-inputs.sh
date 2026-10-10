@@ -6,8 +6,8 @@
 # Reports or advances the flake inputs that flake.nix pins by tag or commit.
 #
 # Usage:
-#   scripts/update-pinned-inputs.sh --check [input...]
-#   scripts/update-pinned-inputs.sh --apply [input...]
+#   scripts/updates/update-pinned-inputs.sh --check [input...]
+#   scripts/updates/update-pinned-inputs.sh --apply [input...]
 #
 # Understood forms: github:, gitlab:, and sourcehut: with the pin as the third
 # path segment or as ?rev= / ?ref=, and git+https, git+http, git+ssh, and
@@ -74,7 +74,7 @@ done
 
 # Anchor on the script, not the working directory, so a run from another
 # repository or worktree can never rewrite that checkout's flake.
-repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 flake_file="$repo_root/flake.nix"
 lock_file="$repo_root/flake.lock"
 [[ -f "$flake_file" ]] || die "missing $flake_file"
@@ -456,4 +456,4 @@ printf 'Updated %s. Review, build, then commit and switch when ready.\n' \
   "${joined% }"
 
 # ============================================================================ #
-# End of update-pinned-inputs.sh.
+# End of scripts/updates/update-pinned-inputs.sh.

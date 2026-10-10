@@ -6,11 +6,12 @@ rerun repairs missing baseline entries without reverting that evolution.
 Exact baseline verification and selected-environment health are separate
 operations. Neither substitutes for project dependency locks.
 
-`scripts/dev-bootstrap.sh` is the pre-Nix workstation entry. It acquires missing
-macOS foundations only with `--install-foundation`, then invokes this packaged
-executor. Its `--check-foundation` mode avoids downloads, Nix realization and
-runtime installation. The executor remains responsible for native prerequisites
-and runtime semantics; the entry does not reproduce those decisions in Bash.
+`scripts/bootstrap/dev-bootstrap.sh` is the pre-Nix workstation entry. It
+acquires missing macOS foundations only with `--install-foundation`, then
+invokes this packaged executor. Its `--check-foundation` mode avoids downloads,
+Nix realization and runtime installation. The executor remains responsible for
+native prerequisites and runtime semantics; the entry does not reproduce those
+decisions in Bash.
 
 Initial seeding, recovery of subsequently evolved state and project dependency
 reconstruction have separate acceptance criteria. Prefer native exports/locks
@@ -21,16 +22,16 @@ through `pyenv install`.
 
 ## Architecture and Execution
 
-The standalone entry reads the public nixpkgs revision from `flake.lock`
-through `scripts/development-bootstrap.nix`. It does not evaluate unrelated
+The standalone entry reads the public nixpkgs revision from `flake.lock` through
+`scripts/bootstrap/development-bootstrap.nix`. It does not evaluate unrelated
 application inputs in the root flake, keeping toolchain setup independent of
-their access requirements and evaluation. The same expression supplies
-the bootstrap package used by CI. `--impure` permits reading the local locked
+their access requirements and evaluation. The same expression supplies the
+bootstrap package used by CI. `--impure` permits reading the local locked
 expression and host system; it does not update the lock or select a channel.
 
 ```mermaid
 flowchart TD
-    Entry["scripts/dev-bootstrap.sh"] --> Foundation{"Foundations available?"}
+    Entry["scripts/bootstrap/dev-bootstrap.sh"] --> Foundation{"Foundations available?"}
     Foundation -->|No; explicit --install-foundation| Foundations["Missing Homebrew / Nix installation"]
     Foundations --> Package
     Foundation -->|Yes| Package["Standalone Nix package from flake.lock"]
@@ -68,10 +69,10 @@ flowchart TD
 From the repository root:
 
 ```sh
-bash scripts/dev-bootstrap.sh --check-foundation
-bash scripts/dev-bootstrap.sh plan --json
-bash scripts/dev-bootstrap.sh apply --only rust
-bash scripts/dev-bootstrap.sh verify --health --only rust
+bash scripts/bootstrap/dev-bootstrap.sh --check-foundation
+bash scripts/bootstrap/dev-bootstrap.sh plan --json
+bash scripts/bootstrap/dev-bootstrap.sh apply --only rust
+bash scripts/bootstrap/dev-bootstrap.sh verify --health --only rust
 ```
 
 ## Selection
@@ -102,9 +103,9 @@ be a link declared elsewhere, such as by Home Manager: it is read but never
 replaced.
 
 ```sh
-bash scripts/dev-bootstrap.sh plan --only jvm --only kotlin --save-selection
-bash scripts/dev-bootstrap.sh verify --health   # jvm and kotlin
-bash scripts/dev-bootstrap.sh plan --all        # every default ecosystem
+bash scripts/bootstrap/dev-bootstrap.sh plan --only jvm --only kotlin --save-selection
+bash scripts/bootstrap/dev-bootstrap.sh verify --health   # jvm and kotlin
+bash scripts/bootstrap/dev-bootstrap.sh plan --all        # every default ecosystem
 ```
 
 An installed `dev-bootstrap` accepts the same runtime arguments; `devrestore`
@@ -305,8 +306,8 @@ login-shell behavior remain native acceptance checks.
 package's tests on Linux x86_64 and macOS ARM. Reproduce its two stages with:
 
 ```sh
-bash scripts/ci-development-bootstrap.sh source
-bash scripts/ci-development-bootstrap.sh package
+bash scripts/bootstrap/ci-development-bootstrap.sh source
+bash scripts/bootstrap/ci-development-bootstrap.sh package
 ```
 
 Source tests need Python 3.13 or newer and a writable temporary directory outside

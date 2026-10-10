@@ -1,14 +1,27 @@
 #!/bin/bash
-# Clean-host entry: Bash 3.2 before Nix, the packaged executor afterwards.
-# No activation, runtime installation or downloads occur during foundation check.
+# shellcheck shell=bash
+# ============================================================================ #
+# +++++++++++++++++++++++ DEVELOPMENT BOOTSTRAP ENTRY ++++++++++++++++++++++++ #
+# ============================================================================ #
+# Clean-host entry: runs under the system Bash 3.2 before Nix exists, then
+# hands over to the packaged executor built from the locked nixpkgs. The
+# foundation check activates nothing, installs no runtime and downloads
+# nothing.
+#
+# Usage:
+#   scripts/bootstrap/dev-bootstrap.sh [--install-foundation] [plan|apply|verify] [options]
+#   scripts/bootstrap/dev-bootstrap.sh --check-foundation
+#
+# ============================================================================ #
+
 set -euo pipefail
 
 bootstrap_error() { printf 'dev-bootstrap: %s\n' "$*" >&2; return 2; }
 
 bootstrap_usage() {
   cat <<'EOF'
-Usage: scripts/dev-bootstrap.sh [--install-foundation] [plan|apply|verify] [options]
-       scripts/dev-bootstrap.sh --check-foundation
+Usage: scripts/bootstrap/dev-bootstrap.sh [--install-foundation] [plan|apply|verify] [options]
+       scripts/bootstrap/dev-bootstrap.sh --check-foundation
 
 No operation defaults to plan. Runtime options pass literally to dev-bootstrap.
 --check-foundation checks native platform, Nix daemon, Homebrew/pacman and SDK.
@@ -152,7 +165,7 @@ bootstrap_authenticate() {
 
 bootstrap_main() {
   local root platform nix install=0 check=0
-  root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
+  root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
   case "${1:-}" in
     --help|-h) bootstrap_usage; return ;;
     --check-foundation) check=1; shift ;;
@@ -183,7 +196,10 @@ bootstrap_main() {
   # Apply expression defaults explicitly; the empty attribute selects the
   # resulting derivation and keeps runtime arguments out of Nix selection.
   exec "$nix" --extra-experimental-features 'nix-command flakes' \
-    run --impure --expr 'import ./scripts/development-bootstrap.nix {}' '' -- "$@"
+    run --impure --expr 'import ./scripts/bootstrap/development-bootstrap.nix {}' '' -- "$@"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then bootstrap_main "$@"; fi
+
+# ============================================================================ #
+# End of scripts/bootstrap/dev-bootstrap.sh.

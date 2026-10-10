@@ -5,9 +5,9 @@
 """Report or advance the exact upstream releases the runtime baseline pins.
 
 Usage:
-  scripts/update-runtime-baseline.py --check [--markdown] [ecosystem...]
-  scripts/update-runtime-baseline.py --apply [--line ECOSYSTEM]... [ecosystem...]
-  scripts/update-runtime-baseline.py --accept-installer NAME...
+  scripts/updates/update-runtime-baseline.py --check [--markdown] [ecosystem...]
+  scripts/updates/update-runtime-baseline.py --apply [--line ECOSYSTEM]... [ecosystem...]
+  scripts/updates/update-runtime-baseline.py --accept-installer NAME...
 
 Compares home/dev/runtime-baseline.nix and the release assets and installer
 scripts in home/dev/native-managers.nix with their official upstreams.
@@ -50,7 +50,7 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 BASELINE = ROOT / "home/dev/runtime-baseline.nix"
 MANAGERS = ROOT / "home/dev/native-managers.nix"
 PLATFORMS = ("aarch64-darwin", "x86_64-linux")
@@ -1363,11 +1363,11 @@ def reexecute(argv):
     ):
         raise SourceError(
             "GHCup's metadata needs PyYAML; run inside: nix develop --impure "
-            "--expr 'import ./scripts/development-bootstrap.nix "
+            "--expr 'import ./scripts/bootstrap/development-bootstrap.nix "
             '{ target = "freshness"; }\''
         )
     expression = (
-        f"import {ROOT / 'scripts/development-bootstrap.nix'} "
+        f"import {ROOT / 'scripts/bootstrap/development-bootstrap.nix'} "
         '{ target = "freshness"; }'
     )
     os.execvpe(

@@ -8,10 +8,10 @@
 # and there are no duplicate (package, command) entries.
 #
 # This does not check the policy against the live system -- see
-# scripts/audit-package-ownership.sh for that.
+# scripts/audits/audit-package-ownership.sh for that.
 #
 # Usage:
-#   scripts/check-package-ownership-policy.sh
+#   scripts/checks/check-package-ownership-policy.sh
 #
 # ============================================================================ #
 
@@ -20,7 +20,7 @@ IFS=$'\n\t'
 umask 077
 export LC_ALL=C
 
-repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 policy_file="${PACKAGE_OWNERSHIP_POLICY_FILE:-$repo_root/home/package-ownership-allowlist.tsv}"
 
 # ++++++++++++++++++++++++++++++++ VALIDATION ++++++++++++++++++++++++++++++++ #
@@ -79,4 +79,4 @@ fi
 printf 'Package ownership policy is valid.\n'
 
 # ============================================================================ #
-# End of check-package-ownership-policy.sh.
+# End of scripts/checks/check-package-ownership-policy.sh.

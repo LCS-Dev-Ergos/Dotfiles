@@ -103,17 +103,18 @@ library closures still require qualification.
 
 ## Clean-Host Entry
 
-From the checkout, `scripts/dev-bootstrap.sh` uses the system Bash before Nix
-is available and delegates to the existing Nix-packaged executor afterwards:
+From the checkout, `scripts/bootstrap/dev-bootstrap.sh` uses the system Bash
+before Nix is available and delegates to the existing Nix-packaged executor
+afterwards:
 
 ```sh
-scripts/dev-bootstrap.sh --check-foundation
-scripts/dev-bootstrap.sh --install-foundation plan --json
-scripts/dev-bootstrap.sh apply --only node
+scripts/bootstrap/dev-bootstrap.sh --check-foundation
+scripts/bootstrap/dev-bootstrap.sh --install-foundation plan --json
+scripts/bootstrap/dev-bootstrap.sh apply --only node
 ```
 
-The standalone expression `scripts/development-bootstrap.nix` reads only the
-public nixpkgs revision in `flake.lock`; unrelated application inputs
+The standalone expression `scripts/bootstrap/development-bootstrap.nix` reads
+only the public nixpkgs revision in `flake.lock`; unrelated application inputs
 are not required. CI builds the same package through this expression.
 
 The foundation check makes no downloads or configuration changes. It reports
@@ -170,11 +171,11 @@ nix run .#dev-bootstrap -- plan --json
 After installing the Nix and native package-manager foundations, the interface
 provisions missing prerequisites, restores the baseline and checks selected
 environment health. Arch requires a maintained package database. When a terminal
-is attached, `scripts/dev-bootstrap.sh apply` runs `sudo -v` once; the executor
-itself invokes only noninteractive `sudo -n`, and without cached credentials it
-stops before any change and prints the pacman command for the missing packages.
-Apple developer tools, SDK selection and license acceptance are prerequisites
-when a source build requires them:
+is attached, `scripts/bootstrap/dev-bootstrap.sh apply` runs `sudo -v` once; the
+executor itself invokes only noninteractive `sudo -n`, and without cached
+credentials it stops before any change and prints the pacman command for the
+missing packages. Apple developer tools, SDK selection and license acceptance
+are prerequisites when a source build requires them:
 
 ```sh
 nix run .#dev-bootstrap -- apply
@@ -286,13 +287,14 @@ recovery subdirectories reject symlink redirects and shared write permissions.
 
 ## Keeping the Baseline Current
 
-Exact pins do not move on their own. `scripts/update-runtime-baseline.py`
-compares every release in `runtime-baseline.nix`, and the release assets and
-installer scripts in `native-managers.nix`, with their official upstreams:
+Exact pins do not move on their own.
+`scripts/updates/update-runtime-baseline.py` compares every release in
+`runtime-baseline.nix`, and the release assets and installer scripts in
+`native-managers.nix`, with their official upstreams:
 
 ```sh
-scripts/update-runtime-baseline.py --check            # every ecosystem
-scripts/update-runtime-baseline.py --check rust dotnet
+scripts/updates/update-runtime-baseline.py --check            # every ecosystem
+scripts/updates/update-runtime-baseline.py --check rust dotnet
 ```
 
 Each finding has a state. `update` is a newer patch release in the declared
@@ -302,18 +304,20 @@ manager cannot install yet, such as a CPython release that the latest pyenv
 does not define. `line` is a newer line (Node 28, Python 3.15, JDK 25, a new
 .NET channel), and `drift` is an installer script whose bytes no longer match
 the pinned hash. GHCup's metadata needs PyYAML, so the script reruns itself in
-the locked `freshness` shell of `scripts/development-bootstrap.nix` when Nix is
-available. `GITHUB_TOKEN`, when set, is sent to `api.github.com` only.
+the locked `freshness` shell of `scripts/bootstrap/development-bootstrap.nix`
+when Nix is available. `GITHUB_TOKEN`, when set, is sent to `api.github.com`
+only.
 
 The weekly `Runtime Baseline Freshness` workflow runs `--check` and fails when
 an `update` or a `drift` exists; its summary lists every finding.
 
 To advance the baseline:
 
-1. Run `scripts/update-runtime-baseline.py --apply` and review `git diff`. It
-   applies `update` findings; `--line ECOSYSTEM` also moves that ecosystem to
-   its newest line. Node, Python and OCaml lines are edited by hand, because
-   they change declared release lists or the nixpkgs runtime attributes.
+1. Run `scripts/updates/update-runtime-baseline.py --apply` and review
+   `git diff`. It applies `update` findings; `--line ECOSYSTEM` also moves
+   that ecosystem to its newest line. Node, Python and OCaml lines are edited
+   by hand, because they change declared release lists or the nixpkgs runtime
+   attributes.
 2. For `drift`, read the script saved under
    `~/.cache/update-runtime-baseline/installers/`, then record it with
    `--accept-installer NAME`. The command refuses if upstream changed again

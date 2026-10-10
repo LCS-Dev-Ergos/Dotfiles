@@ -41,6 +41,6 @@ jobs:
         run: |
           set -o pipefail
           nix develop --impure \
-            --expr 'import ./scripts/development-bootstrap.nix { target = "freshness"; }' \
-            --command python3 scripts/update-runtime-baseline.py --check --markdown |
+            --expr 'import ./scripts/bootstrap/development-bootstrap.nix { target = "freshness"; }' \
+            --command python3 scripts/updates/update-runtime-baseline.py --check --markdown |
             tee -a "$GITHUB_STEP_SUMMARY"

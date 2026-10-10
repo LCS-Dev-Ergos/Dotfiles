@@ -66,9 +66,10 @@ recovery.
 Activation sets `homebrew.onActivation.cleanup = "none"`: a switch installs
 missing declarations and never uninstalls an undeclared package.
 
-`scripts/audit-package-ownership.sh`, run from an interactive login shell,
-compares the evaluated `homebrew.brews`, `homebrew.casks` and `homebrew.taps`
-with the live installation and checks command precedence across `PATH`:
+`scripts/audits/audit-package-ownership.sh`, run from an interactive login
+shell, compares the evaluated `homebrew.brews`, `homebrew.casks` and
+`homebrew.taps` with the live installation and checks command precedence across
+`PATH`:
 
 - Only formulae that Homebrew records as explicitly requested can be reported
   as undeclared. Transitive dependencies are counted, and each potential
@@ -119,15 +120,15 @@ accepts read-only files. Writable state stays outside Git and the store:
 Applications that must write through a managed configuration path are
 registered in `home/out-of-store-allowlist.tsv`, with the writer, sensitivity,
 rollback behavior and retirement condition of each exception.
-`scripts/check-out-of-store-allowlist.sh` rejects an unregistered
+`scripts/checks/check-out-of-store-allowlist.sh` rejects an unregistered
 `mkOutOfStoreSymlink` and stale entries. Fish shows the boundary: its tracked
 `fish_variables` file is only a first-run seed, while the live file is private
 state under `XDG_STATE_HOME` that activation never overwrites.
 
-After activation, `scripts/audit-live-config.sh` audits the live home directory
-read-only for broken links, unregistered links into the checkout and changes
-beneath registered targets. A migration therefore stays visible as pending
-until the generation that implements it is active.
+After activation, `scripts/audits/audit-live-config.sh` audits the live home
+directory read-only for broken links, unregistered links into the checkout and
+changes beneath registered targets. A migration therefore stays visible as
+pending until the generation that implements it is active.
 
 ## Supported Platforms
 
@@ -155,8 +156,9 @@ output or desktop deployment.
 | Configuration tool | [nix-darwin](https://github.com/nix-darwin/nix-darwin) | None in advance: the first activation runs the built generation's `activate` script |
 | Build prerequisites | Command Line Tools for Xcode, whose Apple SDK the Nix compilers target; the bootstrap installs the declared build dependencies through Homebrew | The bootstrap installs the declared build dependencies through pacman |
 
-On Apple Silicon, `scripts/dev-bootstrap.sh --install-foundation` installs a
-missing Homebrew and Nix (see [Development Bootstrap](#development-bootstrap)).
+On Apple Silicon, `scripts/bootstrap/dev-bootstrap.sh --install-foundation`
+installs a missing Homebrew and Nix (see
+[Development Bootstrap](#development-bootstrap)).
 
 ## Bootstrap and Installation
 
@@ -174,25 +176,25 @@ cd ~/Dotfiles
 
 ### Development Bootstrap
 
-`scripts/dev-bootstrap.sh` starts under the system Bash, before Nix is
-available, and delegates to the packaged executor. The executor is built
-through `scripts/development-bootstrap.nix` from the nixpkgs revision in
-`flake.lock`, without evaluating the flake's other inputs.
+`scripts/bootstrap/dev-bootstrap.sh` starts under the system Bash, before Nix
+is available, and delegates to the packaged executor. The executor is built
+through `scripts/bootstrap/development-bootstrap.nix` from the nixpkgs revision
+in `flake.lock`, without evaluating the flake's other inputs.
 
 | Invocation | Effect |
 | --- | --- |
-| `scripts/dev-bootstrap.sh --check-foundation` | Checks the platform, Nix daemon, Homebrew or pacman and the Apple SDK; downloads nothing |
-| `scripts/dev-bootstrap.sh --install-foundation plan --json` | Apple Silicon only: installs a missing Homebrew and Nix, then plans |
-| `scripts/dev-bootstrap.sh plan` | Default operation: reports what `apply` would change |
-| `scripts/dev-bootstrap.sh apply --only node` | Installs the selected ecosystems |
-| `scripts/dev-bootstrap.sh verify` | Verifies the exact declared baseline; `--health` checks the selected environment instead |
+| `scripts/bootstrap/dev-bootstrap.sh --check-foundation` | Checks the platform, Nix daemon, Homebrew or pacman and the Apple SDK; downloads nothing |
+| `scripts/bootstrap/dev-bootstrap.sh --install-foundation plan --json` | Apple Silicon only: installs a missing Homebrew and Nix, then plans |
+| `scripts/bootstrap/dev-bootstrap.sh plan` | Default operation: reports what `apply` would change |
+| `scripts/bootstrap/dev-bootstrap.sh apply --only node` | Installs the selected ecosystems |
+| `scripts/bootstrap/dev-bootstrap.sh verify` | Verifies the exact declared baseline; `--health` checks the selected environment instead |
 
 - Versions are declared in `home/dev/runtime-baseline.nix`. After the initial
   installation, each ecosystem manager owns upgrades, additional releases and
   project selection.
-- `scripts/update-runtime-baseline.py --check` compares every declared release
-  and installer with its upstream, and `--apply` advances patch releases; a
-  weekly workflow runs the check. The procedure is in
+- `scripts/updates/update-runtime-baseline.py --check` compares every
+  declared release and installer with its upstream, and `--apply` advances
+  patch releases; a weekly workflow runs the check. The procedure is in
   [home/dev/README.md](home/dev/README.md#keeping-the-baseline-current).
 - A rerun adds missing baseline entries and leaves later upgrades, additional
   releases and project selections in place.
@@ -242,6 +244,12 @@ running session with the native runtime.
 Dotfiles/
 ├── flake.nix                  # Inputs and the darwin and Home Manager outputs
 ├── flake.lock
+├── scripts/
+│   ├── bootstrap/             # Clean-host entry, its CI entry, flake-free Nix shells
+│   ├── checks/                # Repository policy checks; run-all.sh is CI's check set
+│   ├── audits/                # Live-home and package-ownership audits
+│   ├── updates/               # Updaters for flake pins, packages and the runtime baseline
+│   └── tests/                 # Regression tests for the scripts and the workstation
 ├── hosts/
 │   ├── lcs-macbook-pro/
 │   │   ├── darwin.nix         # Platform, account and login shell, stateVersion, system defaults
@@ -297,24 +305,20 @@ providers for rollback.
 
 ### Local Checks
 
-The flake exposes a lockfile-pinned `ci` development shell for Nix formatting
-and policy checks. The core checks that CI runs:
+`scripts/checks/run-all.sh` is the set of formatting, lint and policy checks
+CI runs: Nix, workflow and Python formatting and lint, the state-boundary,
+package-ownership and secret policies, the script regression tests and
+ShellCheck. It runs inside the locked `ci` shell of
+`scripts/bootstrap/development-bootstrap.nix`, which provides every tool.
+Every local check, in order:
 
 ```bash
-nix develop .#ci --command bash -euo pipefail -c '
-  mapfile -t nix_files < <(find flake.nix darwin home hosts -type f -name "*.nix" | sort)
-  nixfmt --check "${nix_files[@]}"
-  statix check .
-  deadnix --fail flake.nix darwin home hosts
-  bash scripts/check-out-of-store-allowlist.sh
-  bash scripts/check-package-ownership-policy.sh
-  bash scripts/check-declared-secrets.sh
-  bash scripts/tests/run.sh
-  shellcheck scripts/*.sh scripts/tests/*.sh
-'
+nix develop --impure \
+  --expr 'import ./scripts/bootstrap/development-bootstrap.nix { target = "ci"; }' \
+  --command bash scripts/checks/run-all.sh
 nix flake check --no-build --all-systems --show-trace
-bash scripts/ci-development-bootstrap.sh source
-bash scripts/ci-development-bootstrap.sh package
+bash scripts/bootstrap/ci-development-bootstrap.sh source
+bash scripts/bootstrap/ci-development-bootstrap.sh package
 home/shells/zsh/config/tests/run-all.zsh --full
 git diff --check
 ```

@@ -7,8 +7,8 @@
 # (LCS-Dev-Ergos/yabai) in darwin/yabai-package.nix.
 #
 # Usage:
-#   scripts/update-yabai.sh --check
-#   scripts/update-yabai.sh --apply
+#   scripts/updates/update-yabai.sh --check
+#   scripts/updates/update-yabai.sh --apply
 #
 # Releases are tags named v<major>.<minor>.<patch>, compared by Semantic
 # Versioning precedence. Release candidates (-rc.<n>) are never selected. The
@@ -58,7 +58,7 @@ for required_command in git grep nix sed sort; do
     die "requires $required_command"
 done
 
-repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 package_file="$repo_root/darwin/yabai-package.nix"
 [[ -f "$package_file" ]] || die "missing $package_file"
 
@@ -114,3 +114,6 @@ if ! grep -qF "version = \"$latest\";" "$package_file" || ! grep -qF "hash = \"$
 fi
 
 printf 'updated %s\n  hash %s\n' "${package_file#"$repo_root"/}" "$hash"
+
+# ============================================================================ #
+# End of scripts/updates/update-yabai.sh.

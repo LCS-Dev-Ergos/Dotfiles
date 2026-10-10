@@ -93,7 +93,7 @@ The installed executable alias check runs separately during `installCheck`:
 zsh home/dev/bootstrap/tests/bootstrap/test-cli-aliases.zsh /path/to/package
 ```
 
-`scripts/ci-development-bootstrap.sh source` delegates to the same Python
-runner. Its `package` phase evaluates ownership and builds the package with
-`check` and `installCheck` enabled. Neither phase establishes clean-host,
+`scripts/bootstrap/ci-development-bootstrap.sh source` delegates to the same
+Python runner. Its `package` phase evaluates ownership and builds the package
+with `check` and `installCheck` enabled. Neither phase establishes clean-host,
 deployed-shell or real native installation acceptance.

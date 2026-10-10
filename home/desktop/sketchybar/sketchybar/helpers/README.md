@@ -60,11 +60,11 @@ The temporary
 nowplaying-cli 2.1 override can be retired once nixpkgs supplies that adapter.
 
 SketchyBar is the signed release of the LCS-Dev-Ergos fork, pinned in
-`home/desktop/sketchybar/package.nix`; `scripts/update-sketchybar.sh --check`
-reports a newer release and `--apply` rewrites the version and hash. The fork's
-CI builds, tests under ASan, UBSan and TSan, fuzzes and signs every release with
-the `sketchybar-lcs-dev` certificate, and its `docs/` describe the changes. The
-two changes that used to be local patches are summarised here.
+`home/desktop/sketchybar/package.nix`; `scripts/updates/update-sketchybar.sh
+--check` reports a newer release and `--apply` rewrites the version and hash.
+The fork's CI builds, tests under ASan, UBSan and TSan, fuzzes and signs every
+release with the `sketchybar-lcs-dev` certificate, and its `docs/` describe the
+changes. The two changes that used to be local patches are summarised here.
 
 Display reconciliation (`fix(display)`): upstream destroys and recreates every bar and item window (206 with two
 displays, 0.3 to 0.9 s each) for every display callback and twice per wake,

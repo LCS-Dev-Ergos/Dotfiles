@@ -34,8 +34,9 @@ let
     "zstd"
   ];
   # Audited official installer bytes, fetched only by explicit apply. Mutable
-  # endpoints fail closed on drift; scripts/update-runtime-baseline.py reports
-  # it and records a reviewed replacement. Manager updates remain native.
+  # endpoints fail closed on drift; scripts/updates/update-runtime-baseline.py
+  # reports it and records a reviewed replacement. Manager updates remain
+  # native.
   installers = {
     rust = {
       url = "https://sh.rustup.rs";

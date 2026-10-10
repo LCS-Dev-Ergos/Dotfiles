@@ -110,7 +110,7 @@ jobs:
       - name: Build the bootstrap package
         run: |
           package=$(nix --extra-experimental-features 'nix-command flakes' \
-            build --impure --file scripts/development-bootstrap.nix \
+            build --impure --file scripts/bootstrap/development-bootstrap.nix \
             --no-link --print-out-paths)
           echo "DEV_BOOTSTRAP=$package/bin/dev-bootstrap" >> "$GITHUB_ENV"
           mkdir -p "$RUNNER_TEMP/native"

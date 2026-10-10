@@ -7,8 +7,8 @@
 # (LCS-Dev-Ergos/SketchyBar) in home/desktop/sketchybar/package.nix.
 #
 # Usage:
-#   scripts/update-sketchybar.sh --check
-#   scripts/update-sketchybar.sh --apply
+#   scripts/updates/update-sketchybar.sh --check
+#   scripts/updates/update-sketchybar.sh --apply
 #
 # Releases are tags named v<upstream version>-lcs.<n>, compared numerically.
 # --apply prefetches the release tarball into the store, then rewrites version
@@ -55,7 +55,7 @@ for required_command in git grep nix sed sort; do
     die "requires $required_command"
 done
 
-repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 package_file="$repo_root/home/desktop/sketchybar/package.nix"
 [[ -f "$package_file" ]] || die "missing $package_file"
 
@@ -107,3 +107,6 @@ if ! grep -qF "version = \"$latest\";" "$package_file" || ! grep -qF "hash = \"$
 fi
 
 printf 'updated %s\n  hash %s\n' "${package_file#"$repo_root"/}" "$hash"
+
+# ============================================================================ #
+# End of scripts/updates/update-sketchybar.sh.

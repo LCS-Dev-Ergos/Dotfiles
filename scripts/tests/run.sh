@@ -63,11 +63,11 @@ expect_status() {
 
 printf 'Repository policy checks\n'
 expect_status 'current package ownership policy' 0 \
-  bash "$repo_root/scripts/check-package-ownership-policy.sh"
+  bash "$repo_root/scripts/checks/check-package-ownership-policy.sh"
 expect_status 'current out-of-store allowlist' 0 \
-  bash "$repo_root/scripts/check-out-of-store-allowlist.sh"
+  bash "$repo_root/scripts/checks/check-out-of-store-allowlist.sh"
 expect_status 'current declared-secret scan' 0 \
-  bash "$repo_root/scripts/check-declared-secrets.sh"
+  bash "$repo_root/scripts/checks/check-declared-secrets.sh"
 
 policy_fixture="$temp_root/package-policy.tsv"
 printf '%s\n' \
@@ -76,7 +76,7 @@ printf '%s\n' \
   >"$policy_fixture"
 expect_status 'valid package policy fixture' 0 \
   env PACKAGE_OWNERSHIP_POLICY_FILE="$policy_fixture" \
-  bash "$repo_root/scripts/check-package-ownership-policy.sh"
+  bash "$repo_root/scripts/checks/check-package-ownership-policy.sh"
 
 printf '%s\n' \
   $'ripgrep\trg\tnix\tFirst declaration.' \
@@ -84,33 +84,33 @@ printf '%s\n' \
   >"$policy_fixture"
 expect_status 'duplicate package policy fixture' 1 \
   env PACKAGE_OWNERSHIP_POLICY_FILE="$policy_fixture" \
-  bash "$repo_root/scripts/check-package-ownership-policy.sh"
+  bash "$repo_root/scripts/checks/check-package-ownership-policy.sh"
 
 expect_status 'missing package policy is an environment error' 2 \
   env PACKAGE_OWNERSHIP_POLICY_FILE="$temp_root/no-such-policy.tsv" \
-  bash "$repo_root/scripts/check-package-ownership-policy.sh"
+  bash "$repo_root/scripts/checks/check-package-ownership-policy.sh"
 
 fixture_repo="$temp_root/secret-fixture"
-mkdir -p "$fixture_repo/scripts"
-cp "$repo_root/scripts/check-declared-secrets.sh" "$fixture_repo/scripts/"
+mkdir -p "$fixture_repo/scripts/checks"
+cp "$repo_root/scripts/checks/check-declared-secrets.sh" "$fixture_repo/scripts/checks/"
 printf '%s\n' '{ value = "ordinary configuration"; }' \
   >"$fixture_repo/flake.nix"
 expect_status 'clean secret fixture' 0 \
-  bash "$fixture_repo/scripts/check-declared-secrets.sh"
+  bash "$fixture_repo/scripts/checks/check-declared-secrets.sh"
 
 # Split the marker so this regression test does not trigger the repository scan.
 printf '%s%s\n' '-----BEGIN OPENSSH ' 'PRIVATE KEY-----' \
   >"$fixture_repo/private-key.txt"
 expect_status 'private-key secret fixture' 1 \
-  bash "$fixture_repo/scripts/check-declared-secrets.sh"
+  bash "$fixture_repo/scripts/checks/check-declared-secrets.sh"
 
 # PKCS#8 keys carry no algorithm word; cloud keys have no "sk-" style prefix.
 printf '%s%s\n' '-----BEGIN ' 'PRIVATE KEY-----' >"$fixture_repo/private-key.txt"
 expect_status 'unlabelled PKCS#8 key fixture' 1 \
-  bash "$fixture_repo/scripts/check-declared-secrets.sh"
+  bash "$fixture_repo/scripts/checks/check-declared-secrets.sh"
 printf 'id = "%s%s"\n' 'AKIA' 'Q3EXAMPLEKEY7Z2B' >"$fixture_repo/private-key.txt"
 expect_status 'cloud access-key fixture' 1 \
-  bash "$fixture_repo/scripts/check-declared-secrets.sh"
+  bash "$fixture_repo/scripts/checks/check-declared-secrets.sh"
 
 printf '%s\n' 'ordinary text' >"$fixture_repo/private-key.txt"
 mock_bin="$temp_root/mock-bin"
@@ -119,7 +119,7 @@ printf '%s\n' '#!/bin/sh' 'exit 2' >"$mock_bin/rg"
 chmod 0700 "$mock_bin/rg"
 expect_status 'secret scanner fails closed on ripgrep error' 2 \
   env PATH="$mock_bin:/usr/bin:/bin" \
-  bash "$fixture_repo/scripts/check-declared-secrets.sh"
+  bash "$fixture_repo/scripts/checks/check-declared-secrets.sh"
 
 expect_output() {
   local label="$1"
@@ -154,8 +154,8 @@ pin_remotes="$temp_root/pin-remotes"
 pin_mock="$temp_root/pin-mock-bin"
 nix_log="$temp_root/nix.log"
 ssh_log="$temp_root/ssh.log"
-mkdir -p "$pin_fixture/scripts" "$pin_remotes" "$pin_mock"
-cp "$repo_root/scripts/update-pinned-inputs.sh" "$pin_fixture/scripts/"
+mkdir -p "$pin_fixture/scripts/updates" "$pin_remotes" "$pin_mock"
+cp "$repo_root/scripts/updates/update-pinned-inputs.sh" "$pin_fixture/scripts/updates/"
 
 cat >"$pin_mock/git" <<EOF
 #!/bin/sh
@@ -261,7 +261,7 @@ env PATH="$pin_mock:$PATH" nix flake update --flake "$pin_fixture"
   commit -q -m fixture
 
 pin_run() {
-  env PATH="$pin_mock:$PATH" bash "$pin_fixture/scripts/update-pinned-inputs.sh" "$@"
+  env PATH="$pin_mock:$PATH" bash "$pin_fixture/scripts/updates/update-pinned-inputs.sh" "$@"
 }
 pin_line() {
   printf '%-28s %s' "$1" "$2"
@@ -290,7 +290,7 @@ expect_pristine 'check'
 
 expect_status 'check of a current input' 0 \
   env GIT_SSH_COMMAND='ssh -F /dev/null' PATH="$pin_mock:$PATH" \
-  bash "$pin_fixture/scripts/update-pinned-inputs.sh" --check dotted-pin
+  bash "$pin_fixture/scripts/updates/update-pinned-inputs.sh" --check dotted-pin
 if ! grep -qx 'ssh -F /dev/null -o BatchMode=yes -o ConnectTimeout=15' "$ssh_log"; then
   printf 'FAIL: ssh was not made non-interactive on top of GIT_SSH_COMMAND\n' >&2
   cat "$ssh_log" >&2
@@ -319,12 +319,12 @@ fi
 
 expect_status 'apply with a failing nix flake update' 2 \
   env MOCK_NIX_FAIL=1 PATH="$pin_mock:$PATH" \
-  bash "$pin_fixture/scripts/update-pinned-inputs.sh" --apply commit-pin
+  bash "$pin_fixture/scripts/updates/update-pinned-inputs.sh" --apply commit-pin
 expect_pristine 'apply with a failing nix flake update'
 
 expect_status 'apply with a lock nix did not refresh' 2 \
   env MOCK_NIX_NOOP=1 PATH="$pin_mock:$PATH" \
-  bash "$pin_fixture/scripts/update-pinned-inputs.sh" --apply commit-pin
+  bash "$pin_fixture/scripts/updates/update-pinned-inputs.sh" --apply commit-pin
 expect_pristine 'apply with a lock nix did not refresh'
 
 pin_commit() {

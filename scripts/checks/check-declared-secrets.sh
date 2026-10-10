@@ -9,7 +9,7 @@
 # not trigger the scan.
 #
 # Usage:
-#   scripts/check-declared-secrets.sh
+#   scripts/checks/check-declared-secrets.sh
 #
 # ============================================================================ #
 
@@ -18,7 +18,7 @@ IFS=$'\n\t'
 umask 077
 export LC_ALL=C
 
-repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 findings=0
 
 if ! command -v rg >/dev/null 2>&1; then
@@ -109,4 +109,4 @@ fi
 echo 'No private-key or credential literals detected.'
 
 # ============================================================================ #
-# End of check-declared-secrets.sh.
+# End of scripts/checks/check-declared-secrets.sh.

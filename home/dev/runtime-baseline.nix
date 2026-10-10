@@ -9,7 +9,7 @@ let
       ocaml = "5.5.1";
     }
     // builtins.mapAttrs (_: toolchain: toolchain.version) baseline.nativeToolchains;
-    # Exact identities. scripts/update-runtime-baseline.py reports newer
+    # Exact identities. scripts/updates/update-runtime-baseline.py reports newer
     # upstream releases and advances patch releases; ordinary manager updates
     # and selections remain user-owned.
     nativeToolchains = {

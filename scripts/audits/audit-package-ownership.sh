@@ -16,7 +16,7 @@
 #   home/package-ownership-allowlist.tsv
 #
 # Usage:
-#   scripts/audit-package-ownership.sh [--verbose]
+#   scripts/audits/audit-package-ownership.sh [--verbose]
 #
 # Set NIX_DARWIN_CONFIGURATION to audit a differently named Darwin output.
 # Use --verbose to print every benign case where Nix already wins.
@@ -29,7 +29,7 @@ IFS=$'\n\t'
 umask 077
 export LC_ALL=C
 
-repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 policy_file="$repo_root/home/package-ownership-allowlist.tsv"
 darwin_configuration="${NIX_DARWIN_CONFIGURATION:-LCSMacBook-Pro}"
 home_dir="${HOME:-}"
@@ -45,7 +45,7 @@ verbose=0
 
 usage() {
   cat <<'EOF'
-Usage: scripts/audit-package-ownership.sh [--verbose]
+Usage: scripts/audits/audit-package-ownership.sh [--verbose]
 
 Read-only audit of the declared nix-darwin Homebrew inventory and the live
 installation. Reports:
@@ -106,7 +106,7 @@ if [[ ! -r "$policy_file" ]]; then
   exit 2
 fi
 
-if ! bash "$repo_root/scripts/check-package-ownership-policy.sh" >/dev/null; then
+if ! bash "$repo_root/scripts/checks/check-package-ownership-policy.sh" >/dev/null; then
   exit 2
 fi
 
@@ -642,4 +642,4 @@ fi
 printf 'Package ownership audit passed; no changes were made.\n'
 
 # ============================================================================ #
-# End of audit-package-ownership.sh.
+# End of scripts/audits/audit-package-ownership.sh.

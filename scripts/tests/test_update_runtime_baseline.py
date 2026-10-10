@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline tests for scripts/update-runtime-baseline.py.
+"""Offline tests for scripts/updates/update-runtime-baseline.py.
 
 Upstream responses are recorded fixtures; declarations are temporary copies
 evaluated by the real `nix eval`. Nothing here touches the network.
@@ -19,7 +19,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
-SCRIPT = ROOT / "scripts/update-runtime-baseline.py"
+SCRIPT = ROOT / "scripts/updates/update-runtime-baseline.py"
 spec = importlib.util.spec_from_file_location("updater", SCRIPT)
 assert spec and spec.loader
 updater = importlib.util.module_from_spec(spec)

@@ -8,7 +8,7 @@
 # duplicates, nothing stale.
 #
 # Usage:
-#   scripts/check-out-of-store-allowlist.sh
+#   scripts/checks/check-out-of-store-allowlist.sh
 #
 # ============================================================================ #
 
@@ -17,7 +17,7 @@ IFS=$'\n\t'
 umask 077
 export LC_ALL=C
 
-repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 allowlist="$repo_root/home/out-of-store-allowlist.tsv"
 for required_command in awk diff rg sed sort uniq wc; do
   if ! command -v "$required_command" >/dev/null 2>&1; then
@@ -106,4 +106,4 @@ fi
 printf 'Verified %d registered out-of-store module(s).\n' "$(wc -l <"$actual" | tr -d ' ')"
 
 # ============================================================================ #
-# End of check-out-of-store-allowlist.sh.
+# End of scripts/checks/check-out-of-store-allowlist.sh.

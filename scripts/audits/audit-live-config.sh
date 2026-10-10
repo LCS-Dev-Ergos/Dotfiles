@@ -10,7 +10,7 @@
 # changes.
 #
 # Usage:
-#   scripts/audit-live-config.sh
+#   scripts/audits/audit-live-config.sh
 #
 # ============================================================================ #
 
@@ -19,7 +19,7 @@ IFS=$'\n\t'
 umask 077
 export LC_ALL=C
 
-repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 allowlist="$repo_root/home/out-of-store-allowlist.tsv"
 home_dir="${HOME:-}"
 if [[ -z "$home_dir" || ! -d "$home_dir" ]]; then
@@ -163,4 +163,4 @@ printf 'Live configuration audit passed; %d registered repository-backed link(s)
   "$repo_links"
 
 # ============================================================================ #
-# End of audit-live-config.sh.
+# End of scripts/audits/audit-live-config.sh.

@@ -13,7 +13,8 @@ import unittest
 from pathlib import Path
 
 ENTRY = (
-    Path(__file__).resolve().parents[2] / "../../../scripts/dev-bootstrap.sh"
+    Path(__file__).resolve().parents[2]
+    / "../../../scripts/bootstrap/dev-bootstrap.sh"
 ).resolve()
 if not ENTRY.is_file():
     raise unittest.SkipTest(
@@ -130,7 +131,7 @@ bootstrap_sdk() { [[ -f "$FIXTURE/has-sdk" ]]; }
                         "run",
                         "--impure",
                         "--expr",
-                        "import ./scripts/development-bootstrap.nix {}",
+                        "import ./scripts/bootstrap/development-bootstrap.nix {}",
                         "",
                         "--",
                         *arguments,

@@ -71,24 +71,9 @@ jobs:
 
       - name: Check formatting, lint, and state boundaries
         run: |
-          # The outer shell must leave expressions for the nested Bash process.
-          # shellcheck disable=SC2016
           nix develop --impure \
-            --expr 'import ./scripts/development-bootstrap.nix { target = "ci"; }' \
-            --command bash -euo pipefail -c '
-            mapfile -t nix_files < <(find flake.nix darwin home hosts -type f -name "*.nix" | sort)
-            nixfmt --check "${nix_files[@]}" scripts/development-bootstrap.nix
-            actionlint .github/workflows/development-bootstrap.yml .github/workflows/development-bootstrap-native.yml .github/workflows/zsh-validate.yml .github/workflows/runtime-baseline-freshness.yml
-            ruff check --isolated --target-version py313 --select E4,E7,E9,F,B home/dev/bootstrap scripts/update-runtime-baseline.py scripts/tests/test_update_runtime_baseline.py
-            ruff format --isolated --target-version py313 --line-length 79 --check home/dev/bootstrap scripts/update-runtime-baseline.py scripts/tests/test_update_runtime_baseline.py
-            statix check .
-            deadnix --fail flake.nix darwin home hosts
-            bash scripts/check-out-of-store-allowlist.sh
-            bash scripts/check-package-ownership-policy.sh
-            bash scripts/check-declared-secrets.sh
-            bash scripts/tests/run.sh
-            shellcheck scripts/*.sh scripts/tests/*.sh home/cli/cli-tools/scripts/*.sh
-          '
+            --expr 'import ./scripts/bootstrap/development-bootstrap.nix { target = "ci"; }' \
+            --command bash scripts/checks/run-all.sh
 
       # GCC and LLVM must come from the binary cache: building GCC locally has
       # failed on the workstation before. A nixpkgs update that leaves the
@@ -167,7 +152,7 @@ jobs:
       # enough for a runner; cpp-tools' checkPhase is its Zsh test suite.
       - name: Build the Linux check derivations
         run: |
-          nix build --impure --file scripts/development-bootstrap.nix \
+          nix build --impure --file scripts/bootstrap/development-bootstrap.nix \
             --argstr target cpp-tools --no-link --print-out-paths --print-build-logs
 
   configuration:

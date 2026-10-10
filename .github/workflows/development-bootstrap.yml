@@ -7,9 +7,7 @@ on:
       - "flake.lock"
       - "home/dev/**"
       - "home/shells/zsh/**"
-      - "scripts/dev-bootstrap.sh"
-      - "scripts/ci-development-bootstrap.*"
-      - "scripts/development-bootstrap.nix"
+      - "scripts/bootstrap/**"
       - "scripts/tests/development-ownership.nix"
       - ".github/workflows/development-bootstrap.yml"
   pull_request:
@@ -18,9 +16,7 @@ on:
       - "flake.lock"
       - "home/dev/**"
       - "home/shells/zsh/**"
-      - "scripts/dev-bootstrap.sh"
-      - "scripts/ci-development-bootstrap.*"
-      - "scripts/development-bootstrap.nix"
+      - "scripts/bootstrap/**"
       - "scripts/tests/development-ownership.nix"
       - ".github/workflows/development-bootstrap.yml"
   workflow_dispatch:
@@ -72,7 +68,7 @@ jobs:
         uses: cachix/install-nix-action@b85815f71a6de0ddee80b8a80a98d43f4bcc66c7 # v31
 
       - name: Run offline source contracts
-        run: bash scripts/ci-development-bootstrap.sh source
+        run: bash scripts/bootstrap/ci-development-bootstrap.sh source
 
       # Uses the locked public nixpkgs directly, without unrelated application
       # inputs. checkPhase/installCheckPhase cover runtime fixtures, setup,
@@ -81,7 +77,7 @@ jobs:
       - name: Check ownership and build the tested bootstrap package
         run: |
           set -o pipefail
-          bash scripts/ci-development-bootstrap.sh package 2>&1 |
+          bash scripts/bootstrap/ci-development-bootstrap.sh package 2>&1 |
             tee "$RUNNER_TEMP/development-bootstrap.log"
 
       - name: Retain package diagnostics

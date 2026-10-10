@@ -17,9 +17,9 @@ so a switch is the first thing that ever compiles it. Remove the `result`
 symlink afterwards — it is a GC root.
 
 **Never introduce `mkOutOfStoreSymlink` without registering it** in
-`home/out-of-store-allowlist.tsv`, with writer, sensitivity, rollback
-behaviour, and retirement condition. `scripts/check-out-of-store-allowlist.sh`
-fails on an unregistered symlink or a stale entry.
+`home/out-of-store-allowlist.tsv`, with writer, sensitivity, rollback behaviour,
+and retirement condition. `scripts/checks/check-out-of-store-allowlist.sh` fails
+on an unregistered symlink or a stale entry.
 
 **Never change `homebrew.onActivation.cleanup` from `"none"`.** The other
 modes uninstall whatever is installed but undeclared, and the Homebrew
