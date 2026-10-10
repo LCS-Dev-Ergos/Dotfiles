@@ -634,7 +634,9 @@ class SetupTests(unittest.TestCase):
         baseline = next(
             r for r in self.recovery.plan() if r["language"] == "python"
         )
-        self.versions[baseline["path"]] = "3.14.8"
+        # The next patch release: close to the declared one, never equal.
+        major, minor, patch = baseline["version"].split(".")
+        self.versions[baseline["path"]] = f"{major}.{minor}.{int(patch) + 1}"
         project = self.root / "project/.python-version"
         project.parent.mkdir()
         project.write_text("project-specific\n")
