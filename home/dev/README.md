@@ -311,13 +311,14 @@ only.
 The weekly `Runtime Baseline Freshness` workflow runs `--check` and fails when
 an `update` or a `drift` exists; its summary lists every finding.
 
-To advance the baseline:
+To advance the baseline (the [Justfile](../../Justfile) recipe follows each
+command):
 
-1. Run `scripts/updates/update-runtime-baseline.py --apply` and review
-   `git diff`. It applies `update` findings; `--line ECOSYSTEM` also moves
-   that ecosystem to its newest line. Node, Python and OCaml lines are edited
-   by hand, because they change declared release lists or the nixpkgs runtime
-   attributes.
+1. Run `scripts/updates/update-runtime-baseline.py --apply` (`just baseline
+   --apply`) and review `git diff`. It applies `update` findings;
+   `--line ECOSYSTEM` also moves that ecosystem to its newest line. Node,
+   Python and OCaml lines are edited by hand, because they change declared
+   release lists or the nixpkgs runtime attributes.
 2. For `drift`, read the script saved under
    `~/.cache/update-runtime-baseline/installers/`, then record it with
    `--accept-installer NAME`. The command refuses if upstream changed again
@@ -325,11 +326,12 @@ To advance the baseline:
 3. Build the bootstrap package, then run the native CI adapters for the
    changed ecosystems:
    `gh workflow run development-bootstrap-native.yml -f harness=adapters -f ecosystems='rust julia'`.
-4. On each host, `dev-bootstrap apply` installs the new releases beside the
-   previous ones. It initializes a default only when none exists, so move the
-   selection with the manager: `rustup default`, `fnm default`, `pyenv global`,
-   `rbenv global`, `elan default`, `ghcup set`, `sdk default`, `juliaup
-   default`, `opam switch`. The .NET muxer runs the newest SDK by itself.
+4. On each host, `dev-bootstrap apply` (`just apply`) installs the new
+   releases beside the previous ones. It initializes a default only when none
+   exists, so move the selection with the manager: `rustup default`,
+   `fnm default`, `pyenv global`, `rbenv global`, `elan default`, `ghcup set`,
+   `sdk default`, `juliaup default`, `opam switch`. The .NET muxer runs the
+   newest SDK by itself.
 5. Remove a previous release with its manager once nothing uses it, for
    example `rustup toolchain uninstall <release>`. `dotnet-install` has no
    uninstaller: delete `~/.dotnet/sdk/<version>` and the runtimes that SDK

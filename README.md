@@ -179,7 +179,9 @@ cd ~/Dotfiles
 `scripts/bootstrap/dev-bootstrap.sh` starts under the system Bash, before Nix
 is available, and delegates to the packaged executor. The executor is built
 through `scripts/bootstrap/development-bootstrap.nix` from the nixpkgs revision
-in `flake.lock`, without evaluating the flake's other inputs.
+in `flake.lock`, without evaluating the flake's other inputs. Once the
+configuration is active, the [Justfile](Justfile) runs the same operations:
+`just plan`, `just apply`, `just verify` and `just health`.
 
 | Invocation | Effect |
 | --- | --- |
@@ -192,9 +194,10 @@ in `flake.lock`, without evaluating the flake's other inputs.
 - Versions are declared in `home/dev/runtime-baseline.nix`. After the initial
   installation, each ecosystem manager owns upgrades, additional releases and
   project selection.
-- `scripts/updates/update-runtime-baseline.py --check` compares every
-  declared release and installer with its upstream, and `--apply` advances
-  patch releases; a weekly workflow runs the check. The procedure is in
+- `scripts/updates/update-runtime-baseline.py --check` (`just baseline`)
+  compares every declared release and installer with its upstream, and
+  `--apply` advances patch releases; a weekly workflow runs the check. The
+  procedure is in
   [home/dev/README.md](home/dev/README.md#keeping-the-baseline-current).
 - A rerun adds missing baseline entries and leaves later upgrades, additional
   releases and project selections in place.
@@ -217,6 +220,9 @@ system without changing the running one, and no CI runner performs it:
 nix build .#darwinConfigurations.LCSMacBook-Pro.system --no-link
 sudo darwin-rebuild switch --flake .#LCSMacBook-Pro
 ```
+
+`just build` runs the first command; `just switch` runs both, in order, after
+a confirmation.
 
 `--no-link` avoids the `result` symlink, a garbage-collection root that would
 keep the generation alive across `nix.gc` runs. The account name and home
@@ -244,6 +250,7 @@ running session with the native runtime.
 Dotfiles/
 ├── flake.nix                  # Inputs and the darwin and Home Manager outputs
 ├── flake.lock
+├── Justfile                   # Maintenance commands; `just` lists them
 ├── scripts/
 │   ├── bootstrap/             # Clean-host entry, its CI entry, flake-free Nix shells
 │   ├── checks/                # Repository policy checks; run-all.sh is CI's check set
@@ -310,18 +317,16 @@ CI runs: Nix, workflow and Python formatting and lint, the state-boundary,
 package-ownership and secret policies, the script regression tests and
 ShellCheck. It runs inside the locked `ci` shell of
 `scripts/bootstrap/development-bootstrap.nix`, which provides every tool.
-Every local check, in order:
+`just ci` runs every local check in order:
 
-```bash
-nix develop --impure \
-  --expr 'import ./scripts/bootstrap/development-bootstrap.nix { target = "ci"; }' \
-  --command bash scripts/checks/run-all.sh
-nix flake check --no-build --all-systems --show-trace
-bash scripts/bootstrap/ci-development-bootstrap.sh source
-bash scripts/bootstrap/ci-development-bootstrap.sh package
-home/shells/zsh/config/tests/run-all.zsh --full
-git diff --check
-```
+| Recipe | Command |
+| --- | --- |
+| `just check` | `scripts/checks/run-all.sh` in the locked `ci` shell |
+| `just flake-check` | `nix flake check --no-build --all-systems --show-trace` |
+| `just test-bootstrap`, `just test-bootstrap package` | `scripts/bootstrap/ci-development-bootstrap.sh source`, `package` |
+| `just test-zsh` | `home/shells/zsh/config/tests/run-all.zsh --full` |
+
+`just ci` ends with `git diff --check`.
 
 `nix flake check --no-build` proves that every output evaluates on both systems
 but runs none of the checks. CI builds the check derivations a runner can
