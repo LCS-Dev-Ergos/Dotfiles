@@ -13,6 +13,7 @@ from .adapters import ADAPTERS
 from .engine import Bootstrap, select
 from .errors import BootstrapError, Interrupted
 from .manifest import load_manifest
+from .prune import Prune
 from .selection import load_selection, save_selection, selection_path
 from .setup import BootstrapSetup
 
@@ -30,7 +31,7 @@ def main():
         "action",
         nargs="?",
         default="plan",
-        choices=("plan", "apply", "verify"),
+        choices=("plan", "apply", "verify", "prune"),
     )
     chosen = parser.add_mutually_exclusive_group()
     chosen.add_argument(
@@ -73,9 +74,16 @@ def main():
         action="store_true",
         help="Verify selected evolved runtimes instead of exact baseline identities",
     )
+    parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="Remove the retired releases prune lists, instead of listing them",
+    )
     args = parser.parse_args()
     if args.health and args.action != "verify":
         parser.error("--health requires verify")
+    if args.yes and args.action != "prune":
+        parser.error("--yes requires prune")
     if args.save_selection and not (args.only or args.all):
         parser.error("--save-selection requires --only or --all")
     os.umask(0o077)
@@ -140,6 +148,17 @@ def run(args, setups):
             # the action then reports.
             save_selection(
                 selection_path(), context.only if args.only else None
+            )
+        if args.action == "prune":
+            result = prune(context, args)
+            result["selection"] = origin
+            report(result, args.json)
+            # Listing never fails; removal fails unless every release went.
+            return (
+                0
+                if not args.yes
+                or all(row["state"] == "removed" for row in result["retired"])
+                else 1
             )
         setup = None
         if (
@@ -235,9 +254,31 @@ def execute(context, setup, args):
     return result
 
 
+def prune(context, args):
+    """List, or with --yes remove, the installed releases the baseline retired."""
+    if context.backend != "native":
+        raise BootstrapError("prune removes native releases only")
+    pruning = Prune(context)
+    retirements = pruning.apply() if args.yes else pruning.plan()
+    return {
+        "schema": REPORT_SCHEMA,
+        "action": "prune",
+        "platform": context.data["platform"],
+        "backend": context.backend,
+        "defaults": context.data["defaults"],
+        "catalog": context.catalog(),
+        "observed": context.observed_state(),
+        "runtimes": context.plan(),
+        "retired": [retirement.report() for retirement in retirements],
+    }
+
+
 def report(result, as_json):
     if as_json:
         print(json.dumps(result, indent=2))
+        return
+    if result["action"] == "prune":
+        report_retired(result["retired"])
         return
     for row in result["runtimes"]:
         print(
@@ -256,3 +297,20 @@ def report(result, as_json):
             print(f"         {row['reason']}")
             if row.get("remediation"):
                 print(f"         remedy: {row['remediation']}")
+
+
+def report_retired(rows):
+    for row in rows:
+        name = " ".join(filter(None, (row["language"], row.get("component"))))
+        print(f"{row['state']:8} {name:13} {row['version']:10} {row['path']}")
+        if row["state"] in ("retire", "removed"):
+            print(f"         {'; '.join(row['steps'])}")
+        if row.get("reason"):
+            print(f"         {row['reason']}")
+        for note in row.get("notes", []):
+            print(f"         note: {note}")
+    pending = sum(row["state"] == "retire" for row in rows)
+    if not rows:
+        print("No retired release is installed.")
+    elif pending:
+        print(f"prune --yes removes the {pending} release(s) marked retire.")

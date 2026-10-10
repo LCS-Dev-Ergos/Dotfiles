@@ -49,6 +49,24 @@ def validate_toolchains(data):
             raise BootstrapError("Unsupported installer format")
 
 
+# Retired releases reach manager arguments and paths below a manager root.
+RETIRED_RELEASE = re.compile(r"[0-9][0-9A-Za-z.+_-]*")
+
+
+def validate_retired(retired):
+    """Every retired release is an exact identifier, at any depth."""
+    if not isinstance(retired, dict):
+        raise BootstrapError("Retired releases must mirror the declarations")
+    for value in retired.values():
+        if isinstance(value, dict):
+            validate_retired(value)
+        elif not isinstance(value, list) or not all(
+            isinstance(release, str) and RETIRED_RELEASE.fullmatch(release)
+            for release in value
+        ):
+            raise BootstrapError("Retired releases must be exact identifiers")
+
+
 def validate_manifest(data):
     """Reject malformed declarations at the input boundary, before any work."""
     if data["schema"] != 1 or data["backend"] not in ("native", "nixpkgs"):
@@ -62,6 +80,7 @@ def validate_manifest(data):
     for release in data["ocaml"]["versions"]:
         version(release)
     validate_toolchains(data)
+    validate_retired(data.get("retired", {}))
     declared = {
         "node": versions,
         "python": [data["python"]["version"]],

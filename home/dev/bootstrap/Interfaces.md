@@ -82,10 +82,29 @@ in every report's `catalog`.
 - Every child process goes through `core.process.run`: literal arguments, a
   scoped environment, its own process group and a timeout.
 
+## Retirement
+
+`prune` is outside the adapter contract: an ecosystem is pruned only when
+`core/prune/__init__.py` registers a retirer for its adapter, and one without
+a retirer is never touched. The manifest's `retired` attribute set mirrors the
+declarations: each list holds the releases its attribute path used to
+declare (`node.versions`, `nativeToolchains.rust.version`,
+`nativeToolchains.jvm.candidate`), and `validate.nix` rejects a list at an
+undeclared path or one naming a release that path declares again.
+
+A retirer (`core.prune.base.Retirer`) supplies `paths()`, each component's
+declaration path; `prefix(release, component)`, where an installed release
+lives; and `uninstall(retirement)` and `reselect(retirement)`, through the
+manager. `inspect(retirement)` adds the steps that carry dependents over, or
+the blockers that keep the release. Planning reads the filesystem only; a
+removal that leaves the prefix behind fails.
+
 ## Report JSON, Schema 1
 
 `--json` prints one object. `plan` exits 0 whenever it can report; `apply` and
 `verify` exit 0 when every runtime row is `ok` or `external`, and 1 otherwise.
+`prune` exits 0 when it only lists; with `--yes`, 0 when every retired row is
+`removed`, and 1 otherwise.
 An operational error exits 2 with a message on stderr and no report; an
 interruption exits 128 plus the signal number.
 
@@ -94,7 +113,7 @@ interruption exits 128 plus the signal number.
 | Field | Present | Content |
 | --- | --- | --- |
 | `schema` | Always | `1`. |
-| `action` | Always | `plan`, `apply` or `verify`. |
+| `action` | Always | `plan`, `apply`, `verify` or `prune`. |
 | `platform` | Always | Nix system string. |
 | `backend` | Always | `native` or `nixpkgs`. |
 | `defaults` | Always | Declared default release per ecosystem. |
@@ -105,6 +124,7 @@ interruption exits 128 plus the signal number.
 | `selections` | `apply` | Global selection rows, verified for health, which never fail the command. |
 | `verification` | `verify --health` | `health`. |
 | `selection` | Always | `source`: `only`, `all`, `file` (with `path`, the saved selection) or `default`. |
+| `retired` | `prune` | Retired rows, below. |
 
 ### Catalog Entry
 
@@ -135,3 +155,25 @@ interruption exits 128 plus the signal number.
 | `conflict` | Present but failing verification, or an incomplete prefix bootstrap did not start; needs a person. |
 | `blocked` | Cannot proceed here: missing manager, NixOS without the nixpkgs backend, unusable selection. |
 | `external` | The global selection delegates to the host (`system`); not executed. |
+
+### Retired Row
+
+| Field | Present | Content |
+| --- | --- | --- |
+| `language` | Always | Ecosystem. |
+| `version` | Always | The retired release, as declared (an SDKMAN identifier for Java). |
+| `path` | Always | Where it is installed: what removal deletes. |
+| `owner` | Always | Manager name. |
+| `successor` | Always | The declared release that replaces it. |
+| `state` | Always | `retire`, `blocked`, `removed` or `failed`. |
+| `steps` | Always | What removal does, in order; the last step removes the release. |
+| `component` | Multi-component ecosystems | `ghc`, `cabal` or `hls`. |
+| `reason` | `blocked` and `failed` rows | What keeps it installed. |
+| `notes` | Some rows | What prune cannot inspect, such as a project's own environment. |
+
+| State | Meaning |
+| --- | --- |
+| `retire` | Installed and removable; `prune --yes` removes it. |
+| `blocked` | Something prune cannot carry over depends on it; it stays. |
+| `removed` | Every step ran and the release is gone. |
+| `failed` | A step failed; the release stays and `reason` says why. |

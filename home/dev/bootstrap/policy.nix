@@ -32,6 +32,12 @@
       "default"
       "{version}"
     ];
+    nodeUninstall = [
+      "--fnm-dir"
+      "{root}"
+      "uninstall"
+      "{version}"
+    ];
     pythonDefault = [
       "global"
       "{version}"
@@ -64,6 +70,11 @@
       "{version}"
     ];
     pythonRehash = [ "rehash" ];
+    pythonUninstall = [
+      "uninstall"
+      "--force"
+      "{version}"
+    ];
     opamCommon = [
       "--cli=2.1"
       "--root"

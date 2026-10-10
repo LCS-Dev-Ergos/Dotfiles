@@ -55,6 +55,19 @@ let
         "5.5.1"
       ];
     };
+    # Releases the pins above used to declare, each at the same attribute
+    # path. `dev-bootstrap prune` removes them where they are still
+    # installed.
+    retired = {
+      nativeToolchains = {
+        julia.version = [ "1.12.6" ];
+        lean.version = [ "4.32.0" ];
+        ruby.version = [ "4.0.6" ];
+        rust.version = [ "1.98.1" ];
+      };
+      node.versions = [ "26.10.0" ];
+      python.version = [ "3.14.7" ];
+    };
   };
 in
 import ./bootstrap/validate.nix { inherit baseline; }

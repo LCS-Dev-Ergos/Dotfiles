@@ -327,15 +327,34 @@ command):
    changed ecosystems:
    `gh workflow run development-bootstrap-native.yml -f harness=adapters -f ecosystems='rust julia'`.
 4. On each host, `dev-bootstrap apply` (`just apply`) installs the new
-   releases beside the previous ones. It initializes a default only when none
-   exists, so move the selection with the manager: `rustup default`,
-   `fnm default`, `pyenv global`, `rbenv global`, `elan default`, `ghcup set`,
-   `sdk default`, `juliaup default`, `opam switch`. The .NET muxer runs the
-   newest SDK by itself.
-5. Remove a previous release with its manager once nothing uses it, for
-   example `rustup toolchain uninstall <release>`. `dotnet-install` has no
-   uninstaller: delete `~/.dotnet/sdk/<version>` and the runtimes that SDK
-   brought under `~/.dotnet/shared/` and `~/.dotnet/host/fxr/`.
+   releases beside the previous ones, without moving any selection.
+5. `dev-bootstrap prune` (`just prune`) lists the retired releases still
+   installed and what removing each takes; `prune --yes` does it.
+
+Prune removes only releases listed under `retired`, never one installed by
+hand, and each through its manager (`fnm uninstall`, `pyenv uninstall`,
+`rbenv uninstall`, `rustup toolchain uninstall`, `elan toolchain uninstall`,
+`ghcup rm`, `sdk uninstall`, `juliaup remove`, `opam switch remove`); a Scala
+distribution or a .NET SDK, which no manager tracks, is deleted as one
+directory. Before removing a release it:
+
+- moves a global selection that names it to the declared release that
+  replaced it, which must already be installed;
+- repoints virtual environments in the known tool locations (uv tools, pipx,
+  Mason, `~/.venv`, `WORKON_HOME`) to the successor when it is the same minor
+  release, and installs the packages its base interpreter held;
+- installs the user gems, global npm packages and rustup components or
+  targets that the successor lacks.
+
+Anything it cannot carry over keeps that release installed and is reported:
+pyenv-virtualenv environments inside it, environments that would need another
+minor release, an fnm alias or a rustup or elan directory override naming it,
+a juliaup channel that tracks it, another Coursier launcher that runs it, or
+packages installed into an opam switch. Only switches bootstrap created
+(`lcs-ocaml-<release>`) are candidates; a switch it adopted stays. Each
+release is handled on its own under the apply lock, so a failure keeps that
+release and the others proceed. Environments elsewhere, such as a project's
+`.venv`, and a `global.json` that requires one exact SDK are not inspected.
 
 A Node or Python patch release also needs the same release in the locked
 nixpkgs for the `nixpkgs` backend; until then that backend reports it blocked.

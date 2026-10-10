@@ -181,7 +181,7 @@ is available, and delegates to the packaged executor. The executor is built
 through `scripts/bootstrap/development-bootstrap.nix` from the nixpkgs revision
 in `flake.lock`, without evaluating the flake's other inputs. Once the
 configuration is active, the [Justfile](Justfile) runs the same operations:
-`just plan`, `just apply`, `just verify` and `just health`.
+`just plan`, `just apply`, `just verify`, `just health` and `just prune`.
 
 | Invocation | Effect |
 | --- | --- |
@@ -190,13 +190,15 @@ configuration is active, the [Justfile](Justfile) runs the same operations:
 | `scripts/bootstrap/dev-bootstrap.sh plan` | Default operation: reports what `apply` would change |
 | `scripts/bootstrap/dev-bootstrap.sh apply --only node` | Installs the selected ecosystems |
 | `scripts/bootstrap/dev-bootstrap.sh verify` | Verifies the exact declared baseline; `--health` checks the selected environment instead |
+| `scripts/bootstrap/dev-bootstrap.sh prune` | Lists the installed releases the baseline retired; `--yes` removes them |
 
 - Versions are declared in `home/dev/runtime-baseline.nix`. After the initial
   installation, each ecosystem manager owns upgrades, additional releases and
   project selection.
 - `scripts/updates/update-runtime-baseline.py --check` (`just baseline`)
   compares every declared release and installer with its upstream, and
-  `--apply` advances patch releases; a weekly workflow runs the check. The
+  `--apply` advances patch releases; a weekly workflow runs the check.
+  `prune` removes the releases listed as retired that a host still has. The
   procedure is in
   [home/dev/README.md](home/dev/README.md#keeping-the-baseline-current).
 - A rerun adds missing baseline entries and leaves later upgrades, additional

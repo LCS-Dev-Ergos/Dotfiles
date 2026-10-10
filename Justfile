@@ -41,6 +41,11 @@ verify *args:
 health *args:
     scripts/bootstrap/dev-bootstrap.sh verify --health "$@"
 
+# List the installed releases the baseline retired; --yes removes them
+[group('bootstrap')]
+prune *args:
+    scripts/bootstrap/dev-bootstrap.sh prune "$@"
+
 # Updates ----------------------------------------------------------------------
 
 # Compare the runtime baseline with its upstreams; --apply advances patches

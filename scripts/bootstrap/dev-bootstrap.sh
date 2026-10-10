@@ -9,7 +9,7 @@
 # nothing.
 #
 # Usage:
-#   scripts/bootstrap/dev-bootstrap.sh [--install-foundation] [plan|apply|verify] [options]
+#   scripts/bootstrap/dev-bootstrap.sh [--install-foundation] [plan|apply|verify|prune] [options]
 #   scripts/bootstrap/dev-bootstrap.sh --check-foundation
 #
 # ============================================================================ #
@@ -20,7 +20,7 @@ bootstrap_error() { printf 'dev-bootstrap: %s\n' "$*" >&2; return 2; }
 
 bootstrap_usage() {
   cat <<'EOF'
-Usage: scripts/bootstrap/dev-bootstrap.sh [--install-foundation] [plan|apply|verify] [options]
+Usage: scripts/bootstrap/dev-bootstrap.sh [--install-foundation] [plan|apply|verify|prune] [options]
        scripts/bootstrap/dev-bootstrap.sh --check-foundation
 
 No operation defaults to plan. Runtime options pass literally to dev-bootstrap.
@@ -30,6 +30,7 @@ then continues with the requested operation. Administrative authentication may
 be required. Existing foundations are never replaced or upgraded by this entry.
 Use apply --only LANGUAGE to limit installation; omit apply to avoid runtimes.
 --only ... --save-selection keeps that selection for later runs; --all ignores it.
+prune lists the installed releases the baseline retired; prune --yes removes them.
 EOF
 }
 
@@ -175,8 +176,8 @@ bootstrap_main() {
     [[ $# == 0 ]] || bootstrap_error '--check-foundation accepts no runtime options.'
   else
     case "${1:-plan}" in
-      plan|apply|verify) ;;
-      *) bootstrap_error 'Expected plan, apply or verify; use --help for entry options.' ;;
+      plan|apply|verify|prune) ;;
+      *) bootstrap_error 'Expected plan, apply, verify or prune; use --help for entry options.' ;;
     esac
   fi
   platform=$(bootstrap_platform)

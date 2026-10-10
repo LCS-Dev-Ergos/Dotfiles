@@ -41,6 +41,7 @@ flowchart TD
     Package --> CLI["bootstrap.py → core.cli → engine.Bootstrap"]
     CLI -->|plan| Inspect["Read filesystem state"]
     CLI -->|verify / verify --health| Verify["Direct runtime checks and canaries"]
+    CLI -->|prune / prune --yes| Prune["Retired releases: move selections and dependents, then remove"]
     CLI -->|apply| Guard["Owning user, directory checks, exclusive lock"]
     Guard --> Setup["setup: prerequisites and readiness"]
     Setup --> Adapters["One adapter per ecosystem (core/adapters)"]
@@ -65,6 +66,7 @@ flowchart TD
 | `adapters/coursier.py` | Scala through the pinned native `cs` launcher. The seed is the Scala distribution in Coursier's archive cache, filled from a discarded staging directory; the `scala` and `scalac` launchers are created only when absent. Requires `jvm` and runs on its JDK. |
 | `adapters/dotnet.py` | The .NET SDK through the hash-checked `dotnet-install` script, which is also its acquisition: no version manager, no global selection, the muxer in `DOTNET_ROOT` and projects' `global.json`. |
 | `adapters/conda.py` | Conda through the hash-verified Miniforge3 installer in batch mode, which installs the base environment as the manager's acquisition. Selected only by `--only conda`; `conda init` never runs. |
+| `core/prune/` | `prune`: one retirer per adapter finds the installed releases the baseline retired, plans what removing each takes (`base.py`), reads what a release holds from the filesystem (`inventory.py`) and removes it through its manager (`runtimes.py`, `toolchains.py`). |
 
 From the repository root:
 
@@ -73,6 +75,7 @@ bash scripts/bootstrap/dev-bootstrap.sh --check-foundation
 bash scripts/bootstrap/dev-bootstrap.sh plan --json
 bash scripts/bootstrap/dev-bootstrap.sh apply --only rust
 bash scripts/bootstrap/dev-bootstrap.sh verify --health --only rust
+bash scripts/bootstrap/dev-bootstrap.sh prune --only rust --yes
 ```
 
 ## Selection
@@ -129,6 +132,18 @@ Verification runs executables and temporary canaries, so it is not a filesystem-
 only inspection. JSON reports go to stdout and operational errors to stderr;
 exit codes are 0 for success, 1 for unsuccessful verification, and 2 for invalid
 arguments or operational failures.
+
+`prune` lists the installed releases that the baseline's `retired` mirror
+names, with what removing each takes; `prune --yes` removes them under the
+apply lock and exits 1 unless every one went. The selection options apply as
+for the other actions. A release the global selection names moves to its
+successor first, and dependents move with it when they safely can: virtual
+environments in the known tool locations within the same minor release,
+packages of a base interpreter, user gems, global npm packages and rustup
+components. Whatever cannot follow keeps the release and is reported as
+`blocked`; a failing step keeps it as `failed`. The
+[baseline procedure](../README.md#keeping-the-baseline-current) lists the
+cases.
 
 ## Common Boundaries
 
