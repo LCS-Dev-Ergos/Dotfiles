@@ -281,9 +281,13 @@ def report(result, as_json):
         report_retired(result["retired"])
         return
     for row in result["runtimes"]:
+        # A health row names the declared default; show what actually runs.
+        version = row.get("actualVersion", row["version"])
         print(
-            f"{row['state']:8} {row['language']:6} {row['version']:8} {row['path']}"
+            f"{row['state']:8} {row['language']:6} {version:8} {row['path']}"
         )
+        if version != row["version"]:
+            print(f"         the declared default is {row['version']}")
         if row.get("reason"):
             print(f"         {row['reason']}")
         if row.get("remediation"):
