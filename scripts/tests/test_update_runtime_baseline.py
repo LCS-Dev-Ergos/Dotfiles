@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline tests for scripts/updates/update-runtime-baseline.py.
+"""Offline tests for the runtime baseline updater (scripts/updates).
 
 Upstream responses are recorded fixtures; declarations are temporary copies
 evaluated by the real `nix eval`. Nothing here touches the network.
@@ -8,7 +8,6 @@ evaluated by the real `nix eval`. Nothing here touches the network.
 import contextlib
 import copy
 import hashlib
-import importlib.util
 import io
 import os
 import shutil
@@ -19,11 +18,15 @@ from pathlib import Path
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
-SCRIPT = ROOT / "scripts/updates/update-runtime-baseline.py"
-spec = importlib.util.spec_from_file_location("updater", SCRIPT)
-assert spec and spec.loader
-updater = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(updater)
+sys.path.insert(0, str(ROOT / "scripts/updates"))
+
+from update_runtime_baseline import cli, declarations, model  # noqa: E402
+from update_runtime_baseline import upstream as transport  # noqa: E402
+from update_runtime_baseline.resolvers import (  # noqa: E402
+    RESOLVERS,
+    installers,
+    sources,
+)
 
 BASELINE = {
     "defaults": {"node": "26.10.0", "python": "3.14.7", "dotnet": "10.0.401"},
@@ -87,7 +90,7 @@ def kinds(findings):
 
 class Classification(unittest.TestCase):
     def test_patch_line_and_current(self):
-        found = updater.classify(
+        found = model.classify(
             "julia", "julia", "1.12.6", {"1.12.6", "1.12.7", "1.13.1"}, 2
         )
         self.assertEqual(
@@ -95,12 +98,12 @@ class Classification(unittest.TestCase):
             [("julia", "update", "1.12.7"), ("julia", "line", "1.13.1")],
         )
         self.assertEqual(
-            kinds(updater.classify("julia", "julia", "1.12.7", {"1.12.7"}, 2)),
+            kinds(model.classify("julia", "julia", "1.12.7", {"1.12.7"}, 2)),
             [("julia", "current", "")],
         )
 
     def test_uninstallable_newest_falls_back_and_stays_pending(self):
-        found = updater.classify(
+        found = model.classify(
             "python",
             "python",
             "3.14.7",
@@ -115,7 +118,7 @@ class Classification(unittest.TestCase):
         self.assertIn("3.14.9: no definition", found[1].note)
 
     def test_manual_lines_carry_no_rewrite(self):
-        found = updater.classify(
+        found = model.classify(
             "python", "python", "3.14.7", {"3.15.0"}, 2, edits=lambda v: [v]
         )
         self.assertEqual(kinds(found), [("python", "line", "3.15.0")])
@@ -123,18 +126,18 @@ class Classification(unittest.TestCase):
         self.assertIn("by hand", found[0].note)
 
     def test_rolling_tools_have_no_lines_at_depth_zero(self):
-        found = updater.classify("conda", "conda", "26.7.2", {"27.1.0"}, 0)
+        found = model.classify("conda", "conda", "26.7.2", {"27.1.0"}, 0)
         self.assertEqual(kinds(found), [("conda", "update", "27.1.0")])
 
     def test_only_the_newest_declared_line_reports_lines(self):
-        found = updater.classify(
+        found = model.classify(
             "node", "node 24", "24.21.0", {"26.11.1", "28.0.0"}, 1, lines=False
         )
         self.assertEqual(kinds(found), [("node 24", "current", "")])
 
     def test_edits_are_built_only_on_demand(self):
         built = []
-        found = updater.classify(
+        found = model.classify(
             "rust",
             "rust",
             "1.98.1",
@@ -164,7 +167,7 @@ class Resolvers(unittest.TestCase):
                 ]
             }
         )
-        found = updater.resolve_node(upstream, BASELINE, {})
+        found = RESOLVERS["node"](upstream, BASELINE, {})
         self.assertEqual(
             kinds(found),
             [("node 24", "current", ""), ("node 26", "update", "26.11.1")],
@@ -193,7 +196,7 @@ class Resolvers(unittest.TestCase):
             },
             existing={raw + "3.14.8"},
         )
-        found = updater.resolve_python(upstream, BASELINE, {})
+        found = RESOLVERS["python"](upstream, BASELINE, {})
         self.assertEqual(
             kinds(found),
             [("python", "update", "3.14.8"), ("python", "pending", "3.14.9")],
@@ -209,32 +212,32 @@ class Resolvers(unittest.TestCase):
 
     def jvm_upstream(self, broker_target, lts=21):
         responses: dict = {
-            f"{updater.ADOPTIUM}/info/available_releases": {
+            f"{sources.ADOPTIUM}/info/available_releases": {
                 "most_recent_lts": lts
             }
         }
         for os_name, architecture in (("mac", "aarch64"), ("linux", "x64")):
             responses[
-                f"{updater.ADOPTIUM}/assets/latest/21/hotspot?architecture="
+                f"{sources.ADOPTIUM}/assets/latest/21/hotspot?architecture="
                 f"{architecture}&image_type=jdk&os={os_name}&vendor=eclipse"
             ] = self.adoptium("jdk-21.0.13+11", "21.0.13+11-LTS")
         # The platform lists disagree, as SDKMAN's do.
         responses[
-            f"{updater.SDKMAN_LISTS}/java/darwinarm64/versions/list?installed="
+            f"{sources.SDKMAN_LISTS}/java/darwinarm64/versions/list?installed="
         ] = " Temurin | | 21.0.0.0+35 | 21.0.0.0+35-tem\n"
         responses[
-            f"{updater.SDKMAN_LISTS}/java/linuxx64/versions/list?installed="
+            f"{sources.SDKMAN_LISTS}/java/linuxx64/versions/list?installed="
         ] = " Temurin | | 21.0.13 | 21.0.13-tem\n"
         redirects = {}
-        for platform in updater.SDKMAN_PLATFORMS:
+        for platform in sources.SDKMAN_PLATFORMS:
             redirects[
-                f"{updater.SDKMAN_BROKER}/java/21.0.0.0+35-tem/{platform}"
+                f"{sources.SDKMAN_BROKER}/java/21.0.0.0+35-tem/{platform}"
             ] = (
                 "https://github.com/adoptium/temurin21-binaries/releases/"
                 "download/jdk-21%2B35/x.tar.gz"
             )
             redirects[
-                f"{updater.SDKMAN_BROKER}/java/21.0.13-tem/{platform}"
+                f"{sources.SDKMAN_BROKER}/java/21.0.13-tem/{platform}"
             ] = broker_target
         return FakeUpstream(responses, redirects=redirects)
 
@@ -243,7 +246,7 @@ class Resolvers(unittest.TestCase):
             "https://github.com/adoptium/temurin21-binaries/releases/"
             "download/jdk-21.0.13%2B11/x.tar.gz"
         )
-        (finding,) = updater.resolve_jvm(upstream, BASELINE, {})
+        (finding,) = RESOLVERS["jvm"](upstream, BASELINE, {})
         self.assertEqual(
             (finding.kind, finding.available, finding.note),
             ("update", "21.0.13", "SDKMAN 21.0.13-tem"),
@@ -254,7 +257,7 @@ class Resolvers(unittest.TestCase):
 
     def test_jvm_is_pending_until_sdkman_serves_the_release(self):
         upstream = self.jvm_upstream("https://elsewhere.invalid/old.tar.gz")
-        (finding,) = updater.resolve_jvm(upstream, BASELINE, {})
+        (finding,) = RESOLVERS["jvm"](upstream, BASELINE, {})
         self.assertEqual(finding.kind, "pending")
         self.assertIn("jdk-21.0.13+11", finding.note)
 
@@ -297,7 +300,7 @@ class Resolvers(unittest.TestCase):
             {"10.0": ["10.0.401", "10.0.402", "10.0.500", "10.0.113"]},
             {"10.0": "active", "11.0": "go-live"},
         )
-        found = updater.resolve_dotnet(upstream, BASELINE, {})
+        found = RESOLVERS["dotnet"](upstream, BASELINE, {})
         self.assertEqual(
             kinds(found),
             [
@@ -311,7 +314,7 @@ class Resolvers(unittest.TestCase):
             {"10.0": ["10.0.401"], "11.0": ["11.0.100", "11.0.100-rc.2"]},
             {"10.0": "active", "11.0": "active"},
         )
-        found = updater.resolve_dotnet(upstream, BASELINE, {})
+        found = RESOLVERS["dotnet"](upstream, BASELINE, {})
         self.assertEqual(
             kinds(found), [("dotnet 10.0.4xx", "line", "11.0.100")]
         )
@@ -345,8 +348,8 @@ class Resolvers(unittest.TestCase):
                 },
             }
         }
-        upstream = FakeUpstream({updater.GHCUP_METADATA: metadata})
-        found = updater.resolve_haskell(upstream, BASELINE, {})
+        upstream = FakeUpstream({sources.GHCUP_METADATA: metadata})
+        found = RESOLVERS["haskell"](upstream, BASELINE, {})
         self.assertEqual(
             kinds(found),
             [
@@ -371,10 +374,10 @@ class Installers(unittest.TestCase):
         self.managers_file = self.root / "native-managers.nix"
         shutil.copy(ROOT / "home/dev/native-managers.nix", self.managers_file)
         self.managers_file.chmod(0o600)
-        moved = patch.object(updater, "MANAGERS", self.managers_file)
+        moved = patch.object(declarations, "MANAGERS", self.managers_file)
         moved.start()
         self.addCleanup(moved.stop)
-        self.managers = updater.evaluate(self.managers_file)
+        self.managers = declarations.evaluate(self.managers_file)
         self.rust = self.managers["bootstrap"]["aarch64-darwin"]["installers"][
             "rust"
         ]
@@ -387,11 +390,11 @@ class Installers(unittest.TestCase):
         digest = hashlib.sha256(changed).hexdigest()
         findings = [
             f
-            for f in updater.resolve_installers(
+            for f in installers.resolve(
                 FakeUpstream(
                     {
                         installer["url"]: b"unchanged"
-                        for installer in updater.mutable_installers(
+                        for installer in installers.mutable_installers(
                             self.managers
                         ).values()
                     }
@@ -403,81 +406,82 @@ class Installers(unittest.TestCase):
             if f.name == "installer rust"
         ]
         self.assertEqual(findings[0].kind, "drift")
-        saved = updater.review_path("rust", digest)
+        saved = installers.review_path("rust", digest)
         self.assertEqual(saved.read_bytes(), changed)
         # Upstream changed again after the review: refuse.
-        with self.assertRaisesRegex(updater.SourceError, "nobody reviewed"):
-            updater.accept_installers(
+        with self.assertRaisesRegex(model.SourceError, "nobody reviewed"):
+            installers.accept(
                 ["rust"], self.upstream(b"newer still\n"), self.managers
             )
         self.assertIn(self.rust["sha256"], self.managers_file.read_text())
         with contextlib.redirect_stdout(io.StringIO()):
-            updater.accept_installers(
-                ["rust"], self.upstream(changed), self.managers
-            )
-        after = updater.evaluate(self.managers_file)["bootstrap"]
-        for platform in updater.PLATFORMS:
+            installers.accept(["rust"], self.upstream(changed), self.managers)
+        after = declarations.evaluate(self.managers_file)["bootstrap"]
+        for platform in declarations.PLATFORMS:
             self.assertEqual(
                 after[platform]["installers"]["rust"]["sha256"], digest
             )
 
     def test_unknown_installer_is_refused(self):
-        with self.assertRaisesRegex(updater.SourceError, "choose from"):
-            updater.accept_installers(["scala"], FakeUpstream(), self.managers)
+        with self.assertRaisesRegex(model.SourceError, "choose from"):
+            installers.accept(["scala"], FakeUpstream(), self.managers)
+
+
+def copy_declarations(test):
+    """A temporary copy of the baseline and what it imports; its path."""
+    temporary = tempfile.TemporaryDirectory(prefix="runtime-baseline-")
+    test.addCleanup(temporary.cleanup)
+    tree = Path(temporary.name)
+    for relative in (
+        "home/dev/runtime-baseline.nix",
+        "home/dev/bootstrap/validate.nix",
+        "home/dev/bootstrap/platforms.nix",
+    ):
+        (tree / relative).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(ROOT / relative, tree / relative)
+    return tree / "home/dev/runtime-baseline.nix"
 
 
 class Rewrite(unittest.TestCase):
     """Exact replacement against copies of the real declarations."""
 
     def setUp(self):
-        temporary = tempfile.TemporaryDirectory(prefix="runtime-baseline-")
-        self.addCleanup(temporary.cleanup)
-        tree = Path(temporary.name)
-        for relative in (
-            "home/dev/runtime-baseline.nix",
-            "home/dev/bootstrap/validate.nix",
-            "home/dev/bootstrap/platforms.nix",
-        ):
-            (tree / relative).parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy(ROOT / relative, tree / relative)
-        self.baseline = tree / "home/dev/runtime-baseline.nix"
+        self.baseline = copy_declarations(self)
         self.original = self.baseline.read_text()
-        self.node = updater.evaluate(self.baseline)["defaults"]["node"]
+        self.node = declarations.evaluate(self.baseline)["defaults"]["node"]
 
     def edit(self, new, *scopes):
-        return updater.Edit(
-            self.baseline, f'"{self.node}"', f'"{new}"', scopes
-        )
+        return model.Edit(self.baseline, f'"{self.node}"', f'"{new}"', scopes)
 
     def test_only_the_intended_values_change(self):
-        updater.apply_edits(
+        declarations.apply_edits(
             [self.edit("99.0.0", "node.versions", "defaults.node")]
         )
-        after = updater.evaluate(self.baseline)
+        after = declarations.evaluate(self.baseline)
         self.assertEqual(after["defaults"]["node"], "99.0.0")
         self.assertIn("99.0.0", after["node"]["versions"])
 
     def test_a_stray_change_restores_the_file(self):
-        with self.assertRaisesRegex(updater.SourceError, "defaults.node"):
-            updater.apply_edits([self.edit("99.0.0", "node.versions")])
+        with self.assertRaisesRegex(model.SourceError, "defaults.node"):
+            declarations.apply_edits([self.edit("99.0.0", "node.versions")])
         self.assertEqual(self.baseline.read_text(), self.original)
 
     def test_an_invalid_result_restores_the_file(self):
         # validate.nix rejects a Node default that names no declared release.
-        edit = updater.Edit(
+        edit = model.Edit(
             self.baseline,
             f'node = "{self.node}"',
             'node = "1.0.0"',
             ("defaults.node",),
         )
-        with self.assertRaisesRegex(updater.SourceError, "does not evaluate"):
-            updater.apply_edits([edit])
+        with self.assertRaisesRegex(model.SourceError, "does not evaluate"):
+            declarations.apply_edits([edit])
         self.assertEqual(self.baseline.read_text(), self.original)
 
     def test_a_missing_value_writes_nothing(self):
-        with self.assertRaisesRegex(updater.SourceError, "not found"):
-            updater.apply_edits(
-                [updater.Edit(self.baseline, '"0.0.0"', '"1"', ("x",))]
+        with self.assertRaisesRegex(model.SourceError, "not found"):
+            declarations.apply_edits(
+                [model.Edit(self.baseline, '"0.0.0"', '"1"', ("x",))]
             )
         self.assertEqual(self.baseline.read_text(), self.original)
 
@@ -486,17 +490,19 @@ class Entry(unittest.TestCase):
     def run_main(self, argv, upstream, baseline=BASELINE):
         output = io.StringIO()
         with (
-            patch.object(updater, "Upstream", lambda token: upstream),
+            patch.object(cli, "Upstream", lambda token: upstream),
             patch.object(
-                updater,
+                cli,
                 "evaluate",
                 lambda path: (
-                    copy.deepcopy(baseline) if path == updater.BASELINE else {}
+                    copy.deepcopy(baseline)
+                    if path == declarations.BASELINE
+                    else {}
                 ),
             ),
             contextlib.redirect_stdout(output),
         ):
-            code = updater.main(argv)
+            code = cli.main(argv)
         return code, output.getvalue()
 
     def rust(self, version):
@@ -519,7 +525,7 @@ class Entry(unittest.TestCase):
         unreachable = FakeUpstream(
             {
                 "https://static.rust-lang.org/dist/channel-rust-stable.toml": (
-                    updater.SourceError("connection refused")
+                    model.SourceError("connection refused")
                 )
             }
         )
@@ -544,13 +550,13 @@ class Entry(unittest.TestCase):
                 self.assertRaises(SystemExit) as raised,
                 contextlib.redirect_stderr(io.StringIO()),
             ):
-                updater.main(argv)
+                cli.main(argv)
             self.assertEqual(raised.exception.code, 2)
 
 
 class Transport(unittest.TestCase):
     def test_the_token_goes_to_the_github_api_only(self):
-        upstream = updater.Upstream("secret")
+        upstream = transport.Upstream("secret")
         api = upstream.request("https://api.github.com/repos/x/y")
         raw = upstream.request("https://raw.githubusercontent.com/x/y")
         self.assertEqual(
@@ -561,8 +567,8 @@ class Transport(unittest.TestCase):
         self.assertNotIn("Authorization", raw.headers)
 
     def test_plain_http_is_refused(self):
-        with self.assertRaisesRegex(updater.SourceError, "non-HTTPS"):
-            updater.Upstream().request("http://example.com/")
+        with self.assertRaisesRegex(model.SourceError, "non-HTTPS"):
+            transport.Upstream().request("http://example.com/")
 
 
 if __name__ == "__main__":
