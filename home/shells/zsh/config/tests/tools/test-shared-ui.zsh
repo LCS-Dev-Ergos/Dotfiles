@@ -3,12 +3,13 @@
 # ============================================================================ #
 # ++++++++++++++++++++++++++++++ SHARED UI TEST ++++++++++++++++++++++++++++++ #
 # ============================================================================ #
-# Verifies the shared UI helpers in scripts/_shared-helpers.zsh: mode
-# resolution (plain/ansi/gum, NO_COLOR override, invalid mode rejection),
-# the native heading/section/card/table renderers (no Gum process for static
-# output, width fitting, status colors, plain capture layout), path display
-# shortening, the function spinner contract, and the safe non-interactive
-# confirm.
+# Verifies the shared terminal style in scripts/_ui.zsh, loaded through
+# _shared-helpers.zsh: mode resolution (plain/ansi/gum, NO_COLOR override,
+# invalid mode rejection), the framed headers and the ruled section, card,
+# table, summary and callout renderers (no Gum process for static output,
+# margins and width fitting, status markers and colors, plain capture
+# layout), path display shortening, the function
+# spinner contract, and the safe non-interactive confirm and choose.
 # ============================================================================ #
 
 emulate -L zsh
@@ -77,12 +78,31 @@ _ui_strip() {
   REPLY="${1//$'\e'\[[0-9;]#m/}"
 }
 
+# A header sits in a rounded frame whose inside lines up with the content
+# column: the badge starts where section titles do.
 typeset ansi_heading
-ansi_heading="$(ZSH_UI_STYLE=ansi _zsh_ui_heading Title Subtitle)" || return 1
-[[ "$ansi_heading" == *$'\e[1;36mTitle'* &&
-   "$ansi_heading" == *'════──────'* &&
-   "$ansi_heading" == *Subtitle* ]] || {
-  print -u2 "FAIL: ANSI heading did not draw the shared title banner"
+ansi_heading="$(COLUMNS=60 ZSH_UI_STYLE=ansi _zsh_ui_heading Title Subtitle)" ||
+  return 1
+typeset -a heading_lines=("${(@f)ansi_heading}")
+_ui_strip "${heading_lines[2]}"
+(( ${#heading_lines} == 3 )) &&
+  [[ "${heading_lines[1]}" == $'\e[34m╭'*$'╮\e[0m' &&
+     "${heading_lines[2]}" == *$'\e[1;7;36m Title \e[0m  \e[38;5;245mSubtitle\e[0m'* &&
+     "$REPLY" == "│  Title   Subtitle"*" │" &&
+     "${heading_lines[3]}" == $'\e[34m╰'*$'╯\e[0m' ]] &&
+  (( ${(m)#REPLY} == 60 )) || {
+  print -u2 "FAIL: ANSI heading is not a framed badge with its subtitle beside it"
+  return 1
+}
+typeset long_heading
+long_heading="$(
+  COLUMNS=40 ZSH_UI_STYLE=ansi _zsh_ui_heading Title \
+    "a subtitle too long to share the line with the badge"
+)" || return 1
+heading_lines=("${(@f)long_heading}")
+_ui_strip "${heading_lines[3]}"
+(( ${#heading_lines} == 4 )) && [[ "$REPLY" == "│  a subtitle"*"… │" ]] || {
+  print -u2 "FAIL: a long heading subtitle did not move under the badge"
   return 1
 }
 
@@ -97,10 +117,17 @@ plain_heading="$(ZSH_UI_STYLE=plain _zsh_ui_heading Title Subtitle)" || return 1
 # and spinners, so none of these may start a process.
 ZSH_UI_STYLE=gum _zsh_ui_heading Title Subtitle >/dev/null
 typeset gum_section
-gum_section="$(ZSH_UI_STYLE=gum _zsh_ui_section 'Section · 3')" || return 1
-[[ "$gum_section" == *$'\e[1;34mSection'* &&
-   "$gum_section" == *' · 3'* ]] || {
-  print -u2 "FAIL: styled section lost its label or secondary detail"
+gum_section="$(
+  COLUMNS=40 ZSH_UI_STYLE=gum _zsh_ui_section 'Section · 3'
+)" || return 1
+_ui_strip "$gum_section"
+[[ "$gum_section" == $'  \e[1;34mSection\e[0m \e[2;34m─'* &&
+   "$REPLY" == "  Section ─"*"─ 3" ]] && (( ${(m)#REPLY} == 38 )) || {
+  print -u2 "FAIL: styled section lost its rule or the note at its end"
+  return 1
+}
+[[ "$(ZSH_UI_STYLE=plain _zsh_ui_section Section 3)" == "Section · 3" ]] || {
+  print -u2 "FAIL: plain section did not keep its note"
   return 1
 }
 ZSH_UI_STYLE=gum _zsh_ui_subsection Section 80 >/dev/null
@@ -108,6 +135,9 @@ ZSH_UI_STYLE=gum _zsh_ui_card Card "" $'Field\tvalue' >/dev/null
 ZSH_UI_STYLE=gum _zsh_ui_table $'Name\tValue' $'alpha\t1' >/dev/null
 ZSH_UI_STYLE=gum _zsh_ui_definition_list $'term\tdescription' >/dev/null
 ZSH_UI_STYLE=gum _shared_banner Banner Subtitle >/dev/null
+ZSH_UI_STYLE=gum _zsh_ui_app_header tool Title Subtitle >/dev/null
+ZSH_UI_STYLE=gum _zsh_ui_summary $'ok\t1\tok' >/dev/null
+ZSH_UI_STYLE=gum _zsh_ui_callout warn Title Body >/dev/null
 [[ "$(_ui_gum_calls)" == 0 ]] || {
   print -u2 "FAIL: static output spawned a Gum process"
   return 1
@@ -137,17 +167,29 @@ styled_card="$(
 )" || return 1
 typeset -a card_lines=("${(@f)styled_card}")
 typeset card_line
-typeset -i card_width=0
 for card_line in "${card_lines[@]}"; do
   _ui_strip "$card_line"
-  (( card_width == 0 )) && card_width=${(m)#REPLY}
-  (( ${(m)#REPLY} == card_width && card_width <= 44 )) || {
-    print -u2 "FAIL: styled card is ragged or wider than the terminal"
+  (( ${(m)#REPLY} <= 44 )) || {
+    print -u2 "FAIL: styled card is wider than the terminal"
+    return 1
+  }
+  [[ "$REPLY" != *[╭╮╰╯│]* ]] || {
+    print -u2 "FAIL: styled card still draws a frame"
     return 1
   }
 done
-(( ${#card_lines} > 3 )) || {
+[[ "${card_lines[1]}" == $'  \e[1;34mCard\e[0m \e[2;34m─'* &&
+   "${card_lines[2]}" == $'    \e[38;5;245mKey\e[0m  value'* ]] || {
+  print -u2 "FAIL: styled card lost its section title or indented muted key"
+  return 1
+}
+(( ${#card_lines} > 2 )) || {
   print -u2 "FAIL: styled card did not wrap a long value"
+  return 1
+}
+_ui_strip "${card_lines[3]}"
+[[ "$REPLY" == "         "[a-z]* ]] || {
+  print -u2 "FAIL: a wrapped value did not stay under its column"
   return 1
 }
 
@@ -176,12 +218,33 @@ styled_table="$(
   ZSH_UI_STYLE=ansi _zsh_ui_table --status 2 \
     $'Name\tState' $'alpha\tOK' $'beta\tbroken' $'gamma\t-'
 )" || return 1
-[[ "$styled_table" == *'╭'*'╯'* &&
-   "$styled_table" == *$'\e[1;34mName'* &&
-   "$styled_table" == *$'\e[1;32mOK'* &&
-   "$styled_table" == *$'\e[1;31mbroken'* &&
-   "$styled_table" == *$'\e[38;5;245m-'* ]] || {
-  print -u2 "FAIL: styled table lost its frame, header, or status colors"
+[[ "$styled_table" != *[╭╮╰╯│┼]* &&
+   "$styled_table" == $'    \e[38;5;245mNAME\e[0m'* &&
+   "$styled_table" == *$'\e[32mOK'* &&
+   "$styled_table" == *$'\e[31mbroken'* &&
+   "$styled_table" == *$'\e[38;5;240m-'* ]] || {
+  print -u2 "FAIL: styled table drew a frame or lost its labels or status colors"
+  return 1
+}
+
+# With --marker, rows lead with their status marker like report rows; the
+# labels and a row whose word has no tone keep the place blank.
+typeset marked_table
+marked_table="$(
+  ZSH_UI_STYLE=ansi _zsh_ui_table --marker 1 --status 1 \
+    $'State\tName' $'ok\talpha' $'missing\tbeta' $'other\tgamma'
+)" || return 1
+typeset -a marked_lines=("${(@f)marked_table}")
+[[ "${marked_lines[1]}" == $'      \e[38;5;245mSTATE'* &&
+   "${marked_lines[2]}" == $'    \e[1;32m●\e[0m \e[32mok'* &&
+   "${marked_lines[3]}" == $'    \e[1;31m✖\e[0m \e[31mmissing'* &&
+   "${marked_lines[4]}" == '      other'* ]] || {
+  print -u2 "FAIL: a marked table did not lead its rows with status markers"
+  return 1
+}
+[[ "$(ZSH_UI_STYLE=plain _zsh_ui_table --marker 1 $'State\tName' $'ok\talpha')" == \
+   $'State  Name\nok     alpha' ]] || {
+  print -u2 "FAIL: plain output drew table markers"
   return 1
 }
 
@@ -212,6 +275,12 @@ definitions="$(
 )" || return 1
 [[ "$definitions" == $'  short        One\n  longer-term  Two' ]] || {
   print -u2 "FAIL: shared definition list did not align its descriptions"
+  return 1
+}
+definitions="$(ZSH_UI_STYLE=ansi _zsh_ui_definition_list $'short\tOne')" ||
+  return 1
+[[ "$definitions" == $'    \e[36mshort\e[0m  \e[38;5;245mOne\e[0m' ]] || {
+  print -u2 "FAIL: styled definition list is not one indent in"
   return 1
 }
 
@@ -263,8 +332,86 @@ typeset styled_rule
 styled_rule="$(NO_COLOR= ZSH_UI_STYLE=ansi _zsh_ui_rule "" 40)" ||
   return 1
 _ui_strip "$styled_rule"
-[[ "$REPLY" == "${(pl:40::─:)}" ]] || {
-  print -u2 "FAIL: default styled rule did not match the zfuncs divider"
+[[ "$REPLY" == "  ${(pl:36::─:)}" &&
+   "$styled_rule" == $'  \e[2;34m─'* ]] || {
+  print -u2 "FAIL: default styled rule does not run from margin to margin"
+  return 1
+}
+
+typeset styled_log
+styled_log="$(ZSH_UI_STYLE=ansi _zsh_ui_log ok complete)" || return 1
+[[ "$styled_log" == $'  \e[1;32m✓\e[0m complete' ]] || {
+  print -u2 "FAIL: styled log line did not lead with its sign on the gutter"
+  return 1
+}
+
+typeset plain_summary styled_summary
+plain_summary="$(
+  ZSH_UI_STYLE=plain _zsh_ui_summary --hint "apply installs 2" \
+    $'ok\t3\tpresent' $'pending\t2\tmissing' $'error\t0\tconflict'
+)" || return 1
+[[ "$plain_summary" == "[INFO]  3 present, 2 missing; apply installs 2." ]] || {
+  print -u2 "FAIL: plain summary changed: $plain_summary"
+  return 1
+}
+styled_summary="$(
+  COLUMNS=60 ZSH_UI_STYLE=ansi _zsh_ui_summary --hint "apply installs 2" \
+    $'ok\t3\tpresent' $'pending\t2\tmissing'
+)" || return 1
+typeset -a summary_lines=("${(@f)styled_summary}")
+_ui_strip "${summary_lines[1]}"
+[[ "$REPLY" == "  ${(pl:56::─:)}" ]] || {
+  print -u2 "FAIL: summary did not open with a rule across the content"
+  return 1
+}
+_ui_strip "${summary_lines[2]}"
+[[ "$REPLY" == "  ● 3 present   ▲ 2 missing"*"apply installs 2" ]] &&
+  (( ${(m)#REPLY} == 58 )) || {
+  print -u2 "FAIL: summary lost its markers or right-aligned hint"
+  return 1
+}
+
+typeset styled_callout
+styled_callout="$(
+  COLUMNS=40 ZSH_UI_STYLE=ansi _zsh_ui_callout error "Needs a person" \
+    "a reason long enough to wrap onto a second line of the notice"
+)" || return 1
+typeset -a callout_lines=("${(@f)styled_callout}")
+(( ${#callout_lines} == 3 )) &&
+  [[ "${callout_lines[1]}" == $'  \e[31m┃\e[0m \e[1mNeeds a person'* ]] || {
+  print -u2 "FAIL: callout lost its bar, title, or wrapping"
+  return 1
+}
+for card_line in "${callout_lines[@]}"; do
+  _ui_strip "$card_line"
+  (( ${(m)#REPLY} <= 40 )) || {
+    print -u2 "FAIL: callout is wider than the terminal"
+    return 1
+  }
+done
+
+typeset styled_header
+styled_header="$(
+  COLUMNS=60 ZSH_UI_STYLE=ansi _zsh_ui_app_header tool Title Subtitle \
+    context note
+)" || return 1
+typeset -a header_lines=("${(@f)styled_header}")
+_ui_strip "${header_lines[2]}"
+(( ${#header_lines} == 4 )) &&
+  [[ "${header_lines[1]}" == $'\e[34m╭'* && "${header_lines[4]}" == $'\e[34m╰'* &&
+     "$REPLY" == "│  TOOL   Title"*"context │" ]] &&
+  (( ${(m)#REPLY} == 60 )) || {
+  print -u2 "FAIL: masthead lost its frame, badge or right-aligned context"
+  return 1
+}
+_ui_strip "${header_lines[3]}"
+[[ "$REPLY" == "│"*" Subtitle"*"note │" ]] || {
+  print -u2 "FAIL: masthead lost its subtitle line"
+  return 1
+}
+[[ "$(ZSH_UI_STYLE=plain _zsh_ui_app_header tool Title Subtitle context)" == \
+   $'tool · Title\nSubtitle · context' ]] || {
+  print -u2 "FAIL: plain masthead dropped a part"
   return 1
 }
 
@@ -284,6 +431,24 @@ ZSH_UI_STYLE=plain _zsh_ui_short_path "/nix/store/abcdefghijklmnopqrstuvwxyz0123
 
 if ZSH_UI_STYLE=plain _zsh_ui_confirm "Continue?" </dev/null 2>/dev/null; then
   print -u2 "FAIL: non-interactive confirmation did not fail safely"
+  return 1
+fi
+# A default of yes only shapes the prompt; it never answers for a script.
+if ZSH_UI_STYLE=plain _zsh_ui_confirm "Continue?" yes </dev/null 2>/dev/null
+then
+  print -u2 "FAIL: a yes default accepted without a terminal"
+  return 1
+fi
+typeset -i confirm_status=0
+ZSH_UI_STYLE=plain _zsh_ui_confirm "Continue?" maybe </dev/null 2>/dev/null ||
+  confirm_status=$?
+(( confirm_status == 2 )) || {
+  print -u2 "FAIL: confirm accepted an invalid default"
+  return 1
+}
+if ZSH_UI_STYLE=plain _zsh_ui_choose "Pick" one two </dev/null >/dev/null 2>&1
+then
+  print -u2 "FAIL: non-interactive choose picked an option"
   return 1
 fi
 
@@ -320,7 +485,7 @@ spin_output="$(
 if zmodload zsh/zpty 2>/dev/null; then
   typeset spin_script
   spin_script="source ${(q)test_root}/scripts/_shared-helpers.zsh"
-  spin_script+='; work() { /bin/sleep 0.3; print -r -- pty-payload; return 4 }'
+  spin_script+='; work() { /bin/sleep 0.3; print -r -- pty-payload; print -u2 -r -- pty-diagnostic; return 4 }'
   spin_script+='; out=$(ZSH_UI_STYLE=gum _zsh_ui_spinner_fn Working work)'
   spin_script+='; print -r -- "SPINRESULT=${out}=$?"'
 
@@ -341,6 +506,11 @@ if zmodload zsh/zpty 2>/dev/null; then
   pty_buffer="${pty_buffer//$'\r'/}"
   [[ "$pty_buffer" == *"SPINRESULT=pty-payload=4"* ]] || {
     print -u2 "FAIL: Gum spinner path lost output or status: ${pty_buffer//$'\n'/ }"
+    return 1
+  }
+  # A failure replays what the work wrote to stderr behind the spinner.
+  [[ "$pty_buffer" == *"pty-diagnostic"* ]] || {
+    print -u2 "FAIL: Gum spinner path dropped the failing work's diagnostics"
     return 1
   }
 fi

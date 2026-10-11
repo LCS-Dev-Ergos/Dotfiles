@@ -26,7 +26,8 @@ trap 'exit 130' INT TERM HUP
 mkdir -p "$fixture_root/config/functions" "$fixture_root/config/lib" \
   "$fixture_root/config/scripts/blog" "$fixture_root/cache"
 cp "$test_root/scripts/zfuncs-index.awk" "$fixture_root/config/scripts/"
-cp "$test_root/scripts/_shared-helpers.zsh" "$fixture_root/config/scripts/"
+cp "$test_root/scripts/_shared-helpers.zsh" "$test_root/scripts/_ui.zsh" \
+  "$fixture_root/config/scripts/"
 cp "$test_root/runtime-helpers.zsh" "$fixture_root/config/"
 
 cat > "$fixture_root/config/functions/example.zsh" <<'EOF'
@@ -83,7 +84,7 @@ beta() {
 # -----------------------------------------------------------------------------
 # wide_summary
 # @description Verifies that expanded catalog width preserves a long summary
-# without losing this distinctive tail marker: retained-at-wide-width.
+# without losing this tail marker: retained-at-wide-width.
 # @noargs
 # -----------------------------------------------------------------------------
 wide_summary() {
@@ -148,16 +149,20 @@ info="$(zfuncs info hyphen-command)"
 }
 
 typeset styled_listing="$(NO_COLOR= ZFUNCS_STYLE=ansi zfuncs)"
-[[ "$styled_listing" == *$'\e[1;36mCUSTOM FUNCTIONS'* ]] || {
+[[ "$styled_listing" == *$'\e[1;7;36m CUSTOM FUNCTIONS '* ]] || {
   print -u2 "FAIL: ANSI catalog title missing from styled output"
   return 1
 }
-[[ "$styled_listing" == *$'● loaded'* ]] || {
-  print -u2 "FAIL: styled function status missing from catalog"
+[[ "${(S)styled_listing//$'\e'\[*m/}" == *'    ● alpha '*' loaded '* ]] || {
+  print -u2 "FAIL: styled catalog rows do not lead with their status marker"
   return 1
 }
-[[ "$styled_listing" == *$'─'* ]] || {
-  print -u2 "FAIL: styled catalog is missing lightweight separators"
+[[ "${(S)styled_listing//$'\e'\[*m/}" == *$'\n  EXAMPLE ─'*$'─ 4\n'* ]] || {
+  print -u2 "FAIL: styled category title lost its rule or function count"
+  return 1
+}
+[[ "$styled_listing" == *'╭'*'╯'* ]] || {
+  print -u2 "FAIL: styled catalog title is not framed"
   return 1
 }
 
@@ -177,11 +182,11 @@ typeset -a full_width_lines=("${(f)full_width_listing}")
 }
 
 typeset styled_info="$(NO_COLOR= ZFUNCS_STYLE=ansi zfuncs info alpha)"
-[[ "$styled_info" == *$'\e[1;36malpha'* ]] || {
+[[ "$styled_info" == *$'\e[1;34malpha'* ]] || {
   print -u2 "FAIL: ANSI function title missing from styled info output"
   return 1
 }
-[[ "$styled_info" == *$'\e[36mUsage'* ]] || {
+[[ "$styled_info" == *$'\e[38;5;245mUsage'* ]] || {
   print -u2 "FAIL: ANSI field labels missing from styled info output"
   return 1
 }

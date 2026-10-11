@@ -8,7 +8,7 @@
 # `zshdeps` via functions/development-tools.zsh; run with --help for options.
 #
 # Environment:
-#   ZSH_DOTFILES_ROOT         Checkout root for an explicit manifest update.
+#   ZSH_DOTFILES_ROOT        Checkout root for an explicit manifest update.
 #   ZSH_DEPENDENCY_REGISTRY  TSV registry path override.
 #   ZSH_DEPENDENCY_BREWFILE  Generated Brewfile path override.
 #   ZSH_DEPENDENCY_ARCHFILE  Generated Arch package list path override.
@@ -353,7 +353,7 @@ if (( ! dependency_quiet )); then
     print -r -- ""
     _zsh_ui_section \
       "${(C)level} · ${dependency_level_found[$level]:-0}/${dependency_level_total[$level]}"
-    _zsh_ui_table --status 1 $'Status\tCommand\tFeature\tPurpose' \
+    _zsh_ui_table --marker 1 --status 1 $'Status\tCommand\tFeature\tPurpose' \
       "${(@f)${dependency_level_rows[$level]%$'\n'}}"
   done
   print -r -- ""

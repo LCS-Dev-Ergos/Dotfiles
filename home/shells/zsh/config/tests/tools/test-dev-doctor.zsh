@@ -520,20 +520,29 @@ DEVDOCTOR_REGISTRY="$bad_group_registry" devdoctor >/dev/null 2>&1 || bad_group_
 (( bad_group_status == 2 )) ||
   _dd_fail "an unknown group must be refused, got $bad_group_status"
 
-# The styled report draws the title bar, one heading per group and a marker
-# per row, all inside the terminal width. This case explicitly opts into color;
-# inherited NO_COLOR must not silently turn it into another plain-output test.
-typeset styled_output
-styled_output="$(NO_COLOR= COLUMNS=72 ZSH_UI_STYLE=ansi \
-  DEVDOCTOR_REGISTRY="$group_registry" devdoctor 2>&1)" || true
-[[ "$styled_output" == *'╭'*'DEVDOCTOR'*'Development Environment'*'╯'* &&
-   "$styled_output" == *'Platform'*'─'*'Scripting'*'Other'* &&
-   "$styled_output" == *'●'* ]] ||
-  _dd_fail "the styled report lost its header, groups or markers"
-typeset styled_line
-for styled_line in "${(@f)styled_output}"; do
-  _zsh_ui_text_width "$styled_line"
-  (( REPLY <= 72 )) || _dd_fail "a styled line overflows 72 columns: $styled_line"
+# The styled report draws the framed masthead, one ruled heading per group
+# ending in its row count, and a marker per row, inside the terminal width
+# down to 40 columns. This case explicitly opts into color; inherited
+# NO_COLOR must not silently turn it into another plain-output test.
+typeset styled_output styled_line
+typeset -i styled_width
+for styled_width in 72 40; do
+  styled_output="$(NO_COLOR= COLUMNS=$styled_width ZSH_UI_STYLE=ansi \
+    DEVDOCTOR_REGISTRY="$group_registry" devdoctor 2>&1)" || true
+  [[ "$styled_output" == *'╭'*$'\e[1;7;36m DEVDOCTOR \e[0m'*'Development Environment'*'╯'* &&
+     "$styled_output" == *$'\e[1;34mPlatform'*$'\e[1;34mScripting'*$'\e[1;34mOther'* &&
+     "${(S)styled_output//$'\e'\[*m/}" == *$'\n  Scripting ─'*$'─ 2\n'* &&
+     "$styled_output" == *'●'* ]] ||
+    _dd_fail "the styled report lost its masthead, group counts or markers"
+  for styled_line in "${(@f)styled_output}"; do
+    _zsh_ui_text_width "$styled_line"
+    (( REPLY <= styled_width )) ||
+      _dd_fail "a styled line overflows $styled_width columns: $styled_line"
+  done
+  # A conflict needs attention, so its detail continues under the row
+  # instead of losing its end.
+  [[ "$styled_output" == *'installed no shims'* ]] ||
+    _dd_fail "a conflict's detail was cut at $styled_width columns"
 done
 
 export PATH="$original_path"

@@ -48,27 +48,32 @@ Choose the output class before choosing its presentation:
    heading or concise preflight diagnostics, but should not restyle a stream it
    does not own.
 
-The shared layer honors `ZSH_UI_STYLE=auto|plain|ansi|gum` and `NO_COLOR`.
-Use `_zsh_ui_log` for individual status lines, `_zsh_ui_heading` for a
-command's title banner, `_zsh_ui_app_header` for the boxed title bar of a
-full-screen report such as devdoctor (a reverse-video tool badge, context on
-the right), `_zsh_ui_status_glyph` for a one-cell state marker and its
-color, `_zsh_ui_section` for lightweight labels (a
-`· detail` suffix renders as secondary text), `_zsh_ui_card` for compact
-summaries (`key<TAB>value` lines become an aligned list), `_zsh_ui_table` for
-structured rows (`--align` for numeric columns, `--status` for state columns),
-`_zsh_ui_confirm` for destructive choices, and `_zsh_ui_spinner` only when
-hiding command output is acceptable. `_zsh_ui_short_path` gives the display
-form of a path: `~` for the home directory and short Nix store hashes in styled
-output, the full path in plain output.
+The shared layer honors `ZSH_UI_STYLE=auto|plain|ansi|gum` and `NO_COLOR`;
+[Terminal Style](Terminal-Style.md) describes the look and every component.
+Use `_zsh_ui_log` for individual event lines, `_zsh_ui_heading` for a
+command's title, `_zsh_ui_app_header` for the masthead of a report such as
+devdoctor (the tool name as a badge, context on the right),
+`_zsh_ui_section` for section titles (a note, such as a count, ends the
+rule), `_zsh_ui_card` for compact summaries (`key<TAB>value` lines become an
+aligned list), `_zsh_ui_table` for structured rows (`--align` for numeric
+columns, `--status` for state columns, `--marker` to lead rows with a state
+marker), `_zsh_ui_summary` to close a report
+with its counts and next step, `_zsh_ui_callout` for a notice that must not be
+missed, `_zsh_ui_marker` and `_zsh_ui_status_glyph` for one-cell state
+markers, `_zsh_ui_confirm` and `_zsh_ui_choose` for decisions, and
+`_zsh_ui_spinner` only when hiding command output is acceptable.
+`_zsh_ui_short_path` gives the display form of a path: `~` for the home
+directory and short Nix store hashes in styled output, the full path in plain
+output.
 
 Static output is drawn by the shell in every mode, with the terminal's ANSI
-colors and the same geometry as cpp-tools: a `════──────` banner for titles,
-rounded frames for tables and cards. Styled tables fit the terminal width by
-shortening their widest cells; plain output is never truncated, so captured
-reports stay complete. Gum is reserved for confirmations and spinners, the
-two places where it does something a prompt string cannot; never spawn it
-for static output, per row, per file, or per log line.
+colors: the header in a rounded frame with a badge, section titles followed
+by a dimmed rule, borderless tables one indent in with muted column labels,
+and a rule above a summary, inside a two-column margin. Styled tables fit the
+terminal width by shortening their widest cells; plain output is never
+truncated, so captured reports stay complete. Gum is reserved for confirmations, choices and spinners, the places
+where it does something a printed line cannot; never spawn it for static
+output, per row, per file, or per log line.
 
 Logs, headings, sections, table fields, and card titles escape terminal
 control characters centrally. Sanitize untrusted filesystem or network text

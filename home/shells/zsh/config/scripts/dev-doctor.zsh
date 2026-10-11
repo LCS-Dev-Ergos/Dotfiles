@@ -1372,21 +1372,15 @@ _devdoctor_order_rows() {
 # -----------------------------------------------------------------------------
 # _devdoctor_group_rule
 # @internal
-# @description Prints a group heading: the title, a rule to the report width
-# and a right-aligned note.
+# @description Prints a group heading as a shared section title, with the
+# number of rows at the end of its rule, so a long report reads as a table of
+# contents.
 # @arg $1 string Group title.
 # @arg $2 string Note, such as the row count.
 # @arg $3 integer Report width.
 # -----------------------------------------------------------------------------
 _devdoctor_group_rule() {
-  emulate -L zsh
-  local title="$1" note="$2"
-  local -i width="$3"
-  local -i fill=$(( width - ${(m)#title} - ${(m)#note} - 4 ))
-  (( fill < 2 )) && fill=2
-  print -r -- " ${_ZSH_UI_HEADING}${title}${_ZSH_UI_RESET} "\
-"${_ZSH_UI_BORDER}${(pl:$fill::─:)}${_ZSH_UI_RESET} "\
-"${_ZSH_UI_MUTED}${note}${_ZSH_UI_RESET}"
+  _zsh_ui_section --width "$3" "$1" "$2"
 }
 
 # -----------------------------------------------------------------------------
@@ -1395,12 +1389,14 @@ _devdoctor_group_rule() {
 # @description Renders the report as grouped status lines: a colored marker,
 # the label, its registry id for --only, the active version, where the binary
 # comes from, and a detail that leads with the state whenever it is not ok.
-# Each line fits the terminal by shortening its detail.
+# Each line fits the terminal: a healthy row shortens its detail, any other
+# keeps its state in the line and continues the detail beneath it.
 # @arg $1 integer Report width.
 # @arg $@ string Ordered rows: id, label, state, active, origin, detail, group.
 # -----------------------------------------------------------------------------
 _devdoctor_render_styled() {
   emulate -L zsh
+  setopt localoptions extendedglob
   local -i width="$1"
   shift
   local reset="$_ZSH_UI_RESET" muted="$_ZSH_UI_MUTED"
@@ -1419,8 +1415,36 @@ _devdoctor_render_styled() {
   done
   (( w_active > 18 )) && w_active=18
 
-  local current="" glyph color text detail cell
-  local -i room
+  # The detail column keeps room for the longest state word. On a narrow
+  # terminal the other columns give way first, least useful first: the
+  # registry id goes, the version shortens, the origin goes, the label
+  # shortens. The marker, its space, the gaps and the right margin are fixed.
+  local indent="${(l:$(( _ZSH_UI_GUTTER + _ZSH_UI_INDENT )):: :)}"
+  local -i least=8 show_id=1 show_origin=1 cut
+  local -i room=$(( width - ${#indent} - 2 - 8 - _ZSH_UI_GUTTER
+    - w_label - w_id - w_active - w_origin ))
+  if (( room < least )); then
+    show_id=0
+    (( room += w_id + 2 ))
+  fi
+  if (( room < least && w_active > 10 )); then
+    cut=$(( least - room ))
+    (( cut > w_active - 10 )) && cut=$(( w_active - 10 ))
+    (( w_active -= cut, room += cut ))
+  fi
+  if (( room < least )); then
+    show_origin=0
+    (( room += w_origin + 2 ))
+  fi
+  if (( room < least && w_label > 10 )); then
+    cut=$(( least - room ))
+    (( cut > w_label - 10 )) && cut=$(( w_label - 10 ))
+    (( w_label -= cut, room += cut ))
+  fi
+  (( room < least )) && room=least
+
+  local current="" glyph color text detail cell piece
+  local -a folded
   for row in "$@"; do
     f=("${(@ps:\t:)row}")
     if [[ "$f[7]" != "$current" ]]; then
@@ -1432,31 +1456,42 @@ _devdoctor_render_styled() {
 
     _zsh_ui_status_glyph "$f[3]"
     glyph="$REPLY" color="${reply[1]}"
-    text="   ${color}${glyph}${reset}  ${f[2]}${(l:$(( w_label - ${(m)#f[2]} )):: :)}"
-    text+="  ${muted}${f[1]}${reset}${(l:$(( w_id - ${(m)#f[1]} )):: :)}"
+    _zsh_ui_truncate "$f[2]" "$w_label"
+    text="${indent}${color}${glyph}${reset} ${REPLY}${(l:$(( w_label - ${(m)#REPLY} )):: :)}"
+    (( show_id )) &&
+      text+="  ${muted}${f[1]}${reset}${(l:$(( w_id - ${(m)#f[1]} )):: :)}"
     _zsh_ui_truncate "$f[4]" "$w_active"
     cell="$REPLY"
     [[ "$cell" == - ]] && cell="${muted}—${reset}"
     text+="  ${cell}${(l:$(( w_active - ${(m)#REPLY} )):: :)}"
-    cell="$f[5]"
-    [[ "$cell" == - ]] && cell="${muted}—${reset}"
-    text+="  ${cell}${(l:$(( w_origin - ${(m)#f[5]} )):: :)}"
+    if (( show_origin )); then
+      cell="$f[5]"
+      [[ "$cell" == - ]] && cell="${muted}—${reset}"
+      text+="  ${cell}${(l:$(( w_origin - ${(m)#f[5]} )):: :)}"
+    fi
 
     detail="${f[6]}"
     _zsh_ui_short_path "$detail"
     detail="$REPLY"
-    room=$(( width - 13 - w_label - w_id - w_active - w_origin ))
-    (( room < 12 )) && room=12
+    folded=()
     if [[ "$f[3]" == ok ]]; then
       # The marker already says the runtime starts; keep only real detail.
       [[ "$detail" == "runtime starts" ]] && detail=""
       _zsh_ui_truncate "$detail" "$room"
-      text+="  ${muted}${REPLY}${reset}"
+      [[ -z "$REPLY" ]] || text+="  ${muted}${REPLY}${reset}"
+    elif [[ -z "$detail" ]] || (( ${(m)#f[3]} + ${(m)#detail} + 3 <= room )); then
+      text+="  ${color}${f[3]}${reset}${muted}${detail:+ · $detail}${reset}"
     else
-      _zsh_ui_truncate "${detail:+ · $detail}" $(( room - ${#f[3]} ))
-      text+="  ${color}${f[3]}${reset}${muted}${REPLY}${reset}"
+      # The reason is what a row that needs attention is read for: it moves
+      # under the label rather than lose its end.
+      text+="  ${color}${f[3]}${reset}"
+      _zsh_ui_wrap $(( width - ${#indent} - 2 - _ZSH_UI_GUTTER )) "$detail"
+      folded=("${reply[@]}")
     fi
-    print -r -- "$text"
+    print -r -- "${text%%[[:space:]]##}"
+    for piece in "${folded[@]}"; do
+      print -r -- "${indent}  ${muted}${piece}${reset}"
+    done
   done
 }
 
@@ -1464,7 +1499,8 @@ _devdoctor_render_styled() {
 # _devdoctor_render_conflicts
 # @internal
 # @description Renders PATH conflicts as marked lines under their own heading:
-# a shadowed binary is informational, anything else needs action.
+# a shadowed binary is informational, anything else needs action. A detail
+# too long for its column continues beneath the row rather than lose its end.
 # @arg $1 integer Report width.
 # @arg $@ string Conflicts: kind, subject, detail.
 # -----------------------------------------------------------------------------
@@ -1473,7 +1509,9 @@ _devdoctor_render_conflicts() {
   local -i width="$1"
   shift
   local reset="$_ZSH_UI_RESET" muted="$_ZSH_UI_MUTED"
-  local -i w_kind=0 w_subject=0
+  local indent="${(l:$(( _ZSH_UI_GUTTER + _ZSH_UI_INDENT )):: :)}"
+  # The marker and its space lead; the right margin closes.
+  local -i lead=$(( ${#indent} + 2 )) w_kind=0 w_subject=0 room
   local row
   local -a f
   for row in "$@"; do
@@ -1483,10 +1521,13 @@ _devdoctor_render_conflicts() {
   done
   # The subject is a path; it may take half the line, the detail the rest.
   (( w_subject > width / 2 )) && w_subject=$(( width / 2 ))
+  room=$(( width - lead - w_kind - 2 - _ZSH_UI_GUTTER ))
+  (( w_subject > room )) && w_subject=room
+  (( room -= w_subject + 2 ))
 
   print -r -- ""
   _devdoctor_group_rule "PATH conflicts" "$#" "$width"
-  local state marker subject
+  local state marker subject detail piece text
   for row in "$@"; do
     f=("${(@ps:\t:)row}")
     state="outdated"
@@ -1497,9 +1538,20 @@ _devdoctor_render_conflicts() {
     _zsh_ui_truncate "$REPLY" "$w_subject"
     subject="$REPLY"
     _zsh_ui_short_path "${f[3]:-}"
-    _zsh_ui_truncate "$REPLY" $(( width - 10 - w_kind - w_subject ))
-    print -r -- "   ${marker}  ${f[1]}${(l:$(( w_kind - ${(m)#f[1]} )):: :)}"\
-"  ${subject}${(l:$(( w_subject - ${(m)#subject} )):: :)}  ${muted}${REPLY}${reset}"
+    detail="$REPLY"
+    text="${indent}${marker} ${f[1]}${(l:$(( w_kind - ${(m)#f[1]} )):: :)}"
+    text+="  ${subject}"
+    if [[ -n "$detail" ]] && (( ${(m)#detail} <= room )); then
+      print -r -- "${text}${(l:$(( w_subject - ${(m)#subject} )):: :)}"\
+"  ${muted}${detail}${reset}"
+      continue
+    fi
+    print -r -- "$text"
+    [[ -n "$detail" ]] || continue
+    _zsh_ui_wrap $(( width - lead - _ZSH_UI_GUTTER )) "$detail"
+    for piece in "${reply[@]}"; do
+      print -r -- "${indent}  ${muted}${piece}${reset}"
+    done
   done
 }
 
@@ -1805,13 +1857,13 @@ devdoctor() {
       "$context" "$stamp"
     print -r -- ""
 
-    local -a tally=() tally_styled=()
+    local -a tally=() tally_rows=()
     local counted
     for counted in ok outdated dormant unused shadowed unknown broken absent; do
       (( ${state_counts[$counted]:-0} )) || continue
       tally+=("${state_counts[$counted]} ${counted}")
-      _zsh_ui_status_glyph "$counted"
-      tally_styled+=("${reply[1]}${REPLY}${_ZSH_UI_RESET} ${state_counts[$counted]} ${counted}")
+      # No tone: the summary marks each word as the rows above do.
+      tally_rows+=($'\t'"${state_counts[$counted]}"$'\t'"${counted}")
     done
 
     _zsh_ui_resolve_mode
@@ -1857,13 +1909,8 @@ devdoctor() {
     # One line that answers "is anything wrong?" without reading the report.
     local hint="devdoctor --updates checks for new releases"
     (( want_updates )) && hint="update sources checked"
-    local summary="  ${(j:   :)tally_styled}"
-    _zsh_ui_text_width "$summary"
-    local -i gap=$(( width - REPLY - ${(m)#hint} - 1 ))
-    (( gap < 3 )) && { hint=""; gap=0; }
     print -r -- ""
-    print -r -- "${_ZSH_UI_BORDER}${(pl:$width::─:)}${_ZSH_UI_RESET}"
-    print -r -- "${summary}${(l:$gap:: :)}${_ZSH_UI_MUTED}${hint}${_ZSH_UI_RESET}"
+    _zsh_ui_summary --hint "$hint" --width "$width" "${tally_rows[@]}"
     return $worst
   } always {
     command rm -rf -- "$work" 2>/dev/null

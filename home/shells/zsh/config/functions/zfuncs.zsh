@@ -404,17 +404,24 @@ function zfuncs() {
   (( max_name_width < 12 )) && max_name_width=12
   (( name_width > max_name_width )) && name_width=max_name_width
   summary_width=$(( terminal_width - name_width - 15 ))
+  # A styled row adds the marker, one more indent and the right margin.
+  [[ "$visual_style" == plain ]] || (( summary_width -= 6 ))
   (( summary_width < 10 )) && summary_width=10
 
   local reset="" name_color="" muted=""
+  local -A category_count=()
+  for name in "${registered_names[@]}"; do
+    (( category_count[${categories[$name]}]++ ))
+  done
   if [[ "$visual_style" != plain ]]; then
-    _zsh_ui_heading "$title" "$subtitle" || return $?
+    _zsh_ui_heading --width "$terminal_width" "$title" "$subtitle" ||
+      return $?
     _zsh_ui_set_palette "$visual_style"
     reset="$_ZSH_UI_RESET"
-    name_color="$_ZSH_UI_INFO"
-    muted=$'\e[38;5;252m'
+    name_color="$_ZSH_UI_ACCENT"
+    muted="$_ZSH_UI_MUTED"
   else
-    # The styled heading is already a rule; plain output draws its own.
+    # The styled heading is already framed; plain output draws its own rule.
     print -r -- "$title"
     print -r -- "$subtitle"
     _zsh_ui_rule
@@ -423,7 +430,8 @@ function zfuncs() {
 
   for current_category in "${category_names[@]}"; do
     category_title="${(U)current_category}"
-    _zsh_ui_subsection "$category_title" "$terminal_width" || return $?
+    _zsh_ui_subsection "$category_title" "$terminal_width" \
+      "${category_count[$current_category]}" || return $?
 
     for name in "${sorted_names[@]}"; do
       [[ "${categories[$name]}" == "$current_category" ]] || continue
@@ -439,12 +447,16 @@ function zfuncs() {
       fi
 
       if [[ "$visual_style" != plain ]]; then
+        # A lazy function loads on first use, so it is information, not a
+        # warning; only a missing one needs attention.
         case "$function_status" in
-          loaded) styled_status="${_ZSH_UI_OK}● loaded ${reset}" ;;
-          lazy) styled_status="${_ZSH_UI_WARN}◌ lazy   ${reset}" ;;
-          *) styled_status="${_ZSH_UI_ERROR}× missing${reset}" ;;
+          loaded) _zsh_ui_marker ok; styled_status="${muted}loaded ${reset}" ;;
+          lazy) _zsh_ui_marker muted; styled_status="${muted}lazy   ${reset}" ;;
+          *) _zsh_ui_marker error; styled_status="${_ZSH_UI_ERROR}missing${reset}" ;;
         esac
-        printf '  %s%-*s%s  %s  %s%s%s\n' \
+        # Rows sit one indent in under their category and lead with the
+        # marker, like every other report.
+        printf '    %s %s%-*s%s  %s  %s%s%s\n' "$REPLY" \
           "$name_color" "$name_width" "$display_name" "$reset" \
           "$styled_status" "$muted" "$display_summary" "$reset"
       else

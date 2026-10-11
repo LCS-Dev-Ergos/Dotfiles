@@ -420,7 +420,7 @@ get_toolchain_info() {
 
   print -r -- ""
   _zsh_ui_section "Compilers in PATH · ${#rows}" || return 1
-  _zsh_ui_table --status 2 \
+  _zsh_ui_table --marker 2 --status 2 \
     $'Compiler\tStatus\tToolchain\tVersion\tResolution' \
     "${rows[@]}" || return 1
 

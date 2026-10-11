@@ -334,9 +334,12 @@ when no terminal is attached; interactive profiling uses the first ZLE
 
 ## Output Styling
 
-Shared presentation helpers use `ZSH_UI_STYLE=auto|plain|ansi|gum` and honor
-`NO_COLOR`. Headings, sections, cards, tables, and logs are drawn natively in
-every mode; Gum is reserved for confirmations and spinners. `zfuncs` also
+Shared presentation helpers (`scripts/_ui.zsh`, described in
+[Terminal Style](../docs/Terminal-Style.md)) use
+`ZSH_UI_STYLE=auto|plain|ansi|gum` and honor `NO_COLOR`. Headings, sections,
+cards, tables, summaries and logs are drawn natively in every mode, with a
+rounded frame for headers only; Gum is reserved for confirmations, choices and
+spinners. `zfuncs` also
 accepts `ZFUNCS_STYLE` as a command-specific override. New functions follow the
 [function authoring policy](../docs/Function-Authoring.md), including stable
 data output, plain capture layouts, and Gum only for interactions.
