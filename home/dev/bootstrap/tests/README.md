@@ -7,7 +7,7 @@ automatic checks.
 
 | Category | Coverage |
 | --- | --- |
-| `unit/` | Manifest input validation, CLI diagnostics and selection metadata (requirements, defaults, platforms, consents). |
+| `unit/` | Manifest input validation, CLI diagnostics, selection metadata (requirements, defaults, platforms, consents) and the text report: golden renderings at 40, 65 and 80 columns and in plain output, under `unit/golden/`. |
 | `integration/` | Native toolchain filesystem transitions, setup orchestration, retired-release pruning, child environments and shell adapters. |
 | `bootstrap/` | Pre-Nix foundation entry, runtime CLI recovery and installed command aliases. |
 | `qualification/` | Manual checks against real native managers in disposable roots; excluded from automatic discovery. |

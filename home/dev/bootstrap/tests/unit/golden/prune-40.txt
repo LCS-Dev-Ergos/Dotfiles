@@ -1,0 +1,25 @@
+\e[34m╭──────────────────────────────────────╮\e[0m
+\e[34m│\e[0m \e[1;7;36m DEV-BOOTSTRAP \e[0m  \e[1mPrune plan\e[0m          \e[34m│\e[0m
+\e[34m│\e[0m                  \e[38;5;245m2 retired releases…\e[0m \e[34m│\e[0m
+\e[34m╰──────────────────────────────────────╯\e[0m
+
+  \e[1;34mRetired releases\e[0m \e[2;34m───────────────────\e[0m
+      \e[38;5;245mRUNTIME  RELEASE\e[0m
+    \e[1;33m▲\e[0m Node     26.10.0 → 26.11.1
+      \e[33mretire\e[0m
+      \e[38;5;245m~/…/fnm/node-versions/v26.10.0\e[0m
+      \e[38;5;245msteps  \e[0m\e[38;5;245mselect 26.11.1 globally →\e[0m
+             \e[38;5;245minstall global packages\e[0m
+             \e[38;5;245minto 26.11.1: npm-check,\e[0m
+             \e[38;5;245mpnpm → remove it\e[0m
+    \e[1;33m◆\e[0m Python   3.14.7 → 3.14.8
+      \e[33mblocked\e[0m
+      3.14.8 is not installed; apply
+      first
+      \e[38;5;245m~/.pyenv/versions/3.14.7\e[0m
+      \e[38;5;245mnote  \e[0m\e[38;5;245menvironments elsewhere,\e[0m
+            \e[38;5;245msuch as a project's .venv,\e[0m
+            \e[38;5;245mare not checked\e[0m
+
+  \e[2;34m────────────────────────────────────\e[0m
+  \e[1;33m▲\e[0m 1 retire   \e[1;33m◆\e[0m 1 blocked

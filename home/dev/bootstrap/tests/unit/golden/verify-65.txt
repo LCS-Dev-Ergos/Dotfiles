@@ -1,0 +1,15 @@
+\e[34m╭───────────────────────────────────────────────────────────────╮\e[0m
+\e[34m│\e[0m \e[1;7;36m DEV-BOOTSTRAP \e[0m  \e[1mVerification\e[0m           \e[38;5;245mx86_64-linux · native\e[0m \e[34m│\e[0m
+\e[34m│\e[0m                  \e[38;5;245m2 runtimes in 2 ecosystems\e[0m                   \e[34m│\e[0m
+\e[34m╰───────────────────────────────────────────────────────────────╯\e[0m
+
+  \e[1;34mRuntimes\e[0m \e[2;34m────────────────────────────────────────────────────\e[0m
+      \e[38;5;245mRUNTIME  VERSION  MANAGER  STATE     LOCATION\e[0m
+    \e[1;31m✖\e[0m Python   3.14.8   \e[38;5;245mpyenv\e[0m    \e[31mconflict\e[0m  \e[38;5;245m~/…/bin/python\e[0m
+      The canary could not import ssl: libssl.so.3: cannot open
+      shared object file
+      \e[38;5;245mfix  \e[0m\e[36mpyenv install --force 3.14.8\e[0m
+    \e[1;32m●\e[0m Ruby     4.0.7    \e[38;5;245mrbenv\e[0m    \e[38;5;245mok\e[0m        \e[38;5;245m~/…/4.0.7/bin/ruby\e[0m
+
+  \e[2;34m─────────────────────────────────────────────────────────────\e[0m
+  \e[1;32m●\e[0m 1 ok   \e[1;31m✖\e[0m 1 conflict                    \e[38;5;245m1 runtime to look at\e[0m

@@ -10,6 +10,7 @@ from .toolchain import ToolchainAdapter
 
 class RubyAdapter(ToolchainAdapter):
     language = "ruby"
+    title = "Ruby"
     manager_name = "rbenv"
     runtime_directory = "versions"
     compiles = True

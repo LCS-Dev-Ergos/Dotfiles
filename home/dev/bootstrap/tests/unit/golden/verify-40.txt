@@ -1,0 +1,18 @@
+\e[34m╭──────────────────────────────────────╮\e[0m
+\e[34m│\e[0m \e[1;7;36m DEV-BOOTSTRAP \e[0m  \e[1mVerification\e[0m        \e[34m│\e[0m
+\e[34m│\e[0m                  \e[38;5;245m2 runtimes in 2 ec…\e[0m \e[34m│\e[0m
+\e[34m╰──────────────────────────────────────╯\e[0m
+
+  \e[1;34mRuntimes\e[0m \e[2;34m───────────────────────────\e[0m
+      \e[38;5;245mRUNTIME  VERSION  STATE\e[0m
+    \e[1;31m✖\e[0m Python   3.14.8   \e[31mconflict\e[0m
+      The canary could not import ssl:
+      libssl.so.3: cannot open shared
+      object file
+      \e[38;5;245m~/…/versions/3.14.8/bin/python\e[0m
+      \e[38;5;245mfix  \e[0m\e[36mpyenv install --force\e[0m
+           \e[36m3.14.8\e[0m
+    \e[1;32m●\e[0m Ruby     4.0.7    \e[38;5;245mok\e[0m
+
+  \e[2;34m────────────────────────────────────\e[0m
+  \e[1;32m●\e[0m 1 ok   \e[1;31m✖\e[0m 1 conflict

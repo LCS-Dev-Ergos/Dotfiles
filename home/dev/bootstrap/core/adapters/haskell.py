@@ -17,6 +17,8 @@ SELECTED_TOOLS = {
 
 class HaskellAdapter(LinkedToolchain):
     language = "haskell"
+    title = "Haskell"
+    component_titles = {"ghc": "GHC", "cabal": "Cabal", "hls": "HLS"}
     manager_name = "ghcup"
     runtime_directory = "ghc"
     selection_link = "bin/ghc"

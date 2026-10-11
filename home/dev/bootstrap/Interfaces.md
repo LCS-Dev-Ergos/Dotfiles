@@ -53,6 +53,7 @@ in every report's `catalog`.
 
 | Member | Default | Override when |
 | --- | --- | --- |
+| `title`, `component_titles` | The language key; no component names | The ecosystem or its components have a conventional spelling (`OCaml`, `GHC`). |
 | `declared(data)` | Always declared | The manifest may omit the ecosystem. |
 | `home` | The runtime root | The manager lives elsewhere (`CARGO_HOME`, `JULIAUP_HOME`). |
 | `environment()` | The resolved roots | Children need more variables. |
@@ -101,7 +102,9 @@ removal that leaves the prefix behind fails.
 
 ## Report JSON, Schema 1
 
-`--json` prints one object. `plan` exits 0 whenever it can report; `apply` and
+`--format json`, or its alias `--json`, prints one object; the default text
+report renders the same object for people and is not an interface. `plan`
+exits 0 whenever it can report; `apply` and
 `verify` exit 0 when every runtime row is `ok` or `external`, and 1 otherwise.
 `prune` exits 0 when it only lists; with `--yes`, 0 when every retired row is
 `removed`, and 1 otherwise.
@@ -128,8 +131,10 @@ interruption exits 128 plus the signal number.
 
 ### Catalog Entry
 
-`language`, `manager`, `requires`, `defaultSelected`, `platforms`,
-`consents`, `available` (declared and supported here) and `selected`.
+`language`, `title` (how the ecosystem reads for people), `manager`,
+`requires`, `defaultSelected`, `platforms`, `consents`, `available`
+(declared and supported here) and `selected`. A multi-component ecosystem
+adds `componentTitles`, each component's name for people.
 
 ### Runtime Row
 

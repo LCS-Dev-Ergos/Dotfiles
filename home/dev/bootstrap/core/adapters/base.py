@@ -28,6 +28,10 @@ class Adapter:
     """A native ecosystem manager and the runtimes it owns."""
 
     language = ""
+    # How reports name the ecosystem and, for a multi-component one, each
+    # component; the language key and the component key when unset.
+    title = ""
+    component_titles = {}
     manager_name = ""
     # Directory below the runtime root that holds one entry per installation.
     runtime_directory = None
@@ -58,8 +62,9 @@ class Adapter:
     @classmethod
     def describe(cls, data):
         """The catalog entry a frontend needs before any selection is made."""
-        return {
+        entry = {
             "language": cls.language,
+            "title": cls.title or cls.language,
             "manager": cls.manager_name,
             "requires": list(cls.requires),
             "defaultSelected": cls.default_selected,
@@ -68,6 +73,9 @@ class Adapter:
             "available": cls.declared(data)
             and data["platform"] in cls.platforms,
         }
+        if cls.component_titles:
+            entry["componentTitles"] = dict(cls.component_titles)
+        return entry
 
     def resolve_roots(self):
         """Map exported root variables to resolved paths, runtime root first."""

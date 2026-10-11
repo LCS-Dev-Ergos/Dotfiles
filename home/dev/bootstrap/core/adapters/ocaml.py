@@ -18,6 +18,7 @@ STATE_LIMIT = 1024 * 1024
 
 class OcamlAdapter(Adapter):
     language = "ocaml"
+    title = "OCaml"
     manager_name = "opam"
     compiles = True
 

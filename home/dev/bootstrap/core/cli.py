@@ -14,14 +14,17 @@ from .engine import Bootstrap, select
 from .errors import BootstrapError, Interrupted
 from .manifest import load_manifest
 from .prune import Prune
+from .render import render
 from .selection import load_selection, save_selection, selection_path
 from .setup import BootstrapSetup
+from .ui import Style
 
 # The JSON report's schema; Interfaces.md says what changes it.
 REPORT_SCHEMA = 1
 
 
-def main():
+def command_line():
+    """The argument parser; main() checks how options combine."""
     parser = argparse.ArgumentParser(
         prog="dev-bootstrap",
         description="Plan, bootstrap and verify the declared runtime baseline.",
@@ -63,7 +66,20 @@ def main():
         default=[],
         help="Accept terms a selected ecosystem requires before installation",
     )
-    parser.add_argument("--json", action="store_true")
+    output = parser.add_mutually_exclusive_group()
+    output.add_argument(
+        "--format",
+        choices=("text", "json"),
+        default="text",
+        help="Report as text for a person or as JSON for programs",
+    )
+    output.add_argument(
+        "--json",
+        dest="format",
+        action="store_const",
+        const="json",
+        help="Alias of --format json",
+    )
     parser.add_argument(
         "--runtimes-only",
         action="store_true",
@@ -79,6 +95,11 @@ def main():
         action="store_true",
         help="Remove the retired releases prune lists, instead of listing them",
     )
+    return parser
+
+
+def main():
+    parser = command_line()
     args = parser.parse_args()
     if args.health and args.action != "verify":
         parser.error("--health requires verify")
@@ -137,7 +158,7 @@ def run(args, setups):
         manifest = load_manifest(args.manifest)
         only, origin = choose(args, manifest)
         context = Bootstrap(manifest, only, accepted=args.accept)
-        if origin["source"] == "file" and not args.json:
+        if origin["source"] == "file" and args.format == "text":
             print(
                 f"dev-bootstrap: selection saved in {origin['path']}; "
                 "--all ignores it",
@@ -152,7 +173,7 @@ def run(args, setups):
         if args.action == "prune":
             result = prune(context, args)
             result["selection"] = origin
-            report(result, args.json)
+            report(result, args.format, applied=args.yes)
             # Listing never fails; removal fails unless every release went.
             return (
                 0
@@ -170,7 +191,7 @@ def run(args, setups):
             setups.append(setup)
         result = execute(context, setup, args)
         result["selection"] = origin
-        report(result, args.json)
+        report(result, args.format)
         return (
             0
             if args.action == "plan"
@@ -273,48 +294,10 @@ def prune(context, args):
     }
 
 
-def report(result, as_json):
-    if as_json:
+def report(result, output_format, *, applied=False):
+    """Print the report: JSON for programs, or text drawn for the terminal."""
+    if output_format == "json":
         print(json.dumps(result, indent=2))
         return
-    if result["action"] == "prune":
-        report_retired(result["retired"])
-        return
-    for row in result["runtimes"]:
-        # A health row names the declared default; show what actually runs.
-        version = row.get("actualVersion", row["version"])
-        print(
-            f"{row['state']:8} {row['language']:6} {version:8} {row['path']}"
-        )
-        if version != row["version"]:
-            print(f"         the declared default is {row['version']}")
-        if row.get("reason"):
-            print(f"         {row['reason']}")
-        if row.get("remediation"):
-            print(f"         remedy: {row['remediation']}")
-    for row in result.get("selections", []):
-        if row["state"] != "ok":
-            print(
-                f"{row['state']:8} {row['language']:6} "
-                f"{'selected':8} {row['path'] or '-'}"
-            )
-            print(f"         {row['reason']}")
-            if row.get("remediation"):
-                print(f"         remedy: {row['remediation']}")
-
-
-def report_retired(rows):
-    for row in rows:
-        name = " ".join(filter(None, (row["language"], row.get("component"))))
-        print(f"{row['state']:8} {name:13} {row['version']:10} {row['path']}")
-        if row["state"] in ("retire", "removed"):
-            print(f"         {'; '.join(row['steps'])}")
-        if row.get("reason"):
-            print(f"         {row['reason']}")
-        for note in row.get("notes", []):
-            print(f"         note: {note}")
-    pending = sum(row["state"] == "retire" for row in rows)
-    if not rows:
-        print("No retired release is installed.")
-    elif pending:
-        print(f"prune --yes removes the {pending} release(s) marked retire.")
+    for line in render(result, Style.detect(), applied=applied):
+        print(line)

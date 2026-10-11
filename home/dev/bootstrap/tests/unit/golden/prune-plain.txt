@@ -1,0 +1,12 @@
+dev-bootstrap · Prune plan
+2 retired releases installed · aarch64-darwin · native · default selection
+
+Retired releases
+RUNTIME  RELEASE            MANAGER  STATE    LOCATION
+Node     26.10.0 → 26.11.1  fnm      retire   /home/user/.local/share/fnm/node-versions/v26.10.0
+  steps: select 26.11.1 globally → install global packages into 26.11.1: npm-check, pnpm → remove it
+Python   3.14.7 → 3.14.8    pyenv    blocked  /home/user/.pyenv/versions/3.14.7
+  3.14.8 is not installed; apply first
+  note: environments elsewhere, such as a project's .venv, are not checked
+
+[WARN]  1 retire, 1 blocked; prune --yes removes 1 release.

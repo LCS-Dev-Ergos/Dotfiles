@@ -1,0 +1,18 @@
+dev-bootstrap · Runtime plan
+5 runtimes in 3 ecosystems · aarch64-darwin · native · default selection
+
+Runtimes
+RUNTIME        VERSION   MANAGER  STATE     LOCATION
+Node           24.21.0   fnm      present   /home/user/.local/share/fnm/node-versions/v24.21.0/installation/bin/node
+Node           26.11.1   fnm      missing   /home/user/.local/share/fnm/node-versions/v26.11.1/installation/bin/node
+  An interrupted apply left this installation incomplete; apply removes it and installs it again
+Python         3.14.8    pyenv    missing   /home/user/.pyenv/versions/3.14.8/bin/python
+Haskell GHC    9.14.1    ghcup    present   /home/user/.ghcup/ghc/9.14.1/bin/ghc
+Haskell Cabal  3.16.1.0  ghcup    conflict  /home/user/.ghcup/bin/cabal-3.16.1.0
+  Existing incomplete runtime; manual inspection required
+
+Managers · apply installs these
+ECOSYSTEM  STATE    LOCATION
+Haskell    missing  /home/user/.ghcup/bin/ghcup
+
+[ERROR] 2 present, 2 missing, 1 conflict; apply installs 2 runtimes.

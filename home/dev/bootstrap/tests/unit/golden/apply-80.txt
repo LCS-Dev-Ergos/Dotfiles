@@ -1,0 +1,16 @@
+\e[34m╭──────────────────────────────────────────────────────────────────────────────╮\e[0m
+\e[34m│\e[0m \e[1;7;36m DEV-BOOTSTRAP \e[0m  \e[1mApply result\e[0m                        \e[38;5;245maarch64-darwin · native\e[0m \e[34m│\e[0m
+\e[34m│\e[0m                  \e[38;5;245m1 runtime in 1 ecosystem\e[0m                     \e[38;5;245mall ecosystems\e[0m \e[34m│\e[0m
+\e[34m╰──────────────────────────────────────────────────────────────────────────────╯\e[0m
+
+  \e[1;34mRuntimes\e[0m \e[2;34m───────────────────────────────────────────────────────────────────\e[0m
+      \e[38;5;245mRUNTIME  VERSION  MANAGER  STATE  LOCATION\e[0m
+    \e[1;32m●\e[0m Python   3.14.8   \e[38;5;245mpyenv\e[0m    \e[38;5;245mok\e[0m     \e[38;5;245m~/.pyenv/versions/3.14.8/bin/python\e[0m
+
+  \e[1;34mGlobal selections\e[0m \e[2;34m───────────────────────────────────\e[0m \e[38;5;245mreported, never failed\e[0m
+      \e[38;5;245mRUNTIME  VERSION  MANAGER  STATE     LOCATION\e[0m
+    \e[1;33m◆\e[0m Python   —        \e[38;5;245mpyenv\e[0m    \e[33mconflict\e[0m  \e[38;5;245m/nix/store/…/bin/python3\e[0m
+      The selected interpreter lies in the Nix store
+
+  \e[2;34m────────────────────────────────────────────────────────────────────────────\e[0m
+  \e[1;32m●\e[0m 1 ok                                     \e[38;5;245ma new shell picks up the defaults\e[0m

@@ -1,0 +1,13 @@
+dev-bootstrap · Apply result
+1 runtime in 1 ecosystem · aarch64-darwin · native · all ecosystems
+
+Runtimes
+RUNTIME  VERSION  MANAGER  STATE  LOCATION
+Python   3.14.8   pyenv    ok     /home/user/.pyenv/versions/3.14.8/bin/python
+
+Global selections · reported, never failed
+RUNTIME  VERSION  MANAGER  STATE     LOCATION
+Python   —        pyenv    conflict  /nix/store/0123456789abcdefghijklmnopqrstuv-python3-3.14.8/bin/python3
+  The selected interpreter lies in the Nix store
+
+[OK]    1 ok; a new shell picks up the defaults.

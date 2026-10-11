@@ -1,0 +1,17 @@
+\e[34m╭───────────────────────────────────────────────────────────────╮\e[0m
+\e[34m│\e[0m \e[1;7;36m DEV-BOOTSTRAP \e[0m  \e[1mPrune plan\e[0m           \e[38;5;245maarch64-darwin · native\e[0m \e[34m│\e[0m
+\e[34m│\e[0m                  \e[38;5;245m2 retired releases installed\e[0m                 \e[34m│\e[0m
+\e[34m╰───────────────────────────────────────────────────────────────╯\e[0m
+
+  \e[1;34mRetired releases\e[0m \e[2;34m────────────────────────────────────────────\e[0m
+      \e[38;5;245mRUNTIME  RELEASE            STATE    LOCATION\e[0m
+    \e[1;33m▲\e[0m Node     26.10.0 → 26.11.1  \e[33mretire\e[0m   \e[38;5;245m~/.local/…/v26.10.0\e[0m
+      \e[38;5;245msteps  \e[0m\e[38;5;245mselect 26.11.1 globally → install global packages\e[0m
+             \e[38;5;245minto 26.11.1: npm-check, pnpm → remove it\e[0m
+    \e[1;33m◆\e[0m Python   3.14.7 → 3.14.8    \e[33mblocked\e[0m  \e[38;5;245m~/…/versions/3.14.7\e[0m
+      3.14.8 is not installed; apply first
+      \e[38;5;245mnote  \e[0m\e[38;5;245menvironments elsewhere, such as a project's .venv,\e[0m
+            \e[38;5;245mare not checked\e[0m
+
+  \e[2;34m─────────────────────────────────────────────────────────────\e[0m
+  \e[1;33m▲\e[0m 1 retire   \e[1;33m◆\e[0m 1 blocked        \e[38;5;245mprune --yes removes 1 release\e[0m

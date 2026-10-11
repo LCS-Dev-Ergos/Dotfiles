@@ -55,6 +55,7 @@ flowchart TD
 | --- | --- |
 | `package.nix`, `policy.nix` | Compose the manifest and literal argv policy, package the executor and run fixture checks. |
 | `bootstrap.py`, `core/cli.py` | Stable executable entry, argument parsing, reporting and process exit status. |
+| `core/render.py`, `core/ui.py` | The text report: how each state reads, drawn in the style every shell tool shares (`ui.py` mirrors the tokens of the Zsh style module). |
 | `core/manifest.py` | Validate the generated manifest; each toolchain adapter validates its own declaration. |
 | `core/process.py`, `paths.py`, `errors.py` | The single process boundary with scoped child environments; writable roots and owned directories; operational errors. |
 | `core/engine.py` | Resolve the selection from the adapters' metadata, report the catalog, inspect and verify runtimes, serialize mutation and dispatch installation. |
@@ -129,9 +130,17 @@ that rebuilds it, which is reported and never run. `apply` reports
 global selections under `selections` instead of failing on them: they belong
 to the native managers. The fresh-shell check covers verified selections only.
 Verification runs executables and temporary canaries, so it is not a filesystem-
-only inspection. JSON reports go to stdout and operational errors to stderr;
+only inspection. Reports go to stdout and operational errors to stderr;
 exit codes are 0 for success, 1 for unsuccessful verification, and 2 for invalid
 arguments or operational failures.
+
+The report is text by default, in the
+[terminal style](../../shells/zsh/docs/Terminal-Style.md) every shell tool
+shares: a framed masthead, a borderless table with one marker and state word
+per row, the reason, location and fix under any row that needs attention, and
+a summary with the next step. `NO_COLOR`, a pipe or a dumb terminal select plain text,
+which is never colored or truncated. `--format json` (or `--json`) prints the
+versioned report programs read; the text layout is not an interface.
 
 `prune` lists the installed releases that the baseline's `retired` mirror
 names, with what removing each takes; `prune --yes` removes them under the

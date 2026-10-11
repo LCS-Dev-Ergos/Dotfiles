@@ -13,6 +13,7 @@ HOSTS = {
 
 class RustAdapter(SettingsToolchain):
     language = "rust"
+    title = "Rust"
     manager_name = "rustup"
     runtime_directory = "toolchains"
     compiles = True

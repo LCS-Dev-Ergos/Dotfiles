@@ -680,8 +680,8 @@ class PruneTests(unittest.TestCase):
 
         code, output = run("prune", "--only", "node")
         self.assertEqual(code, 0)
-        self.assertIn("retire   node", output)
-        self.assertIn("prune --yes removes the 1 release(s)", output)
+        self.assertRegex(output, r"Node +26\.1\.0 → 26\.2\.0 +fnm +retire")
+        self.assertIn("prune --yes removes 1 release.", output)
         code, output = run("prune", "--only", "node", "--yes", "--json")
         self.assertEqual(code, 0)
         report = json.loads(output)

@@ -7,6 +7,7 @@ from .toolchain import SettingsToolchain
 
 class LeanAdapter(SettingsToolchain):
     language = "lean"
+    title = "Lean"
     manager_name = "elan"
     runtime_directory = "toolchains"
 

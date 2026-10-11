@@ -1,0 +1,12 @@
+dev-bootstrap · Health check
+3 selections in 3 ecosystems · aarch64-darwin · native · saved selection
+
+Global selections
+RUNTIME      VERSION  MANAGER  STATE     LOCATION
+Python       3.14.8   pyenv    ok        /home/user/.pyenv/versions/3.14.8/bin/python
+Haskell GHC  9.12.2   ghcup    ok        /home/user/.ghcup/ghc/9.12.2/bin/ghc-9.12.2
+  the declared default is 9.14.1
+Ruby         4.0.7    rbenv    external  —
+  Global selection delegates to the host system runtime
+
+[OK]    2 ok, 1 external.

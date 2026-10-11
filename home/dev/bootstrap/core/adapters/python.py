@@ -26,6 +26,7 @@ HEALTH_CANARY = "import ssl, sqlite3, ctypes, readline, lzma, bz2, zlib, venv"
 
 class PythonAdapter(Adapter):
     language = "python"
+    title = "Python"
     manager_name = "pyenv"
     runtime_directory = "versions"
     compiles = True

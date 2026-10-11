@@ -37,6 +37,7 @@ EXEC = re.compile(rb'^exec "(/[^"\n]+)" "\$@"$', re.MULTILINE)
 
 class ScalaAdapter(JdkTool, ToolchainAdapter):
     language = "scala"
+    title = "Scala"
     manager_name = "coursier"
     identity_arguments = ("-version",)
 

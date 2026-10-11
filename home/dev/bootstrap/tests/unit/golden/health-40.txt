@@ -1,0 +1,16 @@
+\e[34m╭──────────────────────────────────────╮\e[0m
+\e[34m│\e[0m \e[1;7;36m DEV-BOOTSTRAP \e[0m  \e[1mHealth check\e[0m        \e[34m│\e[0m
+\e[34m│\e[0m                  \e[38;5;245m3 selections in 3 …\e[0m \e[34m│\e[0m
+\e[34m╰──────────────────────────────────────╯\e[0m
+
+  \e[1;34mGlobal selections\e[0m \e[2;34m──────────────────\e[0m
+      \e[38;5;245mRUNTIME      VERSION  STATE\e[0m
+    \e[1;32m●\e[0m Python       3.14.8   \e[38;5;245mok\e[0m
+    \e[1;32m●\e[0m Haskell GHC  9.12.2   \e[38;5;245mok\e[0m
+      \e[38;5;245mthe declared default is 9.14.1\e[0m
+    \e[1;38;5;245m○\e[0m Ruby         4.0.7    \e[38;5;245mexternal\e[0m
+      \e[38;5;245mGlobal selection delegates to\e[0m
+      \e[38;5;245mthe host system runtime\e[0m
+
+  \e[2;34m────────────────────────────────────\e[0m
+  \e[1;32m●\e[0m 2 ok   \e[1;38;5;245m○\e[0m 1 external

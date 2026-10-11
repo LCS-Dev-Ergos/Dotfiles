@@ -139,6 +139,7 @@ class SdkmanTool(JdkTool, SdkmanAdapter):
 
 class KotlinAdapter(SdkmanTool):
     language = "kotlin"
+    title = "Kotlin"
     candidate = "kotlin"
     selection_executable = "bin/kotlin"
     identity_arguments = ("-version",)
@@ -154,6 +155,7 @@ class KotlinAdapter(SdkmanTool):
 
 class MavenAdapter(SdkmanTool):
     language = "maven"
+    title = "Maven"
     candidate = "maven"
     selection_executable = "bin/mvn"
 
@@ -171,6 +173,7 @@ class MavenAdapter(SdkmanTool):
 
 class GradleAdapter(SdkmanTool):
     language = "gradle"
+    title = "Gradle"
     candidate = "gradle"
     selection_executable = "bin/gradle"
 

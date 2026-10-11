@@ -103,6 +103,7 @@ class SelectionTests(unittest.TestCase):
             catalog["julia"],
             {
                 "language": "julia",
+                "title": "Julia",
                 "manager": "juliaup",
                 "requires": [],
                 "defaultSelected": False,
@@ -114,6 +115,19 @@ class SelectionTests(unittest.TestCase):
         )
         self.assertFalse(catalog["ruby"]["available"])
         self.assertEqual(catalog["kotlin"]["requires"], ["jvm"])
+        # Every ecosystem names itself for people; only a multi-component
+        # one names its components.
+        self.assertTrue(all(row["title"] for row in catalog.values()))
+        self.assertEqual(catalog["ocaml"]["title"], "OCaml")
+        self.assertEqual(catalog["haskell"]["componentTitles"]["ghc"], "GHC")
+        self.assertEqual(
+            {
+                name
+                for name, row in catalog.items()
+                if "componentTitles" in row
+            },
+            {"haskell"},
+        )
         # Explicit selection reaches an optional adapter, never a missing one.
         self.assertEqual(Bootstrap(self.data, ["julia"]).only, ["julia"])
         with self.assertRaisesRegex(BootstrapError, "unavailable on aarch64"):

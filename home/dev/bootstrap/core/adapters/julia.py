@@ -10,6 +10,7 @@ from .toolchain import ToolchainAdapter
 
 class JuliaAdapter(ToolchainAdapter):
     language = "julia"
+    title = "Julia"
     manager_name = "juliaup"
     runtime_directory = "juliaup"
     identity_arguments = (
