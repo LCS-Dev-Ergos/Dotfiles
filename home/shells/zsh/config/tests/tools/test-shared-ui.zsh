@@ -126,6 +126,13 @@ _ui_strip "$gum_section"
   print -u2 "FAIL: styled section lost its rule or the note at its end"
   return 1
 }
+[[ "$(ZSH_UI_STYLE=ansi _zsh_ui_section --tone error Failed)" == \
+   $'  \e[1;31mFailed\e[0m \e[2;34m─'* ]] || {
+  print -u2 "FAIL: a toned section did not set its title in the tone's color"
+  return 1
+}
+ZSH_UI_STYLE=ansi _zsh_ui_section --tone loud Failed >/dev/null 2>&1 &&
+  { print -u2 "FAIL: an unknown section tone was accepted"; return 1 }
 [[ "$(ZSH_UI_STYLE=plain _zsh_ui_section Section 3)" == "Section · 3" ]] || {
   print -u2 "FAIL: plain section did not keep its note"
   return 1
@@ -240,6 +247,18 @@ typeset -a marked_lines=("${(@f)marked_table}")
    "${marked_lines[3]}" == $'    \e[1;31m✖\e[0m \e[31mmissing'* &&
    "${marked_lines[4]}" == '      other'* ]] || {
   print -u2 "FAIL: a marked table did not lead its rows with status markers"
+  return 1
+}
+typeset toned_table
+toned_table="$(
+  ZSH_UI_STYLE=ansi _zsh_ui_table --tones ok,error --status 2 \
+    $'Case\tVerdict' $'01.in\tPASSED' $'02.in\tTIMEOUT'
+)" || return 1
+marked_lines=("${(@f)toned_table}")
+[[ "${marked_lines[1]}" == $'      \e[38;5;245mCASE'* &&
+   "${marked_lines[2]}" == $'    \e[1;32m●\e[0m 01.in  \e[32mPASSED'* &&
+   "${marked_lines[3]}" == $'    \e[1;31m✖\e[0m 02.in  \e[31mTIMEOUT'* ]] || {
+  print -u2 "FAIL: explicit row tones did not set the markers and status colors"
   return 1
 }
 [[ "$(ZSH_UI_STYLE=plain _zsh_ui_table --marker 1 $'State\tName' $'ok\talpha')" == \

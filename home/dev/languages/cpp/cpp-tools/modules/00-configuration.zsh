@@ -246,12 +246,12 @@ _check_initialized() {
   _check_workspace || return 1
 
   if [ ! -f "CMakeLists.txt" ]; then
-    echo "${C_RED}Error: Project is not initialized. Please run 'cppinit' first.${C_RESET}" >&2
+    _cp_error "Project is not initialized. Please run 'cppinit' first."
     return 1
   fi
 
   if ! _cp_get_active_build_dir >/dev/null 2>&1; then
-    echo "${C_RED}Error: No configured build profile found. Run 'cppconf' first.${C_RESET}" >&2
+    _cp_error "No configured build profile found. Run 'cppconf' first."
     return 1
   fi
 
@@ -268,7 +268,7 @@ _check_workspace() {
   workspace_dir="$CP_WORKSPACE_ROOT"
 
   if [ -z "$workspace_dir" ] || [ ! -d "$workspace_dir" ]; then
-    echo "${C_RED}Error: Workspace root is not configured or missing.${C_RESET}" >&2
+    _cp_error "Workspace root is not configured or missing."
     echo "${C_YELLOW}Current directory: $(pwd)${C_RESET}" >&2
     return 1
   fi
@@ -282,14 +282,14 @@ _check_workspace() {
   fi
 
   if [ -z "$workspace_dir" ] || [ -z "$current_dir" ]; then
-    echo "${C_RED}Error: Unable to resolve workspace paths.${C_RESET}" >&2
+    _cp_error "Unable to resolve workspace paths."
     return 1
   fi
 
   case "${current_dir}/" in
     "${workspace_dir}/"*) return 0 ;;
     *)
-      echo "${C_RED}Error: This command can only be run within the competitive programming workspace.${C_RESET}" >&2
+      _cp_error "This command can only be run within the competitive programming workspace."
       echo "${C_YELLOW}Expected workspace root: ${workspace_dir}${C_RESET}" >&2
       echo "${C_YELLOW}Current directory: ${current_dir}${C_RESET}" >&2
       return 1
@@ -501,11 +501,11 @@ _run_with_timeout() {
 
   if [ -z "$timeout_bin" ]; then
     if [ -z "${_CP_WARNED_TIMEOUT:-}" ]; then
-      echo "${C_RED}Error: No timeout command found ('timeout' or 'gtimeout').${C_RESET}" >&2
+      _cp_error "No timeout command found ('timeout' or 'gtimeout')."
       echo "${C_YELLOW}Install coreutils (macOS): brew install coreutils${C_RESET}" >&2
       _CP_WARNED_TIMEOUT=1
     else
-      echo "${C_RED}Error: timeout utility is required but unavailable.${C_RESET}" >&2
+      _cp_error "The timeout utility is required but unavailable."
     fi
     return 127
   fi

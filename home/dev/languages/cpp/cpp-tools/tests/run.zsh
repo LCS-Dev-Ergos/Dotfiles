@@ -151,17 +151,20 @@ CP_QUIET_LOAD=1 CP_UI_STYLE=invalid \
   zsh "$project_root/cpptools" help >/dev/null 2>&1
 _assert_eq "70" "$?" "entrypoint initialization failure status"
 
-if (( $+commands[gum] )); then
-  CP_UI_STYLE=gum
-  help_output="$(COLUMNS=90 cpphelp)"
-  _assert_contains "$help_output" "CPP-TOOLS" "Gum help heading"
-  _assert_not_contains "$help_output" "╭" "borderless Gum help"
-  CP_UI_STYLE=plain
-fi
+# Styled help frames only its title; categories and rows stay borderless.
+CP_UI_STYLE=ansi
+help_output="$(COLUMNS=90 cpphelp)"
+_assert_contains "$help_output" $'\e[1;7;36m CPP-TOOLS ' "styled help badge"
+_assert_contains "$help_output" "╭" "framed help title"
+typeset -a help_lines=("${(@f)help_output}")
+_assert_eq "1" "${#${(@M)help_lines:#*│*CPP-TOOLS*}}" \
+  "only the help title is framed"
+_assert_eq "0" "${#${(@M)help_lines:#*│*cppbuild*}}" "borderless help rows"
+CP_UI_STYLE=plain
 
 # Shared helpers must preserve command and confirmation status.
 typeset spin_output
-spin_output="$(_cp_spin "probe" zsh -fc 'print -r -- payload; exit 7')"
+spin_output="$(_cp_spin "probe" zsh -fc 'print -r -- payload; exit 7' 2>/dev/null)"
 _assert_eq "7" "$?" "spinner command status"
 _assert_eq "payload" "$spin_output" "spinner command output"
 
@@ -175,18 +178,28 @@ if (( $+commands[gum] )); then
   CP_UI_STYLE=plain
 fi
 
-_cp_confirm "continue" yes </dev/null
-_assert_eq "0" "$?" "non-interactive affirmative default"
-_cp_confirm "continue" no </dev/null
+# Without a terminal a confirmation fails whatever its default: only a
+# command's own --yes accepts unattended.
+_cp_confirm "continue" yes </dev/null 2>/dev/null
+_assert_eq "1" "$?" "non-interactive affirmative default refused"
+_cp_confirm "continue" no </dev/null 2>/dev/null
 _assert_eq "1" "$?" "non-interactive negative default"
+_cp_confirm "continue" maybe </dev/null 2>/dev/null
+_assert_eq "2" "$?" "invalid confirmation default"
 
-# Banner colors are resolved at call time, including after a style change.
+# Section colors are resolved at call time, including after a style change;
+# a red or green rule names the outcome its section reports.
 CP_UI_STYLE=ansi
 typeset banner_output="$(_cp_rule "probe" cyan)"
-_assert_contains "$banner_output" $'\e[36m' "dynamic ANSI banner color"
+_assert_contains "$banner_output" $'\e[1;34mprobe' "dynamic ANSI section color"
+_assert_not_contains "$banner_output" "═" "no legacy banner glyphs"
+banner_output="$(_cp_rule "probe" red)"
+_assert_contains "$banner_output" $'\e[1;31mprobe' "failure section tone"
+_cp_rule "probe" magenta >/dev/null 2>&1
+_assert_eq "2" "$?" "unknown section color"
 NO_COLOR=1
 banner_output="$(_cp_rule "probe" cyan)"
-_assert_not_contains "$banner_output" $'\e' "dynamic plain banner color"
+_assert_not_contains "$banner_output" $'\e' "dynamic plain section color"
 unset NO_COLOR
 CP_UI_STYLE=plain
 
@@ -304,11 +317,21 @@ _assert_eq "64" "$?" "cppstress argument validation"
   cd "$workspace" || exit 1
   touch CMakeLists.txt
   tar() { return 1; }
-  # A developer may invoke the suite from a terminal. Make this confirmation
-  # deterministic instead of inheriting the caller's interactive stdin.
-  cpparchive </dev/null >/dev/null 2>&1
+  cpparchive --yes </dev/null >/dev/null 2>&1
 )
 _assert_eq "1" "$?" "archive failure propagation"
+
+# Without a terminal and without --yes, nothing is archived and the run fails.
+(
+  cd "$workspace" || exit 1
+  tar() { touch "$test_tmp/archived"; }
+  cpparchive </dev/null >/dev/null 2>&1
+)
+_assert_eq "1" "$?" "unattended archive needs --yes"
+[[ ! -e "$test_tmp/archived" ]]
+_assert_eq "0" "$?" "unattended archive left nothing behind"
+cpparchive --force >/dev/null 2>&1
+_assert_eq "64" "$?" "archive argument validation"
 
 # Submission parsers reject unsupported options before doing any work.
 mkdir -p build/gcc/debug
@@ -322,6 +345,12 @@ cpphealth unexpected >/dev/null 2>&1
 _assert_eq "64" "$?" "health-check argument validation"
 cppdiag unexpected >/dev/null 2>&1
 _assert_eq "64" "$?" "diagnostic argument validation"
+typeset diag_output
+diag_output="$(cppdiag 2>&1)"
+_assert_eq "0" "$?" "diagnostics describe without failing"
+_assert_contains "$diag_output" "cpp-tools · Diagnostics" "diagnostics report title"
+_assert_contains "$diag_output" "cpphealth checks what is required" \
+  "diagnostics summary"
 
 # Submission generation assembles a complete file before replacing its target.
 mkdir -p "$CP_ALGORITHMS_DIR/scripts"
@@ -434,7 +463,7 @@ _assert_eq "0" "$?" "health check with cache metadata"
 [[ ! -e "$cache_marker" ]]
 _assert_eq "0" "$?" "cache compiler never executed by health check"
 _assert_contains "$health_output" 'Cached build compiler (not executed)' "cache metadata remains visible"
-_assert_contains "$health_output" 'PATH compiler:' "health check probes the PATH toolchain"
+_assert_contains "$health_output" 'PATH compiler ' "health check probes the PATH toolchain"
 _assert_contains "$health_output" 'C++23 support available' "standard support probe preserved"
 unfunction _write_fake_compiler
 

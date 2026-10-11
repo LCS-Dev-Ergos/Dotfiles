@@ -30,7 +30,7 @@ function cppbuild() {
   target_name=$(_normalize_target_name "${1:-$(_get_default_target)}")
   local build_dir
   build_dir=$(_cp_get_active_build_dir) || {
-    echo "${C_RED}Error: No active build profile found. Run 'cppconf' first.${C_RESET}" >&2
+    _cp_error "No active build profile found. Run 'cppconf' first."
     return 1
   }
 
@@ -62,7 +62,7 @@ function cppbuild() {
   # Handle build failures with full error output.
   if [ $build_status -ne 0 ]; then
     echo ""
-    _cp_rule "BUILD FAILED" red
+    _cp_rule "Build failed" red
     echo "$build_output"
     _cp_rule "" red
     printf "${C_RED}Build failed after %s${C_RESET}\n" "$elapsed_str"
@@ -82,7 +82,7 @@ function cppbuild() {
     # 3. Print timing statistics only if timing is enabled.
     if [ "$timing_enabled" = true ]; then
       echo ""
-      _cp_box_top "COMPILATION TIME STATISTICS" cyan
+      _cp_box_top "Compilation time statistics" cyan
       echo ""
 
       # Universal timing report finder for both GCC and Clang.
@@ -105,7 +105,7 @@ function cppbuild() {
       fi
 
       echo ""
-      _cp_box_bottom "Compilation Finished, Proceeding to Link" cyan
+      _cp_box_bottom "Compilation finished; linking next." cyan
       echo ""
     fi
 
@@ -117,7 +117,7 @@ function cppbuild() {
   fi
 
   # Display total build time.
-  printf "${C_MAGENTA}Total build time: %s${C_RESET}\n" "$elapsed_str"
+  printf "${C_MUTED}Total build time: %s${C_RESET}\n" "$elapsed_str"
 
   return 0
 }
@@ -172,7 +172,7 @@ function cppgo() {
         ;;
       --input)
         if [ $# -lt 2 ] || [ -z "${2:-}" ]; then
-          echo "${C_RED}Error: '--input' requires a filename argument.${C_RESET}" >&2
+          _cp_error "'--input' requires a filename argument."
           echo "Usage: cppgo [--force] [--input <file>] [target] [input_file]" >&2
           return 1
         fi
@@ -187,7 +187,7 @@ function cppgo() {
         done
         ;;
       -*)
-        echo "${C_RED}Error: Unknown option '$arg'.${C_RESET}" >&2
+        _cp_error "Unknown option '$arg'."
         echo "Usage: cppgo [--force] [--input <file>] [target] [input_file]" >&2
         return 1
         ;;
@@ -199,13 +199,13 @@ function cppgo() {
   done
 
   if (( ${#positional[@]} > 2 )); then
-    echo "${C_RED}Error: Too many arguments.${C_RESET}" >&2
+    _cp_error "Too many arguments."
     echo "Usage: cppgo [--force] [--input <file>] [target] [input_file]" >&2
     return 1
   fi
 
   if [ -n "$input_override" ] && [ -n "${positional[2]:-}" ]; then
-    echo "${C_RED}Error: Specify input either via '--input <file>' or positional arg, not both.${C_RESET}" >&2
+    _cp_error "Specify input either via '--input <file>' or positional arg, not both."
     return 1
   fi
 
@@ -221,7 +221,7 @@ function cppgo() {
     local source_file
     source_file=$(_resolve_target_source "$target_name")
     if [ -z "$source_file" ]; then
-      echo "${C_RED}Error: Source file for target '$target_name' not found.${C_RESET}" >&2
+      _cp_error "Source file for target '$target_name' not found."
       return 1
     fi
     echo "${C_YELLOW}Forcing rebuild for '$source_file' by updating its timestamp...${C_RESET}"
@@ -231,7 +231,7 @@ function cppgo() {
   echo "${C_CYAN}Building target '${C_BOLD}$target_name${C_CYAN}'...${C_RESET}"
   if cppbuild "$target_name"; then
     echo ""
-    _cp_rule "RUNNING: ${target_name}"
+    _cp_rule "Running ${target_name}"
 
     # Track execution time.
     local start_time=$EPOCHREALTIME
@@ -243,7 +243,7 @@ function cppgo() {
       exit_code=$?
     else
       if [ -n "${positional[2]:-}" ]; then # Warn if a specific file was requested but not found.
-        echo "${C_YELLOW}Warning: Input file '$input_path' not found.${C_RESET}" >&2
+        _cp_warn "Input file '$input_path' not found."
       fi
       _run_with_timeout 5s "$exec_path"
       exit_code=$?
@@ -256,13 +256,13 @@ function cppgo() {
 
     # Check if the program was terminated due to timeout.
     if [ $exit_code -eq 124 ]; then
-      echo "${C_YELLOW}⚠ Program terminated after 5-second timeout${C_RESET}"
+      _cp_warn "Program terminated after 5-second timeout"
     elif [ $exit_code -ne 0 ] && [ $exit_code -ne 124 ]; then
       echo "${C_RED}Program exited with code $exit_code${C_RESET}"
     fi
 
-    _cp_rule "FINISHED"
-    printf "${C_MAGENTA}Execution time: %s${C_RESET}\n" "$elapsed_str"
+    _cp_rule "Finished"
+    printf "${C_MUTED}Execution time: %s${C_RESET}\n" "$elapsed_str"
     return "$exit_code"
   else
     echo "${C_RED}Build failed!${C_RESET}" >&2
@@ -299,11 +299,11 @@ function cppi() {
   echo "${C_CYAN}Building target '${C_BOLD}$target_name${C_CYAN}'...${C_RESET}"
   if cppbuild "$target_name"; then
     echo ""
-    _cp_rule "INTERACTIVE MODE: ${target_name}"
+    _cp_rule "Interactive: ${target_name}"
     echo "${C_YELLOW}Enter input (Ctrl+D when done):${C_RESET}"
     "$exec_path"
     local run_status=$?
-    _cp_rule "FINISHED"
+    _cp_rule "Finished"
     return "$run_status"
   else
     echo "${C_RED}Build failed!${C_RESET}" >&2
@@ -357,11 +357,12 @@ function cppjudge() {
   local total=0
   local missing_expected=0
   local judge_timeout="${CP_JUDGE_TIMEOUT:-5s}"
-  # Per-test tab-separated rows for the final summary table.
-  local -a result_rows=()
+  # Per-test tab-separated rows for the final summary table, and the tone
+  # each verdict reads in.
+  local -a result_rows=() result_tones=()
 
   if ! _get_timeout_cmd >/dev/null 2>&1; then
-    echo "${C_RED}Error: No timeout command found ('timeout' or 'gtimeout').${C_RESET}" >&2
+    _cp_error "No timeout command found ('timeout' or 'gtimeout')."
     echo "${C_YELLOW}Install coreutils (macOS): brew install coreutils${C_RESET}" >&2
     return 1
   fi
@@ -395,6 +396,7 @@ function cppjudge() {
       result_rows+=(
         "$(basename "$test_in")"$'\t'"TIMEOUT"$'\t'"${elapsed_ms}ms"
       )
+      result_tones+=(error)
       rm -f -- "$temp_out"
       continue
     elif [ $run_status -ne 0 ]; then
@@ -404,8 +406,9 @@ function cppjudge() {
         "$(basename "$test_in")"$'\t'\
 "RUNTIME ERROR (exit ${run_status})"$'\t'"${elapsed_ms}ms"
       )
+      result_tones+=(error)
       if [ -s "$temp_out" ]; then
-        _cp_rule "PARTIAL OUTPUT" yellow
+        _cp_rule "Partial output" yellow
         cat "$temp_out"
         _cp_rule "" yellow
       fi
@@ -421,6 +424,7 @@ function cppjudge() {
         "$(basename "$test_in")"$'\t'\
 "NO EXPECTED OUTPUT"$'\t'"${elapsed_ms}ms"
       )
+      result_tones+=(warn)
       rm -f -- "$temp_out"
       continue
     fi
@@ -430,33 +434,34 @@ function cppjudge() {
       echo "${C_BOLD}${C_GREEN}PASSED${C_RESET} (${elapsed_ms}ms)"
       ((passed++))
       result_rows+=("$(basename "$test_in")"$'\t'"PASSED"$'\t'"${elapsed_ms}ms")
+      result_tones+=(ok)
     else
       echo "${C_BOLD}${C_RED}FAILED${C_RESET} (${elapsed_ms}ms)"
       ((failed++))
       result_rows+=("$(basename "$test_in")"$'\t'"FAILED"$'\t'"${elapsed_ms}ms")
-      _cp_rule "YOUR OUTPUT" yellow
+      result_tones+=(error)
+      _cp_rule "Your output" yellow
       cat "$temp_out"
-      _cp_rule "EXPECTED" yellow
+      _cp_rule "Expected" yellow
       cat "$output_case"
       _cp_rule "" yellow
     fi
     rm -f -- "$temp_out"
   done
 
-  # Summary: a single shared table with Gum and native renderers.
+  # Summary: one marked row per case, then the counts.
   echo ""
-  _cp_heading "Test summary" "$target_name · $total case(s)"
-  _cp_ui_table $'Case\tVerdict\tTime' "${result_rows[@]}"
+  _cp_section "Test summary" "$target_name"
+  _cp_ui_table --tones "${(j:,:)result_tones}" --status 2 --align llr \
+    $'Case\tVerdict\tTime' "${result_rows[@]}"
   echo ""
-  local summary_line="  ${C_GREEN}Passed: $passed/$total${C_RESET}"
-  if [ $failed -gt 0 ]; then
-    summary_line+="    ${C_RED}Failed: $failed/$total${C_RESET}"
-  fi
-  if [ $missing_expected -gt 0 ]; then
-    summary_line+="    ${C_YELLOW}Missing expected: $missing_expected${C_RESET}"
-  fi
-  echo "$summary_line"
-  _cp_rule ""
+  local hint=""
+  (( failed )) && hint="each failing case printed its output above"
+  _cp_ui_width
+  _cp_ui_call _zsh_ui_summary --width "$REPLY" --hint "$hint" \
+    "ok"$'\t'"$passed"$'\t'"passed" \
+    "error"$'\t'"$failed"$'\t'"failed" \
+    "warn"$'\t'"$missing_expected"$'\t'"without expected output"
 
   if [ $failed -gt 0 ] || [ $missing_expected -gt 0 ]; then
     return 1
@@ -484,7 +489,7 @@ function cppstress() {
   local exec_path="./bin/$target_name"
 
   if [[ ! "$iterations" == <-> ]] || [ "$iterations" -le 0 ]; then
-    echo "${C_RED}Error: iterations must be a positive integer (got '$iterations').${C_RESET}" >&2
+    _cp_error "The iteration count must be a positive integer (got '$iterations')."
     return 1
   fi
 

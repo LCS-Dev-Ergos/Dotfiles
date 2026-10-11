@@ -61,7 +61,7 @@ function _cppgo_problem() {
     done
 
     if [ -z "$source_file" ]; then
-      echo "${C_RED}Error: No file found for problem '${problem_id}' (tried ${target_name}.* and ${target_name}[1-9].*).${C_RESET}" >&2
+      _cp_error "No file found for problem '${problem_id}' (tried ${target_name}.* and ${target_name}[1-9].*)."
       return 1
     fi
   fi

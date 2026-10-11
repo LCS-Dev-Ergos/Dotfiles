@@ -71,7 +71,7 @@ _cp_setup_vscode_configs() {
   )
 
   if [ -z "$CP_ALGORITHMS_DIR" ] || [ ! -d "$master_vscode_dir" ]; then
-    echo "${C_YELLOW}Warning: Central VS Code config directory not found at '$master_vscode_dir'. Skipping VS Code setup.${C_RESET}"
+    _cp_warn "Central VS Code config directory not found at '$master_vscode_dir'. Skipping VS Code setup."
     return 0
   fi
 
@@ -93,7 +93,7 @@ _cp_setup_vscode_configs() {
   fi
 
   if [ ! -d "$vscode_dest_dir" ]; then
-    echo "${C_YELLOW}Warning: '$vscode_dest_dir' exists but is not a directory/symlink. Skipping VS Code setup.${C_RESET}"
+    _cp_warn "'$vscode_dest_dir' exists but is not a directory/symlink. Skipping VS Code setup."
     return 0
   fi
 
@@ -104,7 +104,7 @@ _cp_setup_vscode_configs() {
     dest_entry="$vscode_dest_dir/$entry_name"
 
     if [ ! -e "$central_entry" ] && [ ! -L "$central_entry" ]; then
-      echo "${C_YELLOW}Warning: Missing central VS Code entry '$central_entry'.${C_RESET}"
+      _cp_warn "Missing central VS Code entry '$central_entry'."
       continue
     fi
 
@@ -155,7 +155,7 @@ _cp_setup_clangd_config() {
   selected_profile="$(_cp_select_clangd_profile)"
 
   if [ ! -f "$selected_profile" ]; then
-    echo "${C_RED}Error: Missing centralized clangd profile '$selected_profile'.${C_RESET}" >&2
+    _cp_error "Missing centralized clangd profile '$selected_profile'."
     return 1
   fi
 
@@ -184,7 +184,7 @@ _cp_setup_clangd_config() {
       }
       echo "Backed up legacy local clangd config to $backup_path before centralizing it."
     else
-      echo "${C_YELLOW}Warning: Local clangd config exists and was not replaced: $clangd_dest${C_RESET}"
+      _cp_warn "Local clangd config exists and was not replaced: $clangd_dest"
       return 0
     fi
   fi
@@ -250,7 +250,7 @@ function cppinit() {
 
   # Centralized setup requires a valid Algorithms root.
   if [ -z "$CP_ALGORITHMS_DIR" ] || [ ! -d "$CP_ALGORITHMS_DIR" ]; then
-    echo "${C_RED}Error: CP_ALGORITHMS_DIR is not set or is invalid.${C_RESET}" >&2
+    _cp_error "CP_ALGORITHMS_DIR is not set or is invalid."
     return 1
   fi
 
@@ -302,11 +302,11 @@ EOF
   # Toolchain files are now centralized (no round-local copies/symlinks).
   if [ -n "$CP_ALGORITHMS_DIR" ]; then
     if [ ! -f "$CP_ALGORITHMS_DIR/gcc-toolchain.cmake" ]; then
-      echo "${C_RED}Error: Missing centralized toolchain: $CP_ALGORITHMS_DIR/gcc-toolchain.cmake${C_RESET}" >&2
+      _cp_error "Missing centralized toolchain: $CP_ALGORITHMS_DIR/gcc-toolchain.cmake"
       return 1
     fi
     if [ ! -f "$CP_ALGORITHMS_DIR/clang-toolchain.cmake" ]; then
-      echo "${C_YELLOW}Warning: Central clang toolchain not found at $CP_ALGORITHMS_DIR/clang-toolchain.cmake${C_RESET}"
+      _cp_warn "Central clang toolchain not found at $CP_ALGORITHMS_DIR/clang-toolchain.cmake"
     fi
   fi
 
@@ -348,7 +348,7 @@ EOF
     }
     echo "Created .clangd symlink for IDE compatibility"
   elif [ ! -L ".clangd" ]; then
-    echo "${C_YELLOW}Warning: '.clangd' exists as a regular file; leaving it untouched.${C_RESET}"
+    _cp_warn "'.clangd' exists as a regular file; leaving it untouched."
   fi
 
   # Create directories if they don't exist.
@@ -371,7 +371,7 @@ EOF
       echo "Created symlink to global debug.h."
     else
       touch "algorithms/debug.h"
-      echo "${C_YELLOW}Warning: Global debug.h not found. Created a local placeholder.${C_RESET}"
+      _cp_warn "Global debug.h not found. Created a local placeholder."
     fi
   fi
 
@@ -388,7 +388,7 @@ EOF
       echo "Created symlink to global templates directory."
     else
       mkdir -p "algorithms/templates"
-      echo "${C_YELLOW}Warning: Global templates directory not found. Created a local placeholder.${C_RESET}"
+      _cp_warn "Global templates directory not found. Created a local placeholder."
     fi
   fi
 
@@ -405,7 +405,7 @@ EOF
       echo "Created symlink to global modules directory."
     else
       mkdir -p "algorithms/modules"
-      echo "${C_YELLOW}Warning: Global modules directory not found. Created a local placeholder.${C_RESET}"
+      _cp_warn "Global modules directory not found. Created a local placeholder."
     fi
   fi
 
@@ -422,7 +422,7 @@ EOF
       echo "Created symlink to global CMake helper modules."
     else
       mkdir -p "algorithms/cmake"
-      echo "${C_YELLOW}Warning: Global CMake helper modules not found. Created a local placeholder.${C_RESET}"
+      _cp_warn "Global CMake helper modules not found. Created a local placeholder."
     fi
   fi
 
@@ -440,7 +440,7 @@ EOF
       fi
       echo "Created symlink to global PCH.h (for Clang builds)."
     else
-      echo "${C_YELLOW}Warning: PCH.h not found. Clang builds may not work properly.${C_RESET}"
+      _cp_warn "PCH.h not found. Clang builds may not work properly."
     fi
   fi
 
@@ -454,7 +454,7 @@ EOF
       fi
       echo "Created symlink to global PCH_Wrapper.h."
     else
-      echo "${C_YELLOW}Warning: PCH_Wrapper.h not found. Some builds may not work properly.${C_RESET}"
+      _cp_warn "PCH_Wrapper.h not found. Some builds may not work properly."
     fi
   fi
 
@@ -543,7 +543,7 @@ function cppnew() {
   local escaped_problem_brief
 
   if [ -f "${problem_name}.cpp" ] || [ -f "${problem_name}.cc" ] || [ -f "${problem_name}.cxx" ]; then
-    echo "${C_RED}Error: File for problem '$problem_name' already exists.${C_RESET}" >&2
+    _cp_error "File for problem '$problem_name' already exists."
     return 1
   fi
 
@@ -555,7 +555,7 @@ function cppnew() {
   }
 
   if [ ! -f "$template_file" ]; then
-    echo "${C_RED}Error: Template file '$template_file' not found.${C_RESET}" >&2
+    _cp_error "Template file '$template_file' not found."
     return 1
   fi
 
@@ -692,7 +692,7 @@ function cppdelete() {
   done
 
   if (( ${#requested_problems} == 0 )); then
-    echo "${C_RED}Usage: cppdelete [--yes|-y] [--no-config] <problem_name> [problem_name...]${C_RESET}" >&2
+    _cp_error "Usage: cppdelete [--yes|-y] [--no-config] <problem_name> [problem_name...]"
     echo "Examples:" >&2
     echo "  cppdelete problem_A problem_B problem_C" >&2
     echo "  cppdelete problem_A,problem_B,problem_C" >&2
@@ -767,11 +767,11 @@ function cppdelete() {
   done
 
   if (( ${#missing_problems} > 0 )); then
-    echo "${C_YELLOW}Warning: Source file not found for: ${missing_problems[*]}${C_RESET}"
+    _cp_warn "Source file not found for: ${missing_problems[*]}"
   fi
 
   if (( ${#valid_problems} == 0 )) || (( ${#files_to_delete} == 0 )); then
-    echo "${C_RED}Error: No matching problem files found to delete.${C_RESET}" >&2
+    _cp_error "No matching problem files found to delete."
     return 1
   fi
 
@@ -779,6 +779,8 @@ function cppdelete() {
     echo ""
     if ! _cp_confirm "Are you sure you want to delete these files?" no; then
       echo "Deletion cancelled."
+      # Without a terminal nothing was asked; unattended runs pass --yes.
+      [[ -t 0 ]] || return 1
       return 0
     fi
   fi
@@ -798,7 +800,7 @@ function cppdelete() {
   if [ -f ".statistics/problem_times" ] && (( ${#valid_problems} > 0 )); then
     local stats_tmp
     stats_tmp=$(mktemp ".statistics/problem_times.XXXXXX") || {
-      echo "${C_RED}Error: Unable to create temporary statistics file.${C_RESET}" >&2
+      _cp_error "Unable to create temporary statistics file."
       return 1
     }
 
@@ -859,12 +861,12 @@ function cppbatch() {
   local -a letters=(A B C D E F G H I J K L M N O P Q R S T U V W X Y Z)
 
   if [[ ! "$count" =~ '^[0-9]+$' ]] || [ "$count" -le 0 ]; then
-    echo "${C_RED}Error: count must be a positive integer (got '$count').${C_RESET}" >&2
+    _cp_error "The count must be a positive integer (got '$count')."
     return 1
   fi
 
   if [ "$count" -gt "${#letters[@]}" ]; then
-    echo "${C_YELLOW}Warning: Requested $count problems, but only ${#letters[@]} letters are supported (A-Z).${C_RESET}"
+    _cp_warn "Requested $count problems, but only ${#letters[@]} letters are supported (A-Z)."
     count=${#letters[@]}
   fi
 
@@ -968,13 +970,13 @@ _cppconf_select_toolchain() {
 _cppconf_ensure_toolchain_file() {
   local toolchain_file="$1"
   if [ -z "$CP_ALGORITHMS_DIR" ]; then
-    echo "${C_RED}Error: CP_ALGORITHMS_DIR is not set. Cannot resolve centralized toolchain.${C_RESET}" >&2
+    _cp_error "CP_ALGORITHMS_DIR is not set. Cannot resolve centralized toolchain."
     return 1
   fi
 
   local resolved="$CP_ALGORITHMS_DIR/$toolchain_file"
   if [ ! -f "$resolved" ]; then
-    echo "${C_RED}Error: Missing centralized toolchain '$resolved'.${C_RESET}" >&2
+    _cp_error "Missing centralized toolchain '$resolved'."
     return 1
   fi
 
@@ -1075,7 +1077,7 @@ function cppconf() {
   _check_workspace || return 1
 
   if ! command -v cmake >/dev/null 2>&1; then
-    echo "${C_RED}Error: 'cmake' is not installed or not in PATH.${C_RESET}" >&2
+    _cp_error "'cmake' is not installed or not in PATH."
     echo "${C_YELLOW}Install it first (macOS: brew install cmake, Debian/Ubuntu: apt install cmake).${C_RESET}" >&2
     return 1
   fi
@@ -1093,12 +1095,12 @@ function cppconf() {
       --build-type|-b)
         ((i++))
         if [ $i -gt $# ]; then
-          echo "${C_RED}Error: Missing value after '$arg'.${C_RESET}" >&2
+          _cp_error "Missing value after '$arg'."
           return 1
         fi
         value="${@[i]}"
         normalized=$(_cppconf_normalize_build_type "$value") || {
-          echo "${C_RED}Error: Invalid build type '$value'. Use Debug, Release, or Sanitize.${C_RESET}" >&2
+          _cp_error "Invalid build type '$value'. Use Debug, Release, or Sanitize."
           return 1
         }
         build_type="$normalized"
@@ -1106,7 +1108,7 @@ function cppconf() {
       --compiler|-c)
         ((i++))
         if [ $i -gt $# ]; then
-          echo "${C_RED}Error: Missing value after '$arg'.${C_RESET}" >&2
+          _cp_error "Missing value after '$arg'."
           return 1
         fi
         compiler_choice="${@[i]}"
@@ -1114,11 +1116,11 @@ function cppconf() {
       --timing)
         ((i++))
         if [ $i -gt $# ]; then
-          echo "${C_RED}Error: Missing value after '$arg'.${C_RESET}" >&2
+          _cp_error "Missing value after '$arg'."
           return 1
         fi
         value=$(_cppconf_parse_on_off "${@[i]}") || {
-          echo "${C_RED}Error: Invalid timing value '${@[i]}'. Use on/off.${C_RESET}" >&2
+          _cp_error "Invalid timing value '${@[i]}'. Use on/off."
           return 1
         }
         timing_mode="$value"
@@ -1126,11 +1128,11 @@ function cppconf() {
       --pch)
         ((i++))
         if [ $i -gt $# ]; then
-          echo "${C_RED}Error: Missing value after '$arg'.${C_RESET}" >&2
+          _cp_error "Missing value after '$arg'."
           return 1
         fi
         value=$(_cppconf_parse_on_off_auto "${@[i]}") || {
-          echo "${C_RED}Error: Invalid pch value '${@[i]}'. Use on/off/auto.${C_RESET}" >&2
+          _cp_error "Invalid pch value '${@[i]}'. Use on/off/auto."
           return 1
         }
         pch_mode="$value"
@@ -1140,7 +1142,7 @@ function cppconf() {
         ;;
       timing=*)
         value=$(_cppconf_parse_on_off "${arg#*=}") || {
-          echo "${C_YELLOW}Warning: Unknown timing value '${arg#*=}'. Ignoring.${C_RESET}"
+          _cp_warn "Unknown timing value '${arg#*=}'. Ignoring."
           ((i++))
           continue
         }
@@ -1148,7 +1150,7 @@ function cppconf() {
         ;;
       pch=*)
         value=$(_cppconf_parse_on_off_auto "${arg#*=}") || {
-          echo "${C_YELLOW}Warning: Unknown pch value '${arg#*=}'. Ignoring.${C_RESET}"
+          _cp_warn "Unknown pch value '${arg#*=}'. Ignoring."
           ((i++))
           continue
         }
@@ -1156,7 +1158,7 @@ function cppconf() {
         ;;
       pch-rebuild=*)
         value=$(_cppconf_parse_on_off "${arg#*=}") || {
-          echo "${C_YELLOW}Warning: Unknown pch-rebuild value '${arg#*=}'. Ignoring.${C_RESET}"
+          _cp_warn "Unknown pch-rebuild value '${arg#*=}'. Ignoring."
           ((i++))
           continue
         }
@@ -1172,7 +1174,7 @@ function cppconf() {
         compiler_choice="$arg"
         ;;
       *)
-        echo "${C_YELLOW}Warning: Unknown argument '$arg'. Ignoring.${C_RESET}"
+        _cp_warn "Unknown argument '$arg'. Ignoring."
         ;;
     esac
     ((i++))
@@ -1184,7 +1186,7 @@ function cppconf() {
 
   local toolchain_selection toolchain_file toolchain_name
   toolchain_selection=$(_cppconf_select_toolchain "$build_type" "$compiler_choice") || {
-    echo "${C_RED}Error: Unknown compiler choice '$compiler_choice'.${C_RESET}" >&2
+    _cp_error "Unknown compiler choice '$compiler_choice'."
     echo "Valid options: gcc, clang, auto" >&2
     return 1
   }
@@ -1204,7 +1206,7 @@ function cppconf() {
     *) compiler_key="gcc" ;;
   esac
   build_type_key=$(_cp_build_type_key "$build_type") || {
-    echo "${C_RED}Error: Unsupported build type '$build_type'.${C_RESET}" >&2
+    _cp_error "Unsupported build type '$build_type'."
     return 1
   }
   build_dir=$(_cp_profile_build_dir "$compiler_key" "$build_type_key")
@@ -1215,7 +1217,7 @@ function cppconf() {
     return 1
   }
   if ! _cp_setup_clangd_config; then
-    echo "${C_RED}Error: Failed to configure centralized clangd profile.${C_RESET}" >&2
+    _cp_error "Failed to configure centralized clangd profile."
     return 1
   fi
   # Refresh the symlink, but never overwrite a user's regular .clangd file.
@@ -1268,7 +1270,7 @@ function cppconf() {
     cmake_flags+=("-DCP_ENABLE_LTO=ON")
   fi
 
-  _cp_box_top "PROJECT CONFIGURATION"
+  _cp_box_top "Project configuration"
   _cp_kv "Build Type:" "$build_type"
   _cp_kv "Compiler:" "$toolchain_name"
   _cp_kv "Build Dir:" "$build_dir"
@@ -1310,12 +1312,12 @@ function cppconf() {
         | awk '/SETUP SUMMARY/{f=1; next} f && /╚═══|════$/{exit} f' \
         | sed -e 's/^-- //' -e 's/^│ //' -e 's/^│$//' -e 's/^/  /')
       if [ -n "$conf_summary" ]; then
-        _cp_rule "SETUP SUMMARY" cyan
+        _cp_rule "Setup summary" cyan
         printf '%s\n' "$conf_summary"
         _cp_rule "" cyan
       fi
     else
-      _cp_rule "CMAKE OUTPUT" red
+      _cp_rule "CMake output" red
       echo "$conf_output"
       _cp_rule "" red
     fi
@@ -1370,7 +1372,7 @@ function cppconf() {
 # -----------------------------------------------------------------------------
 function cppcontest() {
   if [[ $# != 1 || -z "$1" ]]; then
-    echo "${C_RED}Usage: cppcontest <ContestDirectoryName>${C_RESET}" >&2
+    _cp_error "Usage: cppcontest <ContestDirectoryName>"
     echo "Example: cppcontest Codeforces/Round_1037_Div_3" >&2
     return 64
   fi

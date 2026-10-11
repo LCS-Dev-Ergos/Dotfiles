@@ -27,16 +27,21 @@ Before you begin, ensure you have the following installed on your system:
     - **Debian/Ubuntu**: `sudo apt install cmake`
 4. **(Optional, for `cppwatch`) `fswatch`**:
     - **macOS**: `brew install fswatch`
-5. **Optional: [Gum](https://github.com/charmbracelet/gum)** for a polished CLI:
-    Enables the styled help heading, build spinners, confirmations, selection,
-    and larger result tables. Routine status lines remain shell-native. Every
-    feature has an ANSI/plain fallback, so Gum is never required.
+5. **Optional: [Gum](https://github.com/charmbracelet/gum)** for interactions:
+    build spinners, confirmations and template selection. Everything else is
+    drawn by the shell in the
+    [terminal style](../../../../shells/zsh/docs/Terminal-Style.md) every shell
+    tool here shares, and every interaction has a native fallback, so Gum is
+    never required.
     - **macOS**: `brew install gum`
     - **Debian/Ubuntu**: see the [Gum installation guide](https://github.com/charmbracelet/gum#installation) (apt repository available)
 
 The UI mode is controlled by `CP_UI_STYLE=auto|gum|ansi|plain`. `auto` uses
 Gum only on a terminal and selects plain output for pipes. `NO_COLOR=1` always
 selects plain output. The older `CP_NO_GUM=1` override remains supported.
+Output follows the terminal width within 40-120 columns; `CP_UI_WIDTH` sets an
+explicit width instead. A confirmation needs a terminal: unattended runs pass
+the command's `--yes` (`cppclean`, `cppdelete`, `cpparchive`) or are refused.
 
 ## Installation
 
@@ -139,7 +144,7 @@ The script will run your code against each `.in` file and `diff` the output with
 
 Run `cpptools help` (or `cpphelp` in an interactive shell) for the canonical,
 responsive command reference. The help page is generated from the same command
-registry in every UI mode, so Gum and fallback output cannot drift apart.
+registry in every UI mode, so styled and plain output cannot drift apart.
 
 ## Project Directory Structure
 

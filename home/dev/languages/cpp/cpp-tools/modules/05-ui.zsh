@@ -1,13 +1,28 @@
 # ============================================================================ #
 # +++++++++++++++++++++++++++++ SHARED UI LAYER ++++++++++++++++++++++++++++++ #
 # ============================================================================ #
-# Terminal output primitives shared by every cpp-tools command. Gum is
-# optional and reserved for interactions, spinners, and larger visual blocks;
-# routine output remains Zsh-native and always has ANSI/plain fallbacks.
+# cpp-tools draws with the terminal style every shell tool shares, defined in
+# home/shells/zsh/config/scripts/_ui.zsh and described in Terminal-Style.md
+# next to it. The package installs a copy as lib/_ui.zsh; a source checkout
+# reads the original. The _cp_* functions keep the names the modules and the
+# tests use: they apply cpp-tools' own settings (CP_UI_STYLE, CP_NO_GUM and
+# CP_UI_WIDTH) and hand the drawing to the shared components.
 # ============================================================================ #
 
 : "${CP_UI_STYLE:=auto}"
 : "${CP_UI_WIDTH:=auto}"
+
+() {
+  local root="${1:A:h:h}" candidate
+  for candidate in \
+      "$root/lib/_ui.zsh" \
+      "$root/../../../../shells/zsh/config/scripts/_ui.zsh"; do
+    [[ -r "$candidate" ]] || continue
+    source "$candidate" && return 0
+  done
+  print -u2 -r -- "cpp-tools: the shared terminal style (_ui.zsh) is missing"
+  return 1
+} "${(%):-%x}" || return 2
 
 # -----------------------------------------------------------------------------
 # _cp_ui_has_gum
@@ -85,9 +100,25 @@ _cp_gum_interactive() {
 }
 
 # -----------------------------------------------------------------------------
+# _cp_ui_call
+# -----------------------------------------------------------------------------
+# Run a shared component in the style cpp-tools resolved, so CP_UI_STYLE and
+# CP_NO_GUM decide for it as they do for everything else here.
+# -----------------------------------------------------------------------------
+_cp_ui_call() {
+  _cp_ui_resolve_mode || return $?
+  local ZSH_UI_STYLE="$REPLY"
+  # Gum is ruled out on this descriptor even when the style allows it.
+  [[ "$REPLY" != gum ]] || _cp_ui_gum_for_fd 2 || ZSH_UI_STYLE=ansi
+  "$@"
+}
+
+# -----------------------------------------------------------------------------
 # _cp_ui_set_palette
 # -----------------------------------------------------------------------------
-# Install the shared ANSI palette for ansi/gum modes or empty values for plain.
+# Install the palette the modules print with, taken from the shared style
+# tokens, or empty values for plain output. Blue is the frame's, cyan the
+# accent; muted holds secondary facts such as timings.
 # -----------------------------------------------------------------------------
 _cp_ui_set_palette() {
   emulate -L zsh
@@ -95,14 +126,19 @@ _cp_ui_set_palette() {
 
   if [[ "$mode" == plain ]]; then
     typeset -g C_RESET="" C_BOLD="" C_RED="" C_GREEN=""
-    typeset -g C_YELLOW="" C_BLUE="" C_MAGENTA="" C_CYAN=""
+    typeset -g C_YELLOW="" C_BLUE="" C_CYAN="" C_MUTED=""
     return 0
   fi
 
-  typeset -g C_RESET=$'\e[0m' C_BOLD=$'\e[1m'
-  typeset -g C_RED=$'\e[31m' C_GREEN=$'\e[32m'
-  typeset -g C_YELLOW=$'\e[33m' C_BLUE=$'\e[34m'
-  typeset -g C_MAGENTA=$'\e[35m' C_CYAN=$'\e[36m'
+  local -A sgr=("${(@kv)_ZSH_UI_SGR}")
+  typeset -g C_RESET=$'\e[0m'
+  typeset -g C_BOLD=$'\e['"${sgr[strong]}"'m'
+  typeset -g C_RED=$'\e['"${sgr[error]}"'m'
+  typeset -g C_GREEN=$'\e['"${sgr[ok]}"'m'
+  typeset -g C_YELLOW=$'\e['"${sgr[warn]}"'m'
+  typeset -g C_BLUE=$'\e['"${sgr[frame]}"'m'
+  typeset -g C_CYAN=$'\e['"${sgr[accent]}"'m'
+  typeset -g C_MUTED=$'\e['"${sgr[muted]}"'m'
 }
 
 # -----------------------------------------------------------------------------
@@ -128,8 +164,9 @@ _cp_ui_mode() {
 # -----------------------------------------------------------------------------
 # _cp_ui_width
 # -----------------------------------------------------------------------------
-# Resolve the requested UI width, clamp it to 40-160 columns, and store it in
-# REPLY. CP_UI_WIDTH accepts an integer or "auto".
+# Store the width output fits in REPLY: the shared one (the terminal's,
+# within 40-120 columns) for CP_UI_WIDTH=auto, or an explicit integer clamped
+# to 40-160 columns.
 # -----------------------------------------------------------------------------
 _cp_ui_width() {
   emulate -L zsh
@@ -137,7 +174,8 @@ _cp_ui_width() {
   local -i width
 
   if [[ "$requested" == auto || -z "$requested" ]]; then
-    width=${COLUMNS:-80}
+    _zsh_ui_width
+    return 0
   elif [[ "$requested" == <-> ]]; then
     width=$requested
   else
@@ -155,410 +193,248 @@ _cp_ui_width() {
 # Escape terminal control characters in untrusted display text.
 # -----------------------------------------------------------------------------
 _cp_ui_sanitize_text() {
-  emulate -L zsh
-  local value="$1"
-  local output="" char escaped
-  local -i index code
-
-  for (( index = 1; index <= ${#value}; index++ )); do
-    char="${value[$index]}"
-    case "$char" in
-      $'\n') output+='\n' ;;
-      $'\r') output+='\r' ;;
-      $'\t') output+='\t' ;;
-      [[:cntrl:]])
-        printf -v code '%d' "'$char"
-        printf -v escaped '\\x%02x' "$code"
-        output+="$escaped"
-        ;;
-      *) output+="$char" ;;
-    esac
-  done
-  REPLY="$output"
+  _zsh_ui_sanitize_text "$1"
 }
 
 # -----------------------------------------------------------------------------
-# _cp_repeat
+# _cp_rule / _cp_header / _cp_box_top / _cp_box_bottom
 # -----------------------------------------------------------------------------
-# Store a repeated glyph string in REPLY without spawning a subprocess.
+# A titled rule is a section title; its color names a tone when the section
+# reports an outcome (red a failure, green a success, yellow a warning). An
+# untitled rule closes raw output, such as a failed build's log. A box is a
+# section too: its top is the title, and its bottom only says what follows.
 # -----------------------------------------------------------------------------
-_cp_repeat() {
+_cp_rule() {
   emulate -L zsh
-  local glyph="$1"
-  local -i count="${2:-0}"
-  REPLY=""
-  (( count > 0 )) || return 0
-  printf -v REPLY "%${count}s" ""
-  REPLY="${REPLY// /$glyph}"
-}
-
-# -----------------------------------------------------------------------------
-# _cp_banner_line
-# -----------------------------------------------------------------------------
-# Compose a width-aware native banner used by existing command output.
-# -----------------------------------------------------------------------------
-_cp_banner_line() {
-  emulate -L zsh
-  local edge_l="$1" edge_r="$2" title="$3" color_name="$4"
-  local color
-  local label left right
-  local -i width left_fill=6 right_fill
-
-  _cp_ui_refresh || return $?
-  case "$color_name" in
-    blue) color="$C_BLUE" ;;
-    cyan) color="$C_CYAN" ;;
-    green) color="$C_GREEN" ;;
-    yellow) color="$C_YELLOW" ;;
-    red) color="$C_RED" ;;
-    magenta) color="$C_MAGENTA" ;;
+  local title="${1:-}"
+  local -a tone=()
+  case "${2:-blue}" in
+    blue|cyan) ;;
+    red) tone=(--tone error) ;;
+    green) tone=(--tone ok) ;;
+    yellow) tone=(--tone warn) ;;
     *) return 2 ;;
   esac
   _cp_ui_width || return $?
-  width=$REPLY
-  _cp_ui_sanitize_text "$title"
-  title="$REPLY"
-
   if [[ -n "$title" ]]; then
-    label=" $title "
-    right_fill=$(( width - ${#edge_l} - ${#edge_r} - left_fill -
-      ${#label} ))
-    if (( right_fill < 2 )); then
-      printf '%s%s%s%s\n' "$color" "$C_BOLD" "$title" "$C_RESET"
-      return 0
-    fi
-    _cp_repeat "─" "$left_fill"
-    left="$REPLY"
-    _cp_repeat "─" "$right_fill"
-    right="$REPLY"
-    printf '%s%s%s%s%s%s%s%s\n' \
-      "$color" "$edge_l" "$left" "$C_BOLD$label$C_RESET" \
-      "$color" "$right" "$edge_r" "$C_RESET"
-    return 0
+    _cp_ui_call _zsh_ui_section --width "$REPLY" "${tone[@]}" "$title"
+  else
+    _cp_ui_call _zsh_ui_rule "" "$REPLY"
   fi
-
-  _cp_repeat "─" $(( width - ${#edge_l} - ${#edge_r} ))
-  printf '%s%s%s%s%s\n' \
-    "$color" "$edge_l" "$REPLY" "$edge_r" "$C_RESET"
-}
-
-_cp_box_top() {
-  _cp_banner_line "╔═══" "═══╗" "${1:-}" "${2:-blue}"
-}
-
-_cp_box_bottom() {
-  _cp_banner_line "╚═══" "═══╝" "${1:-}" "${2:-blue}"
-}
-
-_cp_rule() {
-  _cp_banner_line "════" "════" "${1:-}" "${2:-blue}"
 }
 
 _cp_header() {
   _cp_rule "$1" "${2:-blue}"
 }
 
+_cp_box_top() {
+  _cp_rule "${1:-}" "${2:-blue}"
+}
+
+_cp_box_bottom() {
+  [[ -z "${1:-}" ]] || _cp_info "$1"
+}
+
 # -----------------------------------------------------------------------------
 # _cp_heading / _cp_section
 # -----------------------------------------------------------------------------
-# Render larger headings with at most one Gum process; section labels stay
-# native because spawning Gum for individual lines adds no value.
+# A command's framed title, and a section title within its output.
 # -----------------------------------------------------------------------------
 _cp_heading() {
-  emulate -L zsh
-  local title="$1" subtitle="${2:-}" content
-  _cp_ui_sanitize_text "$title"
-  title="$REPLY"
-  _cp_ui_sanitize_text "$subtitle"
-  subtitle="$REPLY"
-  content="$title"
-  [[ -z "$subtitle" ]] || content+=$'\n'"$subtitle"
-
-  _cp_ui_resolve_mode || return $?
-  local mode="$REPLY"
-  if [[ "$mode" == gum ]]; then
-    CLICOLOR_FORCE=1 command gum style \
-      --bold --foreground 6 "$content" 2>/dev/null && return 0
-    mode="ansi"
-  fi
-
-  _cp_ui_set_palette "$mode"
-  print -r -- "${C_BOLD}${C_CYAN}${title}${C_RESET}"
-  [[ -z "$subtitle" ]] || print -r -- "$subtitle"
+  _cp_ui_width || return $?
+  _cp_ui_call _zsh_ui_heading --width "$REPLY" "$1" "${2:-}"
 }
 
 _cp_section() {
-  _cp_ui_refresh || return $?
-  _cp_ui_sanitize_text "$1"
-  print -r -- "${C_BOLD}${C_BLUE}${REPLY}${C_RESET}"
+  _cp_ui_width || return $?
+  _cp_ui_call _zsh_ui_section --width "$REPLY" "$1" "${2:-}"
 }
 
 # -----------------------------------------------------------------------------
-# _cp_ui_table
+# _cp_ui_table / _cp_ui_card
 # -----------------------------------------------------------------------------
-# Render tab-separated rows with Gum when the complete table fits. Narrow
-# terminals receive a native key/value layout instead of clipped columns.
+# A borderless table that fits the width, taking the shared table's options
+# (--marker, --status, --align) before its tab-separated header; and a
+# section title with key<TAB>value fields beneath.
 # -----------------------------------------------------------------------------
 _cp_ui_table() {
-  emulate -L zsh
   (( $# )) || return 2
-
-  local header="$1"
-  shift
-  local -a raw_rows=("$@") rows=()
-  local -a columns=("${(@ps:\t:)header}")
-  local -a fields sanitized_fields widths=()
-  local row field line
-  local -i column_index line_index table_width=0 max_width
-
-  for row in "${raw_rows[@]}"; do
-    fields=("${(@ps:\t:)row}")
-    sanitized_fields=()
-    for field in "${fields[@]}"; do
-      _cp_ui_sanitize_text "$field"
-      sanitized_fields+=("$REPLY")
-    done
-    rows+=("${(pj:\t:)sanitized_fields}")
-  done
-
-  local -a lines=("$header" "${rows[@]}")
-  for line in "${lines[@]}"; do
-    fields=("${(@ps:\t:)line}")
-    for (( column_index = 1;
-        column_index <= ${#columns[@]};
-        column_index++ )); do
-      field="${fields[$column_index]-}"
-      (( ${#field} > ${widths[$column_index]:-0} )) &&
-        widths[$column_index]=${#field}
-    done
-  done
-
-  for (( column_index = 1;
-      column_index <= ${#columns[@]};
-      column_index++ )); do
-    (( table_width += ${widths[$column_index]:-0} ))
-  done
-  (( table_width += (${#columns[@]} - 1) * 3 ))
   _cp_ui_width || return $?
-  max_width=$REPLY
-
-  _cp_ui_resolve_mode || return $?
-  local mode="$REPLY"
-  if [[ "$mode" == gum && $table_width -le $(( max_width - 4 )) ]]; then
-    local input="${(j:\n:)rows}"
-    if print -r -- "$input" | CLICOLOR_FORCE=1 command gum table \
-        --print \
-        --separator $'\t' \
-        --columns "${(j:,:)columns}" \
-        --border rounded \
-        --border.foreground 6 \
-        --header.foreground 4 2>/dev/null; then
-      return 0
-    fi
-    mode="ansi"
-  fi
-
-  _cp_ui_set_palette "$mode"
-  if (( table_width > max_width )); then
-    for row in "${rows[@]}"; do
-      fields=("${(@ps:\t:)row}")
-      for (( column_index = 1;
-          column_index <= ${#columns[@]};
-          column_index++ )); do
-        printf '  %s%s:%s %s\n' \
-          "$C_BOLD$C_BLUE" "$columns[$column_index]" "$C_RESET" \
-          "${fields[$column_index]-}"
-      done
-      print -r -- ""
-    done
-    return 0
-  fi
-
-  for (( line_index = 1; line_index <= ${#lines[@]}; line_index++ )); do
-    fields=("${(@ps:\t:)lines[$line_index]}")
-    (( line_index == 1 )) && printf '%s%s' "$C_BOLD" "$C_BLUE"
-    for (( column_index = 1;
-        column_index <= ${#columns[@]};
-        column_index++ )); do
-      field="${fields[$column_index]-}"
-      if (( column_index < ${#columns[@]} )); then
-        printf '%-*s   ' "${widths[$column_index]}" "$field"
-      else
-        printf '%s' "$field"
-      fi
-    done
-    (( line_index == 1 )) && printf '%s' "$C_RESET"
-    printf '\n'
-    if (( line_index == 1 )); then
-      _cp_repeat "─" "$table_width"
-      print -r -- "$REPLY"
-    fi
-  done
+  _cp_ui_call _zsh_ui_table --width "$REPLY" "$@"
 }
 
-# -----------------------------------------------------------------------------
-# _cp_ui_card
-# -----------------------------------------------------------------------------
-# Render a structured block with one Gum invocation and a native fallback.
-# Body lines may contain palette escapes produced by trusted cpp-tools code.
-# -----------------------------------------------------------------------------
 _cp_ui_card() {
-  emulate -L zsh
-  local title="$1"
-  shift
-  local content line mode
-  local -i width card_width
-
-  _cp_ui_resolve_mode || return $?
-  mode="$REPLY"
-  _cp_ui_set_palette "$mode"
-  _cp_ui_sanitize_text "$title"
-  title="$REPLY"
-  content="${C_BOLD}${C_CYAN}${title}${C_RESET}"
-  for line in "$@"; do
-    content+=$'\n'"$line"
-  done
-
-  _cp_ui_width || return $?
-  width=$REPLY
-  card_width=$(( width - 2 ))
-
-  if [[ "$mode" == gum ]]; then
-    CLICOLOR_FORCE=1 command gum style \
-      --no-strip-ansi \
-      --border rounded \
-      --border-foreground 6 \
-      --padding '1 2' \
-      --width "$card_width" \
-      "$content" 2>/dev/null && return 0
-    _cp_ui_set_palette ansi
-  fi
-
-  print -r -- "${C_BOLD}${C_CYAN}${title}${C_RESET}"
-  (( $# == 0 )) || print -r -- ""
-  for line in "$@"; do
-    print -r -- "$line"
-  done
+  _cp_ui_call _zsh_ui_card "$@"
 }
 
 # -----------------------------------------------------------------------------
-# _cp_kv and status helpers
+# _cp_kv
+# -----------------------------------------------------------------------------
+# One field of a section: a muted, padded label and its value, one indent in.
 # -----------------------------------------------------------------------------
 _cp_kv() {
   _cp_ui_refresh || return $?
   _cp_ui_sanitize_text "$1"
   local label="$REPLY"
   _cp_ui_sanitize_text "$2"
-  printf '    %s%-16s%s %s%s%s\n' \
-    "$C_CYAN" "$label" "$C_RESET" "$C_YELLOW" "$REPLY" "$C_RESET"
+  printf '%*s%s%-16s%s %s\n' $(( _ZSH_UI_GUTTER + _ZSH_UI_INDENT )) "" \
+    "$C_MUTED" "$label" "$C_RESET" "$REPLY"
 }
 
+# -----------------------------------------------------------------------------
+# _cp_success / _cp_error / _cp_warn / _cp_info
+# -----------------------------------------------------------------------------
+# Event lines: a sign in its tone, then the message. Warnings and errors go
+# to stderr; plain output keeps the bracketed level.
+# -----------------------------------------------------------------------------
 _cp_success() {
-  _cp_ui_refresh || return $?
-  _cp_ui_sanitize_text "$*"
-  print -r -- "${C_BOLD}${C_GREEN}${REPLY}${C_RESET}"
+  _cp_ui_call _zsh_ui_log ok "$*"
 }
 
 _cp_error() {
-  _cp_ui_refresh || return $?
-  _cp_ui_sanitize_text "$*"
-  print -u2 -r -- "${C_BOLD}${C_RED}${REPLY}${C_RESET}"
+  _cp_ui_call _zsh_ui_log error "$*"
 }
 
 _cp_warn() {
-  _cp_ui_refresh || return $?
-  _cp_ui_sanitize_text "$*"
-  print -r -- "${C_YELLOW}${REPLY}${C_RESET}"
+  _cp_ui_call _zsh_ui_log warn "$*"
 }
 
 _cp_info() {
-  _cp_ui_refresh || return $?
-  _cp_ui_sanitize_text "$*"
-  print -r -- "${C_CYAN}${REPLY}${C_RESET}"
+  _cp_ui_call _zsh_ui_log info "$*"
 }
 
 # -----------------------------------------------------------------------------
-# _cp_confirm / _cp_choose / _cp_spin
+# _cp_confirm / _cp_choose
+# -----------------------------------------------------------------------------
+# Without a terminal on stdin both fail, whatever the default: only a
+# command's own --yes accepts unattended.
 # -----------------------------------------------------------------------------
 _cp_confirm() {
-  emulate -L zsh
-  local prompt="$1" default_answer="${2:-no}" response=""
-  [[ "$default_answer" == yes || "$default_answer" == no ]] || return 2
-  _cp_ui_sanitize_text "$prompt"
-  prompt="$REPLY"
-
-  if [[ ! -t 0 ]]; then
-    [[ "$default_answer" == yes ]]
-    return $?
-  fi
-
-  if _cp_ui_gum_for_fd 2 && [[ -t 0 ]]; then
-    if [[ "$default_answer" == yes ]]; then
-      GUM_CONFIRM_PROMPT_FOREGROUND=6 \
-        GUM_CONFIRM_SELECTED_BACKGROUND=4 \
-        command gum confirm --default=true "$prompt"
-    else
-      GUM_CONFIRM_PROMPT_FOREGROUND=6 \
-        GUM_CONFIRM_SELECTED_BACKGROUND=4 \
-        command gum confirm --default=false "$prompt"
-    fi
-    return $?
-  fi
-
-  if [[ "$default_answer" == yes ]]; then
-    printf '%s (Y/n): ' "$prompt"
-    read -r response || response=""
-    [[ "$response" != [Nn] ]]
-  else
-    printf '%s (y/N): ' "$prompt"
-    read -r response || response=""
-    [[ "$response" == [Yy] ]]
-  fi
+  [[ "${2:-no}" == (yes|no) ]] || return 2
+  _cp_ui_call _zsh_ui_confirm "$1" "${2:-no}"
 }
 
 _cp_choose() {
-  emulate -L zsh
-  local header="$1"
-  shift
-  (( $# )) || return 2
-  _cp_ui_gum_for_fd 2 && [[ -t 0 ]] || return 1
-  _cp_ui_sanitize_text "$header"
-  GUM_CHOOSE_CURSOR_FOREGROUND=6 \
-    GUM_CHOOSE_HEADER_FOREGROUND=4 \
-    command gum choose --header "$REPLY" "$@"
+  (( $# >= 2 )) || return 2
+  _cp_ui_call _zsh_ui_choose "$@"
 }
 
+# -----------------------------------------------------------------------------
+# _cp_spin
+# -----------------------------------------------------------------------------
+# Run a command under the shared spinner and print what it wrote, stderr
+# included, once it ends: builds are read from their combined output.
+# -----------------------------------------------------------------------------
 _cp_spin() {
   emulate -L zsh
-  local title="$1"
+  (( $# >= 2 )) || return 2
+  _cp_ui_sanitize_text "$1"
+  local title="$REPLY"
   shift
-  (( $# )) || return 2
-  _cp_ui_sanitize_text "$title"
-  title="$REPLY"
+  _cp_ui_call _zsh_ui_spinner_fn "$title" _cp_spin_merged "$@"
+}
 
-  if _cp_ui_gum_for_fd 2; then
-    local output_file
-    output_file=$(mktemp "${TMPDIR:-/tmp}/cp-spin.XXXXXX") || {
-      _cp_error "Unable to create the spinner output buffer."
-      return 1
-    }
-    GUM_SPIN_SPINNER_FOREGROUND=6 \
-      GUM_SPIN_TITLE_FOREGROUND=6 \
-      command gum spin \
-      --spinner line \
-      --title "$title" \
-      -- zsh -c \
-      'output_file="$1"; shift; "$@" > "$output_file" 2>&1' \
-      cp-spin "$output_file" "$@" >&2
-    local command_status=$?
-    if ! command cat -- "$output_file"; then
-      (( command_status == 0 )) && command_status=1
-    fi
-    rm -f -- "$output_file"
-    return "$command_status"
+_cp_spin_merged() {
+  "$@" 2>&1
+}
+
+# -----------------------------------------------------------------------------
+# _cp_report_row
+# -----------------------------------------------------------------------------
+# Append one check to the caller's rows array, for _cp_report.
+# @arg $1 string Group.
+# @arg $2 string Tone: ok, warn, error, or muted for information.
+# @arg $3 string Check.
+# @arg $4 string Detail.
+# -----------------------------------------------------------------------------
+_cp_report_row() {
+  rows+=("$1"$'\t'"$2"$'\t'"$3"$'\t'"$4")
+}
+
+# -----------------------------------------------------------------------------
+# _cp_report
+# -----------------------------------------------------------------------------
+# Draw a report of checks like devdoctor's and return 1 when any failed:
+# a framed header, one counted section per group, a marker per check and a
+# summary with the next step. Plain output is one aligned line per check,
+# led by its state, then the same summary sentence.
+# @arg $1 string Report title, beside the cpp-tools badge.
+# @arg $2 string What to do next, on the summary line.
+# @arg $@ string Rows: group, tone (ok, warn, error or muted), check, detail.
+# -----------------------------------------------------------------------------
+_cp_report() {
+  emulate -L zsh
+  setopt localoptions extendedglob
+  local title="$1" hint="$2"
+  shift 2
+  local row group current="" tone label detail
+  local -a f groups=()
+  local -A count=() tally=()
+  local -i w_label=0
+  for row in "$@"; do
+    f=("${(@ps:\t:)row}")
+    (( count[$f[1]]++ )) || groups+=("$f[1]")
+    (( tally[$f[2]]++ ))
+    (( ${(m)#f[3]} > w_label )) && w_label=${(m)#f[3]}
+  done
+
+  local -a summary=(
+    "ok"$'\t'"${tally[ok]:-0}"$'\t'"ok"
+    "warn"$'\t'"${tally[warn]:-0}"$'\t'"warning${${tally[warn]:#1}:+s}"
+    "error"$'\t'"${tally[error]:-0}"$'\t'"failed"
+  )
+
+  _cp_ui_resolve_mode || return $?
+  if [[ "$REPLY" == plain ]]; then
+    local -A words=(ok OK warn WARN error ERROR muted INFO)
+    print -r -- "cpp-tools · $title"
+    for row in "$@"; do
+      f=("${(@ps:\t:)row}")
+      if [[ "$f[1]" != "$current" ]]; then
+        current="$f[1]"
+        print -r -- ""
+        print -r -- "$current"
+      fi
+      _cp_ui_sanitize_text "$f[4]"
+      printf '%-6s %-*s  %s\n' "${words[$f[2]]}" "$w_label" "$f[3]" "$REPLY"
+    done
+    print -r -- ""
+    _cp_ui_call _zsh_ui_summary --hint "$hint" "${summary[@]}"
+    (( ${tally[error]:-0} == 0 ))
+    return
   fi
 
-  "$@" 2>&1
+  _cp_ui_refresh || return $?
+  _cp_ui_width || return $?
+  local -i width=$REPLY
+  local indent="${(l:$(( _ZSH_UI_GUTTER + _ZSH_UI_INDENT )):: :)}"
+  # The marker and its space, the gap and the right margin are fixed.
+  local -i room=$(( width - ${#indent} - 2 - w_label - 2 - _ZSH_UI_GUTTER ))
+  (( room < 12 )) && room=12
+  _cp_ui_call _zsh_ui_app_header cpp-tools "$title" \
+    "${#} checks in ${#groups} groups"
+  for row in "$@"; do
+    f=("${(@ps:\t:)row}")
+    if [[ "$f[1]" != "$current" ]]; then
+      current="$f[1]"
+      print -r -- ""
+      _cp_ui_call _zsh_ui_section --width "$width" "$current" "${count[$current]}"
+    fi
+    _cp_ui_call _zsh_ui_marker "$f[2]"
+    local marker="$REPLY" color="$C_MUTED"
+    [[ "$f[2]" == (warn|error) ]] && {
+      _cp_ui_call _zsh_ui_tone_color "$f[2]"
+      color="$REPLY"
+    }
+    _cp_ui_sanitize_text "$f[4]"
+    _cp_ui_call _zsh_ui_short_path "$REPLY"
+    _zsh_ui_truncate "$REPLY" "$room"
+    print -r -- "${indent}${marker} ${f[3]}${(l:$(( w_label - ${(m)#f[3]} )):: :)}"\
+"  ${color}${REPLY}${C_RESET}"
+  done
+  print -r -- ""
+  _cp_ui_call _zsh_ui_summary --width "$width" --hint "$hint" "${summary[@]}"
+  (( ${tally[error]:-0} == 0 ))
 }
 
 _cp_ui_refresh && _cp_ui_width || {

@@ -758,17 +758,19 @@ _zsh_ui_app_header() {
 # -----------------------------------------------------------------------------
 # _zsh_ui_section_line
 # @internal
-# @description Draws a section title: the title in the heading color, then a
-# rule to the right margin that ends in the note, muted. The note gives way
-# before the rule grows too short to read as one. Set the palette first.
+# @description Draws a section title: the title in the heading color, or in
+# the given one, then a rule to the right margin that ends in the note, muted.
+# The note gives way before the rule grows too short to read as one. Set the
+# palette first.
 # @arg $1 integer Width to fit.
 # @arg $2 string Title, already sanitized.
 # @arg $3 string Optional note, already sanitized.
+# @arg $4 string Optional title color; defaults to the heading color.
 # -----------------------------------------------------------------------------
 _zsh_ui_section_line() {
   emulate -L zsh
   local -i room=$(( $1 - 2 * _ZSH_UI_GUTTER )) fill
-  local note="${3-}"
+  local note="${3-}" color="${4:-$_ZSH_UI_HEADING}"
   _zsh_ui_truncate "$2" "$room"
   local title="$REPLY"
 
@@ -779,7 +781,7 @@ _zsh_ui_section_line() {
     fill=$(( room - ${(m)#title} - 1 ))
   fi
   local rule="${_ZSH_UI_GLYPH[rule]}"
-  local line="${(l:_ZSH_UI_GUTTER:: :)}${_ZSH_UI_HEADING}${title}${_ZSH_UI_RESET}"
+  local line="${(l:_ZSH_UI_GUTTER:: :)}${color}${title}${_ZSH_UI_RESET}"
   (( fill > 0 )) &&
     line+=" ${_ZSH_UI_RULE}${(pl:$fill::$rule:)}${_ZSH_UI_RESET}"
   [[ -z "$note" ]] || line+=" ${_ZSH_UI_MUTED}${note}${_ZSH_UI_RESET}"
@@ -794,6 +796,8 @@ _zsh_ui_section_line() {
 # the section holds. "Title · note" reads as a title and its note. Plain
 # output is the bare title, with " · note" when there is one.
 # @option --width <n> Width to fit instead of the terminal's.
+# @option --tone <tone> Sets the title in a tone's bold color instead of the
+# heading color, for a section that reports an outcome (a failed build).
 # @arg $1 string Section title.
 # @arg $2 string Optional note at the end of the rule.
 # @exitcode 2 If an option is invalid or the UI style is invalid.
@@ -801,11 +805,14 @@ _zsh_ui_section_line() {
 _zsh_ui_section() {
   emulate -L zsh
   local -i limit=0
-  if [[ "${1-}" == --width ]]; then
-    [[ "${2-}" == <1-> ]] || return 2
-    limit=$2
+  local tone=""
+  while [[ "${1-}" == --(width|tone) ]]; do
+    case "$1" in
+      --width) [[ "${2-}" == <1-> ]] || return 2; limit=$2 ;;
+      --tone) [[ "${2-}" == (ok|pending|warn|error|muted) ]] || return 2; tone=$2 ;;
+    esac
     shift 2
-  fi
+  done
   _zsh_ui_sanitize_text "${1-}"
   local title="$REPLY"
   _zsh_ui_sanitize_text "${2-}"
@@ -823,8 +830,13 @@ _zsh_ui_section() {
     print -r -- "${title}${note:+ · $note}"
     return 0
   fi
+  local color=""
+  if [[ -n "$tone" ]]; then
+    _zsh_ui_tone_color --strong "$tone"
+    color="$REPLY"
+  fi
   _zsh_ui_layout_width "$limit"
-  _zsh_ui_section_line "$REPLY" "$title" "$note"
+  _zsh_ui_section_line "$REPLY" "$title" "$note" "$color"
 }
 
 # -----------------------------------------------------------------------------
@@ -960,6 +972,9 @@ _zsh_ui_card() {
 # @option --marker <n> Styled rows lead with the marker of column n's status
 # word, as report rows do; a word without a tone leaves the place blank.
 # @option --status <n[,n]> Columns whose status words are colored.
+# @option --tones <tone,...> One tone per row, for callers that know each
+# row's outcome: rows lead with its marker, and --status columns take its
+# color whatever their words say.
 # @option --width <n> Width to fit instead of COLUMNS.
 # @arg $1 string Tab-separated column headings.
 # @arg $@ string Tab-separated data rows.
@@ -970,15 +985,17 @@ _zsh_ui_table() {
   emulate -L zsh
   local align="" status_spec=""
   local -i limit=0 marker_column=0
+  local -a row_tones=()
 
   while [[ "${1-}" == --* ]]; do
     case "$1" in
-      --align|--marker|--status|--width)
+      --align|--marker|--status|--tones|--width)
         (( $# >= 2 )) || return 2
         case "$1" in
           --align) align="$2" ;;
           --marker) [[ "$2" == <1-> ]] || return 2; marker_column=$2 ;;
           --status) status_spec="$2" ;;
+          --tones) row_tones=("${(@s:,:)2}") ;;
           --width) [[ "$2" == <1-> ]] || return 2; limit=$2 ;;
         esac
         shift 2
@@ -1053,7 +1070,7 @@ _zsh_ui_table() {
   local -i available="${limit:-0}" total excess best widest
   local -i offset=$(( _ZSH_UI_GUTTER + _ZSH_UI_INDENT )) lead=0
   (( marker_column > 0 && marker_column <= ncols )) || marker_column=0
-  (( marker_column )) && lead=2
+  (( marker_column || ${#row_tones} )) && lead=2
   (( available > 0 )) || available="${COLUMNS:-80}"
   (( available -= offset + lead + _ZSH_UI_GUTTER ))
   total=$(( 2 * (ncols - 1) ))
@@ -1084,7 +1101,10 @@ _zsh_ui_table() {
   local reset="$_ZSH_UI_RESET" style indent="${(l:offset:: :)}"
   for (( r = 0; r <= nrows; r++ )); do
     line="$indent"
-    if (( lead )); then
+    if (( r > 0 && ${#row_tones} )); then
+      _zsh_ui_marker "${row_tones[r]:-muted}"
+      line+="${REPLY} "
+    elif (( lead )); then
       _zsh_ui_status_tone "${cells[(r - 1) * ncols + marker_column]-}"
       if (( r == 0 )) || [[ -z "$REPLY" ]]; then
         line+="  "
@@ -1109,6 +1129,9 @@ _zsh_ui_table() {
         style="$_ZSH_UI_MUTED"
       elif [[ "$text" == (-|—) ]]; then
         style="$_ZSH_UI_FAINT"
+      elif (( ${+status_columns[$c]} && ${#row_tones} )); then
+        _zsh_ui_tone_color "${row_tones[r]:-muted}"
+        style="$REPLY"
       elif (( ${+status_columns[$c]} )); then
         _zsh_ui_status_style "$text"
         style="$REPLY"

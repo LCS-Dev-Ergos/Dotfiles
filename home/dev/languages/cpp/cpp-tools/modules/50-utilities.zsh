@@ -37,7 +37,7 @@ function cppclean() {
 
   _check_workspace || return 1
   if [ ! -f "CMakeLists.txt" ]; then
-    echo "${C_RED}Error: No CMakeLists.txt found in $(pwd). Aborting clean to avoid accidental deletion.${C_RESET}" >&2
+    _cp_error "No CMakeLists.txt found in $(pwd). Aborting clean to avoid accidental deletion."
     return 1
   fi
 
@@ -46,6 +46,8 @@ function cppclean() {
       "Remove build artifacts in $(basename "$(pwd)")?" yes
     then
       echo "Clean cancelled."
+      # Without a terminal nothing was asked; unattended runs pass --yes.
+      [[ -t 0 ]] || return 1
       return 0
     fi
   fi
@@ -74,7 +76,7 @@ function cppclean() {
 function cppdeepclean() {
   _check_workspace || return 1
   if [ ! -f "CMakeLists.txt" ]; then
-    echo "${C_RED}Error: No CMakeLists.txt found in $(pwd). Aborting deep clean to avoid accidental deletion.${C_RESET}" >&2
+    _cp_error "No CMakeLists.txt found in $(pwd). Aborting deep clean to avoid accidental deletion."
     return 1
   fi
   _cp_warn "This will remove all generated files except source code and test cases."
@@ -93,6 +95,8 @@ function cppdeepclean() {
     _cp_success "Deep clean complete."
   else
     echo "Deep clean cancelled."
+    # Without a terminal nothing was asked.
+    [[ -t 0 ]] || return 1
   fi
 }
 
@@ -129,7 +133,7 @@ function cppfocus() {
   target_name=$(_normalize_target_name "$1")
   source_file=$(_resolve_target_source "$target_name")
   if [ -z "$source_file" ]; then
-    echo "${C_RED}Error: Source file for target '$target_name' not found.${C_RESET}" >&2
+    _cp_error "Source file for target '$target_name' not found."
     return 1
   fi
 
@@ -154,12 +158,12 @@ function cppwatch() {
   # Find the actual source file extension.
   source_file=$(_resolve_target_source "$target_name")
   if [ -z "$source_file" ]; then
-    echo "${C_RED}Error: Source file for target '$target_name' not found.${C_RESET}" >&2
+    _cp_error "Source file for target '$target_name' not found."
     return 1
   fi
 
   if ! command -v fswatch &> /dev/null; then
-    echo "${C_RED}Error: 'fswatch' is not installed. Add it to the system package configuration.${C_RESET}" >&2
+    _cp_error "'fswatch' is not installed. Add it to the system package configuration."
     return 1
   fi
 
@@ -208,12 +212,20 @@ function cppstats() {
 # cpparchive
 # -----------------------------------------------------------------------------
 # Archive the current contest directory with exclusions.
+#
+# Usage:
+#   cpparchive [--yes|-y]
 # -----------------------------------------------------------------------------
 function cpparchive() {
-  if (( $# )); then
-    _cp_error "Usage: cpparchive"
-    return 64
-  fi
+  local assume_yes=0
+  case "$#:${1:-}" in
+    0:) ;;
+    1:-y|1:--yes) assume_yes=1 ;;
+    *)
+      _cp_error "Usage: cpparchive [-y|--yes]"
+      return 64
+      ;;
+  esac
   _check_workspace || return 1
   if [[ ! -f CMakeLists.txt ]]; then
     _cp_error "CMakeLists.txt not found; refusing to archive this directory."
@@ -225,10 +237,12 @@ function cpparchive() {
   local archive_name
   archive_name="${contest_name}_$(date +%Y%m%d_%H%M%S).tar.gz"
 
-  if ! _cp_confirm \
+  if (( ! assume_yes )) && ! _cp_confirm \
     "Archive contest '$contest_name' to '../$archive_name'?" yes
   then
     echo "Archive cancelled."
+    # Without a terminal nothing was asked; unattended runs pass --yes.
+    [[ -t 0 ]] || return 1
     return 0
   fi
 
@@ -256,268 +270,157 @@ function cpparchive() {
 # Display detailed diagnostics for tools, workspace, and compilers.
 # -----------------------------------------------------------------------------
 function cppdiag() {
+  emulate -L zsh
   if (( $# )); then
     _cp_error "Usage: cppdiag"
     return 64
   fi
-  echo "${C_BOLD}Running Competitive Programming Environment Diagnostics...${C_RESET}"
 
-  echo ""
-  _cp_header "SYSTEM & SHELL"
-  # Display OS and shell information.
-  uname -a
-  echo "Shell: $SHELL"
-  [ -n "$BASH_VERSION" ] && echo "Bash Version: $BASH_VERSION"
-  [ -n "$ZSH_VERSION" ] && echo "Zsh Version: $ZSH_VERSION"
-  echo "Script Directory: $SCRIPT_DIR"
+  # Rows: group, tone (ok, warn, error or muted), check, detail.
+  local -a rows=()
+  local group="System"
+  _cp_report_row $group muted "Kernel" "$(uname -srm)"
+  _cp_report_row $group muted "Shell" "$SHELL"
+  [[ -z "${ZSH_VERSION-}" ]] || _cp_report_row $group muted "Zsh" "$ZSH_VERSION"
+  [[ -z "${BASH_VERSION-}" ]] || _cp_report_row $group muted "Bash" "$BASH_VERSION"
+  _cp_report_row $group muted "cpp-tools" "$SCRIPT_DIR"
 
-  echo ""
-  _cp_header "WORKSPACE CONFIGURATION"
-  echo "CP Workspace Root: ${C_CYAN}$CP_WORKSPACE_ROOT${C_RESET}"
-  echo "Algorithms Directory: ${C_CYAN}$CP_ALGORITHMS_DIR${C_RESET}"
-
-  # Check if we're in the workspace.
+  group="Workspace"
+  _cp_report_row $group muted "Root" "$CP_WORKSPACE_ROOT"
+  _cp_report_row $group muted "Algorithms" "$CP_ALGORITHMS_DIR"
   if _check_workspace >/dev/null 2>&1; then
-    echo "Current Location: ${C_GREEN}Inside workspace${C_RESET}"
+    _cp_report_row $group ok "Location" "inside the workspace"
   else
-    echo "Current Location: ${C_YELLOW}Outside workspace${C_RESET}"
+    _cp_report_row $group warn "Location" "outside the workspace"
   fi
 
-  echo ""
-  _cp_header "CORE TOOLS"
-
-  # Check for g++ (validated, newest first).
-  local GXX_PATH
+  # Each tool: its path and first version line, or why its absence matters.
+  group="Tools"
+  local GXX_PATH CLANGXX_PATH tool tool_path required why
   GXX_PATH=$(_cp_find_gxx)
-  if [ -n "$GXX_PATH" ]; then
-    local gxx_version
-    gxx_version=$("$GXX_PATH" --version 2>/dev/null | head -n 1)
-    echo "${C_GREEN}g++:${C_RESET}"
-    echo "   ${C_CYAN}Path:${C_RESET} $GXX_PATH"
-    echo "   ${C_CYAN}Version:${C_RESET} $gxx_version"
-  else
-    echo "${C_RED}g++: Not found!${C_RESET}"
-  fi
-
-  # Check for clang++
-  local CLANGXX_PATH
   CLANGXX_PATH=$(command -v clang++)
-  if [ -n "$CLANGXX_PATH" ]; then
-    local clangxx_version
-    clangxx_version=$("$CLANGXX_PATH" --version 2>/dev/null | head -n 1)
-    echo "${C_GREEN}clang++:${C_RESET}"
-    echo "   ${C_CYAN}Path:${C_RESET} $CLANGXX_PATH"
-    echo "   ${C_CYAN}Version:${C_RESET} $clangxx_version"
-
-    # Check if it's Apple Clang or LLVM Clang.
-    if "$CLANGXX_PATH" --version | grep -q "Apple"; then
-      echo "   ${C_CYAN}Type:${C_RESET} Apple Clang (Xcode)"
+  for tool required why in \
+      g++ error "required" \
+      clang++ warn "optional; sanitizers on macOS need it" \
+      cmake error "required" \
+      clangd warn "optional; editor support needs it" \
+      fswatch warn "optional; cppwatch needs it" \
+      timeout error "required; install coreutils"; do
+    case "$tool" in
+      g++) tool_path="$GXX_PATH" ;;
+      clang++) tool_path="$CLANGXX_PATH" ;;
+      timeout) tool_path=$(command -v timeout || command -v gtimeout) ;;
+      *) tool_path=$(command -v "$tool") ;;
+    esac
+    if [[ -z "$tool_path" ]]; then
+      _cp_report_row $group "$required" "$tool" "not found ($why)"
+    elif [[ "$tool" == (fswatch|timeout) ]]; then
+      _cp_report_row $group ok "$tool" "$tool_path"
     else
-      echo "   ${C_CYAN}Type:${C_RESET} LLVM Clang"
+      _cp_report_row $group ok "$tool" \
+        "$("$tool_path" --version 2>/dev/null | head -n 1) · $tool_path"
     fi
-  else
-    echo "${C_YELLOW}clang++: Not found (optional, needed for sanitizers on macOS)${C_RESET}"
+  done
+  if [[ -n "$CLANGXX_PATH" ]]; then
+    if "$CLANGXX_PATH" --version 2>/dev/null | grep -q "Apple"; then
+      _cp_report_row $group muted "clang++ kind" "Apple Clang (Xcode)"
+    else
+      _cp_report_row $group muted "clang++ kind" "LLVM Clang"
+    fi
   fi
 
-  # Check for cmake.
-  local CMAKE_PATH
-  CMAKE_PATH=$(command -v cmake)
-  if [ -n "$CMAKE_PATH" ]; then
-    echo "${C_GREEN}cmake:${C_RESET}"
-    echo "   ${C_CYAN}Path:${C_RESET} $CMAKE_PATH"
-    echo "   ${C_CYAN}Version:${C_RESET} $("$CMAKE_PATH" --version | head -n 1)"
-  else
-    echo "${C_RED}cmake: Not found!${C_RESET}"
-  fi
-
-  # Check for clangd.
-  local CLANGD_PATH
-  CLANGD_PATH=$(command -v clangd)
-  if [ -n "$CLANGD_PATH" ]; then
-    echo "${C_GREEN}clangd:${C_RESET}"
-    echo "   ${C_CYAN}Path:${C_RESET} $CLANGD_PATH"
-    echo "   ${C_CYAN}Version:${C_RESET} $("$CLANGD_PATH" --version | head -n 1)"
-  else
-    echo "${C_RED}clangd: Not found!${C_RESET}"
-  fi
-
-  # Check for fswatch (optional).
-  local FSWATCH_PATH
-  FSWATCH_PATH=$(command -v fswatch)
-  if [ -n "$FSWATCH_PATH" ]; then
-    echo "${C_GREEN}fswatch:${C_RESET}"
-    echo "   ${C_CYAN}Path:${C_RESET} $FSWATCH_PATH"
-  else
-    echo "${C_YELLOW}fswatch: Not found (optional, needed for cppwatch)${C_RESET}"
-  fi
-
-  # Check timeout command (required by cppgo/cppstress/cppjudge workflows).
-  local TIMEOUT_PATH
-  TIMEOUT_PATH=$(command -v timeout || command -v gtimeout)
-  if [ -n "$TIMEOUT_PATH" ]; then
-    echo "${C_GREEN}timeout:${C_RESET}"
-    echo "   ${C_CYAN}Path:${C_RESET} $TIMEOUT_PATH"
-  else
-    echo "${C_RED}timeout/gtimeout: Not found (required). Install coreutils.${C_RESET}"
-  fi
-
-  echo ""
-  _cp_header "PROJECT CONFIGURATION (in $(pwd))"
-  if [ -f "CMakeLists.txt" ]; then
-    echo "${C_GREEN}Found CMakeLists.txt${C_RESET}"
-
-    # Check CMake Cache for the configured compiler.
-    local active_build_dir
+  group="Project"
+  if [[ -f CMakeLists.txt ]]; then
+    _cp_report_row $group ok "CMakeLists.txt" "${PWD/#$HOME/~}"
+    local active_build_dir cached_compiler
     active_build_dir=$(_cp_get_active_build_dir 2>/dev/null || true)
-    if [ -n "$active_build_dir" ] && [ -f "$active_build_dir/CMakeCache.txt" ]; then
-      local cached_compiler
-      cached_compiler=$(grep -E '^CMAKE_CXX_COMPILER:(FILEPATH|PATH|STRING)=' "$active_build_dir/CMakeCache.txt" | head -n1 | cut -d'=' -f2-)
-      echo "   ${C_CYAN}CMake Cached CXX Compiler:${C_RESET} $cached_compiler"
-      echo "   ${C_CYAN}Active Build Dir:${C_RESET} $active_build_dir"
+    if [[ -n "$active_build_dir" && -f "$active_build_dir/CMakeCache.txt" ]]; then
+      cached_compiler=$(grep -E '^CMAKE_CXX_COMPILER:(FILEPATH|PATH|STRING)=' \
+        "$active_build_dir/CMakeCache.txt" | head -n1 | cut -d'=' -f2-)
+      _cp_report_row $group ok "Active build" "$active_build_dir"
+      _cp_report_row $group muted "Cached compiler" "$cached_compiler"
     else
-      echo "   ${C_YELLOW}Info: No CMake cache found. Run 'cppconf' to generate it.${C_RESET}"
+      _cp_report_row $group warn "Active build" "no CMake cache; cppconf creates it"
     fi
-
-    # Display .clangd configuration if it exists.
-    if [ -f ".clangd" ]; then
-      echo "${C_GREEN}Found .clangd config${C_RESET}"
+    if [[ -f .clangd ]]; then
+      _cp_report_row $group ok ".clangd" "found"
     else
-      echo "   ${C_YELLOW}Info: No .clangd config file found in this project.${C_RESET}"
+      _cp_report_row $group muted ".clangd" "none in this project"
     fi
-
-    # Check for metadata files.
-    if [ -f ".statistics/contest_metadata" ]; then
-      echo "${C_GREEN}Found contest metadata${C_RESET}"
-      grep "CONTEST_NAME" .statistics/contest_metadata | sed 's/^/   /'
-      grep "CREATED" .statistics/contest_metadata | sed 's/^/   /'
-    elif [ -f ".contest_metadata" ]; then
-      # Legacy compatibility path.
-      echo "${C_GREEN}Found legacy contest metadata${C_RESET}"
-      grep "CONTEST_NAME" .contest_metadata | sed 's/^/   /'
-      grep "CREATED" .contest_metadata | sed 's/^/   /'
+    local metadata="" name created
+    [[ -f .statistics/contest_metadata ]] && metadata=.statistics/contest_metadata
+    [[ -z "$metadata" && -f .contest_metadata ]] && metadata=.contest_metadata
+    if [[ -n "$metadata" ]]; then
+      name=$(grep -m1 "CONTEST_NAME" "$metadata" | cut -d'=' -f2-)
+      created=$(grep -m1 "CREATED" "$metadata" | cut -d'=' -f2-)
+      _cp_report_row $group muted "Contest" "${name//\"/}${created:+ · created ${created//\"/}}"
     fi
-
-    # Count problems.
-    local cpp_count
     local -a cpp_files=(./*.cpp(N.))
-    cpp_count=${#cpp_files[@]}
-    echo "   ${C_CYAN}C++ files:${C_RESET} $cpp_count"
-
+    _cp_report_row $group muted "C++ files" "${#cpp_files}"
   else
-    echo "${C_RED}Not inside a project directory (CMakeLists.txt not found).${C_RESET}"
+    _cp_report_row $group muted "CMakeLists.txt" \
+      "not inside a project directory"
   fi
 
-  echo ""
-  _cp_header "COMPILER FEATURES CHECK"
-
-  # Test with GCC if available.
-  if [ -n "$GXX_PATH" ]; then
-    echo "${C_CYAN}Testing GCC features:${C_RESET}"
-    local test_file test_bin
-    test_file=$(mktemp "${TMPDIR:-/tmp}/cp_gcc_test_XXXXXX.cpp") || {
-      _cp_error "Unable to create the GCC diagnostic source file."
-      return 1
-    }
-    test_bin=$(mktemp "${TMPDIR:-/tmp}/cp_gcc_test_XXXXXX") || {
-      rm -f -- "$test_file"
-      _cp_error "Unable to create the GCC diagnostic binary."
-      return 1
-    }
-    cat > "$test_file" << 'EOF'
-#include <bits/stdc++.h>
-#include <ext/pb_ds/assoc_container.hpp>
-using namespace std;
-using namespace __gnu_pbds;
-int main() { cout << "OK" << endl; return 0; }
-EOF
-
-    if "$GXX_PATH" -std=c++23 "$test_file" -o "$test_bin" 2>/dev/null; then
-      echo "  ${C_GREEN}bits/stdc++.h: Available${C_RESET}"
-      echo "  ${C_GREEN}PBDS: Available${C_RESET}"
-      echo "  ${C_GREEN}C++23: Supported${C_RESET}"
+  # Compile small probes with the toolchains found above.
+  group="Compiler features"
+  local probe_dir
+  probe_dir=$(mktemp -d "${TMPDIR:-/tmp}/cp_diag.XXXXXX") || {
+    _cp_error "Unable to create the diagnostic probe directory."
+    return 1
+  }
+  if [[ -n "$GXX_PATH" ]]; then
+    print -rl -- '#include <bits/stdc++.h>' \
+      '#include <ext/pb_ds/assoc_container.hpp>' \
+      'using namespace std;' 'using namespace __gnu_pbds;' \
+      'int main() { cout << "OK" << endl; return 0; }' >| "$probe_dir/gcc.cpp"
+    if "$GXX_PATH" -std=c++23 "$probe_dir/gcc.cpp" -o "$probe_dir/gcc" \
+        2>/dev/null; then
+      _cp_report_row "$group" ok "GCC" "bits/stdc++.h, PBDS and C++23 compile"
     else
-      echo "  ${C_RED}Some GCC features may not be available. Check your installation.${C_RESET}"
+      _cp_report_row "$group" error "GCC" \
+        "bits/stdc++.h, PBDS or C++23 failed to compile"
     fi
-    rm -f -- "$test_file" "$test_bin"
   fi
-
-  # Test with Clang if available.
-  if [ -n "$CLANGXX_PATH" ]; then
-    echo ""
-    echo "${C_CYAN}Testing Clang features:${C_RESET}"
-
-    # Test PCH.h compatibility.
-    local test_pch test_pch_bin
-    test_pch=$(mktemp "${TMPDIR:-/tmp}/cp_clang_test_XXXXXX.cpp") || {
-      _cp_error "Unable to create the Clang diagnostic source file."
-      return 1
-    }
-    test_pch_bin=$(mktemp "${TMPDIR:-/tmp}/cp_clang_test_XXXXXX") || {
-      rm -f -- "$test_pch"
-      _cp_error "Unable to create the Clang diagnostic binary."
-      return 1
-    }
-    cat > "$test_pch" << 'EOF'
-#define USE_CLANG_SANITIZE
-#include "PCH.h"
-using namespace std;
-int main() { cout << "OK" << endl; return 0; }
-EOF
-
-    # Prefer the project link, then test the centralized header directly.
-    local pch_header="" pch_include_dir=""
-    if [ -f "algorithms/PCH.h" ]; then
-      pch_header="algorithms/PCH.h"
+  if [[ -n "$CLANGXX_PATH" ]]; then
+    # Prefer the project link, then the centralized header.
+    local pch_include_dir=""
+    if [[ -f algorithms/PCH.h ]]; then
       pch_include_dir="./algorithms"
-    elif [ -f "$CP_ALGORITHMS_DIR/libs/PCH.h" ]; then
-      pch_header="$CP_ALGORITHMS_DIR/libs/PCH.h"
+    elif [[ -f "$CP_ALGORITHMS_DIR/libs/PCH.h" ]]; then
       pch_include_dir="$CP_ALGORITHMS_DIR/libs"
     fi
-    if [ -n "$pch_header" ]; then
-      if "$CLANGXX_PATH" -std=c++23 -I"$pch_include_dir" \
-        -I"$CP_ALGORITHMS_DIR" \
-        "$test_pch" -o "$test_pch_bin" 2>/dev/null
-      then
-        echo "  ${C_GREEN}PCH.h: Compatible${C_RESET}"
-        echo "  ${C_GREEN}C++23: Supported${C_RESET}"
+    if [[ -z "$pch_include_dir" ]]; then
+      _cp_report_row "$group" warn "Clang PCH.h" \
+        "not found in the project or the central libraries"
+    else
+      print -rl -- '#define USE_CLANG_SANITIZE' '#include "PCH.h"' \
+        'using namespace std;' \
+        'int main() { cout << "OK" << endl; return 0; }' >| "$probe_dir/pch.cpp"
+      if "$CLANGXX_PATH" -std=c++23 -I"$pch_include_dir" -I"$CP_ALGORITHMS_DIR" \
+          "$probe_dir/pch.cpp" -o "$probe_dir/pch" 2>/dev/null; then
+        _cp_report_row "$group" ok "Clang PCH.h" "compiles with C++23"
       else
-        echo "  ${C_YELLOW}PCH.h compilation failed.${C_RESET}"
-        echo "    Header: $pch_header"
+        _cp_report_row "$group" warn "Clang PCH.h" \
+          "failed to compile: $pch_include_dir/PCH.h"
       fi
-    else
-      echo "  ${C_YELLOW}PCH.h: Not found.${C_RESET}"
-      echo "    Checked project and central libraries."
     fi
-
-    # Test sanitizer support.
-    local test_san san_bin
-    test_san=$(mktemp "${TMPDIR:-/tmp}/cp_clang_san_XXXXXX.cpp") || {
-      rm -f -- "$test_pch" "$test_pch_bin"
-      _cp_error "Unable to create the sanitizer diagnostic source file."
-      return 1
-    }
-    san_bin=$(mktemp "${TMPDIR:-/tmp}/cp_clang_san_XXXXXX") || {
-      rm -f -- "$test_pch" "$test_pch_bin" "$test_san"
-      _cp_error "Unable to create the sanitizer diagnostic binary."
-      return 1
-    }
-    printf "#include <iostream>\nint main(){return 0;}" > "$test_san"
-    if "$CLANGXX_PATH" -fsanitize=address "$test_san" -o "$san_bin" 2>/dev/null; then
-      echo "  ${C_GREEN}AddressSanitizer: Available${C_RESET}"
-    else
-      echo "  ${C_RED}AddressSanitizer: Not available${C_RESET}"
-    fi
-
-    if "$CLANGXX_PATH" -fsanitize=undefined "$test_san" -o "$san_bin" 2>/dev/null; then
-      echo "  ${C_GREEN}UBSanitizer: Available${C_RESET}"
-    else
-      echo "  ${C_RED}UBSanitizer: Not available${C_RESET}"
-    fi
-
-    rm -f -- "$test_pch" "$test_pch_bin" "$test_san" "$san_bin"
+    printf '#include <iostream>\nint main(){return 0;}\n' >| "$probe_dir/san.cpp"
+    local sanitizer label
+    for sanitizer label in address AddressSanitizer undefined UBSanitizer; do
+      if "$CLANGXX_PATH" -fsanitize="$sanitizer" "$probe_dir/san.cpp" \
+          -o "$probe_dir/san" 2>/dev/null; then
+        _cp_report_row "$group" ok "$label" "available"
+      else
+        _cp_report_row "$group" error "$label" "not available"
+      fi
+    done
   fi
+  rm -rf -- "$probe_dir"
 
-  echo ""
+  # Diagnostics describe; cpphealth is the check that fails.
+  _cp_report "Diagnostics" "cpphealth checks what is required" "${rows[@]}"
+  return 0
 }
 
 # ============================================================================ #

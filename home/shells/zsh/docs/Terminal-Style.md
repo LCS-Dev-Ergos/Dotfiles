@@ -2,7 +2,8 @@
 
 Every command-line tool in this repository shares one look, defined once in
 [`config/scripts/_ui.zsh`](../config/scripts/_ui.zsh). Zsh tools source it,
-directly or through `_shared-helpers.zsh`. Python tools mirror its tokens:
+directly or through `_shared-helpers.zsh`; packaged tools such as cpp-tools
+install a copy at build time. Python tools mirror its tokens:
 the development bootstrap's
 [`core/ui.py`](../../../dev/bootstrap/core/ui.py) does, and its test suite
 fails when the token tables differ.
@@ -104,9 +105,9 @@ a few sharper markers (`?` unknown, `◐` dormant). The frame uses `╭╮╰╯
 | --- | --- | --- |
 | `_zsh_ui_app_header` | `header` | Framed masthead: badge, title, context; subtitle and note beneath. |
 | `_zsh_ui_heading` | — | Framed title of a simple command: the title as the badge, the subtitle beside or under it. |
-| `_zsh_ui_section` | `section` | Section title and rule, ending in an optional note such as a count. `Title · note` also works. |
+| `_zsh_ui_section` | `section` | Section title and rule, ending in an optional note such as a count. `Title · note` also works; `--tone` colors the title of a section that reports an outcome. |
 | `_zsh_ui_subsection` | — | Help-menu and catalog titles: a section title when styled, the zfuncs layout when plain. |
-| `_zsh_ui_table` | `table` | Borderless table. Zsh takes `--marker`, `--status` and `--align` columns; Python adds priorities and folding. |
+| `_zsh_ui_table` | `table` | Borderless table. Zsh takes `--marker`, `--status` and `--align` columns, or `--tones` when the caller knows each row's outcome; Python adds priorities and folding. |
 | `_zsh_ui_card` | — | A section title and `key<TAB>value` fields one indent in. |
 | `_zsh_ui_definition_list` | — | Help menus: accent terms, muted descriptions. |
 | `_zsh_ui_callout` | `callout` | A notice set off by a bar in its tone. |

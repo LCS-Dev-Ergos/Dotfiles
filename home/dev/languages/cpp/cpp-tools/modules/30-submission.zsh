@@ -58,7 +58,7 @@ function cppsubmit() {
   # Check that the solution file exists.
   solution_file=$(_resolve_target_source "$target_name")
   if [ -z "$solution_file" ]; then
-    echo -e "${C_RED}Error: No source file found for target '$target_name' (.cpp/.cc/.cxx)${C_RESET}" >&2
+    _cp_error "No source file found for target '$target_name' (.cpp/.cc/.cxx)"
     return 1
   fi
 
@@ -81,7 +81,7 @@ function cppsubmit() {
   # Generate submission header with metadata.
   local header_file
   header_file=$(mktemp "${TMPDIR:-/tmp}/cp_sub_header.XXXXXX") || {
-    echo -e "${C_RED}Error: Unable to create temporary header file${C_RESET}" >&2
+    _cp_error "Unable to create temporary header file"
     return 1
   }
   if ! cat > "$header_file" << EOF
@@ -107,14 +107,14 @@ EOF
 
   local flattened_tmp
   flattened_tmp=$(mktemp "${TMPDIR:-/tmp}/cp_sub_flattened.XXXXXX") || {
-    echo -e "${C_RED}Error: Unable to create temporary flattened file${C_RESET}" >&2
+    _cp_error "Unable to create temporary flattened file"
     rm -f -- "$header_file"
     return 1
   }
 
   local flattener_err
   flattener_err=$(mktemp "${TMPDIR:-/tmp}/cp_sub_flattener_error.XXXXXX") || {
-    echo -e "${C_RED}Error: Unable to create temporary error log${C_RESET}" >&2
+    _cp_error "Unable to create temporary error log"
     rm -f -- "$header_file" "$flattened_tmp"
     return 1
   }
@@ -154,14 +154,14 @@ EOF
     template_lines=${template_lines:-0}
     local code_lines=$((line_count - template_lines))
 
-    _cp_success "✓ Submission generated successfully"
+    _cp_success "Submission generated successfully."
     printf "${C_YELLOW}  %-6s %s${C_RESET}\n" "File:" "${C_BOLD}$submission_file${C_RESET}"
     printf "${C_YELLOW}  %-6s %s${C_RESET}\n" "Size:" "$(numfmt --to=iec-i --suffix=B "$file_size" 2>/dev/null || echo "$file_size bytes")"
     printf "${C_YELLOW}  %-6s %s${C_RESET}\n" "Lines:" "$line_count total ($code_lines code, $template_lines comments)"
 
     # Verify compilation with the generated file.
     if _verify_submission_compilation "$submission_file" "$strict_mode"; then
-      echo -e "${C_GREEN}✓ Compilation verification passed${C_RESET}"
+      _cp_success "Compilation verification passed"
     else
       echo -e "${C_RED}⚠ Warning: Compilation verification failed${C_RESET}"
       echo -e "${C_YELLOW}  Review the generated file for potential issues${C_RESET}"
@@ -199,7 +199,7 @@ function _verify_submission_compilation() {
   gxx_compiler=$(_cp_find_gxx)
 
   if [ -z "$gxx_compiler" ]; then
-    echo "${C_YELLOW}Warning: No g++ compiler found for verification${C_RESET}" >&2
+    _cp_warn "No g++ compiler found for verification"
     return 1
   fi
 
@@ -257,7 +257,7 @@ function _offer_clipboard_copy() {
   read -r REPLY || return 0
   if [[ $REPLY =~ ^[Yy]$ ]]; then
     if "${clipboard_cmd[@]}" < "$file"; then
-      echo -e "${C_GREEN}✓ Copied to $clipboard_name${C_RESET}"
+      _cp_success "Copied to $clipboard_name"
     else
       echo -e "${C_RED}Failed to copy to clipboard${C_RESET}"
     fi
@@ -327,7 +327,7 @@ function cpptestsubmit() {
   local input_path="input_cases/$input_file"
 
   if [ ! -f "$submission_file" ]; then
-    echo -e "${C_RED}Error: Submission file '$submission_file' not found${C_RESET}" >&2
+    _cp_error "Submission file '$submission_file' not found"
     return 1
   fi
 
@@ -345,7 +345,7 @@ function cpptestsubmit() {
   gxx_compiler=$(_cp_find_gxx)
 
   if [ -z "$gxx_compiler" ]; then
-    echo "${C_RED}Error: No g++ compiler found${C_RESET}" >&2
+    _cp_error "No g++ compiler found"
     return 1
   fi
 
@@ -355,7 +355,7 @@ function cpptestsubmit() {
 
   local compile_err_log
   compile_err_log=$(mktemp "${TMPDIR:-/tmp}/cp_compile_error.XXXXXX") || {
-    echo "${C_RED}Error: Unable to create temporary log file${C_RESET}" >&2
+    _cp_error "Unable to create temporary log file"
     return 1
   }
 
@@ -391,13 +391,13 @@ function cpptestsubmit() {
       _cp_rule "" cyan
 
       if [ "$exit_code" -eq 124 ]; then
-        echo -e "${C_YELLOW}⚠ Execution timeout (2s limit exceeded)${C_RESET}"
+        _cp_warn "Execution timeout (2s limit exceeded)"
         execution_status=1
       elif [ "$exit_code" -ne 0 ]; then
         echo -e "${C_RED}⚠ Program exited with code $exit_code${C_RESET}"
         execution_status=1
       else
-        echo -e "${C_GREEN}✓ Execution completed successfully${C_RESET}"
+        _cp_success "Execution completed successfully"
       fi
     else
       echo -e "${C_YELLOW}No input file found at '$input_path'${C_RESET}"
@@ -413,7 +413,7 @@ function cpptestsubmit() {
     # Cleanup binary.
     rm -f -- "$test_binary"
   else
-    echo -e "${C_RED}✗ Submission compilation failed${C_RESET}" >&2
+    _cp_error "Submission compilation failed"
     echo -e "${C_RED}Compilation errors:${C_RESET}"
     cat "$compile_err_log" >&2
     rm -f -- "$compile_err_log"
@@ -448,7 +448,7 @@ function cppfull() {
         break
         ;;
       -*)
-        echo -e "${C_RED}Error: Unknown option '$1'.${C_RESET}" >&2
+        _cp_error "Unknown option '$1'."
         return 64
         ;;
       *)
@@ -465,26 +465,26 @@ function cppfull() {
   target_name=$(_normalize_target_name "${1:-$(_get_default_target)}")
   input_name=${2:-"${target_name}.in"}
 
-  _cp_rule "FULL WORKFLOW: ${target_name}"
+  _cp_rule "Full workflow: ${target_name}"
 
   # Step 1: Development version test.
   echo -e "\n${C_CYAN}[1/3] Testing development version...${C_RESET}"
   if ! cppgo "$target_name" "$input_name"; then
-    echo -e "${C_RED}✗ Development version failed${C_RESET}" >&2
+    _cp_error "Development version failed"
     return 1
   fi
-  echo -e "${C_GREEN}✓ Development test passed${C_RESET}"
+  _cp_success "Development test passed"
 
   # Step 2: Generate submission.
   echo -e "\n${C_CYAN}[2/3] Generating submission...${C_RESET}"
   if [ "$strict_mode" -eq 1 ]; then
     if ! cppsubmit --strict "$target_name"; then
-      echo -e "${C_RED}✗ Submission generation failed${C_RESET}" >&2
+      _cp_error "Submission generation failed"
       return 1
     fi
   else
     if ! cppsubmit "$target_name"; then
-      echo -e "${C_RED}✗ Submission generation failed${C_RESET}" >&2
+      _cp_error "Submission generation failed"
       return 1
     fi
   fi
@@ -493,12 +493,12 @@ function cppfull() {
   echo -e "\n${C_CYAN}[3/3] Testing submission...${C_RESET}"
   if [ "$strict_mode" -eq 1 ]; then
     if ! cpptestsubmit --no-generate --strict "$target_name" "$input_name"; then
-      echo -e "${C_RED}✗ Submission test failed${C_RESET}" >&2
+      _cp_error "Submission test failed"
       return 1
     fi
   else
     if ! cpptestsubmit --no-generate "$target_name" "$input_name"; then
-      echo -e "${C_RED}✗ Submission test failed${C_RESET}" >&2
+      _cp_error "Submission test failed"
       return 1
     fi
   fi
@@ -509,7 +509,7 @@ function cppfull() {
   file_size=$(wc -c < "$submission_file" 2>/dev/null || echo "0")
 
   echo ""
-  _cp_rule "✓ WORKFLOW COMPLETE" green
+  _cp_rule "Workflow complete" green
   echo -e "${C_YELLOW}📁 Submission: $submission_file${C_RESET}"
   echo -e "${C_YELLOW}📊 Size: $(numfmt --to=iec-i --suffix=B "$file_size" 2>/dev/null || echo "$file_size bytes")${C_RESET}"
   echo -e "${C_YELLOW}📋 Ready for contest submission${C_RESET}"
@@ -521,135 +521,99 @@ function cppfull() {
 # -----------------------------------------------------------------------------
 # cpphealth
 # -----------------------------------------------------------------------------
-# Check template system, compilers, and workspace configuration health.
+# Check the workspace, the template system and the tools, then report them
+# like devdoctor: a framed header, one counted section per group, a marker per
+# check and a summary. Fails when a required check fails; optional features
+# only warn.
 # -----------------------------------------------------------------------------
 function cpphealth() {
+  emulate -L zsh
   if (( $# )); then
     _cp_error "Usage: cpphealth"
     return 64
   fi
-  _cp_rule "TEMPLATE SYSTEM HEALTH" cyan
 
-  local all_good=true
-  local warnings=0
-
-  # Check workspace configuration.
-  echo -e "${C_BLUE}Workspace Configuration:${C_RESET}"
-  if [ -n "$CP_WORKSPACE_ROOT" ] && [ -d "$CP_WORKSPACE_ROOT" ]; then
-    echo -e "${C_GREEN}  ✓ Workspace root: $CP_WORKSPACE_ROOT${C_RESET}"
+  # Rows: group, tone (ok, warn, error or muted), check, detail.
+  local -a rows=()
+  local tab=$'\t'
+  if [[ -n "$CP_WORKSPACE_ROOT" && -d "$CP_WORKSPACE_ROOT" ]]; then
+    _cp_report_row Workspace ok "Workspace root" "$CP_WORKSPACE_ROOT"
   else
-    echo -e "${C_RED}  ✗ Workspace root not configured or missing${C_RESET}"
-    all_good=false
+    _cp_report_row Workspace error "Workspace root" "not configured or missing"
+  fi
+  if [[ -n "$CP_ALGORITHMS_DIR" && -d "$CP_ALGORITHMS_DIR" ]]; then
+    _cp_report_row Workspace ok "Algorithms directory" "$CP_ALGORITHMS_DIR"
+  else
+    _cp_report_row Workspace error "Algorithms directory" \
+      "not configured or missing"
   fi
 
-  if [ -n "$CP_ALGORITHMS_DIR" ] && [ -d "$CP_ALGORITHMS_DIR" ]; then
-    echo -e "${C_GREEN}  ✓ Algorithms directory: $CP_ALGORITHMS_DIR${C_RESET}"
-  else
-    echo -e "${C_RED}  ✗ Algorithms directory not configured or missing${C_RESET}"
-    all_good=false
-  fi
-
-  # Check template system components.
-  echo -e "\n${C_BLUE}Template System Components:${C_RESET}"
-
-  # Check the required flattener pipeline.
-  if [ -f "$SCRIPTS_DIR/flattener.py" ]; then
-    echo -e "${C_GREEN}  ✓ Flattener script found${C_RESET}"
+  if [[ -f "$SCRIPTS_DIR/flattener.py" ]]; then
+    _cp_report_row Templates ok "Flattener script" "$SCRIPTS_DIR/flattener.py"
     if python3 -c "import sys; sys.exit(0)" 2>/dev/null; then
-      echo -e "${C_GREEN}  ✓ Python 3 available${C_RESET}"
+      _cp_report_row Templates ok "Python 3" "runs the flattener"
     else
-      echo -e "${C_RED}  ✗ Python 3 not available${C_RESET}"
-      all_good=false
+      _cp_report_row Templates error "Python 3" "not available"
     fi
   else
-    echo -e "${C_RED}  ✗ Flattener script not found${C_RESET}"
-    all_good=false
+    _cp_report_row Templates error "Flattener script" "not found"
   fi
-
-  # Check templates directory.
-  if [ -d "$TEMPLATES_DIR" ]; then
-    local -a template_files=("$TEMPLATES_DIR"/*.hpp(N))
-    local template_count=${#template_files[@]}
-    echo -e "${C_GREEN}  ✓ Templates directory: $template_count files${C_RESET}"
-  else
-    echo -e "${C_YELLOW}  ⚠ Templates directory not found (optional)${C_RESET}"
-    warnings=$((warnings + 1))
-  fi
-
-  # Check modules directory.
-  if [ -d "$MODULES_DIR" ]; then
-    local -a module_files=("$MODULES_DIR"/*.hpp(N))
-    local module_count=${#module_files[@]}
-    echo -e "${C_GREEN}  ✓ Modules directory: $module_count files${C_RESET}"
-  else
-    echo -e "${C_YELLOW}  ⚠ Modules directory not found (optional)${C_RESET}"
-    warnings=$((warnings + 1))
-  fi
-
-  # Check compiler and tools.
-  echo -e "\n${C_BLUE}Development Tools:${C_RESET}"
+  local directory label
+  for label directory in \
+      "Templates directory" "$TEMPLATES_DIR" \
+      "Modules directory" "$MODULES_DIR"; do
+    if [[ -d "$directory" ]]; then
+      local -a headers=("$directory"/*.hpp(N))
+      _cp_report_row Templates ok "$label" "${#headers} files"
+    else
+      _cp_report_row Templates warn "$label" "not found (optional)"
+    fi
+  done
 
   local active_build_dir cached_compiler compiler_path compiler_version
   active_build_dir=$(_cp_get_active_build_dir 2>/dev/null || true)
-  cached_compiler=""
-  if [ -n "$active_build_dir" ] && [ -f "$active_build_dir/CMakeCache.txt" ]; then
-    cached_compiler=$(grep -E '^CMAKE_CXX_COMPILER:(FILEPATH|PATH|STRING)=' "$active_build_dir/CMakeCache.txt" | head -n1 | cut -d'=' -f2-)
-    printf '  Cached build compiler (not executed): %s\n' "$cached_compiler"
+  if [[ -n "$active_build_dir" && -f "$active_build_dir/CMakeCache.txt" ]]; then
+    cached_compiler=$(grep -E '^CMAKE_CXX_COMPILER:(FILEPATH|PATH|STRING)=' \
+      "$active_build_dir/CMakeCache.txt" | head -n1 | cut -d'=' -f2-)
+    _cp_report_row Tools muted "Cached build compiler (not executed)" \
+      "$cached_compiler"
   fi
   # Diagnostics may inspect an unbuilt project. Only the user's selected
   # PATH toolchain is executable here; project metadata is display data.
   compiler_path=$(_cp_find_gxx 2>/dev/null || true)
-
-  if [ -n "$compiler_path" ] && [ -x "$compiler_path" ]; then
+  if [[ -n "$compiler_path" && -x "$compiler_path" ]]; then
     compiler_version=$("$compiler_path" --version 2>/dev/null | head -n1)
-    echo -e "${C_GREEN}  ✓ PATH compiler: $compiler_version${C_RESET}"
-    if [ -n "$active_build_dir" ]; then
-      echo -e "${C_GREEN}  ✓ Active build cache inspected: $active_build_dir/CMakeCache.txt${C_RESET}"
+    _cp_report_row Tools ok "PATH compiler" "$compiler_version"
+    if [[ -n "$active_build_dir" ]]; then
+      _cp_report_row Tools ok "Active build cache" \
+        "$active_build_dir/CMakeCache.txt"
     else
-      echo -e "${C_YELLOW}  ⚠ No active build cache found; using compiler from PATH${C_RESET}"
-      warnings=$((warnings + 1))
+      _cp_report_row Tools warn "Active build cache" \
+        "none found; the PATH compiler is used"
     fi
-
     # Probe standard support with the PATH toolchain, never the cached path.
-    if echo | "$compiler_path" -std=c++23 -x c++ - -fsyntax-only &>/dev/null; then
-      echo -e "${C_GREEN}  ✓ C++23 support available${C_RESET}"
-    elif echo | "$compiler_path" -std=c++20 -x c++ - -fsyntax-only &>/dev/null; then
-      echo -e "${C_YELLOW}  ⚠ C++20 available (C++23 not supported)${C_RESET}"
-      warnings=$((warnings + 1))
+    if print | "$compiler_path" -std=c++23 -x c++ - -fsyntax-only &>/dev/null
+    then
+      _cp_report_row Tools ok "C++ standard" "C++23 support available"
+    elif print | "$compiler_path" -std=c++20 -x c++ - -fsyntax-only &>/dev/null
+    then
+      _cp_report_row Tools warn "C++ standard" "C++20 only; C++23 is not supported"
     else
-      echo -e "${C_RED}  ✗ Modern C++ standards not supported${C_RESET}"
-      all_good=false
+      _cp_report_row Tools error "C++ standard" "no modern standard is supported"
     fi
   else
-    echo -e "${C_RED}  ✗ Unable to resolve a usable C++ compiler${C_RESET}"
-    all_good=false
+    _cp_report_row Tools error "PATH compiler" "no usable C++ compiler found"
   fi
-
-  if command -v python3 &> /dev/null; then
-    local python_version
-    python_version=$(python3 --version 2>&1)
-    echo -e "${C_GREEN}  ✓ Python: $python_version${C_RESET}"
+  if (( $+commands[python3] )); then
+    _cp_report_row Tools ok "Python" "$(python3 --version 2>&1)"
   else
-    echo -e "${C_YELLOW}  ⚠ Python 3 not found (required for new features)${C_RESET}"
-    warnings=$((warnings + 1))
+    _cp_report_row Tools warn "Python" "not found (required for new features)"
   fi
-
-  # Summary.
-  echo ""
-  _cp_rule "" cyan
-  if $all_good; then
-    if [ $warnings -eq 0 ]; then
-      echo -e "${C_GREEN}${C_BOLD}✓ All systems fully operational${C_RESET}"
-    else
-      echo -e "${C_GREEN}${C_BOLD}✓ Core systems operational${C_RESET}"
-      echo -e "${C_YELLOW}  $warnings warning(s) for optional features${C_RESET}"
-    fi
-    return 0
-  else
-    echo -e "${C_RED}${C_BOLD}✗ Critical issues detected${C_RESET}"
-    echo -e "${C_YELLOW}  Please resolve the issues marked with ✗${C_RESET}"
-    return 1
-  fi
+  local -a tones=("${(@)${(@)rows#*$tab}%%$tab*}")
+  local hint="all systems operational"
+  (( ${tones[(I)warn]} )) && hint="warnings never fail cpphealth"
+  (( ${tones[(I)error]} )) && hint="resolve the failing checks first"
+  _cp_report "Health check" "$hint" "${rows[@]}"
 }
 
 # ============================================================================ #

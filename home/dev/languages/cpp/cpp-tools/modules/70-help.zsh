@@ -86,7 +86,7 @@ _cp_help_register \
 _cp_help_register \
   "Utilities" "cppstats" "" "Show elapsed problem times."
 _cp_help_register \
-  "Utilities" "cpparchive" "" "Archive the current contest."
+  "Utilities" "cpparchive" "[-y|--yes]" "Archive the current contest."
 _cp_help_register \
   "Utilities" "cppdiag" "" "Inspect the toolchain and environment."
 _cp_help_register \
@@ -121,9 +121,10 @@ unfunction _cp_help_register
 # -----------------------------------------------------------------------------
 # cpphelp
 # -----------------------------------------------------------------------------
-# Render the command registry using the same visual grammar as zfuncs: a compact
-# heading, light rules, uppercase categories, and borderless command rows.
-# Narrow terminals use two-line records without dropping descriptions.
+# Render the command registry in the shared terminal style, like zfuncs: a
+# framed title, uppercase categories with their command counts, and
+# borderless command rows. Narrow terminals use two-line records without
+# dropping descriptions. Plain output keeps the same order and nothing else.
 # -----------------------------------------------------------------------------
 function cpphelp() {
   emulate -L zsh
@@ -139,118 +140,94 @@ function cpphelp() {
   local -i width=$REPLY
   local section row row_section command arguments description syntax
   local -a fields
-  local -i name_width=10 arguments_width=0 description_width=0
+  local -A section_count=()
+  # The syntax column holds the command and its arguments together.
+  local -i syntax_width=10 description_width=0
 
   for row in "${_CP_HELP_ROWS[@]}"; do
     fields=("${(@ps:\t:)row}")
-    command="${fields[2]-}"
-    arguments="${fields[3]-}"
+    syntax="${fields[2]-}${fields[3]:+ ${fields[3]}}"
     description="${fields[4]-}"
-    (( ${#command} > name_width )) && name_width=${#command}
-    (( ${#arguments} > arguments_width )) &&
-      arguments_width=${#arguments}
+    (( section_count[${fields[1]-}]++ ))
+    (( ${#syntax} > syntax_width )) && syntax_width=${#syntax}
     (( ${#description} > description_width )) &&
       description_width=${#description}
   done
 
-  local -i wide_required=$(( name_width + arguments_width +
-    description_width + 6 ))
-  local -i wide=0
-  (( wide_required <= width )) && wide=1
-
-  local rule_character="-" rule_color="" muted="" reset=""
+  # Styled rows sit one indent in under their category and keep a right
+  # margin; plain rows keep two spaces.
+  local indent="  " muted="" reset=""
+  local -i margin=0
   if [[ "$mode" != plain ]]; then
-    rule_character="─"
-    rule_color=$'\e[38;5;245m'
-    muted=$'\e[38;5;252m'
+    indent="${(l:$(( _ZSH_UI_GUTTER + _ZSH_UI_INDENT )):: :)}"
+    margin=$_ZSH_UI_GUTTER
+    muted="$C_MUTED"
     reset="$C_RESET"
-    _cp_heading \
-      "CPP-TOOLS" \
-      "${#_CP_HELP_ROWS[@]} commands · "\
-"${#_CP_HELP_SECTIONS[@]} categories · "\
-"cpptools <command>"
+  fi
+  # Two columns when the description keeps a readable width: styled output
+  # wraps it within its column, plain output only when it fits whole.
+  local -i room=$(( width - ${#indent} - syntax_width - 2 - margin ))
+  local -i wide=0
+  if [[ "$mode" == plain ]]; then
+    (( room >= description_width )) && wide=1
+  else
+    (( room >= 24 )) && wide=1
+  fi
+  local -a wrapped
+  local piece
+  local continuation="${(l:$(( ${#indent} + syntax_width + 2 )):: :)}"
+
+  local subtitle="${#_CP_HELP_ROWS[@]} commands · "
+  subtitle+="${#_CP_HELP_SECTIONS[@]} categories · cpptools <command>"
+  if [[ "$mode" != plain ]]; then
+    _cp_heading "CPP-TOOLS" "$subtitle" || return $?
   else
     print -r -- "CPP-TOOLS"
-    print -r -- \
-      "${#_CP_HELP_ROWS[@]} commands · "\
-"${#_CP_HELP_SECTIONS[@]} categories · "\
-"cpptools <command>"
+    print -r -- "$subtitle"
+    _cp_ui_call _zsh_ui_rule - "$width"
   fi
-
-  _cp_repeat "$rule_character" "$width"
-  print -r -- "${rule_color}${REPLY}${reset}"
   print -r -- ""
 
   for section in "${_CP_HELP_SECTIONS[@]}"; do
-    local category_title="${(U)section}"
-    local -i category_rule_width=$(( ${#category_title} + 4 ))
-    (( category_rule_width < 24 )) && category_rule_width=24
-    (( category_rule_width > 48 )) && category_rule_width=48
-    (( category_rule_width > width - 2 )) &&
-      category_rule_width=$(( width - 2 ))
-    _cp_repeat "$rule_character" "$category_rule_width"
-    local category_rule="$REPLY"
-
-    if [[ "$mode" == plain ]]; then
-      print -r -- "$category_title"
-      print -r -- "  $category_rule"
-    else
-      _cp_section "$category_title" || return $?
-      print -r -- "${rule_color}  ${category_rule}${reset}"
-    fi
+    _cp_ui_call _zsh_ui_subsection "${(U)section}" "$width" \
+      "${section_count[$section]}" || return $?
 
     for row in "${_CP_HELP_ROWS[@]}"; do
       fields=("${(@ps:\t:)row}")
       row_section="${fields[1]-}"
       [[ "$row_section" == "$section" ]] || continue
-      command="${fields[2]-}"
-      arguments="${fields[3]-}"
-      description="${fields[4]-}"
-
-      _cp_ui_sanitize_text "$command"
+      _cp_ui_sanitize_text "${fields[2]-}"
       command="$REPLY"
-      _cp_ui_sanitize_text "$arguments"
+      _cp_ui_sanitize_text "${fields[3]-}"
       arguments="$REPLY"
-      _cp_ui_sanitize_text "$description"
+      _cp_ui_sanitize_text "${fields[4]-}"
       description="$REPLY"
 
+      syntax="${C_CYAN}${command}${C_RESET}${arguments:+ $arguments}"
       if (( wide )); then
-        printf '  %s%-*s%s  %s%-*s%s  %s%s%s\n' \
-          "$C_CYAN" "$name_width" "$command" "$C_RESET" \
-          "$C_YELLOW" "$arguments_width" "$arguments" "$C_RESET" \
-          "$muted" "$description" "$reset"
+        _zsh_ui_wrap "$room" "$description"
+        wrapped=("${reply[@]}")
+        local -i pad=$(( syntax_width - ${#command} - ${#arguments} -
+          ${#arguments:+1} + 2 ))
+        print -r -- "${indent}${syntax}${(l:$pad:: :)}${muted}${wrapped[1]}${reset}"
+        for piece in "${(@)wrapped[2,-1]}"; do
+          print -r -- "${continuation}${muted}${piece}${reset}"
+        done
       else
-        syntax="  ${C_CYAN}${command}${C_RESET}"
-        [[ -z "$arguments" ]] ||
-          syntax+=" ${C_YELLOW}${arguments}${C_RESET}"
-        print -r -- "$syntax"
-        print -r -- "    ${muted}${description}${reset}"
+        print -r -- "${indent}${syntax}"
+        print -r -- "${indent}  ${muted}${description}${reset}"
       fi
     done
     print -r -- ""
   done
 
-  local root algorithms
-  _cp_ui_sanitize_text "$CP_WORKSPACE_ROOT"
-  root="$REPLY"
-  _cp_ui_sanitize_text "$CP_ALGORITHMS_DIR"
-  algorithms="$REPLY"
-  local workspace_title="WORKSPACE"
-  _cp_repeat "$rule_character" 24
-  local workspace_rule="$REPLY"
-  if [[ "$mode" == plain ]]; then
-    print -r -- "$workspace_title"
-    print -r -- "  $workspace_rule"
-  else
-    _cp_section "$workspace_title" || return $?
-    print -r -- "${rule_color}  ${workspace_rule}${reset}"
-  fi
-  print -r -- "  ${C_CYAN}Root${C_RESET}        $root"
-  print -r -- "  ${C_CYAN}Algorithms${C_RESET}  $algorithms"
+  _cp_ui_call _zsh_ui_subsection "WORKSPACE" "$width" || return $?
+  _cp_ui_call _zsh_ui_definition_list \
+    "Root"$'\t'"$CP_WORKSPACE_ROOT" \
+    "Algorithms"$'\t'"$CP_ALGORITHMS_DIR" || return $?
   print -r -- ""
-  print -r -- \
-    "${muted}Commands use the focused target or newest source. "\
-"Workspace checks guard every mutation.${reset}"
+  print -r -- "${indent}${muted}Commands use the focused target or newest"\
+" source. Workspace checks guard every mutation.${reset}"
   print -r -- ""
 }
 
