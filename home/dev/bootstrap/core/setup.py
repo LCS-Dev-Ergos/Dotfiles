@@ -56,48 +56,148 @@ class BootstrapSetup:
             "privilegedPackages": bool(self.recipe["privilege"]),
         }
 
-    def prerequisites(self):
-        rows = self.context.plan()
+    def required_packages(self, rows):
+        """The native packages each selected ecosystem needs, by language.
+
+        A missing manager needs its package, and a runtime that is not
+        present needs its build packages.
+        """
         incomplete = {
             row["language"] for row in rows if row["state"] != "present"
         }
-        required = set()
+        required = {}
         for adapter in self.adapters:
+            packages = set()
             try:
                 adapter.manager()
             except BootstrapError:
-                required.update(adapter.manager_packages())
+                packages.update(adapter.manager_packages())
             if adapter.language in incomplete:
-                required.update(
+                packages.update(
                     self.recipe["buildPackages"].get(adapter.language, [])
                 )
-        building = any(
+            required[adapter.language] = packages
+        return required
+
+    def needs_sdk(self, rows):
+        """Whether a runtime to install builds from source against the SDK."""
+        incomplete = {
+            row["language"] for row in rows if row["state"] != "present"
+        }
+        return bool(self.recipe["sdkProbe"]) and any(
             adapter.compiles and adapter.language in incomplete
             for adapter in self.adapters
         )
-        if building and self.recipe["sdkProbe"]:
+
+    def sdk_present(self, **options):
+        try:
             sdk = process.run(
                 self.recipe["sdkProbe"],
                 env=self.recipe.get("buildEnvironment", {}),
                 source_build=True,
+                **options,
             )
-            if not Path(sdk).is_dir():
-                raise BootstrapError(
-                    "Install/select Apple developer tools and accept their license"
-                )
+        except BootstrapError:
+            return False
+        return Path(sdk).is_dir()
+
+    def prerequisites(self):
+        rows = self.context.plan()
+        required = set().union(*self.required_packages(rows).values())
+        if self.needs_sdk(rows) and not self.sdk_present():
+            raise BootstrapError(
+                "Install/select Apple developer tools and accept their license"
+            )
         if required:
             self.install_packages(required)
         for adapter in self.adapters:
             adapter.acquire()
 
-    def install_packages(self, required):
+    def foundation(self):
+        """The package manager, when it is a native one apply may use."""
         package_manager = Path(self.recipe["packageManager"])
         if (
-            not package_manager.is_file()
-            or package_manager.resolve().is_relative_to(NIX_STORE)
+            package_manager.is_file()
+            and not package_manager.resolve().is_relative_to(NIX_STORE)
         ):
+            return package_manager
+        return None
+
+    def preflight(self):
+        """What apply would install, and what would stop it, read-only.
+
+        The native package query (pacman -T, brew list), the SDK probe and
+        python-build's release list only read: nothing is created,
+        installed or elevated, and no privileged command runs.
+        """
+        rows = self.context.plan()
+        directory = self.context.query_directory
+        required = self.required_packages(rows)
+        wanted = set().union(*required.values())
+        package_manager = self.foundation()
+        if package_manager is None:
+            # Nothing can be installed without it; apply stops on these.
+            missing = set(wanted)
+        elif wanted:
+            missing = set(
+                self.missing_packages(package_manager, wanted, cwd=directory)
+            )
+        else:
+            missing = set()
+        privilege = self.recipe["privilege"]
+        command = []
+        if missing and package_manager is not None:
+            command = [
+                self.recipe["packageManager"],
+                *self.recipe["install"],
+                *sorted(missing),
+            ]
+            if privilege:
+                command.insert(0, Path(privilege[0]).name)
+        ecosystems = []
+        for adapter in self.adapters:
+            entry = {
+                "language": adapter.language,
+                "manager": "present",
+                "packages": sorted(required[adapter.language]),
+                "missing": sorted(required[adapter.language] & missing),
+            }
+            try:
+                adapter.manager()
+            except BootstrapError:
+                entry["manager"] = "missing"
+            selected = [
+                row
+                for row in rows
+                if row["language"] == adapter.language
+                and row["state"] == "missing"
+            ]
+            if selected and entry["manager"] == "present":
+                unknown = adapter.unbuildable(selected)
+                if unknown:
+                    entry["unbuildable"] = unknown
+            ecosystems.append(entry)
+        result = {
+            "packageManager": {
+                "path": self.recipe["packageManager"],
+                "state": "missing" if package_manager is None else "present",
+            },
+            "missing": sorted(missing),
+            "privileged": bool(privilege and missing),
+            "command": command,
+            "ecosystems": ecosystems,
+        }
+        if self.needs_sdk(rows):
+            result["sdk"] = (
+                "present" if self.sdk_present(cwd=directory) else "missing"
+            )
+        return result
+
+    def install_packages(self, required):
+        package_manager = self.foundation()
+        if package_manager is None:
             raise BootstrapError(
-                f"Post-Nix foundation missing: {package_manager}"
+                f"Post-Nix foundation missing: {self.recipe['packageManager']}"
             )
         missing = self.missing_packages(package_manager, required)
         if not missing:
@@ -132,9 +232,9 @@ class BootstrapSetup:
             if self.missing_packages(package_manager, required):
                 raise
 
-    def missing_packages(self, package_manager, required):
+    def missing_packages(self, package_manager, required, *, cwd=None):
         environment = self.recipe["environment"]
-        state = str(self.context.state)
+        state = cwd or str(self.context.state)
         if self.recipe.get("missingQuery"):
             # Pacman dependency tests honor installed providers such as
             # CachyOS's zlib-ng-compat. Exit 127 means missing dependencies.

@@ -84,6 +84,16 @@ class Bootstrap:
         )
 
     @property
+    def query_directory(self):
+        """Where a read-only query runs: the state directory once it exists.
+
+        A plan never creates it, so before the first apply the filesystem
+        root stands in; either way no project file in the caller's working
+        directory steers a manager.
+        """
+        return str(self.state) if self.state.is_dir() else "/"
+
+    @property
     def backend(self):
         return self.data["backend"]
 

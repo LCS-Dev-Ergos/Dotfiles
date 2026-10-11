@@ -115,7 +115,10 @@ bash scripts/bootstrap/dev-bootstrap.sh plan --all        # every default ecosys
 An installed `dev-bootstrap` accepts the same runtime arguments; `devrestore`
 is a deprecated alias to that executable, kept for one release cycle. `--runtimes-only` skips prerequisite,
 default and shell setup but retains mutation guards and locking. `plan` reads
-state without launching managers. `verify` checks exact baseline identities
+state without launching managers; `plan --preflight` also asks, read-only,
+which native packages `apply` would install, whether that needs
+administrator rights (and the exact command), and whether each manager can
+build the declared releases. `verify` checks exact baseline identities
 and the baseline's complete build canaries. `verify --health` checks that each
 global selection runs, at any release and without changing it; there is no
 version floor. A selection the manager delegates to the host (`system` for

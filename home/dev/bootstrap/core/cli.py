@@ -91,6 +91,12 @@ def command_line():
         help="Verify selected evolved runtimes instead of exact baseline identities",
     )
     parser.add_argument(
+        "--preflight",
+        action="store_true",
+        help="Also report, read-only, the native packages, privilege and "
+        "releases apply would need",
+    )
+    parser.add_argument(
         "--yes",
         action="store_true",
         help="Remove the retired releases prune lists, instead of listing them",
@@ -103,6 +109,8 @@ def main():
     args = parser.parse_args()
     if args.health and args.action != "verify":
         parser.error("--health requires verify")
+    if args.preflight and args.action != "plan":
+        parser.error("--preflight requires plan")
     if args.yes and args.action != "prune":
         parser.error("--yes requires prune")
     if args.save_selection and not (args.only or args.all):
@@ -189,6 +197,11 @@ def run(args, setups):
         ):
             setup = BootstrapSetup(context)
             setups.append(setup)
+        if args.preflight and setup is None:
+            raise BootstrapError(
+                "--preflight inspects the native setup, which this run "
+                "does not use (nixpkgs backend or --runtimes-only)"
+            )
         result = execute(context, setup, args)
         result["selection"] = origin
         report(result, args.format)
@@ -267,6 +280,8 @@ def execute(context, setup, args):
     }
     if setup:
         result["setup"] = setup.plan()
+    if args.preflight:
+        result["preflight"] = setup.preflight()
     if selections is not None:
         # Manager-owned selections are reported; they never fail apply.
         result["selections"] = selections

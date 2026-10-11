@@ -65,6 +65,7 @@ in every report's `catalog`.
 | `owned_prefix(row)` | `prefix(row)` when strictly inside the root | Never. |
 | `discard(prefix)` | Remove the directory, refusing a symlink | The manager also keeps records of it (`opam switch remove`, `rustup toolchain uninstall`). |
 | `preflight(missing)` | Nothing | A missing runtime can be known unbuildable before any change. |
+| `unbuildable(missing)` | No release | Read-only: the manager knows which releases it can build (python-build); `plan --preflight` reports the others. |
 | `check_runtime(path)` | Nothing | A path must be rejected before it runs. |
 | `remediation(row)` | `None` | The runtime is compiled against host libraries; return the rebuild argv. It is reported, never run. |
 | `installed()` | Entries of `runtime_directory` | The manager records installations elsewhere. |
@@ -128,6 +129,7 @@ interruption exits 128 plus the signal number.
 | `verification` | `verify --health` | `health`. |
 | `selection` | Always | `source`: `only`, `all`, `file` (with `path`, the saved selection) or `default`. |
 | `retired` | `prune` | Retired rows, below. |
+| `preflight` | `plan --preflight` | What `apply` would install and what would stop it, below. |
 
 ### Catalog Entry
 
@@ -160,6 +162,22 @@ adds `componentTitles`, each component's name for people.
 | `conflict` | Present but failing verification, or an incomplete prefix bootstrap did not start; needs a person. |
 | `blocked` | Cannot proceed here: missing manager, NixOS without the nixpkgs backend, unusable selection. |
 | `external` | The global selection delegates to the host (`system`); not executed. |
+
+### Preflight
+
+`plan --preflight` adds read-only queries to the plan: the native package
+query (`pacman -T`, `brew list`), the SDK probe and the releases a manager
+can build. Nothing is created, installed or elevated. It needs the native
+setup, so the `nixpkgs` backend and `--runtimes-only` refuse it.
+
+| Field | Present | Content |
+| --- | --- | --- |
+| `packageManager` | Always | `path`, and `state`: `present`, or `missing` when apply could install nothing. |
+| `missing` | Always | The native packages apply would install, sorted. |
+| `privileged` | Always | Whether installing them needs administrator rights. |
+| `command` | Always | The install command apply would run, led by the privilege tool when needed; empty when nothing is missing or there is no package manager. |
+| `sdk` | A missing runtime builds against the platform SDK | `present` or `missing`. |
+| `ecosystems` | Always | Per selected ecosystem: `language`, `manager` (`present` or `missing`), the `packages` it needs, the `missing` ones, and `unbuildable` releases when its manager cannot build them. |
 
 ### Retired Row
 

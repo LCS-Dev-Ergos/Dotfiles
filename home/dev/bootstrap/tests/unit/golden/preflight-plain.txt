@@ -1,0 +1,18 @@
+dev-bootstrap · Runtime plan
+2 runtimes in 2 ecosystems · x86_64-linux · native · default selection
+
+Runtimes
+RUNTIME  VERSION  MANAGER  STATE    LOCATION
+Node     24.21.0  fnm      present  /home/user/.local/share/fnm/node-versions/v24.21.0/installation/bin/node
+Python   3.14.9   pyenv    missing  /home/user/.pyenv/versions/3.14.9/bin/python
+
+Preflight · pacman
+CHECK            RESULT
+Package manager  /usr/bin/pacman
+Python packages  sqlite tk
+Privilege        apply asks once for administrator rights
+  runs: sudo /usr/bin/pacman -S --needed --noconfirm sqlite tk
+Python 3.14.9    pyenv cannot build it
+  fix: upgrade pyenv, then plan again
+
+[INFO]  1 present, 1 missing; resolve the preflight before apply.

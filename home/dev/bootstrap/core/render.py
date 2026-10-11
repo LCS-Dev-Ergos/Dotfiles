@@ -7,6 +7,9 @@ failure after apply or verify. Healthy rows stay quiet; a row that needs
 attention says why, where and how to fix it.
 """
 
+import shlex
+from pathlib import Path
+
 from . import ui
 from .ui import Cell, Column, Note, Row
 
@@ -58,6 +61,12 @@ RETIRED_COLUMNS = [
     Column("Manager", priority=40),
     Column("State", priority=60, fold=NOT_HEALTHY),
     Column("Location", priority=50, shrink=20, fold=("pending", *FAILING)),
+]
+# A check's name stays whole. Its result is what the row says, so it is
+# never shortened: when it does not fit, it continues under the row.
+PREFLIGHT_COLUMNS = [
+    Column("Check", limit=28),
+    Column("Result", priority=50, fold=("ok", *NOT_HEALTHY)),
 ]
 MANAGER_COLUMNS = [
     Column("Ecosystem", limit=16),
@@ -236,6 +245,18 @@ def _runtimes(result, style):
             )
         lines += ui.table(style, RUNTIME_COLUMNS, rows)
 
+    hint = None
+    if result.get("preflight"):
+        rows, blocked = _preflight(result, name)
+        lines += [""] + ui.section(
+            style,
+            "Preflight",
+            Path(result["preflight"]["packageManager"]["path"]).name,
+        )
+        lines += ui.table(style, PREFLIGHT_COLUMNS, rows)
+        if blocked:
+            hint = "resolve the preflight before apply"
+
     counts = dict.fromkeys(RUNTIME_STATES, 0)
     for row in runtimes:
         counts[row["state"]] = counts.get(row["state"], 0) + 1
@@ -246,9 +267,142 @@ def _runtimes(result, style):
             (_runtime_tone(state, action), count, state)
             for state, count in counts.items()
         ],
-        _runtime_hint(action, health, counts),
+        hint or _runtime_hint(action, health, counts),
     )
     return lines
+
+
+def _preflight(result, name):
+    """The rows of plan --preflight, and whether apply would stop on them.
+
+    Missing packages are work apply does; a privileged install is worth a
+    look, since apply then asks for administrator rights; a missing package
+    manager or SDK, or a release the manager cannot build, stops apply.
+    """
+    preflight = result["preflight"]
+    managers = {
+        entry["language"]: entry.get("manager", "")
+        for entry in result.get("catalog", [])
+    }
+    ecosystems = preflight.get("ecosystems", [])
+    foundation = preflight["packageManager"]
+    present = foundation["state"] == "present"
+    rows = []
+    blocked = False
+    if present:
+        rows.append(
+            Row(
+                [
+                    "Package manager",
+                    Cell(foundation["path"], ui.MUTED, path=True),
+                ],
+                "ok",
+            )
+        )
+    else:
+        rows.append(
+            Row(
+                ["Package manager", _state("missing", "error")],
+                "error",
+                [
+                    _reason(
+                        f"{foundation['path']} is not installed, so apply "
+                        "cannot install native packages",
+                        "error",
+                    )
+                ],
+            )
+        )
+
+    waiting = [entry for entry in ecosystems if entry.get("missing")]
+    for entry in waiting:
+        tone = "pending" if present else "error"
+        blocked = blocked or not present
+        rows.append(
+            Row(
+                [
+                    f"{name(entry)} packages",
+                    Cell(" ".join(entry["missing"]), ui.TONES[tone]),
+                ],
+                tone,
+            )
+        )
+    if not waiting:
+        required = {
+            package for entry in ecosystems for package in entry["packages"]
+        }
+        rows.append(
+            Row(
+                [
+                    "Native packages",
+                    Cell(
+                        f"all {plural(len(required), 'package')} installed"
+                        if required
+                        else "none needed",
+                        ui.MUTED,
+                    ),
+                ],
+                "ok",
+            )
+        )
+
+    command = preflight.get("command") or []
+    if command and present:
+        runs = Note(shlex.join(command), ui.ACCENT, label="runs")
+        if preflight.get("privileged"):
+            rows.append(
+                Row(
+                    ["Privilege", "apply asks once for administrator rights"],
+                    "warn",
+                    [runs],
+                )
+            )
+        else:
+            rows.append(
+                Row(["Privilege", Cell("not needed", ui.MUTED)], "ok", [runs])
+            )
+
+    if "sdk" in preflight:
+        if preflight["sdk"] == "present":
+            rows.append(Row(["Apple SDK", Cell("present", ui.MUTED)], "ok"))
+        else:
+            blocked = True
+            rows.append(
+                Row(
+                    ["Apple SDK", _state("missing", "error")],
+                    "error",
+                    [
+                        Note(
+                            "install the Apple developer tools and accept "
+                            "their license",
+                            ui.ACCENT,
+                            label="fix",
+                        )
+                    ],
+                )
+            )
+
+    for entry in ecosystems:
+        manager = managers.get(entry["language"]) or "its manager"
+        for version in entry.get("unbuildable", []):
+            blocked = True
+            rows.append(
+                Row(
+                    [
+                        f"{name(entry)} {version}",
+                        Cell(f"{manager} cannot build it", ui.TONES["error"]),
+                    ],
+                    "error",
+                    [
+                        Note(
+                            f"upgrade {manager}, then plan again",
+                            ui.ACCENT,
+                            label="fix",
+                        )
+                    ],
+                )
+            )
+    return rows, blocked
 
 
 def _runtime_hint(action, health, counts):

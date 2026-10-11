@@ -6,6 +6,7 @@ DEV_BOOTSTRAP_TEST_UPDATE_GOLDEN=1 and review the diff.
 """
 
 import contextlib
+import copy
 import io
 import os
 import re
@@ -40,6 +41,7 @@ def catalog(*selected):
         entry = {
             "language": name,
             "title": adapter.title,
+            "manager": adapter.manager_name,
             "selected": name in selected,
         }
         if adapter.component_titles:
@@ -114,6 +116,60 @@ CASES = {
                     "path": f"{HOME}/.ghcup/bin/ghcup",
                 },
             ]
+        },
+    },
+    "preflight": {
+        "action": "plan",
+        "platform": "x86_64-linux",
+        "backend": "native",
+        "catalog": catalog("node", "python"),
+        "selection": {"source": "default"},
+        "runtimes": [
+            runtime(
+                "node",
+                "24.21.0",
+                "present",
+                f"{HOME}/.local/share/fnm/node-versions/v24.21.0"
+                "/installation/bin/node",
+                "fnm",
+            ),
+            runtime(
+                "python",
+                "3.14.9",
+                "missing",
+                f"{HOME}/.pyenv/versions/3.14.9/bin/python",
+                "pyenv",
+            ),
+        ],
+        "setup": {"nativeManagers": []},
+        "preflight": {
+            "packageManager": {"path": "/usr/bin/pacman", "state": "present"},
+            "missing": ["sqlite", "tk"],
+            "privileged": True,
+            "command": [
+                "sudo",
+                "/usr/bin/pacman",
+                "-S",
+                "--needed",
+                "--noconfirm",
+                "sqlite",
+                "tk",
+            ],
+            "ecosystems": [
+                {
+                    "language": "node",
+                    "manager": "present",
+                    "packages": [],
+                    "missing": [],
+                },
+                {
+                    "language": "python",
+                    "manager": "present",
+                    "packages": ["sqlite", "tk", "xz"],
+                    "missing": ["sqlite", "tk"],
+                    "unbuildable": ["3.14.9"],
+                },
+            ],
         },
     },
     "verify": {
@@ -337,6 +393,29 @@ class GuaranteeTests(unittest.TestCase):
         self.assertEqual(
             sum("the declared default" in line for line in lines), 1
         )
+
+    def test_a_preflight_that_stops_apply_says_so(self):
+        result = copy.deepcopy(CASES["preflight"])
+        preflight = result["preflight"]
+        preflight["packageManager"]["state"] = "missing"
+        preflight["command"] = []
+        preflight["ecosystems"][1].pop("unbuildable")
+        text = "\n".join(render(result, ui.Style(False)))
+        self.assertIn("Package manager  missing", text)
+        self.assertIn("apply cannot install native packages", text)
+        self.assertNotIn("runs:", text)
+        self.assertTrue(
+            text.endswith("; resolve the preflight before apply."), text
+        )
+        # Nothing missing and nothing stopping: the usual next step.
+        result = copy.deepcopy(CASES["preflight"])
+        result["preflight"].update(missing=[], command=[], privileged=False)
+        for entry in result["preflight"]["ecosystems"]:
+            entry.update(missing=[])
+            entry.pop("unbuildable", None)
+        text = "\n".join(render(result, ui.Style(False)))
+        self.assertIn("Native packages  all 3 packages installed", text)
+        self.assertTrue(text.endswith("; apply installs 1 runtime."), text)
 
     def test_rows_are_named_by_the_catalog_titles(self):
         lines = lines_of("plan", ui.Style(False))

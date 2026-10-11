@@ -1,0 +1,29 @@
+\e[34m╭──────────────────────────────────────╮\e[0m
+\e[34m│\e[0m \e[1;7;36m DEV-BOOTSTRAP \e[0m  \e[1mRuntime plan\e[0m        \e[34m│\e[0m
+\e[34m│\e[0m                  \e[38;5;245m2 runtimes in 2 ec…\e[0m \e[34m│\e[0m
+\e[34m╰──────────────────────────────────────╯\e[0m
+
+  \e[1;34mRuntimes\e[0m \e[2;34m───────────────────────────\e[0m
+      \e[38;5;245mRUNTIME  VERSION  STATE\e[0m
+    \e[1;32m●\e[0m Node     24.21.0  \e[38;5;245mpresent\e[0m
+    \e[1;33m▲\e[0m Python   3.14.9   \e[33mmissing\e[0m
+
+  \e[1;34mPreflight\e[0m \e[2;34m───────────────────\e[0m \e[38;5;245mpacman\e[0m
+      \e[38;5;245mCHECK\e[0m
+    \e[1;32m●\e[0m Package manager
+      \e[38;5;245m/usr/bin/pacman\e[0m
+    \e[1;33m▲\e[0m Python packages
+      \e[33msqlite tk\e[0m
+    \e[1;33m◆\e[0m Privilege
+      apply asks once for
+      administrator rights
+      \e[38;5;245mruns  \e[0m\e[36msudo /usr/bin/pacman -S\e[0m
+            \e[36m--needed --noconfirm\e[0m
+            \e[36msqlite tk\e[0m
+    \e[1;31m✖\e[0m Python 3.14.9
+      \e[31mpyenv cannot build it\e[0m
+      \e[38;5;245mfix  \e[0m\e[36mupgrade pyenv, then plan\e[0m
+           \e[36magain\e[0m
+
+  \e[2;34m────────────────────────────────────\e[0m
+  \e[1;32m●\e[0m 1 present   \e[1;33m▲\e[0m 1 missing

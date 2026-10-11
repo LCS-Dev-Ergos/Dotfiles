@@ -146,19 +146,20 @@ class PythonAdapter(Adapter):
                 *self.context.arguments("pythonDefinitions"),
             ],
             env={"PYENV_ROOT": str(self.root)},
-            cwd=str(self.context.state),
+            cwd=self.context.query_directory,
         )
         return {line.strip() for line in output.splitlines()}
+
+    def unbuildable(self, missing):
+        available = self.definitions()
+        return sorted(
+            {row["version"] for row in missing} - available,
+        )
 
     def preflight(self, missing):
         # python-build skips its embedded checksums without a SHA256 utility.
         process.checksum_support()
-        available = self.definitions()
-        unknown = sorted(
-            row["version"]
-            for row in missing
-            if row["version"] not in available
-        )
+        unknown = self.unbuildable(missing)
         if unknown:
             raise BootstrapError(
                 "Native pyenv has no definition for Python "

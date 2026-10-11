@@ -249,6 +249,14 @@ class Adapter:
     def preflight(self, missing):
         """Fail before any installation when a missing runtime cannot be built."""
 
+    def unbuildable(self, missing):
+        """The missing rows' releases the manager does not know how to build.
+
+        Read-only, for plan --preflight. Nothing by default: only a manager
+        with a fixed list of buildable releases (python-build) can tell.
+        """
+        return []
+
     def install(self, row):
         raise NotImplementedError
 

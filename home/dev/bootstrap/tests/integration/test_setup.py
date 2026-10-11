@@ -731,6 +731,87 @@ class SetupTests(unittest.TestCase):
                     before, sorted(str(p) for p in self.root.rglob("*"))
                 )
 
+    def test_preflight_is_read_only_and_names_what_apply_needs(self):
+        self.data["setup"].update(
+            query=["-Qq"],
+            missingQuery=["-T"],
+            install=["-S", "--needed", "--noconfirm"],
+            privilege=[str(self.bin / "sudo"), "-n"],
+        )
+        # pyenv is present but its python-build predates the declared release.
+        self.executable(self.bin / "pyenv")
+        self.definitions = ["3.13.5"]
+        self.installed = {"fnm"}
+        before = sorted(str(p) for p in self.root.rglob("*"))
+        preflight = self.setup.preflight()
+        self.assertEqual(before, sorted(str(p) for p in self.root.rglob("*")))
+        self.assertEqual(self.mutations(), [])
+        self.assertFalse(
+            any(Path(event[0]).name == "sudo" for event in self.events)
+        )
+        # The query and python-build's list run from a directory that exists.
+        self.assertEqual(preflight["packageManager"]["state"], "present")
+        self.assertEqual(preflight["missing"], ["opam", "sqlite"])
+        self.assertTrue(preflight["privileged"])
+        self.assertEqual(
+            preflight["command"],
+            [
+                "sudo",
+                str(self.bin / "brew"),
+                "-S",
+                "--needed",
+                "--noconfirm",
+                "opam",
+                "sqlite",
+            ],
+        )
+        ecosystems = {row["language"]: row for row in preflight["ecosystems"]}
+        self.assertEqual(ecosystems["node"]["manager"], "missing")
+        self.assertEqual(ecosystems["node"]["missing"], [])
+        self.assertEqual(ecosystems["python"]["manager"], "present")
+        self.assertEqual(ecosystems["python"]["packages"], ["sqlite"])
+        self.assertEqual(
+            ecosystems["python"]["unbuildable"],
+            [self.data["python"]["version"]],
+        )
+        self.assertNotIn("sdk", preflight)
+
+    def test_preflight_without_a_foundation_or_sdk(self):
+        self.failure = lambda args: Path(args[0]).name == "xcrun"
+        with patch.dict(
+            self.setup.recipe,
+            {
+                "packageManager": str(self.bin / "absent-brew"),
+                "sdkProbe": [str(self.bin / "xcrun")],
+            },
+        ):
+            preflight = self.setup.preflight()
+        self.assertEqual(preflight["packageManager"]["state"], "missing")
+        self.assertEqual(
+            preflight["missing"], ["fnm", "opam", "pyenv", "sqlite"]
+        )
+        self.assertEqual(preflight["command"], [])
+        self.assertEqual(preflight["sdk"], "missing")
+        self.assertEqual(self.mutations(), [])
+
+    def test_preflight_is_a_plan_option_for_the_native_setup(self):
+        code, report = self.cli("plan", "--preflight")
+        self.assertEqual(code, 0)
+        self.assertIn("preflight", report)
+        self.assertEqual(self.mutations(), [])
+        code, report = self.cli("plan")
+        self.assertNotIn("preflight", report)
+        # The parser refuses it outside plan; the run refuses it without
+        # the native setup it inspects.
+        with self.assertRaises(SystemExit) as raised:
+            self.cli_output("apply", "--preflight")
+        self.assertEqual(raised.exception.code, 2)
+        code, _, errors = self.cli_output(
+            "plan", "--preflight", "--runtimes-only"
+        )
+        self.assertEqual(code, 2)
+        self.assertIn("--preflight", errors)
+
     def test_unparseable_opam_selection_is_preserved(self):
         self.setup.apply()
         config = self.opam / "config"
