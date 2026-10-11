@@ -42,6 +42,7 @@ flowchart TD
     CLI -->|plan| Inspect["Read filesystem state"]
     CLI -->|verify / verify --health| Verify["Direct runtime checks and canaries"]
     CLI -->|prune / prune --yes| Prune["Retired releases: move selections and dependents, then remove"]
+    CLI -->|report| Runs["Kept runs: logs, events and reports"]
     CLI -->|apply| Guard["Owning user, directory checks, exclusive lock"]
     Guard --> Setup["setup: prerequisites and readiness"]
     Setup --> Adapters["One adapter per ecosystem (core/adapters)"]
@@ -57,7 +58,8 @@ flowchart TD
 | `bootstrap.py`, `core/cli.py` | Stable executable entry, argument parsing, reporting and process exit status. |
 | `core/render.py`, `core/ui.py` | The text report: how each state reads, drawn in the style every shell tool shares (`ui.py` mirrors the tokens of the Zsh style module). |
 | `core/manifest.py` | Validate the generated manifest; each toolchain adapter validates its own declaration. |
-| `core/process.py`, `paths.py`, `errors.py` | The single process boundary with scoped child environments; writable roots and owned directories; operational errors. |
+| `core/process.py`, `paths.py`, `errors.py` | The single process boundary with scoped child environments, copying output into the run's logs; writable roots and owned directories; operational errors. |
+| `core/runs.py` | The record of each `apply` and `prune --yes`: logs, progress events and the report, the last ten kept; what `report` lists and shows again. |
 | `core/engine.py` | Resolve the selection from the adapters' metadata, report the catalog, inspect and verify runtimes, serialize mutation and dispatch installation. |
 | `core/setup.py` | Run the setup stages over the selected adapters: prerequisites, readiness, defaults, hooks, selection reports and shell qualification. |
 | `core/adapters/base.py` | The adapter contract and the behavior every ecosystem shares: planning, manager resolution, verification and selection reports. |
@@ -154,6 +156,24 @@ a summary with the next step. `NO_COLOR`, a pipe or a dumb terminal select plain
 which is never colored or truncated. `--format json` (or `--json`) prints the
 versioned report programs read; the text layout is not an interface.
 
+Each `apply` and `prune --yes` that takes the lock keeps a record in
+`$XDG_STATE_HOME/dev-bootstrap/runs/<UTC timestamp>/`: one log per ecosystem,
+and per stage for work outside one (`prerequisites.log` holds the native
+package installation), with the complete output of every child as it is
+written; `events.jsonl`, the run's progress; and `report.json`, the report as
+printed. A run that fails or is interrupted keeps its report too, with the
+error, the stage and the log that explains it, which stderr names; the
+runtime rows then show what the run left installed. The last ten runs are
+kept, each file readable only by its owner. `report` lists them, `report
+--last` shows the newest again and `report --run ID` a given one, as text or
+JSON. `--events PATH` streams the same progress events while the run goes,
+for a frontend that reads a file or a FIFO.
+
+```sh
+bash scripts/bootstrap/dev-bootstrap.sh apply --events /tmp/progress.jsonl
+bash scripts/bootstrap/dev-bootstrap.sh report --last
+```
+
 `prune` lists the installed releases that the baseline's `retired` mirror
 names, with what removing each takes; `prune --yes` removes them under the
 apply lock and exits 1 unless every one went. The selection options apply as
@@ -192,7 +212,7 @@ process-global PATH changes. An intentional SDK override belongs in the
 declaration; inherited `SDKROOT` and `DEVELOPER_DIR` are not build inputs.
 
 Mutable roots, caches and locks remain outside the repository and store.
-Bootstrap's own state (`apply.lock`, `installing.json`) lives in
+Bootstrap's own state (`apply.lock`, `installing.json`, `runs/`) lives in
 `$XDG_STATE_HOME/dev-bootstrap` and its cache in `$XDG_CACHE_HOME/dev-bootstrap`.
 Releases before the rename used `devrestore` for both: `plan` and `verify`
 read such a directory in place, and the first `apply` renames it once, so a

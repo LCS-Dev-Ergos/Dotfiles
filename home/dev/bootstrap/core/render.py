@@ -20,6 +20,20 @@ TITLES = {
     "health": "Health check",
     "prune": "Prune plan",
     "prune --yes": "Prune result",
+    "report": "Run history",
+}
+# How a run that stopped before its report reads, by command and outcome.
+STOPPED = {
+    ("apply", "failed"): "Apply failed",
+    ("apply", "interrupted"): "Apply interrupted",
+    ("prune --yes", "failed"): "Prune failed",
+    ("prune --yes", "interrupted"): "Prune interrupted",
+}
+RUN_TONES = {
+    "ok": "ok",
+    "failed": "error",
+    "interrupted": "warn",
+    "incomplete": "muted",
 }
 SELECTIONS = {
     "all": "all ecosystems",
@@ -73,13 +87,34 @@ MANAGER_COLUMNS = [
     Column("State", priority=60, fold=NOT_HEALTHY),
     Column("Location", priority=30, shrink=20, fold=FAILING),
 ]
+# A run is named as --run takes it; its length is the first thing to go.
+RUN_COLUMNS = [
+    Column("Run", limit=20),
+    Column("Command", priority=50),
+    Column("State", priority=60, fold=NOT_HEALTHY),
+    Column("Duration", priority=40),
+]
 
 
 def render(result, style, *, applied=False):
     """The report's lines, for a styled terminal or for plain output."""
+    if result["action"] == "report":
+        return _history(result, style)
     if result["action"] == "prune":
         return _prune(result, style, applied)
     return _runtimes(result, style)
+
+
+def duration(seconds):
+    """A run's length as a person reads it: 42 s, 7 min 6 s, 1 h 3 min."""
+    seconds = round(seconds or 0)
+    if seconds < 60:
+        return f"{seconds} s"
+    minutes, seconds = divmod(seconds, 60)
+    if minutes < 60:
+        return f"{minutes} min {seconds} s" if seconds else f"{minutes} min"
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours} h {minutes} min" if minutes else f"{hours} h"
 
 
 def plural(count, noun):
@@ -157,9 +192,9 @@ def _runtime_tone(state, action):
         return "ok"
     if state == "external":
         return "muted"
-    if action == "plan" and state == "present":
+    if action in ("plan", "stopped") and state == "present":
         return "ok"
-    if action == "plan" and state == "missing":
+    if action in ("plan", "stopped") and state == "missing":
         return "pending"
     return "error"
 
@@ -189,8 +224,12 @@ def _runtime_row(row, tone, name, version=None):
 
 
 def _runtimes(result, style):
-    action = result["action"]
+    run = result.get("run", {})
     health = result.get("verification") == "health"
+    title = TITLES["health" if health else result["action"]]
+    # A run that stopped kept the plan of what it left: its rows read as a
+    # plan's, and the title, the run and the hint say that it stopped.
+    action = "stopped" if run.get("error") else result["action"]
     runtimes = result.get("runtimes", [])
     name = _namer(result)
     ecosystems = len({row["language"] for row in runtimes})
@@ -198,7 +237,7 @@ def _runtimes(result, style):
     lines = _header(
         result,
         style,
-        TITLES["health" if health else action],
+        _title(run, title),
         f"{plural(len(runtimes), noun)} in {plural(ecosystems, 'ecosystem')}",
     )
     lines += ui.section(style, "Global selections" if health else "Runtimes")
@@ -213,7 +252,7 @@ def _runtimes(result, style):
         rows.append(_runtime_row(row, tone, name))
         # The cost belongs to the ecosystem: it reads once, under the first
         # runtime apply would install.
-        if tone == "pending" and row["language"] in costs:
+        if action == "plan" and tone == "pending" and row["language"] in costs:
             cost = costs.pop(row["language"])
             rows[-1].notes.append(Note(_cost(cost), label="cost"))
     lines += ui.table(style, RUNTIME_COLUMNS, rows)
@@ -270,6 +309,7 @@ def _runtimes(result, style):
         if blocked:
             hint = "resolve the preflight before apply"
 
+    lines += _run(run, style)
     counts = dict.fromkeys(RUNTIME_STATES, 0)
     for row in runtimes:
         counts[row["state"]] = counts.get(row["state"], 0) + 1
@@ -280,9 +320,39 @@ def _runtimes(result, style):
             (_runtime_tone(state, action), count, state)
             for state, count in counts.items()
         ],
-        hint or _runtime_hint(action, health, counts),
+        _stopped_hint(run) or hint or _runtime_hint(action, health, counts),
+        RUN_TONES[run["outcome"]] if run.get("error") else "ok",
     )
     return lines
+
+
+def _title(run, title):
+    """A report's title, or how its run stopped before it could finish."""
+    if run.get("error"):
+        return STOPPED.get((run["command"], run["outcome"]), title)
+    return title
+
+
+def _stopped_hint(run):
+    if not run.get("error"):
+        return ""
+    if run["outcome"] == "interrupted":
+        return f"{run['command']} again to finish"
+    return f"{run['command']} again after resolving it"
+
+
+def _run(run, style):
+    """Where a recorded run keeps its logs and, when it stopped, why."""
+    if not run:
+        return []
+    fields = []
+    error = run.get("error")
+    if error:
+        fields.append(("error", Cell(error["message"], ui.TONES["error"])))
+        if error.get("log"):
+            fields.append(("log", Cell(error["log"], ui.MUTED, path=True)))
+    fields.append(("logs", Cell(run["path"], ui.MUTED, path=True)))
+    return [""] + ui.card(style, "Run", fields, duration(run.get("duration")))
 
 
 def _preflight(result, name):
@@ -439,17 +509,24 @@ def _runtime_hint(action, health, counts):
 
 def _prune(result, style, applied):
     retired = result.get("retired", [])
+    run = result.get("run", {})
     lines = _header(
         result,
         style,
-        TITLES["prune --yes" if applied else "prune"],
+        _title(run, TITLES["prune --yes" if applied else "prune"]),
         f"{plural(len(retired), 'retired release')} installed",
     )
+    if run.get("error"):
+        # It stopped before it could list what it removed.
+        lines += _run(run, style)[1:] + [""]
+        return lines + ui.summary(
+            style, [], _stopped_hint(run), RUN_TONES[run["outcome"]]
+        )
     if not retired:
         message = "No retired release is installed."
         if style.styled:
             message = f"{' ' * ui.GUTTER}{style.marker('ok')} {message}"
-        return lines + [message]
+        return lines + [message] + _run(run, style)
 
     rows = []
     name = _namer(result)
@@ -478,6 +555,7 @@ def _prune(result, style, applied):
     lines += ui.section(style, "Retired releases")
     lines += ui.table(style, RETIRED_COLUMNS, rows)
 
+    lines += _run(run, style)
     counts = dict.fromkeys(RETIRED_STATES, 0)
     for row in retired:
         counts[row["state"]] = counts.get(row["state"], 0) + 1
@@ -492,3 +570,58 @@ def _prune(result, style, applied):
         f"prune --yes removes {plural(pending, 'release')}" if pending else "",
     )
     return lines
+
+
+def _history(result, style):
+    """`report`: the kept runs, newest first."""
+    runs = result.get("runs", [])
+    lines = ui.header(
+        style,
+        "dev-bootstrap",
+        TITLES["report"],
+        f"{plural(len(runs), 'run')} kept",
+        "",
+        "the last ten",
+    ) + [""]
+    if not runs:
+        message = "No run is recorded yet; apply records one."
+        if style.styled:
+            message = f"{' ' * ui.GUTTER}{style.marker('muted')} {message}"
+        return lines + [message]
+    rows = []
+    for run in runs:
+        tone = RUN_TONES.get(run["state"], "muted")
+        rows.append(
+            Row(
+                [
+                    run["id"],
+                    Cell(run.get("command", "—"), ui.MUTED),
+                    _state(run["state"], tone),
+                    Cell(
+                        duration(run["duration"])
+                        if "duration" in run
+                        else "—",
+                        ui.MUTED,
+                    ),
+                ],
+                tone,
+            )
+        )
+    # Every run lives in the same directory, so it is said once.
+    directory = result.get("directory", "")
+    if style.styled:
+        directory = ui.short_path(directory, style)
+    lines += ui.section(style, "Runs", directory)
+    lines += ui.table(style, RUN_COLUMNS, rows)
+    counts = {}
+    for run in runs:
+        counts[run["state"]] = counts.get(run["state"], 0) + 1
+    lines.append("")
+    return lines + ui.summary(
+        style,
+        [
+            (RUN_TONES[state], counts.get(state, 0), state)
+            for state in RUN_TONES
+        ],
+        "report --last shows the newest again",
+    )

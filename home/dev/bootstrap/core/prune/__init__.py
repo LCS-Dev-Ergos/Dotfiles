@@ -62,8 +62,16 @@ class Prune:
             for retirement in retirements:
                 if retirement.state != "retire":
                     continue
+                language = retirement.retirer.adapter.language
+                release = {"language": language, "version": retirement.release}
+                if retirement.component:
+                    release["component"] = retirement.component
                 try:
-                    retirement.retirer.execute(retirement)
+                    with (
+                        self.context.step("removal", **release),
+                        self.context.log(language),
+                    ):
+                        retirement.retirer.execute(retirement)
                 except (BootstrapError, OSError) as error:
                     retirement.state = "failed"
                     retirement.reason = str(error)

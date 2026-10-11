@@ -1,8 +1,10 @@
 """The process boundary ends a child's whole process group with the call."""
 
 import os
+import shutil
 import signal
 import tempfile
+import threading
 import time
 import unittest
 from pathlib import Path
@@ -78,6 +80,61 @@ class ProcessGroupTests(unittest.TestCase):
             self.assertRaisesRegex(BootstrapError, "timed out"),
         ):
             process.run(self.worker(seconds=2), timeout=0.5)
+
+
+class RecordedOutputTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix="bootstrap-log-")
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.log = self.root / "python.log"
+
+    def test_a_recorded_child_keeps_its_complete_output(self):
+        script = "echo out; echo err >&2; exit 3"
+        with (
+            process.recorded(self.log),
+            self.assertRaisesRegex(BootstrapError, "exited 3: err"),
+        ):
+            process.run(["/bin/sh", "-c", script])
+        text = self.log.read_text()
+        self.assertTrue(text.startswith(f"$ /bin/sh -c '{script}'\n"))
+        self.assertIn("out\n", text)
+        self.assertIn("err\n", text)
+        self.assertIn("[exit 3 after ", text)
+        self.assertEqual(self.log.stat().st_mode & 0o777, 0o600)
+
+    def test_output_reaches_the_log_while_the_child_runs(self):
+        # The child waits until the log shows its first line.
+        flag = self.root / "seen"
+        script = (
+            f'echo first; while [ ! -e "{flag}" ]; do sleep 0.05; done; '
+            "echo second"
+        )
+
+        def watch():
+            deadline = time.monotonic() + 10
+            while time.monotonic() < deadline:
+                if self.log.exists() and "first" in self.log.read_text():
+                    flag.touch()
+                    return
+                time.sleep(0.05)
+
+        watcher = threading.Thread(target=watch)
+        watcher.start()
+        with process.recorded(self.log):
+            output = process.run(["/bin/sh", "-c", script], timeout=20)
+        watcher.join()
+        self.assertEqual(output, "first\nsecond")
+
+    def test_a_block_without_children_leaves_no_log(self):
+        with process.recorded(self.log):
+            pass
+        self.assertFalse(self.log.exists())
+
+    def test_output_is_read_as_utf8_with_unified_newlines(self):
+        printf = shutil.which("printf")
+        output = process.run([printf, "\\377ok\\r\\nnext"])
+        self.assertEqual(output, "\ufffdok\nnext")
 
 
 class TerminationTests(unittest.TestCase):

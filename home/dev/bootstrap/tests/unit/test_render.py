@@ -21,6 +21,7 @@ from core.render import render
 GOLDEN = Path(__file__).resolve().parent / "golden"
 HOME = "/home/user"
 STORE = "/nix/store/0123456789abcdefghijklmnopqrstuv-python3-3.14.8"
+RUNS = f"{HOME}/.local/state/dev-bootstrap/runs"
 
 
 def runtime(language, version, state, path, owner, **extra):
@@ -259,6 +260,16 @@ CASES = {
                 reason="The selected interpreter lies in the Nix store",
             ),
         ],
+        "run": {
+            "id": "20261011T101500Z",
+            "command": "apply",
+            "path": RUNS + "/20261011T101500Z",
+            "started": "2026-10-11T10:15:00Z",
+            "duration": 426.2,
+            "exit": 0,
+            "outcome": "ok",
+            "logs": {"python": RUNS + "/20261011T101500Z/python.log"},
+        },
     },
     "prune": {
         "action": "prune",
@@ -296,6 +307,77 @@ CASES = {
             },
         ],
     },
+}
+CASES["stopped"] = {
+    "action": "apply",
+    "platform": "x86_64-linux",
+    "backend": "native",
+    "catalog": catalog("node", "python"),
+    "selection": {"source": "file", "path": f"{HOME}/.config/sel.json"},
+    "runtimes": [
+        runtime(
+            "node",
+            "24.21.0",
+            "present",
+            f"{HOME}/.local/share/fnm/node-versions/v24.21.0"
+            "/installation/bin/node",
+            "fnm",
+        ),
+        runtime(
+            "python",
+            "3.14.9",
+            "missing",
+            f"{HOME}/.pyenv/versions/3.14.9/bin/python",
+            "pyenv",
+        ),
+    ],
+    "run": {
+        "id": "20261011T101500Z",
+        "command": "apply",
+        "path": RUNS + "/20261011T101500Z",
+        "started": "2026-10-11T10:15:00Z",
+        "duration": 83.4,
+        "exit": 2,
+        "outcome": "failed",
+        "logs": {"python": RUNS + "/20261011T101500Z/python.log"},
+        "error": {
+            "stage": "runtimes",
+            "message": "runtimes: pyenv exited 1: BUILD FAILED (Arch Linux "
+            "using python-build 2.8.8). Retry apply after resolving this "
+            "stage; plan reports any incomplete installation.",
+            "log": RUNS + "/20261011T101500Z/python.log",
+        },
+    },
+}
+CASES["history"] = {
+    "schema": 1,
+    "action": "report",
+    "directory": RUNS,
+    "runs": [
+        {
+            "id": "20261011T101500Z",
+            "path": RUNS + "/20261011T101500Z",
+            "state": "failed",
+            "command": "apply",
+            "started": "2026-10-11T10:15:00Z",
+            "duration": 83.4,
+            "exit": 2,
+        },
+        {
+            "id": "20261010T090000Z",
+            "path": RUNS + "/20261010T090000Z",
+            "state": "ok",
+            "command": "prune --yes",
+            "started": "2026-10-10T09:00:00Z",
+            "duration": 12.0,
+            "exit": 0,
+        },
+        {
+            "id": "20261009T080000Z",
+            "path": RUNS + "/20261009T080000Z",
+            "state": "incomplete",
+        },
+    ],
 }
 WIDTHS = (40, 65, 80)
 

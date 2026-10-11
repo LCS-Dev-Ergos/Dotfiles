@@ -1,15 +1,22 @@
 """The single process boundary: literal argv, scoped child environments."""
 
 import os
+import selectors
+import shlex
 import shutil
 import signal
 import subprocess
+import time
+from contextlib import contextmanager
 
 from .errors import BootstrapError
 
 # Seconds an interrupted child's process group gets to clean up after SIGTERM
 # (python-build and ruby-build remove their partial prefix) before SIGKILL.
 GRACE = 30
+
+# The log a recorded run copies every child's output into, or None.
+_log = None
 
 # Source builds inherit account/temporary paths and network transport settings.
 # Compiler, SDK and package-discovery inputs must come from the declaration.
@@ -118,6 +125,45 @@ def run(
     return result.stdout.strip()
 
 
+class Log:
+    """A run's log file, created by the first child that writes to it.
+
+    A stage that runs no child leaves no empty file behind.
+    """
+
+    def __init__(self, path):
+        self.path = path
+        self.file = None
+
+    def write(self, data):
+        if self.file is None:
+            descriptor = os.open(
+                self.path,
+                os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW,
+                0o600,
+            )
+            self.file = open(descriptor, "ab", buffering=0)
+        self.file.write(data)
+
+    def close(self):
+        if self.file is not None:
+            self.file.close()
+            self.file = None
+
+
+@contextmanager
+def recorded(path):
+    """Copy the output of every child the block runs into the log at path."""
+    global _log
+    previous, log = _log, Log(path)
+    _log = log
+    try:
+        yield log
+    finally:
+        _log = previous
+        log.close()
+
+
 def complete(args, *, env, timeout, cwd):
     """Run a child in its own process group, which ends with the call.
 
@@ -125,23 +171,71 @@ def complete(args, *, env, timeout, cwd):
     times out or bootstrap is interrupted, we end the whole group, so nothing
     keeps writing into a prefix after the lock is released. A terminal's
     Ctrl-C reaches only bootstrap, which then stops the group the same way.
+    While a run is recorded, the child's output reaches its log as it is
+    written, so a long build can be followed and an interrupted one keeps
+    what it printed.
     """
+    log = _log
+    if log:
+        log.write(f"$ {shlex.join(map(str, args))}\n".encode())
+    started = time.monotonic()
     with subprocess.Popen(
         args,
         env=env,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        text=True,
         cwd=cwd,
         start_new_session=True,
     ) as child:
         try:
-            stdout, stderr = child.communicate(timeout=timeout)
+            stdout, stderr = collect(child, timeout, log)
         except BaseException:
             stop(child)
+            if log:
+                log.write(b"[stopped]\n\n")
             raise
-    return subprocess.CompletedProcess(args, child.returncode, stdout, stderr)
+    if log:
+        elapsed = time.monotonic() - started
+        log.write(
+            f"[exit {child.returncode} after {elapsed:.1f} s]\n\n".encode()
+        )
+    return subprocess.CompletedProcess(
+        args, child.returncode, decode(stdout), decode(stderr)
+    )
+
+
+def collect(child, timeout, log):
+    """Read both pipes until they close, copying each chunk to the log."""
+    deadline = time.monotonic() + timeout
+    chunks = {child.stdout: [], child.stderr: []}
+    with selectors.DefaultSelector() as selector:
+        for pipe in chunks:
+            selector.register(pipe, selectors.EVENT_READ)
+        while selector.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(child.args, timeout)
+            for key, _ in selector.select(remaining):
+                data = os.read(key.fd, 65536)
+                if not data:
+                    selector.unregister(key.fileobj)
+                    continue
+                chunks[key.fileobj].append(data)
+                if log:
+                    log.write(data)
+    # A child may close its output and keep running.
+    try:
+        child.wait(timeout=max(deadline - time.monotonic(), 0))
+    except subprocess.TimeoutExpired:
+        raise subprocess.TimeoutExpired(child.args, timeout) from None
+    return b"".join(chunks[child.stdout]), b"".join(chunks[child.stderr])
+
+
+def decode(data):
+    """Text as the callers read it: invalid bytes replaced, newlines unified."""
+    text = data.decode("utf-8", errors="replace")
+    return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
 def stop(child):

@@ -15,6 +15,7 @@ from .errors import BootstrapError, Interrupted
 from .manifest import load_manifest
 from .prune import Prune
 from .render import render
+from .runs import Recorder, recorded_runs, runs_directory, stored_report
 from .selection import load_selection, save_selection, selection_path
 from .setup import BootstrapSetup
 from .ui import Style
@@ -34,7 +35,7 @@ def command_line():
         "action",
         nargs="?",
         default="plan",
-        choices=("plan", "apply", "verify", "prune"),
+        choices=("plan", "apply", "verify", "prune", "report"),
     )
     chosen = parser.add_mutually_exclusive_group()
     chosen.add_argument(
@@ -101,6 +102,24 @@ def command_line():
         action="store_true",
         help="Remove the retired releases prune lists, instead of listing them",
     )
+    parser.add_argument(
+        "--events",
+        type=Path,
+        metavar="PATH",
+        help="Write the progress of apply or prune --yes to PATH as JSON "
+        "Lines",
+    )
+    shown = parser.add_mutually_exclusive_group()
+    shown.add_argument(
+        "--last",
+        action="store_true",
+        help="Show the newest recorded run's report again",
+    )
+    shown.add_argument(
+        "--run",
+        metavar="ID",
+        help="Show that recorded run's report again",
+    )
     return parser
 
 
@@ -115,6 +134,14 @@ def main():
         parser.error("--yes requires prune")
     if args.save_selection and not (args.only or args.all):
         parser.error("--save-selection requires --only or --all")
+    if args.events and not (args.action == "apply" or args.yes):
+        parser.error("--events requires apply or prune --yes")
+    if (args.last or args.run) and args.action != "report":
+        parser.error("--last and --run require report")
+    if args.action == "report" and (
+        args.only or args.all or args.accept or args.runtimes_only
+    ):
+        parser.error("report shows recorded runs; it selects nothing")
     os.umask(0o077)
     # The setup in use, so an interruption can name its stage.
     setups = []
@@ -161,11 +188,24 @@ def termination():
 
 
 def run(args, setups):
-    """Execute the parsed command; expected failures exit 2."""
+    """Execute the parsed command; expected failures exit 2.
+
+    apply and prune --yes keep a record of the run (core.runs), also when
+    they fail or are interrupted.
+    """
+    context = recorder = None
+    origin = {}
     try:
+        if args.action == "report":
+            return show_runs(args)
         manifest = load_manifest(args.manifest)
         only, origin = choose(args, manifest)
         context = Bootstrap(manifest, only, accepted=args.accept)
+        if args.action == "apply" or args.yes:
+            recorder = Recorder(
+                "prune --yes" if args.yes else args.action, events=args.events
+            )
+            context.recorder = recorder
         if origin["source"] == "file" and args.format == "text":
             print(
                 f"dev-bootstrap: selection saved in {origin['path']}; "
@@ -181,14 +221,17 @@ def run(args, setups):
         if args.action == "prune":
             result = prune(context, args)
             result["selection"] = origin
-            report(result, args.format, applied=args.yes)
             # Listing never fails; removal fails unless every release went.
-            return (
+            code = (
                 0
                 if not args.yes
                 or all(row["state"] == "removed" for row in result["retired"])
                 else 1
             )
+            if recorder:
+                recorder.finish(result, code)
+            report(result, args.format, applied=args.yes)
+            return code
         setup = None
         if (
             not args.runtimes_only
@@ -204,8 +247,7 @@ def run(args, setups):
             )
         result = execute(context, setup, args)
         result["selection"] = origin
-        report(result, args.format)
-        return (
+        code = (
             0
             if args.action == "plan"
             # External selections belong to the host, not to a native manager.
@@ -215,6 +257,10 @@ def run(args, setups):
             )
             else 1
         )
+        if recorder:
+            recorder.finish(result, code)
+        report(result, args.format)
+        return code
     except (
         BootstrapError,
         OSError,
@@ -222,7 +268,78 @@ def run(args, setups):
         tarfile.TarError,
     ) as error:
         print(f"dev-bootstrap: {error}", file=sys.stderr)
+        if recorder:
+            stopped(recorder, context, args, origin, setups, 2, str(error))
+            if recorder.failed_log:
+                print(
+                    f"dev-bootstrap: the full output is in {recorder.failed_log}",
+                    file=sys.stderr,
+                )
         return 2
+    except (KeyboardInterrupt, Interrupted) as error:
+        if recorder:
+            signum = getattr(error, "signum", signal.SIGINT)
+            stopped(
+                recorder,
+                context,
+                args,
+                origin,
+                setups,
+                128 + signum,
+                f"interrupted by {signal.Signals(signum).name}",
+            )
+        raise
+
+
+def stopped(recorder, context, args, origin, setups, code, message):
+    """Record a run that ended without its report, with what it left.
+
+    The runtimes are planned again, read-only, so the record shows what is
+    installed now; a run that cannot even plan keeps its error alone.
+    """
+    result = {
+        "schema": REPORT_SCHEMA,
+        "action": args.action,
+        "platform": context.data["platform"],
+        "backend": context.backend,
+        "defaults": context.data["defaults"],
+        "catalog": context.catalog(),
+        "selection": origin,
+        "runtimes": [],
+    }
+    try:
+        result["runtimes"] = context.plan()
+        result["observed"] = context.observed_state()
+    except (BootstrapError, OSError, ValueError):
+        pass
+    error = {"message": message}
+    if args.action == "apply" and setups:
+        error["stage"] = setups[0].stage
+    recorder.finish(result, code, error)
+
+
+def show_runs(args):
+    """`report`: list the kept runs, or show one run's report again."""
+    if args.last or args.run:
+        result = stored_report(args.run)
+        if result.get("schema") != REPORT_SCHEMA:
+            raise BootstrapError(
+                f"The run's report has schema {result.get('schema')}; this "
+                f"dev-bootstrap reads schema {REPORT_SCHEMA}"
+            )
+        command = result.get("run", {}).get("command")
+        report(result, args.format, applied=command == "prune --yes")
+        return 0
+    report(
+        {
+            "schema": REPORT_SCHEMA,
+            "action": "report",
+            "directory": str(runs_directory()),
+            "runs": recorded_runs(),
+        },
+        args.format,
+    )
+    return 0
 
 
 def choose(args, manifest):

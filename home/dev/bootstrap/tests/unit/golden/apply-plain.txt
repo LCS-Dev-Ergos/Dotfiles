@@ -10,4 +10,7 @@ RUNTIME  VERSION  MANAGER  STATE     LOCATION
 Python   —        pyenv    conflict  /nix/store/0123456789abcdefghijklmnopqrstuv-python3-3.14.8/bin/python3
   The selected interpreter lies in the Nix store
 
+Run · 7 min 6 s
+logs  /home/user/.local/state/dev-bootstrap/runs/20261011T101500Z
+
 [OK]    1 ok; a new shell picks up the defaults.

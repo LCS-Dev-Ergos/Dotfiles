@@ -5,7 +5,7 @@ import json
 import os
 import shlex
 import stat
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 
 from .adapters import ADAPTERS
@@ -70,6 +70,8 @@ class Bootstrap:
         self.adapters = {
             language: ADAPTERS[language](self) for language in self.only
         }
+        # The record of this apply (core.runs.Recorder), when it keeps one.
+        self.recorder = None
 
     @property
     def cache(self):
@@ -127,6 +129,18 @@ class Bootstrap:
 
     def manager(self, language):
         return self.adapter(language).manager()
+
+    # Run record ----------------------------------------------------------------
+
+    def log(self, name):
+        """Keep the block's child output in the run's log `name`."""
+        return self.recorder.log(name) if self.recorder else nullcontext()
+
+    def step(self, kind, **fields):
+        """Report the block as a progress event pair; see core.runs."""
+        if self.recorder is None:
+            return nullcontext()
+        return self.recorder.step(kind, **fields)
 
     # Installation journal ----------------------------------------------------
 
@@ -226,7 +240,8 @@ class Bootstrap:
                 continue
             adapter = self.adapter(row["language"])
             try:
-                identity = adapter.verify(row, exact=exact)
+                with self.log(row["language"]):
+                    identity = adapter.verify(row, exact=exact)
                 if not exact:
                     row["actualVersion"] = identity
                 row["state"] = "ok"
@@ -276,6 +291,8 @@ class Bootstrap:
                 raise BootstrapError(
                     "Another recovery process is running"
                 ) from error
+            if self.recorder:
+                self.recorder.begin(self.state)
             yield
 
     def apply(self, rows, *, lock_held=False, evolved=False):
@@ -295,7 +312,8 @@ class Bootstrap:
                 self.journal(prefix, started=False)
         for row in rows:
             if row["state"] == "present":
-                self.verify(row, exact=not evolved)
+                with self.log(row["language"]):
+                    self.verify(row, exact=not evolved)
         missing = [row for row in rows if row["state"] == "missing"]
         if not missing:
             return
@@ -304,23 +322,50 @@ class Bootstrap:
                 row for row in missing if row["language"] == adapter.language
             ]
             if selected:
-                adapter.preflight(selected)
+                with self.log(adapter.language):
+                    adapter.preflight(selected)
         # Reinspect after acquiring the lock; ordinary manager invocations
         # do not participate, so each adapter also guards its target.
         fresh = self.plan()
         if any(row["state"] in ("blocked", "conflict") for row in fresh):
             raise BootstrapError("State changed since planning")
-        for row in fresh:
-            if row["state"] == "missing":
-                adapter = self.adapter(row["language"])
-                prefix = adapter.owned_prefix(row)
-                if row.get("interrupted"):
-                    adapter.discard(prefix)
-                # Journal a prefix before it exists, so an interruption at
-                # any point leaves it recognizable as ours.
-                if prefix is not None:
-                    self.journal(prefix, started=True)
-                adapter.install(row)
-                adapter.verify(row)
-                if prefix is not None:
-                    self.journal(prefix, started=False)
+        for language, adapter in self.adapters.items():
+            installing = [
+                row
+                for row in fresh
+                if row["language"] == language and row["state"] == "missing"
+            ]
+            if not installing:
+                continue
+            runtimes = [
+                {
+                    key: row[key]
+                    for key in ("version", "component")
+                    if key in row
+                }
+                for row in installing
+            ]
+            log = self.recorder.log_path(language) if self.recorder else ""
+            with (
+                self.step(
+                    "ecosystem",
+                    language=language,
+                    detail={"runtimes": runtimes, "log": log},
+                ),
+                self.log(language),
+            ):
+                for row in installing:
+                    self.install(adapter, row)
+
+    def install(self, adapter, row):
+        prefix = adapter.owned_prefix(row)
+        if row.get("interrupted"):
+            adapter.discard(prefix)
+        # Journal a prefix before it exists, so an interruption at any point
+        # leaves it recognizable as ours.
+        if prefix is not None:
+            self.journal(prefix, started=True)
+        adapter.install(row)
+        adapter.verify(row)
+        if prefix is not None:
+            self.journal(prefix, started=False)

@@ -111,7 +111,8 @@ class BootstrapSetup:
         if required:
             self.install_packages(required)
         for adapter in self.adapters:
-            adapter.acquire()
+            with self.context.log(adapter.language):
+                adapter.acquire()
 
     def foundation(self):
         """The package manager, when it is a native one apply may use."""
@@ -216,21 +217,29 @@ class BootstrapSetup:
                     "`sudo -v` in this terminal and retry, or install them "
                     "with: " + shlex.join([Path(privilege[0]).name, *command])
                 ) from error
-        try:
-            process.run(
-                [*privilege, *command],
-                env=self.recipe["environment"],
-                timeout=1800,
-                cwd=state,
-            )
-        except BootstrapError:
-            # Homebrew exits 1 when it installs a formula but cannot link it
-            # over a file another formula owns, such as an old openssl@1.1.
-            # Build prerequisites are used through their opt prefixes, and
-            # readiness still checks every manager executable, so only a
-            # package that is still missing fails this stage.
-            if self.missing_packages(package_manager, required):
-                raise
+        with self.context.step(
+            "packages",
+            detail={
+                "packages": missing,
+                "command": [*privilege, *command],
+                "privileged": bool(privilege),
+            },
+        ):
+            try:
+                process.run(
+                    [*privilege, *command],
+                    env=self.recipe["environment"],
+                    timeout=1800,
+                    cwd=state,
+                )
+            except BootstrapError:
+                # Homebrew exits 1 when it installs a formula but cannot
+                # link it over a file another formula owns, such as an old
+                # openssl@1.1. Build prerequisites are used through their opt
+                # prefixes, and readiness still checks every manager
+                # executable, so only a package still missing fails here.
+                if self.missing_packages(package_manager, required):
+                    raise
 
     def missing_packages(self, package_manager, required, *, cwd=None):
         environment = self.recipe["environment"]
@@ -264,15 +273,18 @@ class BootstrapSetup:
 
     def readiness(self):
         for adapter in self.adapters:
-            adapter.readiness()
+            with self.context.log(adapter.language):
+                adapter.readiness()
 
     def defaults(self):
         for adapter in self.adapters:
-            adapter.initialize_default()
+            with self.context.log(adapter.language):
+                adapter.initialize_default()
 
     def hooks(self):
         for adapter in self.adapters:
-            adapter.repair_hooks()
+            with self.context.log(adapter.language):
+                adapter.repair_hooks()
 
     def health(self):
         """Read selected global runtimes; never create state or invoke managers."""
@@ -359,6 +371,21 @@ class BootstrapSetup:
                     f"Fresh shell selects unexpected runtimes: {output}"
                 )
 
+    def qualify(self):
+        """Verify the global selections, then that a fresh shell uses them."""
+        selections = self.selections()
+        self.shell(selections)
+        return selections
+
+    def run_stage(self, stage, operation):
+        """One stage: named for an interruption, logged, reported as events.
+
+        Child output outside any ecosystem goes to the stage's own log.
+        """
+        self.stage = stage
+        with self.context.step("stage", stage=stage), self.context.log(stage):
+            return operation()
+
     def apply(self):
         """Run every stage and return the reported global selections."""
         context = self.context
@@ -375,20 +402,18 @@ class BootstrapSetup:
             )
         try:
             with context.locked():
-                for stage, operation in [
-                    ("prerequisites", self.prerequisites),
-                    ("readiness", self.readiness),
-                ]:
-                    self.stage = stage
-                    operation()
-                self.stage = "runtimes"
-                context.apply(context.plan(), lock_held=True, evolved=True)
-                self.stage = "defaults"
-                self.defaults()
-                self.hooks()
-                self.stage = "shell"
-                selections = self.selections()
-                self.shell(selections)
+                self.run_stage("prerequisites", self.prerequisites)
+                self.run_stage("readiness", self.readiness)
+                self.run_stage(
+                    "runtimes",
+                    lambda: context.apply(
+                        context.plan(), lock_held=True, evolved=True
+                    ),
+                )
+                self.run_stage(
+                    "defaults", lambda: (self.defaults(), self.hooks())
+                )
+                selections = self.run_stage("shell", self.qualify)
         except (
             BootstrapError,
             OSError,

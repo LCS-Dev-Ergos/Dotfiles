@@ -578,6 +578,41 @@ def _plain_table(labels, rows):
     return lines
 
 
+def card(style, title, fields, note=""):
+    """A section of `key  value` lines, one indent in.
+
+    A value is text or a Cell; a path is shortened when styled and other
+    text wraps under itself. Plain output keeps every value whole.
+    """
+    keys = [sanitize(key) for key, _ in fields]
+    values = [
+        value if isinstance(value, Cell) else Cell(value)
+        for _, value in fields
+    ]
+    width = max((text_width(key) for key in keys), default=0)
+    lines = section(style, title, note)
+    if not style.styled:
+        return lines + [
+            f"{pad(key, width)}  {sanitize(value.text)}"
+            for key, value in zip(keys, values, strict=True)
+        ]
+    indent = " " * (GUTTER + INDENT)
+    room = style.width - GUTTER - INDENT - GUTTER - width - 2
+    for key, value in zip(keys, values, strict=True):
+        text = sanitize(value.text)
+        if value.path:
+            pieces = [truncate(short_path(text, style), room)]
+        else:
+            pieces = wrap(text, room)
+        for number, piece in enumerate(pieces):
+            label = pad(key, width) if number == 0 else " " * width
+            lines.append(
+                f"{indent}{style.paint(MUTED, label)}  "
+                f"{style.paint(value.color, piece)}"
+            )
+    return lines
+
+
 def callout(style, tone, title, lines=()):
     """A notice set off by a bar in its tone's color: no frame around it."""
     title = sanitize(title)
@@ -597,19 +632,20 @@ def worst(tones):
     return max(tones, key=SEVERITY.index, default="ok")
 
 
-def summary(style, counts, hint=""):
+def summary(style, counts, hint="", tone="ok"):
     """Close a report: the count of each state and what to do next.
 
     counts holds (tone, count, word) in display order. Styled output draws a
     rule across the content, then the markers and counts with the hint on
-    the right margin; plain output is one leveled sentence.
+    the right margin; plain output is one leveled sentence, whose level
+    `tone` raises when the outcome is worse than the counts say.
     """
     counts = [entry for entry in counts if entry[1]]
     hint = sanitize(hint)
     if not style.styled:
         words = ", ".join(f"{count} {word}" for _, count, word in counts)
         sentence = "; ".join(part for part in (words, hint) if part)
-        label = LABELS[worst(tone for tone, _, _ in counts)]
+        label = LABELS[worst([tone, *(entry[0] for entry in counts)])]
         return [f"{label} {sentence}." if sentence else label.rstrip()]
     room = style.width - 2 * GUTTER
     items = [

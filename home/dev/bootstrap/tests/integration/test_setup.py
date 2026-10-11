@@ -1,5 +1,6 @@
 """Behavioral setup cases; native managers are mocked, child env probes are real."""
 
+import argparse
 import contextlib
 import copy
 import fcntl
@@ -23,6 +24,7 @@ from core.adapters.python import PythonAdapter
 from core.engine import Bootstrap
 from core.errors import BootstrapError
 from core.paths import writable_directory
+from core.runs import Recorder
 from core.setup import BootstrapSetup
 from tests.declaration import declared_manifest
 from tests.unit.test_process import gone
@@ -43,6 +45,9 @@ class SetupTests(unittest.TestCase):
         self.events = []
         self.versions = {}
         self.failure = None
+        # Calls that run their fixture executable for real, so a recorded
+        # run logs actual output.
+        self.passthrough = None
         # (language, version) whose fixture install is interrupted.
         self.interrupt = None
         self.shadow = False
@@ -134,6 +139,8 @@ class SetupTests(unittest.TestCase):
     def mock_run(self, arguments, **kwargs):
         args = list(map(str, arguments))
         self.events.append(tuple(args))
+        if self.passthrough and self.passthrough(args):
+            return self.actual_run(arguments, **kwargs)
         if self.failure and self.failure(args):
             raise BootstrapError("fixture stage failure")
         name = Path(args[0]).name
@@ -328,7 +335,7 @@ class SetupTests(unittest.TestCase):
         }
         for arguments, extra in (
             (("plan",), set()),
-            (("apply",), {"selections"}),
+            (("apply",), {"selections", "run"}),
             (("verify",), set()),
             (("verify", "--health"), {"verification"}),
         ):
@@ -355,6 +362,181 @@ class SetupTests(unittest.TestCase):
                             "external",
                         ),
                     )
+
+    def runs(self):
+        directory = self.root / "state/dev-bootstrap/runs"
+        if not directory.is_dir():
+            return []
+        return sorted(directory.iterdir())
+
+    def test_apply_records_its_run_and_reports_progress(self):
+        # The fixture's installers stand in for the managers, so the stages
+        # run through the setup; the CLI's own adapters are real.
+        events = self.root / "events.jsonl"
+        recorder = Recorder("apply", events=events)
+        self.recovery.recorder = recorder
+        self.setup.apply()
+        recorder.finish({}, 0)
+        (directory,) = self.runs()
+        stream = [json.loads(line) for line in events.read_text().splitlines()]
+        self.assertEqual(
+            (directory / "events.jsonl").read_text(), events.read_text()
+        )
+        names = [event["event"] for event in stream]
+        self.assertEqual(names[0], "run-start")
+        self.assertEqual(stream[0]["schema"], 1)
+        self.assertEqual(stream[0]["run"], directory.name)
+        self.assertEqual(names[-1], "run-finish")
+        self.assertEqual(stream[-1]["exit"], 0)
+        self.assertEqual(
+            [
+                event["stage"]
+                for event in stream
+                if event["event"] == "stage-start"
+            ],
+            ["prerequisites", "readiness", "runtimes", "defaults", "shell"],
+        )
+        # Every start has its finish, with an outcome and a duration.
+        starts = [
+            name[: -len("-start")] for name in names if name.endswith("-start")
+        ]
+        finishes = [
+            event for event in stream if event["event"].endswith("-finish")
+        ]
+        self.assertEqual(len(starts), len(finishes))
+        for event in finishes:
+            self.assertEqual(event["outcome"], "ok")
+            self.assertGreaterEqual(event["duration"], 0)
+        (packages,) = [e for e in stream if e["event"] == "packages-start"]
+        self.assertIn("sqlite", packages["packages"])
+        self.assertFalse(packages["privileged"])
+        installing = {
+            event["language"]: event
+            for event in stream
+            if event["event"] == "ecosystem-start"
+        }
+        self.assertEqual(set(installing), {"node", "python", "ocaml"})
+        self.assertEqual(
+            installing["python"]["runtimes"],
+            [{"version": self.data["python"]["version"]}],
+        )
+        self.assertEqual(
+            installing["python"]["log"], str(directory / "python.log")
+        )
+        # The printed report and the kept one are the same, run included.
+        code, result = self.cli("apply", "--events", str(events))
+        self.assertEqual(code, 0)
+        directory = self.runs()[-1]
+        self.assertEqual(
+            json.loads((directory / "report.json").read_text()), result
+        )
+        run = result["run"]
+        self.assertEqual(run["id"], directory.name)
+        self.assertEqual((run["exit"], run["outcome"]), (0, "ok"))
+        self.assertEqual(run["command"], "apply")
+        self.assertEqual(directory.stat().st_mode & 0o777, 0o700)
+        self.assertEqual(
+            (directory / "report.json").stat().st_mode & 0o777, 0o600
+        )
+        stream = [json.loads(line) for line in events.read_text().splitlines()]
+        self.assertEqual(stream[-1]["report"], str(directory / "report.json"))
+
+    def test_only_apply_and_prune_removal_record_runs(self):
+        self.setup.apply()
+        for arguments in (("plan",), ("verify",), ("prune",)):
+            with self.subTest(arguments=arguments):
+                code, _ = self.cli(*arguments)
+                self.assertEqual(code, 0)
+                self.assertEqual(self.runs(), [])
+        self.assertEqual(self.cli("prune", "--yes")[0], 0)
+        self.assertEqual(len(self.runs()), 1)
+
+    def test_only_the_last_ten_runs_are_kept(self):
+        runs = self.root / "state/dev-bootstrap/runs"
+        runs.mkdir(parents=True, mode=0o700)
+        self.setup.apply()
+        for day in range(1, 13):
+            (runs / f"202001{day:02d}T000000Z").mkdir()
+        (runs / "notes").mkdir()
+        (runs / "20200201T000000Z").symlink_to(runs / "notes")
+        self.cli("apply")
+        kept = sorted(path.name for path in runs.iterdir())
+        self.assertEqual(len([n for n in kept if n.startswith("2020")]), 10)
+        self.assertNotIn("20200101T000000Z", kept)
+        self.assertIn("20200112T000000Z", kept)
+        self.assertIn("notes", kept)
+        # The link is not a run: it stays, and so does what it points at.
+        self.assertIn("20200201T000000Z", kept)
+
+    def test_a_failed_apply_names_its_log_and_keeps_its_report(self):
+        (self.bin / "brew").write_text(
+            "#!/bin/sh\n"
+            "echo 'Fetching sqlite'\n"
+            "echo 'Error: sqlite: no bottle available' >&2\n"
+            "exit 1\n"
+        )
+        self.passthrough = lambda args: "install" in args
+        code, output, errors = self.cli_output("apply", scoped=True)
+        self.assertEqual(code, 2)
+        self.assertEqual(output, "")
+        (directory,) = self.runs()
+        log = directory / "prerequisites.log"
+        self.assertIn(f"the full output is in {log}", errors)
+        self.assertEqual(log.stat().st_mode & 0o777, 0o600)
+        text = log.read_text()
+        self.assertIn(f"$ {self.bin / 'brew'} install --formula", text)
+        self.assertIn("Fetching sqlite", text)
+        self.assertIn("Error: sqlite: no bottle available", text)
+        self.assertIn("[exit 1 after", text)
+        report = json.loads((directory / "report.json").read_text())
+        self.assertEqual(report["run"]["exit"], 2)
+        self.assertEqual(report["run"]["outcome"], "failed")
+        self.assertEqual(report["run"]["error"]["stage"], "prerequisites")
+        self.assertEqual(report["run"]["error"]["log"], str(log))
+        # The record shows what the failure left: no manager, no runtime.
+        self.assertLessEqual(
+            {row["state"] for row in report["runtimes"]},
+            {"missing", "blocked"},
+        )
+        # report shows it again; the listing names it.
+        code, text, _ = self.cli_output("report", "--last")
+        self.assertEqual(code, 0)
+        self.assertIn("Apply failed", text)
+        self.assertIn(str(log), text)
+        self.assertIn("apply again after resolving it", text)
+        code, listing = self.cli("report", "--json", scoped=False)
+        self.assertEqual(code, 0)
+        self.assertEqual(
+            [(run["id"], run["state"]) for run in listing["runs"]],
+            [(directory.name, "failed")],
+        )
+        code, again = self.cli("report", "--run", directory.name, scoped=False)
+        self.assertEqual(again, report)
+
+    def test_report_without_runs(self):
+        code, text, _ = self.cli_output("report")
+        self.assertEqual(code, 0)
+        self.assertIn("No run is recorded yet", text)
+        code, _, errors = self.cli_output("report", "--last")
+        self.assertEqual(code, 2)
+        self.assertIn("No run is recorded", errors)
+
+    def test_run_options_need_their_actions(self):
+        for arguments, message in (
+            (("plan", "--events", "x"), "--events requires apply"),
+            (("prune", "--events", "x"), "--events requires apply"),
+            (("plan", "--last"), "--last and --run require report"),
+            (("report", "--only", "node"), "it selects nothing"),
+        ):
+            with (
+                self.subTest(arguments=arguments),
+                patch.object(
+                    argparse.ArgumentParser, "error", side_effect=SystemExit
+                ) as error,
+                self.assertRaises(SystemExit),
+            ):
+                self.cli_output(*arguments)
+            self.assertIn(message, error.call_args.args[0])
 
     def test_saved_selection_applies_until_replaced_or_ignored(self):
         saved = self.root / "home/.config/dev-bootstrap/selection.json"
@@ -1214,6 +1396,17 @@ class SetupTests(unittest.TestCase):
                 self.assertTrue(gone(worker))
                 with lock.open("a") as file:
                     fcntl.flock(file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                # The run keeps what the interrupted child printed.
+                directory = self.runs()[-1]
+                run = json.loads((directory / "report.json").read_text())[
+                    "run"
+                ]
+                self.assertEqual(run["outcome"], "interrupted")
+                self.assertEqual(run["exit"], 128 + signum)
+                self.assertEqual(run["error"]["stage"], "prerequisites")
+                self.assertIn(
+                    "[stopped]", (directory / "prerequisites.log").read_text()
+                )
 
     def test_cli_import_preserves_structured_stage_errors(self):
         (self.bin / "brew").unlink()

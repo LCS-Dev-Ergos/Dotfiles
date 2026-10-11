@@ -12,5 +12,8 @@
     \e[1;33m◆\e[0m Python   —        \e[38;5;245mpyenv\e[0m    \e[33mconflict\e[0m  \e[38;5;245m/nix/store/…/bin/python3\e[0m
       The selected interpreter lies in the Nix store
 
+  \e[1;34mRun\e[0m \e[2;34m──────────────────────────────────────────────────────────────\e[0m \e[38;5;245m7 min 6 s\e[0m
+    \e[38;5;245mlogs\e[0m  \e[38;5;245m~/.local/state/dev-bootstrap/runs/20261011T101500Z\e[0m
+
   \e[2;34m────────────────────────────────────────────────────────────────────────────\e[0m
   \e[1;32m●\e[0m 1 ok                                     \e[38;5;245ma new shell picks up the defaults\e[0m

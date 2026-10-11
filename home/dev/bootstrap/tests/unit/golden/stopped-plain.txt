@@ -1,0 +1,14 @@
+dev-bootstrap · Apply failed
+2 runtimes in 2 ecosystems · x86_64-linux · native · saved selection
+
+Runtimes
+RUNTIME  VERSION  MANAGER  STATE    LOCATION
+Node     24.21.0  fnm      present  /home/user/.local/share/fnm/node-versions/v24.21.0/installation/bin/node
+Python   3.14.9   pyenv    missing  /home/user/.pyenv/versions/3.14.9/bin/python
+
+Run · 1 min 23 s
+error  runtimes: pyenv exited 1: BUILD FAILED (Arch Linux using python-build 2.8.8). Retry apply after resolving this stage; plan reports any incomplete installation.
+log    /home/user/.local/state/dev-bootstrap/runs/20261011T101500Z/python.log
+logs   /home/user/.local/state/dev-bootstrap/runs/20261011T101500Z
+
+[ERROR] 1 present, 1 missing; apply again after resolving it.
