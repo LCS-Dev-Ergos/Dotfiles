@@ -382,7 +382,8 @@ Its input lists jobs separated by commas, each a space-separated list of
 ecosystems, or interruption scenarios, run in one disposable root. The default
 covers every adapter in five jobs per platform, with CPython, the OCaml
 compilers and GHC each in a job of their own. The container runs the executor
-as an unprivileged account whose passwordless `sudo` covers only pacman.
+as an unprivileged account whose passwordless `sudo` covers only pacman and
+the `true` that checks for cached credentials.
 Acceptance of a complete CachyOS workstation takes place outside CI.
 
 ## Test Model

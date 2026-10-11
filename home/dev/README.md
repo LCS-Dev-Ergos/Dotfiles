@@ -170,12 +170,16 @@ nix run .#dev-bootstrap -- plan --json
 
 After installing the Nix and native package-manager foundations, the interface
 provisions missing prerequisites, restores the baseline and checks selected
-environment health. Arch requires a maintained package database. When a terminal
-is attached, `scripts/bootstrap/dev-bootstrap.sh apply` runs `sudo -v` once; the
-executor itself invokes only noninteractive `sudo -n`, and without cached
-credentials it stops before any change and prints the pacman command for the
-missing packages. Apple developer tools, SDK selection and license acceptance
-are prerequisites when a source build requires them:
+environment health. Arch requires a maintained package database. On Arch,
+`apply` installs missing native packages through noninteractive `sudo -n`.
+When it has packages to install and no cached credentials, an attended apply
+prints the pacman command and runs `sudo -v` once; an unattended one stops
+before any change and prints that command instead. With nothing to install it
+never asks. A failed install whose output shows a stale sync database names
+`sudo pacman -Syu`; the executor never upgrades the system and never runs a
+partial `-Sy`. `plan --preflight` reports beforehand whether administrator
+rights will be needed. Apple developer tools, SDK selection and license
+acceptance are prerequisites when a source build requires them:
 
 ```sh
 nix run .#dev-bootstrap -- apply

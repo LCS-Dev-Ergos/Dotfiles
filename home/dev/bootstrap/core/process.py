@@ -1,4 +1,8 @@
-"""The single process boundary: literal argv, scoped child environments."""
+"""The single process boundary: literal argv, scoped child environments.
+
+Children run without a terminal, in their own process group; attend() is
+the one exception, for the authentication a person answers.
+"""
 
 import os
 import selectors
@@ -6,6 +10,7 @@ import shlex
 import shutil
 import signal
 import subprocess
+import sys
 import time
 from contextlib import contextmanager
 
@@ -162,6 +167,31 @@ def recorded(path):
     finally:
         _log = previous
         log.close()
+
+
+def attended():
+    """Whether a person can answer at the terminal: stdin is one."""
+    return bool(sys.stdin and sys.stdin.isatty())
+
+
+def announce(message):
+    """Tell the person at the terminal what is about to ask them."""
+    print(f"dev-bootstrap: {message}", file=sys.stderr, flush=True)
+
+
+def attend(args, *, timeout=600):
+    """Run the one child that may ask a person something: authentication.
+
+    It keeps bootstrap's terminal, environment and process group, so the
+    password prompt reaches the person and Ctrl-C stops both. It never
+    installs anything; the privileged work itself still goes through run().
+    """
+    try:
+        result = subprocess.run(args, timeout=timeout, check=False)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise BootstrapError(str(error)) from error
+    if result.returncode != 0:
+        raise BootstrapError(f"{args[0]} exited {result.returncode}")
 
 
 def complete(args, *, env, timeout, cwd):

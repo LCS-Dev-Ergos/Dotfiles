@@ -85,7 +85,9 @@ in every report's `catalog`.
 - Exact verification checks the declared identity and the complete canary;
   health accepts any release the global selection names.
 - Every child process goes through `core.process.run`: literal arguments, a
-  scoped environment, its own process group and a timeout.
+  scoped environment, its own process group and a timeout. The one exception
+  is `core.process.attend`, the authentication an attended apply lets a
+  person answer before a privileged install; it installs nothing.
 
 ## Retirement
 

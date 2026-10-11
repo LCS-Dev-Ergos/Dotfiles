@@ -240,11 +240,25 @@ in
         "--needed"
         "--noconfirm"
       ];
-      # Authenticate separately with sudo -v; never run the executor as root.
+      # The install never prompts; an attended apply authenticates once
+      # beforehand. Never run the executor as root.
       privilege = [
         "/usr/bin/sudo"
         "-n"
       ];
+      authenticate = [
+        "/usr/bin/sudo"
+        "-v"
+      ];
+      # Signs in a failed install that the sync database is older than the
+      # mirrors. Apply then names the full upgrade, never a partial -Sy.
+      staleDatabase = {
+        signs = [
+          "target not found"
+          "failed retrieving file"
+        ];
+        upgrade = [ "-Syu" ];
+      };
       environment = { };
       buildPackages = {
         python = archPythonPackages;

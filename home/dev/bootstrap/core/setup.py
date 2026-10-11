@@ -207,16 +207,7 @@ class BootstrapSetup:
         privilege = self.recipe["privilege"]
         command = [str(package_manager), *self.recipe["install"], *missing]
         if privilege:
-            # sudo -n never prompts. Without cached credentials, stop before
-            # any change and name the command instead of failing mid-install.
-            try:
-                process.run([*privilege, "/usr/bin/true"], cwd=state)
-            except BootstrapError as error:
-                raise BootstrapError(
-                    "Missing native packages need administrator rights: run "
-                    "`sudo -v` in this terminal and retry, or install them "
-                    "with: " + shlex.join([Path(privilege[0]).name, *command])
-                ) from error
+            self.authenticate(command, state)
         with self.context.step(
             "packages",
             detail={
@@ -232,14 +223,77 @@ class BootstrapSetup:
                     timeout=1800,
                     cwd=state,
                 )
-            except BootstrapError:
+            except BootstrapError as error:
                 # Homebrew exits 1 when it installs a formula but cannot
                 # link it over a file another formula owns, such as an old
                 # openssl@1.1. Build prerequisites are used through their opt
                 # prefixes, and readiness still checks every manager
                 # executable, so only a package still missing fails here.
-                if self.missing_packages(package_manager, required):
-                    raise
+                if not self.missing_packages(package_manager, required):
+                    return
+                upgrade = self.upgrade(error, package_manager)
+                if upgrade:
+                    raise BootstrapError(
+                        f"{error}\nThe package database looks older than "
+                        f"its mirrors: upgrade the system with `{upgrade}`, "
+                        "then apply again"
+                    ) from error
+                raise
+
+    def authenticate(self, command, state):
+        """Make sure the privileged install cannot stop for a password.
+
+        The install runs through `sudo -n`, which never prompts. Without
+        cached credentials, an attended apply prints the command and lets
+        the privilege tool ask once; an unattended one stops before any
+        change and names the command instead of failing mid-install.
+        """
+        privilege = self.recipe["privilege"]
+        shown = shlex.join([Path(privilege[0]).name, *command])
+        try:
+            process.run([*privilege, "/usr/bin/true"], cwd=state)
+            return
+        except BootstrapError as error:
+            uncached = error
+        login = self.recipe.get("authenticate")
+        if not login or not process.attended():
+            retry = ""
+            if login:
+                retry = (
+                    f"run `{shlex.join([Path(login[0]).name, *login[1:]])}` "
+                    "in this terminal and retry, or "
+                )
+            raise BootstrapError(
+                "Missing native packages need administrator rights: "
+                f"{retry}install them with: {shown}"
+            ) from uncached
+        process.announce(
+            "installing the missing native packages needs administrator "
+            f"rights; this runs\n  {shown}"
+        )
+        try:
+            process.attend(login)
+        except BootstrapError as error:
+            raise BootstrapError(
+                "Administrator authentication failed; install the packages "
+                f"with: {shown}"
+            ) from error
+
+    def upgrade(self, error, package_manager):
+        """The full upgrade a failed install needs, when its database is stale.
+
+        A sync database older than the mirrors fails with signs the recipe
+        declares (pacman's missing targets and 404s). Refreshing it alone
+        would be a partial upgrade, so we name the whole one and never run it.
+        """
+        stale = self.recipe.get("staleDatabase")
+        if not stale or not any(sign in str(error) for sign in stale["signs"]):
+            return ""
+        privilege = self.recipe["privilege"]
+        upgrade = [str(package_manager), *stale["upgrade"]]
+        if privilege:
+            upgrade.insert(0, Path(privilege[0]).name)
+        return shlex.join(upgrade)
 
     def missing_packages(self, package_manager, required, *, cwd=None):
         environment = self.recipe["environment"]

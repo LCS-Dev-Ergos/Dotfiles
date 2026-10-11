@@ -1,5 +1,6 @@
 """The process boundary ends a child's whole process group with the call."""
 
+import io
 import os
 import shutil
 import signal
@@ -135,6 +136,19 @@ class RecordedOutputTests(unittest.TestCase):
         printf = shutil.which("printf")
         output = process.run([printf, "\\377ok\\r\\nnext"])
         self.assertEqual(output, "\ufffdok\nnext")
+
+
+class AttendedTests(unittest.TestCase):
+    def test_only_a_terminal_on_stdin_is_attended(self):
+        with patch.object(process.sys, "stdin", io.StringIO()):
+            self.assertFalse(process.attended())
+        with patch.object(process.sys, "stdin", None):
+            self.assertFalse(process.attended())
+
+    def test_authentication_fails_with_its_status(self):
+        process.attend(["/bin/sh", "-c", "exit 0"])
+        with self.assertRaisesRegex(BootstrapError, "exited 3"):
+            process.attend(["/bin/sh", "-c", "exit 3"])
 
 
 class TerminationTests(unittest.TestCase):

@@ -7,6 +7,7 @@ import fcntl
 import io
 import json
 import os
+import shlex
 import shutil
 import signal
 import subprocess
@@ -45,6 +46,7 @@ class SetupTests(unittest.TestCase):
         self.events = []
         self.versions = {}
         self.failure = None
+        self.failure_message = "fixture stage failure"
         # Calls that run their fixture executable for real, so a recorded
         # run logs actual output.
         self.passthrough = None
@@ -105,6 +107,10 @@ class SetupTests(unittest.TestCase):
         mock = patch.object(process, "run", self.mock_run)
         mock.start()
         self.addCleanup(mock.stop)
+        # Nobody answers a prompt here, whatever stdin the test runner has.
+        attended = patch.object(process, "attended", return_value=False)
+        attended.start()
+        self.addCleanup(attended.stop)
         self.scope(["node", "python", "ocaml"])
 
     def scope(self, languages):
@@ -142,7 +148,7 @@ class SetupTests(unittest.TestCase):
         if self.passthrough and self.passthrough(args):
             return self.actual_run(arguments, **kwargs)
         if self.failure and self.failure(args):
-            raise BootstrapError("fixture stage failure")
+            raise BootstrapError(self.failure_message)
         name = Path(args[0]).name
         if args[1:] == ["--version"] and name in ("fnm", "pyenv", "opam"):
             return {
@@ -1334,30 +1340,108 @@ class SetupTests(unittest.TestCase):
         self.assertTrue((self.pyenv / "version").is_file())
 
     def test_arch_privilege_is_scoped_to_missing_packages(self):
-        self.data["setup"].update(
-            query=["-Qq"],
-            missingQuery=["-T"],
-            install=["-S", "--needed", "--noconfirm"],
-            privilege=[str(self.bin / "sudo"), "-n"],
-        )
+        self.arch()
         self.setup.apply()
         installation = next(e for e in self.events if "-S" in e)
         self.assertEqual(installation[:2], (str(self.bin / "sudo"), "-n"))
         self.assertNotIn("-Sy", installation)
         self.assertNotIn("-Syu", installation)
 
-    def test_uncached_privilege_names_the_command_before_mutation(self):
+    def arch(self):
         self.data["setup"].update(
             query=["-Qq"],
             missingQuery=["-T"],
             install=["-S", "--needed", "--noconfirm"],
             privilege=[str(self.bin / "sudo"), "-n"],
+            authenticate=[str(self.bin / "sudo"), "-v"],
+            staleDatabase={
+                "signs": ["target not found", "failed retrieving file"],
+                "upgrade": ["-Syu"],
+            },
         )
+
+    def test_uncached_privilege_names_the_command_before_mutation(self):
+        self.arch()
         self.failure = lambda args: args[-1] == "/usr/bin/true"
-        with self.assertRaisesRegex(BootstrapError, "sudo -v") as raised:
+        with (
+            patch.object(process, "attend") as attend,
+            self.assertRaisesRegex(BootstrapError, "`sudo -v`") as raised,
+        ):
             self.setup.prerequisites()
         self.assertIn("sudo " + str(self.bin / "brew"), str(raised.exception))
         self.assertFalse(any("-S" in event for event in self.events))
+        attend.assert_not_called()
+
+    def test_attended_apply_asks_once_after_naming_the_command(self):
+        self.arch()
+        self.failure = lambda args: args[-1] == "/usr/bin/true"
+        order = []
+        with (
+            patch.object(process, "attended", return_value=True),
+            patch.object(
+                process,
+                "announce",
+                side_effect=lambda text: order.append(("announce", text)),
+            ),
+            patch.object(
+                process,
+                "attend",
+                side_effect=lambda args: order.append(("attend", args)),
+            ),
+        ):
+            self.setup.prerequisites()
+        (installation,) = [e for e in self.events if "-S" in e]
+        self.assertEqual(installation[:2], (str(self.bin / "sudo"), "-n"))
+        self.assertEqual([step for step, _ in order], ["announce", "attend"])
+        self.assertIn("sudo " + shlex.join(installation[2:]), order[0][1])
+        self.assertEqual(order[1][1], [str(self.bin / "sudo"), "-v"])
+        # With the packages installed, a second run asks nothing.
+        self.events.clear()
+        order.clear()
+        with (
+            patch.object(process, "attended", return_value=True),
+            patch.object(process, "attend") as attend,
+        ):
+            self.setup.prerequisites()
+        attend.assert_not_called()
+        self.assertFalse(
+            any(Path(event[0]).name == "sudo" for event in self.events)
+        )
+
+    def test_failed_authentication_installs_nothing(self):
+        self.arch()
+        self.failure = lambda args: args[-1] == "/usr/bin/true"
+        with (
+            patch.object(process, "attended", return_value=True),
+            patch.object(process, "announce"),
+            patch.object(
+                process, "attend", side_effect=BootstrapError("sudo exited 1")
+            ),
+            self.assertRaisesRegex(BootstrapError, "authentication failed"),
+        ):
+            self.setup.prerequisites()
+        self.assertFalse(any("-S" in event for event in self.events))
+
+    def test_a_stale_package_database_names_the_full_upgrade(self):
+        self.arch()
+        self.failure = lambda args: "-S" in args
+        for message, named in (
+            ("pacman exited 1: error: target not found: sqlite", True),
+            ("pacman exited 1: error: disk full", False),
+        ):
+            with self.subTest(message=message):
+                self.failure_message = message
+                with self.assertRaises(BootstrapError) as raised:
+                    self.setup.prerequisites()
+                text = str(raised.exception)
+                self.assertIn(message, text)
+                self.assertEqual(
+                    f"`sudo {self.bin / 'brew'} -Syu`" in text, named
+                )
+        # Named, never run; and never a partial -Sy.
+        self.assertFalse(
+            any("-Syu" in event or "-Sy" in event for event in self.events)
+        )
 
     def test_interrupted_apply_releases_the_lock_and_stops_its_child(self):
         # The package manager hangs with a child of its own, as a build does.
