@@ -9,7 +9,9 @@
     \e[1;33m▲\e[0m Node           26.11.1   \e[38;5;245mfnm\e[0m      \e[33mmissing\e[0m   \e[38;5;240m~/…/installation/bin/node\e[0m
       \e[38;5;245mAn interrupted apply left this installation incomplete; apply removes it\e[0m
       \e[38;5;245mand installs it again\e[0m
+      \e[38;5;245mcost  \e[0m\e[38;5;245mdownload · small\e[0m
     \e[1;33m▲\e[0m Python         3.14.8    \e[38;5;245mpyenv\e[0m    \e[33mmissing\e[0m   \e[38;5;240m~/.pyenv/…/3.14.8/bin/python\e[0m
+      \e[38;5;245mcost  \e[0m\e[38;5;245msource build · medium\e[0m
     \e[1;32m●\e[0m Haskell GHC    9.14.1    \e[38;5;245mghcup\e[0m    \e[38;5;245mpresent\e[0m   \e[38;5;245m~/.ghcup/ghc/9.14.1/bin/ghc\e[0m
     \e[1;31m✖\e[0m Haskell Cabal  3.16.1.0  \e[38;5;245mghcup\e[0m    \e[31mconflict\e[0m  \e[38;5;245m~/.ghcup/bin/cabal-3.16.1.0\e[0m
       Existing incomplete runtime; manual inspection required

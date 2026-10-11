@@ -146,6 +146,12 @@ def _reason(text, tone):
     return Note(text, "" if tone in FAILING else ui.MUTED)
 
 
+def _cost(cost):
+    """How a catalog cost reads: "source build · medium", "download"."""
+    build = "source build" if cost.get("build") == "source" else "download"
+    return " · ".join(part for part in (build, cost.get("size")) if part)
+
+
 def _runtime_tone(state, action):
     if state == "ok":
         return "ok"
@@ -196,14 +202,21 @@ def _runtimes(result, style):
         f"{plural(len(runtimes), noun)} in {plural(ecosystems, 'ecosystem')}",
     )
     lines += ui.section(style, "Global selections" if health else "Runtimes")
-    lines += ui.table(
-        style,
-        RUNTIME_COLUMNS,
-        [
-            _runtime_row(row, _runtime_tone(row["state"], action), name)
-            for row in runtimes
-        ],
-    )
+    costs = {
+        entry["language"]: entry["cost"]
+        for entry in result.get("catalog", [])
+        if entry.get("cost")
+    }
+    rows = []
+    for row in runtimes:
+        tone = _runtime_tone(row["state"], action)
+        rows.append(_runtime_row(row, tone, name))
+        # The cost belongs to the ecosystem: it reads once, under the first
+        # runtime apply would install.
+        if tone == "pending" and row["language"] in costs:
+            cost = costs.pop(row["language"])
+            rows[-1].notes.append(Note(_cost(cost), label="cost"))
+    lines += ui.table(style, RUNTIME_COLUMNS, rows)
 
     managers = [
         row

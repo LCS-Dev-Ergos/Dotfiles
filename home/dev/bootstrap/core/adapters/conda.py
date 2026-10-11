@@ -16,6 +16,7 @@ from .toolchain import ToolchainAdapter
 class CondaAdapter(ToolchainAdapter):
     language = "conda"
     title = "Conda"
+    cost = "small"
     manager_name = "conda"
     # Conda environments shadow interpreters and libraries; only an explicit
     # `--only conda` installs it.

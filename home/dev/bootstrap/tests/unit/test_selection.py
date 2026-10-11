@@ -110,6 +110,7 @@ class SelectionTests(unittest.TestCase):
                 "platforms": list(PLATFORMS),
                 "consents": [],
                 "available": True,
+                "cost": {"build": "download", "size": "medium"},
                 "selected": False,
             },
         )
@@ -127,6 +128,22 @@ class SelectionTests(unittest.TestCase):
                 if "componentTitles" in row
             },
             {"haskell"},
+        )
+        # Every ecosystem is measured; the managers that compile the
+        # runtime say so.
+        self.assertTrue(
+            all(
+                row["cost"].get("size") in ("small", "medium", "large")
+                for row in catalog.values()
+            )
+        )
+        self.assertEqual(
+            {
+                name
+                for name, row in catalog.items()
+                if row["cost"]["build"] == "source"
+            },
+            {"python", "ocaml", "ruby"},
         )
         # Explicit selection reaches an optional adapter, never a missing one.
         self.assertEqual(Bootstrap(self.data, ["julia"]).only, ["julia"])

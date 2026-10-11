@@ -39,6 +39,14 @@ class Adapter:
     compiles = False
     # The manager script is sourced rather than executed (SDKMAN).
     sourced_manager = False
+    # What installing the declared releases costs, so a person can leave an
+    # expensive ecosystem out: whether the manager builds the runtime from
+    # source, and a size class from a first apply measured on
+    # aarch64-darwin. The larger of time (under 1 minute small, under 5
+    # medium) and disk (under 512 MiB small, under 2 GiB medium) decides;
+    # empty until measured.
+    source_build = False
+    cost = ""
 
     # Selection metadata, reported in the catalog and enforced by the engine.
     # Ecosystems that must be selected in the same run:
@@ -72,10 +80,19 @@ class Adapter:
             "consents": list(cls.consents),
             "available": cls.declared(data)
             and data["platform"] in cls.platforms,
+            "cost": cls.cost_class(),
         }
         if cls.component_titles:
             entry["componentTitles"] = dict(cls.component_titles)
         return entry
+
+    @classmethod
+    def cost_class(cls):
+        """The catalog's cost: how the runtime arrives, and its size class."""
+        cost = {"build": "source" if cls.source_build else "download"}
+        if cls.cost:
+            cost["size"] = cls.cost
+        return cost
 
     def resolve_roots(self):
         """Map exported root variables to resolved paths, runtime root first."""

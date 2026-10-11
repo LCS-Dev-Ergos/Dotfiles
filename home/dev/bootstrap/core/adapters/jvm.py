@@ -10,6 +10,7 @@ from .toolchain import IDENTITY
 class JvmAdapter(SdkmanAdapter):
     language = "jvm"
     title = "JVM"
+    cost = "medium"
     candidate = "java"
     selection_executable = "bin/java"
     # JDK patch identities may carry a fourth component (21.0.12.1).

@@ -54,6 +54,7 @@ in every report's `catalog`.
 | Member | Default | Override when |
 | --- | --- | --- |
 | `title`, `component_titles` | The language key; no component names | The ecosystem or its components have a conventional spelling (`OCaml`, `GHC`). |
+| `source_build`, `cost` | A download; no size class | The manager compiles the runtime; a first apply has been measured (`small`, `medium` or `large`, as the README defines them). |
 | `declared(data)` | Always declared | The manifest may omit the ecosystem. |
 | `home` | The runtime root | The manager lives elsewhere (`CARGO_HOME`, `JULIAUP_HOME`). |
 | `environment()` | The resolved roots | Children need more variables. |
@@ -135,8 +136,10 @@ interruption exits 128 plus the signal number.
 
 `language`, `title` (how the ecosystem reads for people), `manager`,
 `requires`, `defaultSelected`, `platforms`, `consents`, `available`
-(declared and supported here) and `selected`. A multi-component ecosystem
-adds `componentTitles`, each component's name for people.
+(declared and supported here), `cost` and `selected`. `cost` holds `build`,
+`source` or `download`, and `size`, `small`, `medium` or `large`, when the
+ecosystem has been measured. A multi-component ecosystem adds
+`componentTitles`, each component's name for people.
 
 ### Runtime Row
 

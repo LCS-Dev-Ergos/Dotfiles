@@ -8,6 +8,7 @@ from .toolchain import SettingsToolchain
 class LeanAdapter(SettingsToolchain):
     language = "lean"
     title = "Lean"
+    cost = "large"
     manager_name = "elan"
     runtime_directory = "toolchains"
 

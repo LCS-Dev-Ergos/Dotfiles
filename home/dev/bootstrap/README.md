@@ -95,6 +95,15 @@ The selection runs in registry order, which lists every requirement before
 its dependents, so installation needs no separate dependency resolution. A
 frontend reads the catalog instead of duplicating this metadata.
 
+Each catalog entry also states what installing the ecosystem costs, so a
+selection can leave an expensive one out: `cost.build` is `source` when the
+manager compiles the runtime (Python, OCaml, Ruby) and `download` otherwise,
+and `cost.size` is `small`, `medium` or `large`. The size comes from a first
+apply measured on `aarch64-darwin`, by the larger of its time (under one
+minute is small, under five medium) and its disk use (under 512 MiB is small,
+under 2 GiB medium); Haskell and Lean are large. The text plan states the
+cost under the first runtime of each ecosystem it would install.
+
 A machine can save its selection in
 `$XDG_CONFIG_HOME/dev-bootstrap/selection.json`. `plan`, `apply` and `verify`
 without `--only` use it; `--only` replaces it for one run and `--all` ignores

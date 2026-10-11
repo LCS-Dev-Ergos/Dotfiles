@@ -43,6 +43,7 @@ def catalog(*selected):
             "title": adapter.title,
             "manager": adapter.manager_name,
             "selected": name in selected,
+            "cost": adapter.cost_class(),
         }
         if adapter.component_titles:
             entry["componentTitles"] = dict(adapter.component_titles)
@@ -428,6 +429,28 @@ class GuaranteeTests(unittest.TestCase):
         lines = render(bare, ui.Style(False))
         self.assertTrue(
             any(line.startswith("haskell cabal ") for line in lines)
+        )
+
+    def test_a_plan_states_each_installing_ecosystems_cost_once(self):
+        result = copy.deepcopy(CASES["plan"])
+        result["runtimes"].append(
+            runtime(
+                "node",
+                "22.30.0",
+                "missing",
+                f"{HOME}/.local/share/fnm/node-versions/v22.30.0"
+                "/installation/bin/node",
+                "fnm",
+            )
+        )
+        lines = render(result, ui.Style(False))
+        self.assertEqual(lines.count("  cost: download · small"), 1)
+        self.assertEqual(lines.count("  cost: source build · medium"), 1)
+        # Only what apply would install has a cost; the result of an
+        # apply reports none.
+        applied = dict(result, action="apply")
+        self.assertFalse(
+            any("cost:" in line for line in render(applied, ui.Style(False)))
         )
 
     def test_styled_paths_are_shortened_and_plain_paths_are_not(self):

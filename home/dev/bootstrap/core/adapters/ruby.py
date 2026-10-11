@@ -11,6 +11,8 @@ from .toolchain import ToolchainAdapter
 class RubyAdapter(ToolchainAdapter):
     language = "ruby"
     title = "Ruby"
+    source_build = True
+    cost = "medium"
     manager_name = "rbenv"
     runtime_directory = "versions"
     compiles = True

@@ -140,6 +140,7 @@ class SdkmanTool(JdkTool, SdkmanAdapter):
 class KotlinAdapter(SdkmanTool):
     language = "kotlin"
     title = "Kotlin"
+    cost = "small"
     candidate = "kotlin"
     selection_executable = "bin/kotlin"
     identity_arguments = ("-version",)
@@ -156,6 +157,7 @@ class KotlinAdapter(SdkmanTool):
 class MavenAdapter(SdkmanTool):
     language = "maven"
     title = "Maven"
+    cost = "small"
     candidate = "maven"
     selection_executable = "bin/mvn"
 
@@ -174,6 +176,7 @@ class MavenAdapter(SdkmanTool):
 class GradleAdapter(SdkmanTool):
     language = "gradle"
     title = "Gradle"
+    cost = "small"
     candidate = "gradle"
     selection_executable = "bin/gradle"
 

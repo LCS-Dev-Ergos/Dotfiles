@@ -16,6 +16,7 @@ FNM_SYSTEM_TARGET = "/dev/null/installation"
 class NodeAdapter(Adapter):
     language = "node"
     title = "Node"
+    cost = "small"
     manager_name = "fnm"
     runtime_directory = "node-versions"
 

@@ -7,6 +7,7 @@
       \e[38;5;245mRUNTIME  VERSION  STATE\e[0m
     \e[1;32m●\e[0m Node     24.21.0  \e[38;5;245mpresent\e[0m
     \e[1;33m▲\e[0m Python   3.14.9   \e[33mmissing\e[0m
+      \e[38;5;245mcost  \e[0m\e[38;5;245msource build · medium\e[0m
 
   \e[1;34mPreflight\e[0m \e[2;34m───────────────────\e[0m \e[38;5;245mpacman\e[0m
       \e[38;5;245mCHECK\e[0m

@@ -43,6 +43,7 @@ OFFLINE = "<configuration><packageSources><clear /></packageSources></configurat
 class DotnetAdapter(ToolchainAdapter):
     language = "dotnet"
     title = ".NET"
+    cost = "medium"
     manager_name = "dotnet"
     runtime_directory = "sdk"
 
