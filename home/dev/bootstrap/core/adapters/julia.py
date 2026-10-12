@@ -96,7 +96,10 @@ class JuliaAdapter(ToolchainAdapter):
                         "Julia runtime escapes its native root"
                     )
                 return path
-        return self.root / "juliaup" / f"missing-{identity}" / "bin/julia"
+        # Not installed: juliaup names the release's directory (with its
+        # build and platform) only as it installs it, so the row points at
+        # the directory that will hold it rather than at an invented path.
+        return self.root / "juliaup"
 
     def prefix(self, row):
         # juliaup reports installations through its JSON state, not directories.

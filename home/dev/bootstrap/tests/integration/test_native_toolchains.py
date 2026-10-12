@@ -196,6 +196,9 @@ class NativeTransitions(unittest.TestCase):
         self.assertEqual(
             julia.binary("1.12.6"), directory / "runtime/bin/julia"
         )
+        # A release juliaup has not installed has no path yet: its row
+        # points at the directory that will hold it.
+        self.assertEqual(julia.binary("1.12.7"), directory)
 
     def managers(self):
         for adapter in self.recovery.adapters.values():
