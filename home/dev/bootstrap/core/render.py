@@ -125,17 +125,21 @@ def namer(result):
     """How a row's ecosystem and component read: the catalog's titles.
 
     A report without them, or an ecosystem the catalog does not list, falls
-    back to the keys `--only` takes.
+    back to the keys `--only` takes. A runtime row without a component is
+    the ecosystem's primary one (a global selection); a row about the whole
+    ecosystem (a manager, its packages) passes ecosystem=True.
     """
-    titles, components = {}, {}
+    titles, components, primary = {}, {}, {}
     for entry in result.get("catalog", []):
         titles[entry["language"]] = entry.get("title") or entry["language"]
         components[entry["language"]] = entry.get("componentTitles", {})
+        primary[entry["language"]] = entry.get("primaryComponent")
 
-    def name(row):
-        language, component = row["language"], row.get("component")
+    def name(row, *, ecosystem=False):
+        language = row["language"]
+        component = row.get("component") or primary.get(language)
         title = titles.get(language, language)
-        if not component:
+        if ecosystem or not component:
             return title
         return (
             f"{title} {components.get(language, {}).get(component, component)}"
@@ -271,7 +275,7 @@ def _runtimes(result, style):
             rows.append(
                 Row(
                     [
-                        name(row),
+                        name(row, ecosystem=True),
                         _state(row["state"], tone),
                         _location(row.get("path", ""), tone),
                     ],
@@ -420,7 +424,7 @@ def _preflight(result, name):
         rows.append(
             Row(
                 [
-                    f"{name(entry)} packages",
+                    f"{name(entry, ecosystem=True)} packages",
                     Cell(" ".join(entry["missing"]), ui.TONES[tone]),
                 ],
                 tone,
@@ -488,7 +492,7 @@ def _preflight(result, name):
             rows.append(
                 Row(
                     [
-                        f"{name(entry)} {version}",
+                        f"{name(entry, ecosystem=True)} {version}",
                         Cell(f"{manager} cannot build it", ui.TONES["error"]),
                     ],
                     "error",

@@ -32,6 +32,9 @@ class Adapter:
     # component; the language key and the component key when unset.
     title = ""
     component_titles = {}
+    # The component a row without one stands for: a global selection names
+    # the ecosystem, and this is what that selection runs.
+    primary_component = ""
     manager_name = ""
     # Directory below the runtime root that holds one entry per installation.
     runtime_directory = None
@@ -84,6 +87,8 @@ class Adapter:
         }
         if cls.component_titles:
             entry["componentTitles"] = dict(cls.component_titles)
+        if cls.primary_component:
+            entry["primaryComponent"] = cls.primary_component
         return entry
 
     @classmethod

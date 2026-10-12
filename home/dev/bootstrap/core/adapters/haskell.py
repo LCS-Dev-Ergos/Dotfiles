@@ -19,6 +19,7 @@ class HaskellAdapter(LinkedToolchain):
     language = "haskell"
     title = "Haskell"
     component_titles = {"ghc": "GHC", "cabal": "Cabal", "hls": "HLS"}
+    primary_component = "ghc"
     cost = "large"
     manager_name = "ghcup"
     runtime_directory = "ghc"

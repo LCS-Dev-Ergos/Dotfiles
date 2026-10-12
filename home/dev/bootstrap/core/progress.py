@@ -94,7 +94,8 @@ class Progress:
                 for runtime in runtimes
             )
         versions = ", ".join(runtime["version"] for runtime in runtimes)
-        return f"{self.name({'language': language})} {versions}".rstrip()
+        title = self.name({"language": language}, ecosystem=True)
+        return f"{title} {versions}".rstrip()
 
     def outcome(self, record):
         tone = OUTCOMES.get(record["outcome"], "warn")

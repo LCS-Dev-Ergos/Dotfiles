@@ -167,7 +167,9 @@ report) and, from its report, `command`, `started`, `duration` and `exit`.
 (declared and supported here), `cost` and `selected`. `cost` holds `build`,
 `source` or `download`, and `size`, `small`, `medium` or `large`, when the
 ecosystem has been measured. A multi-component ecosystem adds
-`componentTitles`, each component's name for people.
+`componentTitles`, each component's name for people, and
+`primaryComponent`, the component a row without one stands for (a global
+selection: `ghc` for Haskell).
 
 ### Runtime Row
 

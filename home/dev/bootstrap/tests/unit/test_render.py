@@ -48,6 +48,8 @@ def catalog(*selected):
         }
         if adapter.component_titles:
             entry["componentTitles"] = dict(adapter.component_titles)
+        if adapter.primary_component:
+            entry["primaryComponent"] = adapter.primary_component
         entries.append(entry)
     return entries
 
@@ -222,7 +224,7 @@ CASES = {
                 "ok",
                 f"{HOME}/.ghcup/ghc/9.12.2/bin/ghc-9.12.2",
                 "ghcup",
-                component="ghc",
+                # A global selection carries no component: it is GHC's.
                 actualVersion="9.12.2",
             ),
             runtime(
