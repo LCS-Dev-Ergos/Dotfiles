@@ -962,12 +962,12 @@ _zsh_ui_card() {
 # -----------------------------------------------------------------------------
 # _zsh_ui_table
 # @internal
-# @description Renders tab-separated rows as a borderless table. Styled output
-# sits one indent in, like everything a section holds, sets the column labels
-# in muted capitals and fits the terminal: the widest columns give up space
-# first and their cells are shortened with an ellipsis (paths lose middle
-# components). Plain output stays an untruncated, aligned layout that is safe
-# to capture. "-" cells are faint in every styled table.
+# @description Renders tab-separated rows as a borderless table with its
+# column labels in capitals. Styled output sits one indent in, like everything
+# a section holds, mutes the labels and fits the terminal: the widest columns
+# give up space first and their cells are shortened with an ellipsis (paths
+# lose middle components). Plain output stays an untruncated, aligned layout
+# that is safe to capture. "-" cells are faint in every styled table.
 # @option --align <spec> One letter per column, l or r; defaults to l.
 # @option --marker <n> Styled rows lead with the marker of column n's status
 # word, as report rows do; a word without a tone leaves the place blank.
@@ -1025,7 +1025,7 @@ _zsh_ui_table() {
   _zsh_ui_resolve_mode || return $?
   local mode="$REPLY"
   _zsh_ui_set_palette "$mode"
-  [[ "$mode" == plain ]] || columns=("${(@U)columns}")
+  columns=("${(@U)columns}")
 
   for (( c = 1; c <= ncols; c++ )); do
     widths[c]=${(m)#columns[c]}

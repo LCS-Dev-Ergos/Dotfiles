@@ -16,7 +16,7 @@ def rows(findings: Iterable[Finding]) -> list[tuple[str, ...]]:
 
 
 def render_text(findings: Sequence[Finding], errors: Errors) -> str:
-    table = [COLUMNS, *rows(findings)]
+    table = [tuple(c.upper() for c in COLUMNS), *rows(findings)]
     widths = [max(len(row[i]) for row in table) for i in range(4)]
     lines = []
     for row in table:

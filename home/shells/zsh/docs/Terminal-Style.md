@@ -90,8 +90,9 @@ a few sharper markers (`?` unknown, `◐` dormant). The frame uses `╭╮╰╯
   its own layout passes `--width`. The margin is `_ZSH_UI_GUTTER` (2) on
   both sides and the step in is `_ZSH_UI_INDENT` (2): frame at column 0,
   titles at 2, rows at 4, a row's text at 6.
-- Table columns are separated by two spaces. Column labels are muted
-  capitals; numbers align right. Rows with a state lead with its marker.
+- Table columns are separated by two spaces. Column labels are capitals in
+  every mode, muted when styled; numbers align right. Rows with a state lead
+  with its marker.
 - A row's continuation (reasons, locations, `fix`, `steps`) starts under its
   text and wraps to the right margin. Paths are shortened instead: they drop
   whole middle components (`~/.local/…/bin/node`), and `$HOME` becomes `~`.

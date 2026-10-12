@@ -205,7 +205,7 @@ plain_table="$(
   ZSH_UI_STYLE=plain _zsh_ui_table \
     $'Name\tValue' $'alpha\t1' $'longer\t2'
 )" || return 1
-[[ "$plain_table" == $'Name    Value\nalpha   1\nlonger  2' ]] || {
+[[ "$plain_table" == $'NAME    VALUE\nalpha   1\nlonger  2' ]] || {
   print -u2 "FAIL: plain table layout changed"
   return 1
 }
@@ -215,7 +215,7 @@ aligned_table="$(
   ZSH_UI_STYLE=plain _zsh_ui_table --align lr \
     $'Name\tSize' $'alpha\t1 KB' $'beta\t120 KB'
 )" || return 1
-[[ "$aligned_table" == $'Name     Size\nalpha    1 KB\nbeta   120 KB' ]] || {
+[[ "$aligned_table" == $'NAME     SIZE\nalpha    1 KB\nbeta   120 KB' ]] || {
   print -u2 "FAIL: right-aligned column was not padded on the left"
   return 1
 }
@@ -262,7 +262,7 @@ marked_lines=("${(@f)toned_table}")
   return 1
 }
 [[ "$(ZSH_UI_STYLE=plain _zsh_ui_table --marker 1 $'State\tName' $'ok\talpha')" == \
-   $'State  Name\nok     alpha' ]] || {
+   $'STATE  NAME\nok     alpha' ]] || {
   print -u2 "FAIL: plain output drew table markers"
   return 1
 }

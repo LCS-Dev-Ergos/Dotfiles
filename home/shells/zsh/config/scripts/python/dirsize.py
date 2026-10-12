@@ -478,7 +478,7 @@ def render_table(items: List[dict], styled: bool) -> None:
         items: List of item dicts with 'size_str', 'type', 'name' keys.
         styled: Whether to draw the colored frame.
     """
-    headers = ("Size", "Type", "Name")
+    headers = ("SIZE", "TYPE", "NAME")
     rows = [(item["size_str"], item["type"], item["name"]) for item in items]
     widths = [
         max([display_width(header)] + [display_width(row[index]) for row in rows])
@@ -486,7 +486,7 @@ def render_table(items: List[dict], styled: bool) -> None:
     ]
 
     if not styled:
-        print(f"{pad('Size', widths[0], True)}  {pad('Type', widths[1])}  Name")
+        print(f"{pad('SIZE', widths[0], True)}  {pad('TYPE', widths[1])}  NAME")
         for size, kind, name in rows:
             print(f"{pad(size, widths[0], True)}  {pad(kind, widths[1])}  {name}")
         return
@@ -505,9 +505,9 @@ def render_table(items: List[dict], styled: bool) -> None:
     bar = f"{border}│{reset}"
     print(frame("╭", "┬", "╮"))
     print(
-        f"{bar} {C_HEADER}{pad('Size', widths[0], True)}{reset} "
-        f"{bar} {C_HEADER}{pad('Type', widths[1])}{reset} "
-        f"{bar} {C_HEADER}{pad('Name', widths[2])}{reset} {bar}"
+        f"{bar} {C_HEADER}{pad('SIZE', widths[0], True)}{reset} "
+        f"{bar} {C_HEADER}{pad('TYPE', widths[1])}{reset} "
+        f"{bar} {C_HEADER}{pad('NAME', widths[2])}{reset} {bar}"
     )
     print(frame("├", "┼", "┤"))
     for size, kind, name in rows:
