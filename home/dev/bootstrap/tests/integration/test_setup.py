@@ -919,6 +919,25 @@ class SetupTests(unittest.TestCase):
                     before, sorted(str(p) for p in self.root.rglob("*"))
                 )
 
+    def test_plan_counts_runtimes_behind_a_missing_manager_as_missing(self):
+        # fnm is missing: apply installs it before the runtime stage.
+        _, result = self.cli("plan")
+        node = [row for row in result["runtimes"] if row["language"] == "node"]
+        self.assertTrue(node)
+        for row in node:
+            self.assertEqual(row["state"], "missing")
+            self.assertEqual(row["reason"], "apply installs fnm first")
+        # Without the setup nothing installs fnm, so the runtimes stay blocked.
+        _, result = self.cli("plan", "--runtimes-only")
+        self.assertEqual(
+            {
+                row["state"]
+                for row in result["runtimes"]
+                if row["language"] == "node"
+            },
+            {"blocked"},
+        )
+
     def test_preflight_is_read_only_and_names_what_apply_needs(self):
         self.data["setup"].update(
             query=["-Qq"],

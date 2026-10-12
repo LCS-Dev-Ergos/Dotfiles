@@ -179,7 +179,7 @@ ecosystem has been measured. A multi-component ecosystem adds
 | `owner` | Always | Manager name, or `nixpkgs`. |
 | `state` | Always | See below. |
 | `component` | Multi-component ecosystems | `ghc`, `cabal` or `hls`. |
-| `reason` | `blocked`, `conflict`, `external` and interrupted `missing` rows | Why, in one sentence. |
+| `reason` | `blocked`, `conflict` and `external` rows; `missing` rows that were interrupted or whose manager apply installs first | Why, in one sentence. |
 | `remediation` | Some `conflict` rows | Shell-quoted manager command that rebuilds the runtime. |
 | `interrupted` | Some `missing` rows | `true`: an interrupted install left the prefix, and `apply` replaces it. |
 | `actualVersion` | Health | The release the selection reported. |
@@ -191,7 +191,7 @@ ecosystem has been measured. A multi-component ecosystem adds
 | `present` | The executable exists; not yet verified (plan). |
 | `ok` | Verified: exact identity and complete canary, or health. |
 | `conflict` | Present but failing verification, or an incomplete prefix bootstrap did not start; needs a person. |
-| `blocked` | Cannot proceed here: missing manager, NixOS without the nixpkgs backend, unusable selection. |
+| `blocked` | Cannot proceed here: missing manager (a plan that installs managers reports `missing` instead), NixOS without the nixpkgs backend, unusable selection. |
 | `external` | The global selection delegates to the host (`system`); not executed. |
 
 ### Preflight

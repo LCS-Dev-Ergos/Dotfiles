@@ -368,6 +368,8 @@ def choose(args, manifest):
 def execute(context, setup, args):
     """Run the requested action and build the stable JSON result."""
     rows = context.plan()
+    if setup and args.action == "plan":
+        rows = setup.installable(rows)
     selections = None
     if args.action == "apply":
         if setup:

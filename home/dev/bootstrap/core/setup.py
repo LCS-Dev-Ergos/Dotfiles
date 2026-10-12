@@ -56,6 +56,29 @@ class BootstrapSetup:
             "privilegedPackages": bool(self.recipe["privilege"]),
         }
 
+    def installable(self, rows):
+        """Plan rows as apply sees them: missing managers come first.
+
+        An adapter's plan blocks a runtime whose manager is missing, and
+        stays right without this setup (--runtimes-only). Here the
+        prerequisites stage installs every missing manager before the
+        runtime stage, so such a runtime is missing like any other.
+        """
+        unavailable = {}
+        for adapter in self.adapters:
+            try:
+                adapter.manager()
+            except BootstrapError as error:
+                unavailable[adapter.language] = (str(error), adapter)
+        for row in rows:
+            reason, adapter = unavailable.get(row["language"], (None, None))
+            if row["state"] == "blocked" and row.get("reason") == reason:
+                row.update(
+                    state="missing",
+                    reason=f"apply installs {adapter.manager_name} first",
+                )
+        return rows
+
     def required_packages(self, rows):
         """The native packages each selected ecosystem needs, by language.
 
