@@ -101,7 +101,7 @@
       linuxHost = rec {
         system = "x86_64-linux";
         runtimeManagerBackend = "native";
-        nativeFnmReady = false;
+        nativeFnmReady = true;
         hostname = "LCS.Dev-Legion-Cachy";
         nativeGraphics = true;
         username = "lcs-dev";
