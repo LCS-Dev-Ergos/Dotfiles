@@ -32,10 +32,9 @@ in
   # toolchain check fails when the running macOS is older than it.
   darwinDeploymentTarget = "26.0";
 
-  # Tripwire: the newest macOS SDK major this LLVM's LLD can read. LLD 23.1.0
-  # still rejects SDK 27's arm64e.x1 stubs (support is being backported to
-  # the 23.x branch in llvm/llvm-project#224185), so the drivers hand a
-  # -fuse-ld=lld link against a newer SDK to Apple's linker instead. It fires
+  # Tripwire: the newest macOS SDK major this LLVM's LLD can read. LLD 23.1.3
+  # reads SDK 27's arm64e.x1 stubs, so the drivers use LLD through SDK 27 and
+  # hand a -fuse-ld=lld link against a newer SDK to Apple's linker instead. It fires
   # in two places:
   #  - evaluation fails as soon as llvmPackages is another LLVM major than
   #    `llvm`, until the ceiling has been re-established for that release;
@@ -43,6 +42,6 @@ in
   #    ceiling, which means the ceiling should rise.
   lld = {
     llvm = "23";
-    newestSdkMajor = 26;
+    newestSdkMajor = 27;
   };
 }
