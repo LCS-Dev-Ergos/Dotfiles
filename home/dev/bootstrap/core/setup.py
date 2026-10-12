@@ -79,26 +79,27 @@ class BootstrapSetup:
                 )
         return rows
 
-    def required_packages(self, rows):
+    def required_packages(self):
         """The native packages each selected ecosystem needs, by language.
 
-        A missing manager needs its package, and a runtime that is not
-        present needs its build packages.
+        Its build packages and, when an installer provides its manager, the
+        installer's packages are needed whatever is already installed: the
+        runtimes compile, link or load against the former and the manager
+        runs the latter, so apply restores either when it went missing. A
+        manager's own package is needed only while the manager is missing;
+        an existing manager is adopted, never installed a second time.
         """
-        incomplete = {
-            row["language"] for row in rows if row["state"] != "present"
-        }
         required = {}
         for adapter in self.adapters:
-            packages = set()
+            packages = set(
+                self.recipe["buildPackages"].get(adapter.language, [])
+            )
+            if adapter.language in self.recipe.get("installers", {}):
+                packages.update(self.recipe.get("installerPackages", []))
             try:
                 adapter.manager()
             except BootstrapError:
                 packages.update(adapter.manager_packages())
-            if adapter.language in incomplete:
-                packages.update(
-                    self.recipe["buildPackages"].get(adapter.language, [])
-                )
             required[adapter.language] = packages
         return required
 
@@ -126,7 +127,7 @@ class BootstrapSetup:
 
     def prerequisites(self):
         rows = self.context.plan()
-        required = set().union(*self.required_packages(rows).values())
+        required = set().union(*self.required_packages().values())
         if self.needs_sdk(rows) and not self.sdk_present():
             raise BootstrapError(
                 "Install/select Apple developer tools and accept their license"
@@ -156,7 +157,7 @@ class BootstrapSetup:
         """
         rows = self.context.plan()
         directory = self.context.query_directory
-        required = self.required_packages(rows)
+        required = self.required_packages()
         wanted = set().union(*required.values())
         package_manager = self.foundation()
         if package_manager is None:

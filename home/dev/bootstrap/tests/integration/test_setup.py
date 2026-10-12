@@ -1105,6 +1105,23 @@ class SetupTests(unittest.TestCase):
             all(r["state"] == "present" for r in self.setup.health())
         )
 
+    def test_apply_restores_a_prerequisite_of_installed_runtimes(self):
+        self.setup.apply()
+        self.assertTrue(
+            all(r["state"] == "present" for r in self.setup.health())
+        )
+        # Every runtime stays installed; only a build package went away.
+        self.installed.discard("sqlite")
+        self.events.clear()
+        self.setup.apply()
+        installs = [
+            event
+            for event in self.events
+            if "--formula" in event and event[1] == "install"
+        ]
+        self.assertEqual([list(event[3:]) for event in installs], [["sqlite"]])
+        self.assertIn("sqlite", self.installed)
+
     def test_unlinked_but_installed_formulae_do_not_fail_the_stage(self):
         self.unlinked = {"sqlite"}
         self.setup.prerequisites()
