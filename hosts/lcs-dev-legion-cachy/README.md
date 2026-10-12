@@ -157,6 +157,14 @@ home-manager build --flake ~/Dotfiles
 home-manager switch --flake ~/Dotfiles -b <unique-backup-suffix>
 ```
 
+The standalone profile manages `~/.config/home-manager/flake.nix` as a
+symbolic link to the checkout's `flake.nix`. Home Manager resolves this link
+to discover the complete flake, including its lock file and module imports.
+After activation, `home-manager news`, `home-manager build`, and
+`home-manager switch` also work without `--flake`. The checkout must remain
+at the configured `dotfilesRoot`; an explicit `--flake` selects a different
+checkout when needed.
+
 If an earlier generation exists, its activation script restores managed
 configuration. First-activation recovery instead requires restoring the
 recorded profile state and backed-up collision files. Home Manager rollback
