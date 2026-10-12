@@ -56,7 +56,7 @@ flowchart TD
 | --- | --- |
 | `package.nix`, `policy.nix` | Compose the manifest and literal argv policy, package the executor and run fixture checks. |
 | `bootstrap.py`, `core/cli.py` | Stable executable entry, argument parsing, reporting and process exit status. |
-| `core/render.py`, `core/ui.py` | The text report: how each state reads, drawn in the style every shell tool shares (`ui.py` mirrors the tokens of the Zsh style module). |
+| `core/render.py`, `core/ui.py`, `core/progress.py` | The text report: how each state reads, drawn in the style every shell tool shares (`ui.py` mirrors the tokens of the Zsh style module); the run's live progress on stderr. |
 | `core/manifest.py` | Validate the generated manifest; each toolchain adapter validates its own declaration. |
 | `core/process.py`, `paths.py`, `errors.py` | The single process boundary with scoped child environments, copying output into the run's logs; writable roots and owned directories; operational errors. |
 | `core/runs.py` | The record of each `apply` and `prune --yes`: logs, progress events and the report, the last ten kept; what `report` lists and shows again. |
@@ -167,7 +167,10 @@ runtime rows then show what the run left installed. The last ten runs are
 kept, each file readable only by its owner. `report` lists them, `report
 --last` shows the newest again and `report --run ID` a given one, as text or
 JSON. `--events PATH` streams the same progress events while the run goes,
-for a frontend that reads a file or a FIFO.
+for a frontend that reads a file or a FIFO. With the text report, stderr
+follows the run as it works: the log directory, each stage, and each package
+installation, ecosystem or removal with its outcome and duration, so a long
+source build never looks like a hang.
 
 ```sh
 bash scripts/bootstrap/dev-bootstrap.sh apply --events /tmp/progress.jsonl

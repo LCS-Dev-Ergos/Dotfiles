@@ -488,6 +488,11 @@ class SetupTests(unittest.TestCase):
         (directory,) = self.runs()
         log = directory / "prerequisites.log"
         self.assertIn(f"the full output is in {log}", errors)
+        # Progress went to stderr as the run worked, ahead of the error.
+        progress = errors.splitlines()
+        self.assertEqual(progress[0], f"logs {directory}")
+        self.assertEqual(progress[1], "Prerequisites")
+        self.assertRegex(progress[3], r"^  Native packages .*: failed after")
         self.assertEqual(log.stat().st_mode & 0o777, 0o600)
         text = log.read_text()
         self.assertIn(f"$ {self.bin / 'brew'} install --formula", text)

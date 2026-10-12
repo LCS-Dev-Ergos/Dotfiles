@@ -121,7 +121,7 @@ def plural(count, noun):
     return f"{count} {noun}{'' if count == 1 else 's'}"
 
 
-def _namer(result):
+def namer(result):
     """How a row's ecosystem and component read: the catalog's titles.
 
     A report without them, or an ecosystem the catalog does not list, falls
@@ -231,7 +231,7 @@ def _runtimes(result, style):
     # plan's, and the title, the run and the hint say that it stopped.
     action = "stopped" if run.get("error") else result["action"]
     runtimes = result.get("runtimes", [])
-    name = _namer(result)
+    name = namer(result)
     ecosystems = len({row["language"] for row in runtimes})
     noun = "selection" if health else "runtime"
     lines = _header(
@@ -529,7 +529,7 @@ def _prune(result, style, applied):
         return lines + [message] + _run(run, style)
 
     rows = []
-    name = _namer(result)
+    name = namer(result)
     for row in retired:
         tone = RETIRED_TONES.get(row["state"], "error")
         notes = []

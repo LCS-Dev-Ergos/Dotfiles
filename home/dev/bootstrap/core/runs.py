@@ -70,6 +70,8 @@ class Recorder:
         # The innermost log a failure passed through: its output explains it.
         self.failed_log = None
         self.files = []
+        # Callables given each event as it happens (core.progress).
+        self.listeners = []
         if events is not None:
             # A file or a FIFO a frontend reads as the run progresses.
             self.files.append(open(events, "w", encoding="utf-8"))
@@ -118,12 +120,13 @@ class Recorder:
             shutil.rmtree(entry)
 
     def emit(self, event, **fields):
-        line = json.dumps(
-            {"time": timestamp(time.time()), "event": event, **fields}
-        )
+        record = {"time": timestamp(time.time()), "event": event, **fields}
+        line = json.dumps(record)
         for file in self.files:
             file.write(line + "\n")
             file.flush()
+        for listener in self.listeners:
+            listener(record)
 
     @contextmanager
     def log(self, name):

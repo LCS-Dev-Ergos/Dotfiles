@@ -13,6 +13,7 @@ from .adapters import ADAPTERS
 from .engine import Bootstrap, select
 from .errors import BootstrapError, Interrupted
 from .manifest import load_manifest
+from .progress import Progress
 from .prune import Prune
 from .render import render
 from .runs import Recorder, recorded_runs, runs_directory, stored_report
@@ -205,6 +206,10 @@ def run(args, setups):
             recorder = Recorder(
                 "prune --yes" if args.yes else args.action, events=args.events
             )
+            if args.format == "text":
+                recorder.listeners.append(
+                    Progress(context.catalog(), Style.detect(sys.stderr))
+                )
             context.recorder = recorder
         if origin["source"] == "file" and args.format == "text":
             print(
