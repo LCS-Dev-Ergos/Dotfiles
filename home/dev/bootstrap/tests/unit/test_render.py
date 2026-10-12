@@ -477,6 +477,26 @@ class GuaranteeTests(unittest.TestCase):
             sum("the declared default" in line for line in lines), 1
         )
 
+    def test_apply_names_selections_left_on_another_release(self):
+        # apply never moves an existing default: the hint says so.
+        result = copy.deepcopy(CASES["apply"])
+        result["selections"] = [
+            runtime(
+                "python",
+                "3.14.8",
+                "ok",
+                f"{HOME}/.pyenv/versions/3.14.7/bin/python",
+                "pyenv",
+                actualVersion="3.14.7",
+            )
+        ]
+        lines = list(render(result, ui.Style(False)))
+        self.assertEqual(
+            lines[-1],
+            "[OK]    1 ok; 1 global selection stays on another release; "
+            "verify --health lists them.",
+        )
+
     def test_a_preflight_that_stops_apply_says_so(self):
         result = copy.deepcopy(CASES["preflight"])
         preflight = result["preflight"]

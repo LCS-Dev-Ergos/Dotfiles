@@ -308,6 +308,22 @@ def _runtimes(result, style):
         lines += ui.table(style, PREFLIGHT_COLUMNS, rows)
         if blocked:
             hint = "resolve the preflight before apply"
+    # apply initializes a default only where none is selected; a selection
+    # left on another release is the person's, or prune's once retired.
+    elsewhere = sum(
+        row["state"] == "ok"
+        and row.get("actualVersion", row["version"]) != row["version"]
+        for row in result.get("selections", [])
+    )
+    healthy = all(
+        _runtime_tone(row["state"], action) != "error" for row in runtimes
+    )
+    if action == "apply" and elsewhere and healthy and not hint:
+        hint = (
+            f"{plural(elsewhere, 'global selection')} "
+            f"{'stays' if elsewhere == 1 else 'stay'} on another release; "
+            "verify --health lists them"
+        )
 
     lines += _run(run, style)
     counts = dict.fromkeys(RUNTIME_STATES, 0)
