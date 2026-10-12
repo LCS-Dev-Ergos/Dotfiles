@@ -522,6 +522,30 @@ class GuaranteeTests(unittest.TestCase):
         self.assertIn("Native packages  all 3 packages installed", text)
         self.assertTrue(text.endswith("; apply installs 1 runtime."), text)
 
+    def test_a_preflight_with_packages_to_install_says_so(self):
+        result = copy.deepcopy(CASES["preflight"])
+        for entry in result["preflight"]["ecosystems"]:
+            entry.pop("unbuildable", None)
+        packages = len(result["preflight"]["missing"])
+        lines = list(render(result, ui.Style(False)))
+        self.assertTrue(
+            lines[-1].endswith(
+                f"; apply installs {packages} native packages and 1 runtime."
+            ),
+            lines[-1],
+        )
+        # Every runtime installed, a prerequisite gone: still work to do.
+        for row in result["runtimes"]:
+            row["state"] = "present"
+        lines = list(render(result, ui.Style(False)))
+        self.assertTrue(lines[-1].startswith("[INFO]"), lines[-1])
+        self.assertTrue(
+            lines[-1].endswith(
+                f"; apply installs {packages} native packages."
+            ),
+            lines[-1],
+        )
+
     def test_rows_are_named_by_the_catalog_titles(self):
         lines = lines_of("plan", ui.Style(False))
         self.assertTrue(any(line.startswith("Node ") for line in lines))

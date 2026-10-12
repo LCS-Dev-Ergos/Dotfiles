@@ -301,7 +301,7 @@ def _runtimes(result, style):
             )
         lines += ui.table(style, RUNTIME_COLUMNS, rows)
 
-    hint = None
+    hint, floor = None, "ok"
     if result.get("preflight"):
         rows, blocked = _preflight(result, name)
         lines += [""] + ui.section(
@@ -310,8 +310,17 @@ def _runtimes(result, style):
             Path(result["preflight"]["packageManager"]["path"]).name,
         )
         lines += ui.table(style, PREFLIGHT_COLUMNS, rows)
+        packages = len(result["preflight"].get("missing", []))
         if blocked:
             hint = "resolve the preflight before apply"
+        elif packages:
+            # Work is due even when every runtime is installed.
+            floor = "pending"
+            installs = [plural(packages, "native package")]
+            waiting = sum(row["state"] == "missing" for row in runtimes)
+            if waiting:
+                installs.append(plural(waiting, "runtime"))
+            hint = "apply installs " + " and ".join(installs)
     # apply initializes a default only where none is selected; a selection
     # left on another release is the person's, or prune's once retired.
     elsewhere = sum(
@@ -341,7 +350,7 @@ def _runtimes(result, style):
             for state, count in counts.items()
         ],
         _stopped_hint(run) or hint or _runtime_hint(action, health, counts),
-        RUN_TONES[run["outcome"]] if run.get("error") else "ok",
+        RUN_TONES[run["outcome"]] if run.get("error") else floor,
     )
     return lines
 
