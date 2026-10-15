@@ -19,6 +19,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from core import cli, process
+from core.adapters import ADAPTERS
+from core.prompt import Cancelled
 from core.adapters.node import FNM_SYSTEM_TARGET
 from core.adapters.ocaml import OcamlAdapter
 from core.adapters.python import PythonAdapter
@@ -643,26 +645,43 @@ class SetupTests(unittest.TestCase):
             all(row["state"] == "present" for row in plan["nativeManagers"])
         )
 
-    def guided(self, *arguments, answers=()):
-        """Run `setup` with a scripted person at the terminal."""
-        prompter = ScriptedPrompter(self, answers)
+    def guided(self, *arguments, answers=(), attended=True):
+        """Run `setup` with a scripted person at the terminal.
+
+        The CLI builds its own adapters, so the fixture installers stand in
+        for theirs at the class.
+        """
+        for language in ("node", "python", "ocaml"):
+            mock = patch.object(
+                ADAPTERS[language],
+                "install",
+                lambda adapter, row: self.guided_install(row),
+            )
+            mock.start()
+            self.addCleanup(mock.stop)
+        prompter = ScriptedPrompter(self, answers, attended=attended)
         with patch.object(cli, "prompter", return_value=prompter):
             code, output, errors = self.cli_output("setup", *arguments)
         prompter.finished()
         return code, output, errors, prompter
 
-    def test_guided_setup_reviews_without_changing_anything(self):
-        code, output, errors, prompter = self.guided(
-            "--only", "node", "--only", "python", "--only", "ocaml"
+    SCOPE = ("--only", "node", "--only", "python", "--only", "ocaml")
+    # The ecosystem whose guided installation fails.
+    broken = None
+
+    def guided_install(self, row):
+        if row["language"] == self.broken:
+            raise BootstrapError("python-build failed")
+        self.install_runtime(row)
+
+    def test_guided_setup_applies_and_a_rerun_only_confirms(self):
+        code, output, errors, _ = self.guided(
+            *self.SCOPE, answers=[("confirm", True)]
         )
-        self.assertEqual((code, errors), (0, ""))
-        self.assertEqual(self.mutations(), [])
-        # Neither state nor a saved selection: a review writes nothing.
-        self.assertFalse((self.root / "state").exists())
-        self.assertFalse((self.root / "home/.config").exists())
+        self.assertEqual(code, 0, errors)
+        installed = [event for event in self.events if event[0] == "runtime"]
+        self.assertEqual(len(installed), 5)
         lines = [" ".join(line.split()) for line in output.splitlines()]
-        self.assertEqual(lines[0], "dev-bootstrap · Guided setup")
-        self.assertIn("apply carries out this review", lines[-1])
         python = self.data["python"]["version"]
         for expected in (
             "Selection · --only",
@@ -670,9 +689,86 @@ class SetupTests(unittest.TestCase):
             f"Python {python} source build · medium",
             # Missing managers arrive as packages, with the build packages.
             "Apply installs fnm, opam, pyenv and sqlite. It runs:",
-            "dev-bootstrap apply --only node --only python --only ocaml",
+            "dev-bootstrap · Apply result",
+            "Next",
         ):
             self.assertIn(expected, lines)
+        # Live progress goes to stderr, as with apply.
+        self.assertIn("Runtimes", errors)
+
+        self.events.clear()
+        code, output, errors, prompter = self.guided(
+            *self.SCOPE, answers=[("confirm", True)]
+        )
+        self.assertEqual(code, 0, errors)
+        self.assertEqual(self.mutations(), [])
+        self.assertEqual([kind for kind, _, _ in prompter.asked], ["confirm"])
+        self.assertIn("Every runtime of the selection is installed.", output)
+
+    def test_guided_setup_saves_the_selection_it_applies(self):
+        code, _, errors, _ = self.guided(
+            answers=[
+                ("choose_many", ["ocaml", "node", "python"]),
+                ("confirm", True),
+            ]
+        )
+        self.assertEqual(code, 0, errors)
+        saved = self.root / "home/.config/dev-bootstrap/selection.json"
+        self.assertEqual(
+            json.loads(saved.read_text())["ecosystems"],
+            ["node", "python", "ocaml"],
+        )
+        _, report = self.cli("report", "--last", scoped=False)
+        self.assertEqual(report["selection"]["source"], "file")
+
+    def test_guided_setup_passes_accepted_terms_to_apply(self):
+        with patch.object(ADAPTERS["node"], "consents", ("node-terms",)):
+            code, _, errors, prompter = self.guided(
+                *self.SCOPE, answers=[("confirm", True), ("confirm", True)]
+            )
+        self.assertEqual(code, 0, errors)
+        self.assertEqual(
+            prompter.asked[0][1], "Accept node-terms, which Node requires?"
+        )
+
+    def test_guided_setup_cancelled_before_apply_changes_nothing(self):
+        for answers in ([("confirm", False)], [("confirm", Cancelled)]):
+            with self.subTest(answers=answers):
+                code, _, errors, _ = self.guided(*self.SCOPE, answers=answers)
+                self.assertEqual(code, 130)
+                self.assertIn("setup cancelled; nothing changed", errors)
+        self.assertEqual(self.mutations(), [])
+        self.assertFalse((self.root / "state").exists())
+
+    def test_guided_setup_failure_shows_what_apply_left(self):
+        self.broken = "python"
+        code, output, errors, _ = self.guided(
+            *self.SCOPE, answers=[("confirm", True)]
+        )
+        self.assertEqual(code, 2)
+        self.assertIn("python-build failed", errors)
+        self.assertIn("dev-bootstrap · Apply failed", output)
+        self.assertNotIn("\nNext", output)
+
+    def test_guided_setup_interrupted_releases_the_lock(self):
+        release = self.data["ocaml"]["versions"][0]
+        self.interrupt = ("ocaml", release)
+        code, output, errors, _ = self.guided(
+            *self.SCOPE, answers=[("confirm", True)]
+        )
+        self.assertEqual(code, 130)
+        self.assertIn("interrupted during runtimes", errors)
+        self.assertIn("dev-bootstrap · Apply interrupted", output)
+        with (self.root / "state/dev-bootstrap/apply.lock").open("a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    def test_guided_setup_without_a_terminal_needs_yes(self):
+        code, _, errors, _ = self.guided(*self.SCOPE, attended=False)
+        self.assertEqual(code, 2)
+        self.assertIn("accept the review with --yes", errors)
+        self.assertEqual(self.mutations(), [])
+        code, _, errors, _ = self.guided(*self.SCOPE, "--yes", attended=False)
+        self.assertEqual(code, 0, errors)
 
     def test_guided_setup_options(self):
         for arguments in (

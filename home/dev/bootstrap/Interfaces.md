@@ -115,7 +115,10 @@ report renders the same object for people and is not an interface. `plan`
 exits 0 whenever it can report; `apply` and
 `verify` exit 0 when every runtime row is `ok` or `external`, and 1 otherwise.
 `prune` exits 0 when it only lists; with `--yes`, 0 when every retired row is
-`removed`, and 1 otherwise. `report` exits 0 when it shows what was asked.
+`removed`, and 1 otherwise. `report` exits 0 when it shows what was asked. `setup` exits as the apply it runs, 0 when
+nothing is selected or the person takes the privileged command away, 1 when
+a blocker stops it before apply, and 130 when the person leaves at a
+question.
 An operational error exits 2 with a message on stderr and no report; an
 interruption exits 128 plus the signal number.
 

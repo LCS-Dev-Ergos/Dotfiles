@@ -44,6 +44,9 @@ class Prompter:
     subclasses ask at the terminal instead.
     """
 
+    # Whether a person can answer: the flow asks only then.
+    attended = False
+
     def __init__(self, style, *, stream=None):
         self.style = style
         # Flushed before each question, so a report never trails a prompt.
@@ -71,6 +74,8 @@ class Prompter:
 
 class LinePrompter(Prompter):
     """Questions as lines on stderr, answers read from stdin."""
+
+    attended = True
 
     def __init__(self, style, *, stream=None, terminal=None):
         super().__init__(style, stream=stream)
@@ -148,6 +153,8 @@ class LinePrompter(Prompter):
 
 class GumPrompter(Prompter):
     """Gum's widgets at the terminal, in the shared theme."""
+
+    attended = True
 
     def __init__(self, style, *, gum, stream=None):
         super().__init__(style, stream=stream)

@@ -15,7 +15,7 @@ from .engine import Bootstrap, select
 from .errors import BootstrapError, Interrupted
 from .guided import Guide
 from .manifest import load_manifest
-from .prompt import prompter
+from .prompt import Cancelled, prompter
 from .progress import Progress
 from .prune import Prune
 from .render import render
@@ -106,14 +106,15 @@ def command_line():
     parser.add_argument(
         "--yes",
         action="store_true",
-        help="Remove the retired releases prune lists, instead of listing them",
+        help="Remove the retired releases prune lists, instead of listing "
+        "them; accept setup's review without asking",
     )
     parser.add_argument(
         "--events",
         type=Path,
         metavar="PATH",
-        help="Write the progress of apply or prune --yes to PATH as JSON "
-        "Lines",
+        help="Write the progress of apply, setup or prune --yes to PATH as "
+        "JSON Lines",
     )
     shown = parser.add_mutually_exclusive_group()
     shown.add_argument(
@@ -136,12 +137,16 @@ def main():
         parser.error("--health requires verify")
     if args.preflight and args.action != "plan":
         parser.error("--preflight requires plan")
-    if args.yes and args.action != "prune":
-        parser.error("--yes requires prune")
+    if args.yes and args.action not in ("prune", "setup"):
+        parser.error("--yes requires prune or setup")
     if args.save_selection and not (args.only or args.all):
         parser.error("--save-selection requires --only or --all")
-    if args.events and not (args.action == "apply" or args.yes):
-        parser.error("--events requires apply or prune --yes")
+    if args.events and not (
+        args.action in ("apply", "setup")
+        or args.action == "prune"
+        and args.yes
+    ):
+        parser.error("--events requires apply, setup or prune --yes")
     if (args.last or args.run) and args.action != "report":
         parser.error("--last and --run require report")
     if args.action == "report" and (
@@ -161,10 +166,21 @@ def main():
     try:
         with termination():
             return run(args, setups)
+    except Cancelled:
+        print(
+            "dev-bootstrap: setup cancelled; nothing changed", file=sys.stderr
+        )
+        return 130
     except (KeyboardInterrupt, Interrupted) as error:
         signum = getattr(error, "signum", signal.SIGINT)
+        if args.action == "setup" and not setups:
+            print(
+                "dev-bootstrap: setup interrupted before any change",
+                file=sys.stderr,
+            )
+            return 128 + signum
         stage = ""
-        if args.action == "apply" and setups:
+        if setups:
             stage = f" during {setups[0].stage}"
         print(
             f"dev-bootstrap: interrupted{stage}; the lock is released. Apply "
@@ -214,7 +230,7 @@ def run(args, setups):
         manifest = load_manifest(args.manifest)
         only, origin = choose(args, manifest)
         if args.action == "setup":
-            return guide(manifest, only, origin, args.accept)
+            return guide(manifest, only, origin, args, setups)
         context = Bootstrap(manifest, only, accepted=args.accept)
         if args.action == "apply" or args.yes:
             recorder = Recorder(
@@ -384,8 +400,8 @@ def choose(args, manifest):
     return saved, {"source": "file", "path": str(path)}
 
 
-def guide(manifest, only, origin, accepted):
-    """`setup`: detect, summarize and review, reading plan --preflight."""
+def guide(manifest, only, origin, args, setups):
+    """`setup`: detect, choose, review, then apply in this process."""
     if manifest["backend"] != "native" or not manifest.get("setup"):
         raise BootstrapError(
             "setup guides the native setup, which this baseline does not use "
@@ -393,14 +409,31 @@ def guide(manifest, only, origin, accepted):
         )
 
     def planner(selection):
-        context = Bootstrap(manifest, selection, accepted=accepted)
+        context = Bootstrap(manifest, selection, accepted=args.accept)
         return execute(context, BootstrapSetup(context), PREFLIGHT)
+
+    def executor(selection, accepted):
+        # The same run `dev-bootstrap apply` makes with these options.
+        applying = argparse.Namespace(**vars(args))
+        applying.action = "apply"
+        applying.only = selection["only"]
+        applying.all = selection["all"]
+        applying.accept = list(accepted)
+        applying.yes = False
+        return run(applying, setups)
 
     style = Style.detect()
     asker = prompter(
         manifest.get("frontend", {}), style, attended=process.attended()
     )
-    return Guide(manifest, planner, asker, style).run(only, origin, accepted)
+    return Guide(
+        manifest,
+        planner,
+        asker,
+        style,
+        executor=executor,
+        selection_file=selection_path(),
+    ).run(only, origin, args.accept, yes=args.yes)
 
 
 def execute(context, setup, args):

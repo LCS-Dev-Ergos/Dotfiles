@@ -8,16 +8,20 @@ class ScriptedPrompter(Prompter):
 
     answers holds (kind, answer) pairs in the order the flow should ask:
     kind is confirm, choose or choose_many, and an answer of Cancelled
-    leaves the flow as Esc or Ctrl-C would.
+    leaves the flow as Esc or Ctrl-C would. attended=False stands for no
+    terminal: a question then fails as the real prompter's does.
     """
 
-    def __init__(self, test, answers=()):
+    def __init__(self, test, answers=(), *, attended=True):
         self.test = test
+        self.attended = attended
         self.answers = list(answers)
         self.asked = []
 
     def answer(self, kind, question, **details):
         self.asked.append((kind, question, details))
+        if not self.attended:
+            raise self.unattended(question, details["flag"])
         if not self.answers:
             self.test.fail(f"unexpected {kind}: {question}")
         expected, answer = self.answers.pop(0)

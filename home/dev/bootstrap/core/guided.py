@@ -4,7 +4,8 @@ The executor decides and this module displays. Each step reads the report
 `plan --preflight` prints, first for every ecosystem available here, then
 for the selection, and never re-derives what apply would do. Every screen is
 drawn like any report (core.ui); questions go through a core.prompt
-prompter. Nothing here changes the machine.
+prompter. Nothing changes before the person accepts the review: then the
+selection is saved, and apply runs in-process like `dev-bootstrap apply`.
 """
 
 import shlex
@@ -12,10 +13,21 @@ import sys
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from . import ui
+from . import process, ui
 from .adapters import ADAPTERS
 from .engine import select
-from .render import NOT_HEALTHY, RUNTIME_STATES, cost_text, namer, plural
+from .errors import BootstrapError
+from .prompt import Cancelled
+from .runs import recorded_runs, stored_report
+from .selection import save_selection
+from .render import (
+    NOT_HEALTHY,
+    RUNTIME_STATES,
+    cost_text,
+    namer,
+    plural,
+    render,
+)
 from .ui import Cell, Column, Note, Row
 
 # An ecosystem reads as its least settled runtime.
@@ -57,6 +69,7 @@ DEFAULT_COLUMNS = [
     Column("Default", limit=12),
 ]
 SELECTIONS = {
+    "chosen": "chosen here",
     "only": "--only",
     "all": "every default ecosystem (--all)",
     "default": "every default ecosystem",
@@ -74,17 +87,32 @@ def available(manifest):
 
 
 class Guide:
-    """One guided setup, from detection to the reviewed plan.
+    """One guided setup, from detection to the applied selection.
 
     planner(only) returns the report of `plan --preflight` for that
-    selection; prompter is a core.prompt.Prompter.
+    selection; executor(selection, accepted) runs apply, printing its report,
+    and returns its exit status, where selection holds the `only` and `all`
+    options; prompter is a core.prompt.Prompter; selection_file is the
+    saved selection's path.
     """
 
-    def __init__(self, manifest, planner, prompter, style, *, stream=None):
+    def __init__(
+        self,
+        manifest,
+        planner,
+        prompter,
+        style,
+        *,
+        executor=None,
+        selection_file=None,
+        stream=None,
+    ):
         self.manifest = manifest
         self.planner = planner
+        self.executor = executor
         self.prompter = prompter
         self.style = style
+        self.selection_file = selection_file
         self.stream = sys.stdout if stream is None else stream
 
     def print(self, lines):
@@ -92,14 +120,241 @@ class Guide:
             print(line, file=self.stream)
         self.stream.flush()
 
-    def run(self, only, origin, accepted=()):
+    def run(self, only, origin, accepted=(), *, yes=False):
+        """The whole flow; its exit status.
+
+        0 once apply succeeds, when nothing is selected, or when the person
+        takes the privileged command to run it themselves; 1 when a blocker
+        stops it before apply; apply's own status otherwise. Leaving at a
+        question raises core.prompt.Cancelled before any change.
+        """
         detected = self.planner(available(self.manifest))
         chosen = select(self.manifest, only)
         self.print(self.summary(detected, chosen))
+        chosen, origin = self.choose(detected, chosen, origin)
+        if not chosen:
+            self.print(
+                [""]
+                + message(
+                    self.style,
+                    "muted",
+                    "Nothing selected; setup changes nothing.",
+                )
+            )
+            return 0
         reviewed = self.planner(chosen)
         self.print(review(reviewed, origin, self.style, accepted))
         self.print([""] + self.closing(reviewed))
-        return 0
+        if blockers(reviewed):
+            return 1
+        accepted = self.consent(reviewed, accepted)
+        decision = "apply" if yes else self.decide(reviewed)
+        selection = self.remember(chosen, origin)
+        if decision == "manual":
+            self.print(
+                [""]
+                + message(
+                    self.style,
+                    "pending",
+                    "Install the native packages with this command, then run "
+                    "setup again:",
+                )
+                + command_lines(self.style, reviewed["preflight"]["command"])
+            )
+            return 0
+        if decision == "authenticate":
+            self.authenticate(reviewed["preflight"]["command"])
+        return self.execute(selection, accepted)
+
+    def choose(self, detected, chosen, origin):
+        """The ecosystems to set up, asked when no option chose them.
+
+        --only and --all answer the question, and so does a selection file
+        declared elsewhere (a link), which setup cannot change; without a
+        terminal the saved or default selection stands. A requirement left
+        out is added and the question asked again, never silently.
+        """
+        if (
+            origin["source"] in ("only", "all")
+            or not self.prompter.attended
+            or (self.selection_file and self.selection_file.is_symlink())
+        ):
+            return chosen, origin
+        name = namer(detected)
+        states = {}
+        for row in detected["runtimes"]:
+            state = states.get(row["language"], "ok")
+            states[row["language"]] = min(
+                (state, row["state"]), key=STATES.index
+            )
+        options = [
+            (
+                entry["language"],
+                f"{name(entry, ecosystem=True)}  "
+                f"{states.get(entry['language'], 'missing')} · "
+                f"{cost_text(entry.get('cost', {}))}",
+            )
+            for entry in detected["catalog"]
+            if entry["language"] in states
+        ]
+        selected = list(chosen)
+        while True:
+            picked = self.prompter.choose_many(
+                "Ecosystems to set up",
+                options,
+                selected=selected,
+                flag="choose them with --only, or --all",
+            )
+            needed = [
+                requirement
+                for language in picked
+                for requirement in ADAPTERS[language].requires
+                if requirement not in picked
+            ]
+            if not needed:
+                break
+            needed = list(dict.fromkeys(needed))
+            dependents = [
+                language
+                for language in picked
+                if set(ADAPTERS[language].requires) & set(needed)
+            ]
+            self.print(
+                message(
+                    self.style,
+                    "warn",
+                    f"{listed(name({'language': d}, ecosystem=True) for d in dependents)} "
+                    f"{'needs' if len(dependents) == 1 else 'need'} "
+                    f"{listed(name({'language': n}, ecosystem=True) for n in needed)}, "
+                    "now selected as well: confirm or change.",
+                )
+            )
+            selected = picked + needed
+        picked = [language for language in ADAPTERS if language in picked]
+        if picked == list(chosen):
+            return chosen, origin
+        return picked, {"source": "chosen"}
+
+    def consent(self, result, accepted):
+        """Terms the selection requires, accepted here or by --accept."""
+        accepted = list(accepted)
+        for entry in result["catalog"]:
+            if not entry.get("selected"):
+                continue
+            for term in entry.get("consents", []):
+                if term in accepted:
+                    continue
+                if not self.prompter.confirm(
+                    f"Accept {term}, which {entry.get('title') or entry['language']} requires?",
+                    flag=f"accept it with --accept {term}",
+                ):
+                    raise Cancelled
+                accepted.append(term)
+        return accepted
+
+    def decide(self, result):
+        """Apply, authenticate first, or take the privileged command away."""
+        preflight = result["preflight"]
+        if (
+            preflight["privileged"]
+            and preflight["command"]
+            and self.prompter.attended
+        ):
+            choice = self.prompter.choose(
+                "Installing the native packages needs administrator rights",
+                [
+                    ("authenticate", "Authenticate now, then apply"),
+                    ("manual", "Show the command and stop: run it yourself"),
+                    ("cancel", "Cancel: change nothing"),
+                ],
+                default="authenticate",
+                flag="accept the review with --yes",
+            )
+            if choice == "cancel":
+                raise Cancelled
+            return choice
+        if not self.prompter.confirm(
+            "Apply this review?",
+            default=True,
+            flag="accept the review with --yes",
+        ):
+            raise Cancelled
+        return "apply"
+
+    def remember(self, chosen, origin):
+        """Save a selection chosen here; the options apply runs with.
+
+        A selection the options made is passed on as they made it; one made
+        here, or the saved one, is read back from the selection file.
+        """
+        if origin["source"] == "only":
+            return {"only": list(chosen), "all": False}
+        if origin["source"] == "all":
+            return {"only": None, "all": True}
+        if origin["source"] == "chosen":
+            save_selection(self.selection_file, chosen)
+            self.print(
+                message(
+                    self.style,
+                    "muted",
+                    f"Selection saved in {self.selection_file}; later runs "
+                    "use it.",
+                )
+            )
+        return {"only": None, "all": False}
+
+    def authenticate(self, command):
+        """Ask for administrator rights now, before apply starts working."""
+        login = self.manifest["setup"].get("authenticate")
+        if not login:
+            return
+        process.announce(
+            "installing the missing native packages needs administrator "
+            f"rights; this runs\n  {shlex.join(command)}"
+        )
+        process.attend(login)
+
+    def execute(self, selection, accepted):
+        """Apply, then what to do next, or what stopped it.
+
+        apply prints its own report. A run that fails or is interrupted
+        keeps one too, which is shown here; only a run this apply recorded
+        counts, never an older one.
+        """
+        before = {run["id"] for run in recorded_runs()}
+
+        def recorded():
+            runs = [run for run in recorded_runs() if run["id"] not in before]
+            return runs[0] if runs else None
+
+        self.print([""])
+        try:
+            code = self.executor(selection, accepted)
+        except KeyboardInterrupt:
+            self.stopped(recorded())
+            raise
+        run = recorded()
+        if code == 0:
+            # apply's report already names the logs and the new shell.
+            fields = [
+                ("check", "dev-bootstrap verify --health"),
+                ("again", "dev-bootstrap report --last"),
+            ]
+            self.print([""] + ui.card(self.style, "Next", fields))
+        elif code == 2:
+            self.stopped(run)
+        return code
+
+    def stopped(self, run):
+        """The report a stopped run kept: the plan it left and its error."""
+        if run is None:
+            return
+        try:
+            result = stored_report(run["id"])
+        except BootstrapError:
+            # Stopped before it could write one; stderr said why.
+            return
+        self.print([""] + render(result, self.style))
 
     def summary(self, result, chosen):
         """The masthead and one row per available ecosystem."""
@@ -152,8 +407,10 @@ class Guide:
         state = min((row["state"] for row in runtimes), key=STATES.index)
         tone = STATE_TONES[state]
         notes = []
+        # Why an ecosystem nobody chose waits is noise until it is chosen.
+        noted = runtimes if selected else []
         for reason in dict.fromkeys(
-            row["reason"] for row in runtimes if row.get("reason")
+            row["reason"] for row in noted if row.get("reason")
         ):
             notes.append(Note(reason, "" if tone == "error" else ui.MUTED))
         waiting = [row for row in runtimes if row["state"] == "missing"]
@@ -304,7 +561,7 @@ def work(result):
 def command(result, origin, accepted):
     """The apply argv that does what this review shows, without the guide."""
     argv = ["dev-bootstrap", "apply"]
-    if origin["source"] == "only":
+    if origin["source"] in ("only", "chosen"):
         for entry in result["catalog"]:
             if entry.get("selected"):
                 argv += ["--only", entry["language"]]

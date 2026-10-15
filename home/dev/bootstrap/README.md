@@ -82,6 +82,7 @@ bash scripts/bootstrap/dev-bootstrap.sh apply --only rust
 bash scripts/bootstrap/dev-bootstrap.sh verify --health --only rust
 bash scripts/bootstrap/dev-bootstrap.sh prune --only rust --yes
 bash scripts/bootstrap/dev-bootstrap.sh setup
+bash scripts/bootstrap/dev-bootstrap.sh setup --only node --yes   # unattended
 ```
 
 ## Selection
@@ -182,19 +183,28 @@ bash scripts/bootstrap/dev-bootstrap.sh report --last
 
 `setup` guides a person through the native setup. It plans every ecosystem
 available here and summarizes each in one row: its state, its manager and
-what installing it costs. It then reviews what `apply` would do for the
-selection: the managers it installs and where from, the runtimes, the
-defaults it sets where a manager has none, the native packages with the
-exact command and whether it asks for administrator rights, anything that
-would stop it, and the same run as flags. Both steps read the reports
-`plan --preflight` prints; `setup` decides nothing on its own and, for now,
-changes nothing. The selection comes from the usual options and the saved
-selection; `--format json`, `--save-selection` and `--runtimes-only` are
-refused, and the nixpkgs backend has no native setup to guide. Every screen
-is drawn like the reports; questions use Gum on a color terminal, pinned by
-the package and themed with the shared colors, and line prompts otherwise.
-Without a terminal on stdin no question is asked: it fails and names the
-flag that answers it.
+what installing it costs. Unless `--only` or `--all` chose them, it asks
+which ecosystems to set up, preselecting the saved selection or the
+defaults; a requirement left out (JVM for Kotlin) is added and the question
+asked again. It then reviews what `apply` would do for that selection: the
+managers it installs and where from, the runtimes, the defaults it sets
+where a manager has none, the native packages with the exact command and
+whether it asks for administrator rights, anything that would stop it, and
+the same run as flags. Both steps read the reports `plan --preflight`
+prints; `setup` decides nothing on its own. A blocker ends the flow there,
+exit 1. Otherwise it asks to accept any terms the selection requires and
+then the review itself: when the native packages need administrator rights,
+the choice is to authenticate now and apply, to take the command and run it
+by hand, or to cancel. Accepting saves a selection chosen here, then runs
+apply in the same process, with the same live progress, report and run
+record, followed by the next steps; a failed or interrupted apply shows the
+report it kept. Leaving at any question changes nothing and exits 130.
+Without a terminal on stdin nothing is asked: the saved or default
+selection stands, and only `--yes` accepts the review. `--events` reaches
+the apply; `--format json`, `--save-selection` and `--runtimes-only` are
+refused, and the nixpkgs backend has no native setup to guide. Questions
+use Gum on a color terminal, pinned by the package and themed with the
+shared colors, and line prompts otherwise.
 
 `prune` lists the installed releases that the baseline's `retired` mirror
 names, with what removing each takes; `prune --yes` removes them under the
