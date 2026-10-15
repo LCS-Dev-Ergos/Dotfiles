@@ -91,7 +91,7 @@ zsh_rebuild_path() {
   cache_signature+="|${RBENV_ROOT}|${CARGO_HOME}|${ELAN_HOME}"
   cache_signature+="|${GHCUP_INSTALL_BASE_PREFIX}|${JULIAUP_HOME}"
   cache_signature+="|${COURSIER_BIN_DIR}|${DOTNET_ROOT}|${CONDA_ROOT_PREFIX}"
-  cache_signature+="|${GOPATH}|${ANDROID_HOME}"
+  cache_signature+="|${GOPATH}|${ANDROID_HOME}|${ALR_HOME}"
   cache_signature+="|${FNM_DIR}|${NPM_CONFIG_PREFIX}"
   # The template below is part of the key too: its resolved file changes
   # with every Home Manager generation, its mtime with every checkout edit.
@@ -191,7 +191,10 @@ zsh_rebuild_path() {
       "$HOME/.dotnet/tools" # dotnet global tools (csharp-ls, etc.)
 
       # ------ User and App-Specific Paths ------ #
-      "$HOME/.ada/bin"
+      # alr itself; ALR_HOME is this setup's name for its directory (Alire
+      # defines none), so dev-bootstrap and the shell agree on it. ~/.alire
+      # is `alr install`'s default prefix.
+      "${ALR_HOME:-$HOME/.ada}/bin"
       "$HOME/.alire/bin"
       "$HOME/.bun/bin"
       "$HOME/.flutter/bin"
@@ -268,7 +271,8 @@ zsh_rebuild_path() {
       "$HOME/.dotnet/tools" # dotnet global tools (csharp-ls, etc.)
 
       # ------ User and App-Specific Paths ------ #
-      "$HOME/.ada/bin"
+      "${ALR_HOME:-$HOME/.ada}/bin"
+      "$HOME/.alire/bin"
       "$HOME/.bun/bin"
       "$HOME/.flutter/bin"
       "$HOME/.local/bin"

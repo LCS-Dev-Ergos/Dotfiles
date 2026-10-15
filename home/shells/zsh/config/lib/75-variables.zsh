@@ -118,6 +118,16 @@ export GOPATH="$HOME/.go"
 # --------------- Bun ---------------- #
 export BUN_INSTALL="$HOME/.bun"
 
+# ---------- Android SDK ------------- #
+# Android Studio's default SDK location, unless one is set already; it is
+# also where dev-bootstrap installs the SDK. 90-path.zsh adds adb and
+# sdkmanager from it.
+if [[ "$PLATFORM" == 'macOS' ]]; then
+  export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
+else
+  export ANDROID_HOME="${ANDROID_HOME:-$HOME/Android/Sdk}"
+fi
+
 # -------- OS-specific environment variables -------- #
 if [[ "$PLATFORM" == 'macOS' ]]; then
   # Keep compiler/linker selection project-local. `use_llvm`, `use_gnu`, and
@@ -140,9 +150,6 @@ if [[ "$PLATFORM" == 'macOS' ]]; then
       LIBRARY_PATH="${_EMACS_NATIVE_LIBRARY_PATH}${LIBRARY_PATH:+:$LIBRARY_PATH}" command emacs "$@"
     }
   fi
-
-  # Android Home for Platform Tools.
-  export ANDROID_HOME="$HOME/Library/Android/Sdk"
 
   # Ruby gems are deliberately NOT redirected with GEM_HOME. rbenv keeps one
   # gem tree per Ruby version; a global GEM_HOME overrides that and pools every
