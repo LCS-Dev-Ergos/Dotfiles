@@ -43,6 +43,10 @@ class Progress:
         event = record["event"]
         if event == "run-start":
             path = ui.short_path(record["directory"], self.style)
+            if self.style.styled:
+                # The line fits the terminal; the report repeats the path.
+                room = self.style.width - len(self.titles) - len("logs ")
+                path = ui.truncate(path, room - ui.GUTTER)
             self.line(self.titles + self.style.paint(ui.MUTED, f"logs {path}"))
             return
         kind, _, phase = event.rpartition("-")

@@ -119,6 +119,12 @@ class ProgressTests(unittest.TestCase):
         self.assertIn("    Python 3.14.8 … ✖ failed · 1 min 6 s", lines)
         self.assertEqual(len(lines), 8)
 
+    def test_a_narrow_terminal_shortens_the_log_path(self):
+        lines = ui.strip(shown(ui.Style(True, 40))).splitlines()
+        self.assertLessEqual(ui.text_width(lines[0]), 40)
+        self.assertTrue(lines[0].startswith("  logs ~/"))
+        self.assertTrue(lines[0].endswith("/20261012T110325Z"))
+
     def test_an_interruption_closes_the_open_line(self):
         stream = io.StringIO()
         progress = Progress(CATALOG, ui.Style(True, 80), stream)

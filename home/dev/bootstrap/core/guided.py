@@ -198,6 +198,8 @@ class Guide:
             if entry["language"] in states
         ]
         selected = list(chosen)
+        # The question stands apart from the summary, as a section does.
+        self.print([""])
         while True:
             picked = self.prompter.choose_many(
                 "Ecosystems to set up",
@@ -292,15 +294,8 @@ class Guide:
         if origin["source"] == "all":
             return {"only": None, "all": True}
         if origin["source"] == "chosen":
+            # apply names the file as it reads the selection back.
             save_selection(self.selection_file, chosen)
-            self.print(
-                message(
-                    self.style,
-                    "muted",
-                    f"Selection saved in {self.selection_file}; later runs "
-                    "use it.",
-                )
-            )
         return {"only": None, "all": False}
 
     def authenticate(self, command):
