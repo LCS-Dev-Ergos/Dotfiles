@@ -131,6 +131,12 @@ in
     pkgs.gnused
     pkgs.gnutar
 
+    # nmap moved here from Homebrew together with Lua
+    # (home/dev/languages/lua): the formula depends on Homebrew's lua, so
+    # keeping it would keep a second Lua. Linux installs nmap with the
+    # distribution's packages (home/shells/zsh/packages/arch-zsh.txt).
+    pkgs.nmap
+
     # These commands use Darwin frameworks or macOS-only APIs.
     (pkgs.callPackage ./nowplaying-cli.nix { })
     pkgs.switchaudio-osx

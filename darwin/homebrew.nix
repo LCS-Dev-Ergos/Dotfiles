@@ -60,8 +60,11 @@ _: {
   # definitions faster in Homebrew; pkgconf, autoconf, automake and make serve
   # their builds against Homebrew libraries; native manager declarations now
   # come from home/dev/native-managers.nix, including FNM's staged transfer.
-  # PHP and Perl install modules with pecl/cpanm; lua is an nmap dependency;
-  # mit-scheme has no Darwin package.
+  # Perl stays with cpanm, as the host's interpreter (nixpkgs trails
+  # Homebrew's release); mit-scheme and the racket cask stay because nixpkgs
+  # has no Darwin mit-scheme and no DrRacket application bundle. `php`, `lua`
+  # and `nmap` moved to Home Manager (home/dev/languages/php and lua,
+  # home/cli/cli-tools); uninstall the formulae after the switch.
   #
   # `erlang` and `gleam` are Nix-owned as well, with Elixir, on one OTP
   # release (home/dev/languages/beam).
@@ -158,7 +161,6 @@ _: {
       "libgccjit"
       "libsixel"
       "libvterm"
-      "lua"
       "make"
       "man-db"
       "mit-scheme"
@@ -167,14 +169,12 @@ _: {
       "mypy"
       "ncurses"
       "neovim"
-      "nmap"
       "oci-cli"
       "ocrmypdf"
       "openssl@3"
       "pandoc"
       "pdfcpu"
       "perl"
-      "php"
       "pkgconf"
       "plantuml"
       "powerlevel10k"

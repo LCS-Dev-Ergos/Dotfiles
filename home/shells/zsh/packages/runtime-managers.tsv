@@ -21,10 +21,10 @@ maven	Maven	any	SDKMAN_DIR	~/.sdkman	mvn	mvn --version	mvn	-	-	sdk upgrade maven
 coursier	Scala	any	-	-	hook	hook	scala	-	-	cs update	always	scala version --offline --scala-version	jvm
 bun	Bun	any	-	-	bun	bun --version	bun	-	-	-	always	version	scripting
 conda	Conda	any	-	-	hook	hook	-	hook	-	conda update -n base conda	session	-	scripting
-lua	Lua	any	-	-	lua	lua -v	lua	-	lua	brew upgrade lua	always	version	scripting
+lua	Lua	any	-	-	lua	lua -v	lua	-	-	-	always	version	scripting
 fnm	Node	any	FNM_DIR	~/.local/share/fnm	fnm	hook	node	fnm list	-	fnm install --lts	session	node --version	scripting
 perl	Perl	any	-	-	perl	hook	perl	-	perl	brew upgrade perl	always	version	scripting
-php	PHP	any	-	-	php	php --version	php	-	php	brew upgrade php	always	version	scripting
+php	PHP	any	-	-	php	php --version	php	-	-	-	always	version	scripting
 pyenv	Python	any	PYENV_ROOT	~/.pyenv	pyenv	pyenv version-name	python3	pyenv versions --bare	-	pyenv install -l	always	python3 --version	scripting
 rbenv	Ruby	any	RBENV_ROOT	~/.rbenv	rbenv	rbenv version-name	ruby	rbenv versions --bare	-	rbenv install -l	always	ruby --version	scripting
 bqn	BQN	any	-	-	bqn	bqn --version	bqn	-	-	-	always	version	functional

@@ -6,7 +6,9 @@ _: {
     ./go
     ./javascript
     ./koka
+    ./lua
     ./nix
+    ./php
     ./prolog
     ./python
     ./shell
