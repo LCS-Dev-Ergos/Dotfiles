@@ -58,8 +58,13 @@ def run(
     cwd=None,
     success_codes=(0,),
     source_build=False,
+    answers=None,
 ):
-    """Execute literal arguments noninteractively; keep diagnostics on stderr."""
+    """Execute literal arguments noninteractively; keep diagnostics on stderr.
+
+    `answers`, bytes, is the child's whole standard input instead of none:
+    replies a caller has already decided on, never a person's.
+    """
     clean = {
         key: value
         for key, value in os.environ.items()
@@ -118,7 +123,9 @@ def run(
     clean.update({"LC_ALL": "C", "GIT_TERMINAL_PROMPT": "0"})
     clean.update(env or {})
     try:
-        result = complete(args, env=clean, timeout=timeout, cwd=cwd)
+        result = complete(
+            args, env=clean, timeout=timeout, cwd=cwd, answers=answers
+        )
     except (OSError, subprocess.TimeoutExpired) as error:
         raise BootstrapError(str(error)) from error
     if result.returncode not in success_codes:
@@ -211,7 +218,7 @@ def interact(args, *, env):
     return result.returncode, result.stdout
 
 
-def complete(args, *, env, timeout, cwd):
+def complete(args, *, env, timeout, cwd, answers=None):
     """Run a child in its own process group, which ends with the call.
 
     Managers leave compilers and downloads running below them. When the call
@@ -229,13 +236,20 @@ def complete(args, *, env, timeout, cwd):
     with subprocess.Popen(
         args,
         env=env,
-        stdin=subprocess.DEVNULL,
+        stdin=subprocess.DEVNULL if answers is None else subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         cwd=cwd,
         start_new_session=True,
     ) as child:
         try:
+            if answers is not None:
+                # A few short lines fit the pipe; closing it ends the input.
+                try:
+                    child.stdin.write(answers)
+                    child.stdin.close()
+                except BrokenPipeError:
+                    pass
             stdout, stderr = collect(child, timeout, log)
         except BaseException:
             stop(child)

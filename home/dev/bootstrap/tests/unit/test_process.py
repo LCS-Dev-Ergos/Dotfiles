@@ -137,6 +137,16 @@ class RecordedOutputTests(unittest.TestCase):
         output = process.run([printf, "\\377ok\\r\\nnext"])
         self.assertEqual(output, "\ufffdok\nnext")
 
+    def test_answers_are_the_whole_input_and_none_means_none(self):
+        script = ["/bin/sh", "-c", 'while read line; do echo "<$line>"; done']
+        self.assertEqual(process.run(script, answers=b"y\nn\n"), "<y>\n<n>")
+        # Without answers the child reads end of input at once.
+        self.assertEqual(process.run(script), "")
+        # A child that never reads leaves the answers unread, not an error.
+        self.assertEqual(
+            process.run(["/bin/echo", "ok"], answers=b"y\n"), "ok"
+        )
+
 
 class AttendedTests(unittest.TestCase):
     def test_only_a_terminal_on_stdin_is_attended(self):
