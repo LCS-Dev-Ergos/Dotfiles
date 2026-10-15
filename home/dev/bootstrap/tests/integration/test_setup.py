@@ -613,6 +613,35 @@ class SetupTests(unittest.TestCase):
         code, _ = self.cli("plan", "--all", scoped=False)
         self.assertEqual(code, 0)
 
+    def test_setup_plan_names_manager_sources_and_initial_defaults(self):
+        plan = self.setup.plan()
+        missing = {
+            row["language"]: row
+            for row in plan["nativeManagers"]
+            if row["state"] == "missing"
+        }
+        self.assertEqual(
+            {
+                language: row.get("package")
+                for language, row in missing.items()
+            },
+            {"node": "fnm", "python": "pyenv", "ocaml": "opam"},
+        )
+        self.assertEqual(plan["initialDefaults"], ["node", "python", "ocaml"])
+        # A manager without a global selection has no default to set.
+        with patch.object(
+            self.recovery.adapter("python"), "global_selection", False
+        ):
+            self.assertEqual(
+                self.setup.plan()["initialDefaults"], ["node", "ocaml"]
+            )
+        self.setup.apply()
+        plan = self.setup.plan()
+        self.assertEqual(plan["initialDefaults"], [])
+        self.assertTrue(
+            all(row["state"] == "present" for row in plan["nativeManagers"])
+        )
+
     def test_declared_selection_is_read_but_never_replaced(self):
         declared = self.root / "declared.json"
         declared.write_text(json.dumps({"schema": 1, "ecosystems": ["ocaml"]}))

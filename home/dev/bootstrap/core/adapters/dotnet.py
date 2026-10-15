@@ -46,6 +46,8 @@ class DotnetAdapter(ToolchainAdapter):
     cost = "medium"
     manager_name = "dotnet"
     runtime_directory = "sdk"
+    # Projects select an SDK through global.json; the muxer takes the newest.
+    global_selection = False
 
     def resolve_roots(self):
         return {

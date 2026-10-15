@@ -42,6 +42,10 @@ class Adapter:
     compiles = False
     # The manager script is sourced rather than executed (SDKMAN).
     sourced_manager = False
+    # The manager keeps a global selection, which apply initializes to the
+    # declared default when there is none. Without one (.NET, Conda's base
+    # environment) there is nothing to initialize.
+    global_selection = True
     # What installing the declared releases costs, so a person can leave an
     # expensive ecosystem out: whether the manager builds the runtime from
     # source, and a size class from a first apply measured on

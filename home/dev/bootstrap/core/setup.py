@@ -30,8 +30,15 @@ class BootstrapSetup:
         return self.context.adapters.values()
 
     def plan(self):
-        """Filesystem-only readiness; package availability is checked at apply."""
+        """Filesystem-only readiness; package availability is checked at apply.
+
+        A missing manager says where apply gets it: its hash-checked
+        installer or its native package. initialDefaults lists the
+        ecosystems whose manager has no global selection yet, which the
+        defaults stage sets to the declared release.
+        """
         managers = []
+        installers = self.recipe.get("installers", {})
         for adapter in self.adapters:
             try:
                 managers.append(
@@ -42,18 +49,28 @@ class BootstrapSetup:
                     }
                 )
             except BootstrapError as error:
-                managers.append(
-                    {
-                        "language": adapter.language,
-                        "state": "missing",
-                        "reason": str(error),
-                    }
-                )
+                entry = {
+                    "language": adapter.language,
+                    "state": "missing",
+                    "reason": str(error),
+                }
+                if adapter.language in installers:
+                    entry["installer"] = installers[adapter.language]["url"]
+                elif adapter.language in self.recipe.get("managers", {}):
+                    entry["package"] = self.recipe["managers"][
+                        adapter.language
+                    ]
+                managers.append(entry)
         return {
             "stages": list(STAGES),
             "nativeManagers": managers,
             "packageManager": self.recipe["packageManager"],
             "privilegedPackages": bool(self.recipe["privilege"]),
+            "initialDefaults": [
+                adapter.language
+                for adapter in self.adapters
+                if adapter.global_selection and adapter.selection() is None
+            ],
         }
 
     def installable(self, rows):

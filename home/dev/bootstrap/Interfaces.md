@@ -31,6 +31,7 @@ in every report's `catalog`.
 | `runtime_directory` | `str` or `None` | Directory below the runtime root with one entry per installation, if any. |
 | `compiles` | `bool` | Missing runtimes build from source and need the platform SDK. |
 | `sourced_manager` | `bool` | The manager is a script to source (SDKMAN), not an executable. |
+| `global_selection` | `bool` | The manager keeps a global selection that `apply` initializes when absent; `False` for .NET and Conda. Defaults to `True`. |
 | `requires` | `tuple[str, ...]` | Ecosystems that must be selected in the same run. |
 | `default_selected` | `bool` | Whether a run without `--only` includes the ecosystem. |
 | `platforms` | `tuple[str, ...]` | Nix system strings where the adapter is available. |
@@ -129,7 +130,7 @@ interruption exits 128 plus the signal number.
 | `catalog` | Always | One entry per registered adapter, selected or not. |
 | `observed` | Always | `globalSelections` and `installed`, per selected ecosystem, as recorded on disk. |
 | `runtimes` | Always | Rows: the declared baseline, or the global selections with `verify --health`. |
-| `setup` | Native setup | `stages`, `nativeManagers` (`language`, `state`, `path` or `reason`), `packageManager`, `privilegedPackages`. |
+| `setup` | Native setup | `stages`, `nativeManagers` (`language`, `state`, `path` or `reason`; a missing manager adds `installer`, the hash-checked installer's URL, or `package`, its native package), `packageManager`, `privilegedPackages` and `initialDefaults`, the ecosystems whose manager has no global selection yet, which apply sets to the declared default. |
 | `selections` | `apply` | Global selection rows, verified for health, which never fail the command. |
 | `verification` | `verify --health` | `health`. |
 | `selection` | Always | `source`: `only`, `all`, `file` (with `path`, the saved selection) or `default`. |

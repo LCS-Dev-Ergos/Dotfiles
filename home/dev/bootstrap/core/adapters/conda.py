@@ -21,6 +21,8 @@ class CondaAdapter(ToolchainAdapter):
     # Conda environments shadow interpreters and libraries; only an explicit
     # `--only conda` installs it.
     default_selected = False
+    # The base environment is the installation itself.
+    global_selection = False
 
     def resolve_roots(self):
         # conda reads CONDA_ROOT_PREFIX as its base prefix, which is the
