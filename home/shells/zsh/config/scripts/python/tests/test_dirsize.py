@@ -119,7 +119,7 @@ class TableRenderingTests(unittest.TestCase):
             dirsize.render_table(self.ITEMS, styled=False)
         self.assertEqual(
             stdout.getvalue().splitlines(),
-            [" Size  Type  Name", " 1.0K  file  a,b.txt", "12.0M  dir   docs"],
+            [" SIZE  TYPE  NAME", " 1.0K  file  a,b.txt", "12.0M  dir   docs"],
         )
         run.assert_not_called()
 
