@@ -7,6 +7,7 @@ import fcntl
 import io
 import json
 import os
+import re
 import shlex
 import shutil
 import signal
@@ -18,7 +19,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from core import cli, process
+from core import cli, guided, process
 from core.adapters import ADAPTERS
 from core.prompt import Cancelled
 from core.adapters.node import FNM_SYSTEM_TARGET
@@ -651,14 +652,7 @@ class SetupTests(unittest.TestCase):
         The CLI builds its own adapters, so the fixture installers stand in
         for theirs at the class.
         """
-        for language in ("node", "python", "ocaml"):
-            mock = patch.object(
-                ADAPTERS[language],
-                "install",
-                lambda adapter, row: self.guided_install(row),
-            )
-            mock.start()
-            self.addCleanup(mock.stop)
+        self.fixture_installers()
         prompter = ScriptedPrompter(self, answers, attended=attended)
         with patch.object(cli, "prompter", return_value=prompter):
             code, output, errors = self.cli_output("setup", *arguments)
@@ -673,6 +667,65 @@ class SetupTests(unittest.TestCase):
         if row["language"] == self.broken:
             raise BootstrapError("python-build failed")
         self.install_runtime(row)
+
+    def fixture_installers(self):
+        for language in ("node", "python", "ocaml"):
+            mock = patch.object(
+                ADAPTERS[language],
+                "install",
+                lambda adapter, row: self.guided_install(row),
+            )
+            mock.start()
+            self.addCleanup(mock.stop)
+
+    def comparable(self, value):
+        """A report or events without what differs between equal runs."""
+        text = json.dumps(value, sort_keys=True).replace(
+            str(self.root), "ROOT"
+        )
+        text = re.sub(r"[0-9]{8}T[0-9]{6}Z(-[0-9]+)?", "RUN", text)
+        value = json.loads(text)
+        for record in value if isinstance(value, list) else [value]:
+            # An event names its run by id; a report holds the record.
+            run = record.get("run")
+            for key in ("time", "started", "duration"):
+                record.pop(key, None)
+                if isinstance(run, dict):
+                    run.pop(key, None)
+        return value
+
+    def progress(self, path):
+        """A run's events, comparable."""
+        return self.comparable(
+            [json.loads(line) for line in path.read_text().splitlines()]
+        )
+
+    def test_guided_choices_match_the_same_flags(self):
+        # The review reads exactly the plan --preflight report.
+        _, planned = self.cli("plan", "--preflight")
+        events = self.root / "guided.jsonl"
+        with patch.object(guided, "review", wraps=guided.review) as review:
+            code, _, errors, _ = self.guided(
+                *self.SCOPE,
+                "--events",
+                str(events),
+                answers=[("confirm", True)],
+            )
+        self.assertEqual(code, 0, errors)
+        # The CLI adds where the selection came from; the guide names it.
+        planned.pop("selection")
+        self.assertEqual(review.call_args.args[0], planned)
+        _, chosen = self.cli("report", "--last", scoped=False)
+        chosen, chosen_events = self.comparable(chosen), self.progress(events)
+
+        # The same machine, from the start, with the choices as flags.
+        self.setUp()
+        self.fixture_installers()
+        events = self.root / "flags.jsonl"
+        code, flagged = self.cli("apply", "--events", str(events))
+        self.assertEqual(code, 0)
+        self.assertEqual(self.comparable(flagged), chosen)
+        self.assertEqual(self.progress(events), chosen_events)
 
     def test_guided_setup_applies_and_a_rerun_only_confirms(self):
         code, output, errors, _ = self.guided(

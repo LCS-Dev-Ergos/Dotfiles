@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       harness:
-        description: adapters (from zero), lifecycle (manager updates, package upgrades and user evolution) or interruption (LANGUAGE:SIGINT, LANGUAGE:SIGTERM or LANGUAGE:network[:BYTES] scenarios)
+        description: adapters (from zero), lifecycle (manager updates, package upgrades and user evolution), interruption (LANGUAGE:SIGINT, LANGUAGE:SIGTERM or LANGUAGE:network[:BYTES] scenarios) or guided (setup in a pseudo-terminal with the real Gum)
         type: choice
-        options: [adapters, lifecycle, interruption]
+        options: [adapters, lifecycle, interruption, guided]
         default: adapters
       ecosystems:
         description: Ecosystems or interruption scenarios, space-separated within a job and comma-separated between jobs (each ecosystem also selects what it requires)

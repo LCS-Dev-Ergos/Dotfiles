@@ -53,6 +53,20 @@ zsh home/dev/bootstrap/tests/qualification/native-interruption.zsh \
   python:SIGINT ocaml:SIGTERM rust:network:41943040
 ```
 
+`qualification/native-guided.zsh` takes the same arguments and drives
+`dev-bootstrap setup` through a pseudo-terminal (`guided-pty.py`), so the
+pinned Gum draws and reads real keys: Esc at the ecosystem question exits
+130 and writes nothing; `setup --only ...` answers the privilege choice and
+the review with their defaults and applies; the same again asks only the
+review and installs nothing; without a terminal and without `--yes` it
+stops before any change; `verify --health` passes. It writes each
+transcript and a `summary.json`, and fails when the real home changes.
+
+```sh
+zsh home/dev/bootstrap/tests/qualification/native-guided.zsh \
+  /path/to/package/bin/dev-bootstrap /path/to/logs node python
+```
+
 `common.zsh` holds what these scripts share: the disposable root, the empty
 executor environment, the real-home and package snapshots and the catalog's
 requirements.
@@ -63,7 +77,7 @@ hook repair and an upstream update, with empty switches instead of compiler
 builds. These scripts are the evidence that native managers accept the
 generated commands; fixtures cannot provide it. They need network access and
 minutes, so they stay outside the fast suites; the `Development Bootstrap
-Native` workflow runs the adapter, lifecycle and interruption harnesses on
+Native` workflow runs the adapter, lifecycle, interruption and guided harnesses on
 demand on macOS and in an Arch container.
 
 Run the source checks from the repository root. Setup contracts evaluate the
