@@ -144,7 +144,7 @@ class RecordedOutputTests(unittest.TestCase):
         self.assertEqual(process.run(script), "")
         # A child that never reads leaves the answers unread, not an error.
         self.assertEqual(
-            process.run(["/bin/echo", "ok"], answers=b"y\n"), "ok"
+            process.run(["/bin/sh", "-c", "echo ok"], answers=b"y\n"), "ok"
         )
 
 
