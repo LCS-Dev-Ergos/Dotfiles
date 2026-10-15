@@ -27,6 +27,7 @@ from update_runtime_baseline import cli, declarations, model  # noqa: E402
 from update_runtime_baseline import upstream as transport  # noqa: E402
 from update_runtime_baseline.resolvers import (  # noqa: E402
     RESOLVERS,
+    android,
     installers,
     sources,
 )
@@ -48,8 +49,47 @@ BASELINE = {
         },
         "jvm": {"version": "21.0.12.1", "candidate": "21.0.12+1.1-tem"},
         "dotnet": {"version": "10.0.401"},
+        "ada": {"version": "15.1.2", "gprbuild": "26.0.1"},
+        "android": {
+            "version": "37.0.1",
+            "buildTools": "37.0.0",
+            "platform": "37.2",
+            "tools": "22.0",
+        },
     },
 }
+
+
+def android_index(*packages):
+    """A repository index of (path, revision, license, archives) entries.
+
+    `archives` lists (host-os, host-arch, url, size, sha1) tuples.
+    """
+    entries = []
+    for path, revision, license, files in packages:
+        major, minor, micro, *preview = (revision.split(".") + ["0", "0"])[
+            :3
+        ] + (["1"] if "rc" in path or "beta" in path else [])
+        parts = f"<major>{major}</major><minor>{minor}</minor><micro>{micro}</micro>"
+        if preview:
+            parts += "<preview>1</preview>"
+        archives = "".join(
+            "<archive>"
+            + (f"<host-os>{system}</host-os>" if system else "")
+            + (f"<host-arch>{arch}</host-arch>" if arch else "")
+            + f"<complete><size>{size}</size><checksum type='sha1'>{sha1}</checksum>"
+            f"<url>{url}</url></complete></archive>"
+            for system, arch, url, size, sha1 in files
+        )
+        entries.append(
+            f'<remotePackage path="{path}"><revision>{parts}</revision>'
+            f'<uses-license ref="{license}"/><archives>{archives}</archives>'
+            "</remotePackage>"
+        )
+    return "<sdk-repository>" + "".join(entries) + "</sdk-repository>"
+
+
+BOTH = (("macosx", None, "a.zip", 1, "0"), ("linux", None, "b.zip", 1, "0"))
 
 
 class FakeUpstream:
@@ -406,6 +446,88 @@ class Resolvers(unittest.TestCase):
             ],
         )
 
+    def alire_index(self, crate, releases):
+        """Recorded index listings and release files for one crate."""
+        directory = f"index/{crate[:2]}/{crate}"
+        responses = {
+            f"https://api.github.com/repos/{sources.ALIRE_INDEX}/contents/"
+            f"{directory}?ref={sources.ALIRE_INDEX_BRANCH}": [
+                {"name": f"{crate}-{version}.toml"} for version in releases
+            ]
+            + [{"name": f"{crate}-external.toml"}]
+        }
+        for version, systems in releases.items():
+            body = "".join(
+                f'[origin."case(os)".{system}."case(host-arch)".{arch}]\n'
+                f'url = "https://example.invalid/{system}-{arch}.tar.gz"\n'
+                for system, arch in systems
+            )
+            responses[
+                f"https://raw.githubusercontent.com/{sources.ALIRE_INDEX}/"
+                f"{sources.ALIRE_INDEX_BRANCH}/{directory}/"
+                f"{crate}-{version}.toml"
+            ] = body
+        return responses
+
+    def test_ada_follows_the_index_where_both_platforms_have_binaries(self):
+        both = (("macos", "aarch64"), ("linux", "x86-64"))
+        upstream = FakeUpstream(
+            self.alire_index(
+                "gnat_native",
+                {
+                    "15.1.2": both,
+                    "15.3.1": (("linux", "x86-64"),),
+                    "15.2.1": both,
+                    "16.1.0": both,
+                },
+            )
+            | self.alire_index("gprbuild", {"26.0.1": both})
+        )
+        found = RESOLVERS["ada"](upstream, BASELINE, {})
+        self.assertEqual(
+            kinds(found),
+            [
+                ("ada gnat", "update", "15.2.1"),
+                # Newer in the line, but alr has no macOS binary for it.
+                ("ada gnat", "pending", "15.3.1"),
+                ("ada gnat", "line", "16.1.0"),
+                ("ada gprbuild", "current", ""),
+            ],
+        )
+
+    def test_android_follows_stable_packages_for_both_platforms(self):
+        index = android_index(
+            ("platform-tools", "37.0.2", "android-sdk-license", BOTH),
+            ("build-tools;37.0.1", "37.0.1", "android-sdk-license", BOTH),
+            (
+                "build-tools;37.1.0-rc1",
+                "37.1.0",
+                "android-sdk-preview-license",
+                BOTH,
+            ),
+            ("build-tools;38.0.0", "38.0.0", "android-sdk-license", BOTH[1:]),
+            (
+                "platforms;android-37.3",
+                "1",
+                "android-sdk-license",
+                (("", None, "p.zip", 1, "0"),),
+            ),
+            ("platforms;android-37.4-beta1", "1", "android-sdk-license", BOTH),
+            ("platforms;android-37-ext30", "1", "android-sdk-license", BOTH),
+            ("platforms;android-38", "1", "android-sdk-license", BOTH),
+        )
+        upstream = FakeUpstream({android.INDEX: index})
+        found = RESOLVERS["android"](upstream, BASELINE, {})
+        self.assertEqual(
+            kinds(found),
+            [
+                ("android platform-tools", "update", "37.0.2"),
+                ("android build-tools", "update", "37.0.1"),
+                ("android platform", "update", "37.3"),
+                ("android platform", "line", "38"),
+            ],
+        )
+
 
 class Installers(unittest.TestCase):
     def setUp(self):
@@ -430,6 +552,131 @@ class Installers(unittest.TestCase):
 
     def upstream(self, data):
         return FakeUpstream({self.rust["url"]: data})
+
+    def test_alire_launcher_moves_with_its_versioned_assets(self):
+        alire = RESOLVERS["alire"]
+        payloads = {
+            platform: f"alr 2.2.0 for {platform}".encode()
+            for platform in declarations.PLATFORMS
+        }
+        release = {
+            "tag_name": "v2.2.0",
+            "assets": [
+                {
+                    "name": template.format(tag="v2.2.0", version="2.2.0"),
+                    "size": len(payloads[platform]),
+                    "browser_download_url": f"https://example.invalid/{platform}",
+                    "digest": "sha256:"
+                    + hashlib.sha256(payloads[platform]).hexdigest(),
+                }
+                for platform, template in alire.assets.items()
+            ],
+        }
+
+        class Upstream(FakeUpstream):
+            def download(self, url, size):
+                payload = payloads[url.rsplit("/", 1)[1]]
+                if size != len(payload):
+                    raise AssertionError(f"{url}: declared {size} bytes")
+                return hashlib.sha256(payload).hexdigest()
+
+        upstream = Upstream(
+            {
+                "https://api.github.com/repos/alire-project/alire/releases"
+                "?per_page=100": [release]
+            }
+        )
+        (finding,) = alire(upstream, {}, self.managers)
+        self.assertEqual(
+            kinds([finding]), [("alire launcher", "update", "2.2.0")]
+        )
+        declarations.apply_edits(finding.edits())
+        after = declarations.evaluate(self.managers_file)
+        for platform, template in alire.assets.items():
+            installer = after["bootstrap"][platform]["installers"]["ada"]
+            name = template.format(tag="v2.2.0", version="2.2.0")
+            self.assertEqual(
+                installer["url"],
+                "https://github.com/alire-project/alire/releases/download/"
+                f"v2.2.0/{name}",
+            )
+            self.assertEqual(
+                installer["sha256"],
+                hashlib.sha256(payloads[platform]).hexdigest(),
+            )
+            self.assertEqual(installer["size"], len(payloads[platform]))
+
+    def test_android_tools_move_within_their_line_only(self):
+        payloads = {"mac": b"tools for macOS", "linux": b"tools for Linux"}
+        sha1 = {
+            name: hashlib.sha1(data, usedforsecurity=False).hexdigest()
+            for name, data in payloads.items()
+        }
+        newer = (
+            (
+                "macosx",
+                "aarch64",
+                "commandlinetools-mac_arm64-20000000_latest.zip",
+                len(payloads["mac"]),
+                sha1["mac"],
+            ),
+            (
+                "linux",
+                None,
+                "commandlinetools-linux-20000000_latest.zip",
+                len(payloads["linux"]),
+                sha1["linux"],
+            ),
+        )
+        index = android_index(
+            ("cmdline-tools;22.1", "22.1", "android-sdk-license", newer),
+            ("cmdline-tools;23.0", "23.0", "android-sdk-license", BOTH),
+            ("cmdline-tools;latest", "23.0", "android-sdk-license", BOTH),
+        )
+
+        class Upstream(FakeUpstream):
+            def download(self, url, size, *, sha1=None):
+                data = payloads["linux" if "linux" in url else "mac"]
+                if (
+                    size != len(data)
+                    or hashlib.sha1(data, usedforsecurity=False).hexdigest()
+                    != sha1
+                ):
+                    raise AssertionError(f"{url}: unexpected size or SHA-1")
+                return hashlib.sha256(data).hexdigest()
+
+        found = RESOLVERS["android-tools"](
+            Upstream({android.INDEX: index}), BASELINE, self.managers
+        )
+        self.assertEqual(
+            kinds(found),
+            [
+                ("android command-line tools", "update", "22.1"),
+                ("android command-line tools", "line", "23.0"),
+            ],
+        )
+        # The Android CLI release is reported, never moved to.
+        self.assertIsNone(found[1].edits)
+        self.assertIn("Android CLI", found[1].note)
+        edits = found[0].edits()
+        self.assertEqual(
+            (edits[0].old, edits[0].new, edits[0].scopes),
+            ('"22.0"', '"22.1"', ("nativeToolchains.android.tools",)),
+        )
+        declarations.apply_edits(
+            [edit for edit in edits if edit.path == self.managers_file]
+        )
+        after = declarations.evaluate(self.managers_file)
+        for platform, name in (
+            ("aarch64-darwin", "mac"),
+            ("x86_64-linux", "linux"),
+        ):
+            installer = after["bootstrap"][platform]["installers"]["android"]
+            self.assertTrue(installer["url"].endswith("-20000000_latest.zip"))
+            self.assertEqual(
+                installer["sha256"], hashlib.sha256(payloads[name]).hexdigest()
+            )
+            self.assertEqual(installer["size"], len(payloads[name]))
 
     def test_drift_is_saved_for_review_and_accepted_only_after_it(self):
         changed = b"#!/bin/sh\necho changed\n"

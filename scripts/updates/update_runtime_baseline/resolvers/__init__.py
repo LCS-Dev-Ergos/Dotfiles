@@ -5,8 +5,8 @@ are the whole difference between them. The JVM, the .NET SDK, release assets
 and installer scripts need logic of their own.
 """
 
-from . import dotnet, installers, jvm, sources
-from .assets import ReleaseAssets, coursier_version, miniforge_version
+from . import android, dotnet, installers, jvm, sources
+from .assets import ReleaseAssets, miniforge_version, tag_version
 from .tracks import Resolver, Track, combine
 
 
@@ -89,6 +89,53 @@ RESOLVERS: dict[str, Resolver] = {
         1,
     ),
     "julia": toolchain("julia", sources.julia_versions, 2),
+    # Alire's crates, as its community index lists them.
+    "ada": combine(
+        Track(
+            ecosystem="ada",
+            label="ada gnat",
+            declaration="nativeToolchains.ada.version",
+            releases=sources.alire_crate("gnat_native"),
+            installable=sources.alire_binaries("gnat_native"),
+            depth=1,
+        ),
+        Track(
+            ecosystem="ada",
+            label="ada gprbuild",
+            declaration="nativeToolchains.ada.gprbuild",
+            releases=sources.alire_crate("gprbuild"),
+            installable=sources.alire_binaries("gprbuild"),
+            depth=1,
+            default=False,
+        ),
+    ),
+    # Google's repository index, as sdkmanager reads it. platform-tools has
+    # one release at a time; build tools and platforms keep lines.
+    "android": combine(
+        Track(
+            ecosystem="android",
+            label="android platform-tools",
+            declaration="nativeToolchains.android.version",
+            releases=android.listing("platform-tools"),
+            depth=0,
+        ),
+        Track(
+            ecosystem="android",
+            label="android build-tools",
+            declaration="nativeToolchains.android.buildTools",
+            releases=android.listing("build-tools"),
+            depth=1,
+            default=False,
+        ),
+        Track(
+            ecosystem="android",
+            label="android platform",
+            declaration="nativeToolchains.android.platform",
+            releases=android.listing("platform"),
+            depth=1,
+            default=False,
+        ),
+    ),
     "dotnet": dotnet.resolve,
     "conda": ReleaseAssets(
         ecosystem="conda",
@@ -115,10 +162,27 @@ RESOLVERS: dict[str, Resolver] = {
             "aarch64-darwin": "cs-aarch64-apple-darwin.gz",
             "x86_64-linux": "cs-x86_64-pc-linux.gz",
         },
-        version=coursier_version,
+        version=tag_version,
         moved="/download/{tag}/",
         depth=1,
     ),
+    # The pinned alr archive that deploys Ada's toolchains.
+    "alire": ReleaseAssets(
+        ecosystem="alire",
+        label="alire launcher",
+        repository="alire-project/alire",
+        installer="ada",
+        assets={
+            "aarch64-darwin": "alr-{version}-bin-aarch64-macos.zip",
+            "x86_64-linux": "alr-{version}-bin-x86_64-linux.zip",
+        },
+        version=tag_version,
+        # The tag names the download directory, the version each asset.
+        moved="{tag}/alr-{version}-",
+        depth=1,
+    ),
+    # The pinned command-line tools archive that provides sdkmanager.
+    "android-tools": android.tools,
     "installers": installers.resolve,
 }
 ECOSYSTEMS = tuple(RESOLVERS)

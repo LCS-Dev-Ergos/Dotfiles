@@ -139,9 +139,13 @@ class Upstream:
         except NETWORK_ERRORS as error:
             raise SourceError(f"{url}: {error}") from error
 
-    def download(self, url, size):
-        """The SHA-256 of a release asset, which must be exactly `size` bytes."""
+    def download(self, url, size, *, sha1=None):
+        """The SHA-256 of a release asset, which must be exactly `size` bytes.
+
+        `sha1`, when the publisher lists only that, must match as well.
+        """
         digest = hashlib.sha256()
+        legacy = hashlib.sha1(usedforsecurity=False)
         total = 0
         try:
             with OPENER.open(self.request(url), timeout=TIMEOUT) as response:
@@ -150,10 +154,15 @@ class Upstream:
                     if total > size:
                         break
                     digest.update(chunk)
+                    legacy.update(chunk)
         except NETWORK_ERRORS as error:
             raise SourceError(f"{url}: {error}") from error
         if total != size:
             raise SourceError(f"{url}: expected {size} bytes, read {total}")
+        if sha1 is not None and legacy.hexdigest() != sha1:
+            raise SourceError(
+                f"{url}: the bytes do not match the listed SHA-1"
+            )
         return digest.hexdigest()
 
 

@@ -7,6 +7,7 @@ manager can install a release, otherwise why not.
 """
 
 import re
+import tomllib
 from collections.abc import Callable
 
 from ..model import SourceError
@@ -33,6 +34,12 @@ SDKMAN_LISTS = "https://api.sdkman.io/2/candidates"
 SDKMAN_BROKER = "https://broker.sdkman.io/download"
 SDKMAN_PLATFORMS = ("darwinarm64", "linuxx64")
 ADOPTIUM = "https://api.adoptium.net/v3"
+# Alire's community index, at the branch the pinned alr reads: a new alr
+# release that reads another branch moves this with it.
+ALIRE_INDEX = "alire-project/alire-index"
+ALIRE_INDEX_BRANCH = "stable-1.4.0"
+# Where an index release lists a binary for each supported platform.
+ALIRE_PLATFORMS = (("macos", "aarch64"), ("linux", "x86-64"))
 
 
 def nodejs(upstream: Source) -> set[str]:
@@ -195,6 +202,55 @@ def ghcup_bindists(tool: str) -> Probe:
             return (
                 None if darwin and linux else "no bindist for both platforms"
             )
+
+        return check
+
+    return probe
+
+
+def alire_directory(crate: str) -> str:
+    return f"index/{crate[:2]}/{crate}"
+
+
+def alire_crate(crate: str) -> Listing:
+    """The releases of a crate in Alire's community index."""
+
+    def listing(upstream: Source) -> set[str]:
+        entries = upstream.github(
+            f"repos/{ALIRE_INDEX}/contents/{alire_directory(crate)}"
+            f"?ref={ALIRE_INDEX_BRANCH}"
+        )
+        prefix = f"{crate}-"
+        return {
+            entry["name"].removeprefix(prefix).removesuffix(".toml")
+            for entry in entries
+            if entry["name"].startswith(prefix)
+            and entry["name"].endswith(".toml")
+        }
+
+    return listing
+
+
+def alire_binaries(crate: str) -> Probe:
+    """alr deploys a toolchain release only where the index lists a binary."""
+
+    def probe(upstream: Source) -> Check:
+        def check(version: str) -> str | None:
+            url = (
+                f"https://raw.githubusercontent.com/{ALIRE_INDEX}/"
+                f"{ALIRE_INDEX_BRANCH}/{alire_directory(crate)}/"
+                f"{crate}-{version}.toml"
+            )
+            try:
+                origins = tomllib.loads(upstream.text(url)).get("origin", {})
+            except ValueError as error:
+                raise SourceError(f"{url}: not TOML ({error})") from error
+            systems = origins.get("case(os)", {})
+            for system, architecture in ALIRE_PLATFORMS:
+                found = systems.get(system, {}).get("case(host-arch)", {})
+                if architecture not in found:
+                    return "no binary for both platforms"
+            return None
 
         return check
 

@@ -36,7 +36,8 @@ def miniforge_version(tag: str) -> str | None:
     return version if stable(version) and digits else None
 
 
-def coursier_version(tag: str) -> str | None:
+def tag_version(tag: str) -> str | None:
+    """A release tagged v<version>."""
     version = tag.removeprefix("v")
     return version if stable(version) else None
 
@@ -45,8 +46,9 @@ def coursier_version(tag: str) -> str | None:
 class ReleaseAssets:
     """One installer per platform, all assets of the same GitHub release.
 
-    `assets` maps each platform to its asset name over `{tag}`. `moved` is
-    the text that names the release in the declarations, over `{tag}`.
+    `assets` maps each platform to its asset name over `{tag}` and
+    `{version}`. `moved` is the text that names the release in the
+    declarations, over the same two fields.
     With a `declaration`, the release's version is also a baseline pin;
     otherwise the pinned version is read from the release tag.
     """
@@ -79,7 +81,7 @@ class ReleaseAssets:
         for release in github_releases(upstream, self.repository):
             version = self.version(release["tag_name"])
             names = {
-                name.format(tag=release["tag_name"])
+                name.format(tag=release["tag_name"], version=version)
                 for name in self.assets.values()
             }
             if version and names <= set(assets(release)):
@@ -105,8 +107,8 @@ class ReleaseAssets:
         moves = [
             Edit(
                 declarations.MANAGERS,
-                self.moved.format(tag=tag),
-                self.moved.format(tag=new_tag),
+                self.moved.format(tag=tag, version=self.version(tag)),
+                self.moved.format(tag=new_tag, version=version),
                 installer_scopes(self.installer),
             )
         ]
@@ -125,10 +127,13 @@ class ReleaseAssets:
     def asset_edits(self, upstream, installers, release) -> list[Edit]:
         """The new hash and size of each platform's asset."""
         published = assets(release)
+        tag = release["tag_name"]
         edits = []
         for platform, template in self.assets.items():
             installer = installers[platform]
-            asset = published[template.format(tag=release["tag_name"])]
+            asset = published[
+                template.format(tag=tag, version=self.version(tag))
+            ]
             size = asset.get("size")
             # Written into the declaration as a Nix integer.
             if type(size) is not int or size <= 0:
