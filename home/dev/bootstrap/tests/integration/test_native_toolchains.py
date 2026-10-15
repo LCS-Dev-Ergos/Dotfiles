@@ -1514,6 +1514,12 @@ class NativeTransitions(unittest.TestCase):
         self.assertEqual(
             kwargs["env"]["JAVA_HOME"], str(java.parents[1].resolve())
         )
+        # The JVM ignores HOME, so sdkmanager's preferences follow it
+        # explicitly.
+        self.assertEqual(
+            kwargs["env"]["ANDROID_USER_HOME"],
+            str((Path.home() / ".android").resolve()),
+        )
         self.assertEqual(
             sorted(path.name for path in licenses.iterdir()),
             ["android-sdk-license"],

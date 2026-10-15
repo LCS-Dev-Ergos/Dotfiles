@@ -120,12 +120,26 @@ class AndroidAdapter(JdkTool, ToolchainAdapter):
     def occupied(self):
         return os.path.lexists(self.tools)
 
+    @property
+    def user_home(self):
+        """Where sdkmanager keeps its preferences and repository cache.
+
+        The JVM takes user.home from the account database, not HOME, so
+        without this sdkmanager writes the account's ~/.android even when
+        HOME points elsewhere. Pinning it to HOME's .android, or to an
+        ANDROID_USER_HOME already set, makes a redirected HOME hold it too.
+        """
+        return self.locate("ANDROID_USER_HOME", Path.home() / ".android")
+
     def invoke(self, *arguments, timeout=3600, answers=None):
         return process.run(
             [str(self.manager()), f"--sdk_root={self.root}", *arguments],
             env=self.recipe.get("buildEnvironment", {})
             | self.environment()
-            | {"JAVA_HOME": str(self.java_home())},
+            | {
+                "JAVA_HOME": str(self.java_home()),
+                "ANDROID_USER_HOME": str(self.user_home),
+            },
             source_build=True,
             cwd=str(self.context.state),
             timeout=timeout,
