@@ -17,7 +17,7 @@ Initial seeding, recovery of subsequently evolved state and project dependency
 reconstruction have separate acceptance criteria. Prefer native exports/locks
 for the latter two. Adapters use the manager's supported installation interface
 against its own upstream: the bootstrap declares exact versions, not artifacts.
-All fifteen adapters follow this model, Node through `fnm install` and Python
+All seventeen adapters follow this model, Node through `fnm install` and Python
 through `pyenv install`.
 
 ## Architecture and Execution
@@ -70,6 +70,8 @@ flowchart TD
 | `adapters/sdkman.py` | The shared SDKMAN base: Java (`jvm.py`), then Kotlin, Maven and Gradle, which require `jvm` and run on its JDK. |
 | `adapters/coursier.py` | Scala through the pinned native `cs` launcher. The seed is the Scala distribution in Coursier's archive cache, filled from a discarded staging directory; the `scala` and `scalac` launchers are created only when absent. Requires `jvm` and runs on its JDK. |
 | `adapters/dotnet.py` | The .NET SDK through the hash-checked `dotnet-install` script, which is also its acquisition: no version manager, no global selection, the muxer in `DOTNET_ROOT` and projects' `global.json`. |
+| `adapters/ada.py` | Ada through Alire: the pinned `alr` from its release archive, then GNAT and gprbuild as `alr` deploys them, installed from a throwaway crate with `toolchain --select --local` so the global selection is left alone. |
+| `adapters/android.py` | The Android SDK through its own `sdkmanager`, from Google's pinned command-line tools archive in `cmdline-tools/<release>`: platform-tools, build tools and a platform. Requires `jvm`, runs only with `--only android` and `--accept android-sdk-license`, and records no other license. |
 | `adapters/conda.py` | Conda through the hash-verified Miniforge3 installer in batch mode, which installs the base environment as the manager's acquisition. Selected only by `--only conda`; `conda init` never runs. |
 | `core/prune/` | `prune`: one retirer per adapter finds the installed releases the baseline retired, plans what removing each takes (`base.py`), reads what a release holds from the filesystem (`inventory.py`) and removes it through its manager (`runtimes.py`, `toolchains.py`). |
 
@@ -92,10 +94,10 @@ enforces and every JSON report lists under `catalog`, selected or not:
 
 | Field | Meaning | Enforcement |
 | --- | --- | --- |
-| `requires` | Ecosystems that must be selected in the same run (Kotlin, Maven, Gradle and Scala require `jvm`) | An explicit `--only` without them fails and names the missing `--only` options; it is never widened silently. |
-| `default_selected` | Whether a run without `--only` includes the ecosystem (Conda does not) | An optional ecosystem is reached only through `--only`; an implicit `plan` neither selects nor reports it, and the catalog lists it as available and not selected. |
+| `requires` | Ecosystems that must be selected in the same run (Kotlin, Maven, Gradle, Scala and Android require `jvm`) | An explicit `--only` without them fails and names the missing `--only` options; it is never widened silently. |
+| `default_selected` | Whether a run without `--only` includes the ecosystem (Conda and Android do not) | An optional ecosystem is reached only through `--only`; an implicit `plan` neither selects nor reports it, and the catalog lists it as available and not selected. |
 | `platforms` | Where the adapter is available | Unavailable adapters are left out of an implicit selection, and an explicit one fails. |
-| `consents` | Terms an apply must name with `--accept` | `apply` stops before any lock, package or installer until each selected adapter's terms are accepted. |
+| `consents` | Terms an apply must name with `--accept` (Android: `android-sdk-license`) | `apply` stops before any lock, package or installer until each selected adapter's terms are accepted. |
 
 The selection runs in registry order, which lists every requirement before
 its dependents, so installation needs no separate dependency resolution. A
@@ -332,21 +334,23 @@ Each integration must identify:
    followed by a preserving bootstrap rerun. Metadata refresh alone does not
    qualify a runtime or manager upgrade.
 
-Rust, Haskell, Lean, Ruby, JVM, Kotlin, Maven, Gradle, Scala, Julia, .NET and
-Conda are implemented in `core/adapters/` and selected with the corresponding `--only`
-value. Their initial versions are declared in `runtime-baseline.nix`. These
+Rust, Haskell, Lean, Ruby, JVM, Kotlin, Maven, Gradle, Scala, Julia, Ada,
+Android, .NET and Conda are implemented in `core/adapters/` and selected with
+the corresponding `--only` value. Their initial versions are declared in `runtime-baseline.nix`. These
 integrations use native manager installation interfaces instead of duplicating
 their download/extraction logic. Existing runtime health and fixture checks do
 not establish fresh-install acceptance for these routes.
 
-The broader workstation registry contains 34 logical domains: twelve native
-bootstrap domains, ten existing shared Nix declarations and twelve
-remaining cross-platform setup domains. The native domains include HLS within
-Haskell, and Kotlin, Maven and Gradle within the JVM. The remaining domains are
-Ada, Fortran, Free Pascal, Mojo, Lua, Perl, PHP, MIT Scheme, Racket, Android,
-Flutter and Swift. These counts describe implementation coverage, not
-clean-host or complete native-dependency reproducibility.
-
+The broader workstation registry contains 34 logical domains. Fourteen are
+native bootstrap domains, with HLS within Haskell and Kotlin, Maven and Gradle
+within the JVM. The others need no mutable manager and are declared in
+`home/dev/languages/` or left to the host: Lua and PHP through Nix on both
+platforms; Fortran, Free Pascal, MIT Scheme and Racket through Nix on Linux,
+where macOS keeps Homebrew's or fpcupdeluxe's copy of the same language; Perl
+from the host's own package manager. Swift is supported on macOS only, through
+Xcode. Mojo and Flutter are not covered yet. These counts describe
+implementation coverage, not clean-host or complete native-dependency
+reproducibility.
 | Ecosystem / owner | Initial declaration | Distinct behavior to qualify |
 | --- | --- | --- |
 | Rust / rustup | Exact host toolchain with the native default profile | Preserve directory overrides and `rust-toolchain.toml`; check proxy exposure and a compiled program. Extra targets/components require explicit future declarations. [Override semantics](https://rust-lang.github.io/rustup/overrides.html). |
@@ -358,6 +362,8 @@ clean-host or complete native-dependency reproducibility.
 | Scala / Coursier | Exact Scala 3 release through the pinned native `cs` launcher | `cs install` into a staging directory extracts the prebuilt distribution into the archive cache without replacing the user's launchers, which are the global selection. Health resolves the `scala` launcher to the distribution it runs and never executes a JVM bootstrap launcher, which may download on start. The canary compiles with the distribution's `scalac` and runs the class on the declared JDK. Project selections (`build.sbt`, Scala CLI directives) are untouched. [Coursier install](https://get-coursier.io/docs/cli-install). |
 | .NET / dotnet-install | Exact SDK release, installed side by side into `DOTNET_ROOT` | No version manager: the script installs one SDK per run with `--skip-non-versioned-files`, keeping a newer muxer, and readiness lists SDKs, so a runtime-only root gets the SDK beside it. The muxer runs the newest SDK unless a project's `global.json` pins one, so there is no global selection; exact verification pins the declared SDK with a scratch `global.json`, and health runs the muxer unpinned. The canary builds and runs a console program with no package source, so it cannot download. Every call disables telemetry and keeps CLI and NuGet state in scratch directories. [dotnet-install](https://learn.microsoft.com/dotnet/core/tools/dotnet-install-script). |
 | Conda / Miniforge3 | Exact conda release through the matching Miniforge3 installer, a per-platform release asset | Default-off. The batch installer creates `CONDA_ROOT_PREFIX` with conda and its base environment, so acquisition is the installation and a prefix without its interpreter is a conflict to inspect. Identity is the conda release reported by the base interpreter, which also runs the canary; the conda CLI, which can reach the network, never runs during verification. `conda update` evolves the base in place, so exact verification describes the initial seed only, and health covers the evolved base. Existing environments and `.condarc` are untouched. [Miniforge](https://github.com/conda-forge/miniforge). |
+| Ada / Alire | Exact `gnat_native` and `gprbuild` crate releases | `alr` installs a release only by selecting it, so the adapter selects it inside a throwaway crate (`--local`), which leaves the settings file's global selection untouched; the first apply initializes that selection only when there is none. Identity is the crate release in the deployed `alire.toml`, since GNAT reports its GCC's version. GNAT reaches the shell only inside a workspace (`alr exec`, `alr printenv`, direnv's `use alr`), so the shell check covers `alr` itself, found through `ALR_HOME`. The canary compiles and runs a program with `gnatmake`, and builds a project with `gprbuild`, in the build environment alone, as a plain `alr build` would. An explicit `ALIRE_SETTINGS_DIR` also moves `alr`'s cache into it. [Alire toolchains](https://alire.ada.dev/docs/#toolchains). |
+| Android SDK / sdkmanager | Exact build tools and platform, a floor for platform-tools | Default-off, and every apply names `--accept android-sdk-license`. `sdkmanager` shows the license in the run's log and records its acceptance; the adapter answers the first prompt only and reverts any other license recorded on the way. `sdkmanager` serves only the newest platform-tools and a platform's newest revision, so platform-tools verifies at or above the declared release and a platform by its API level. Readiness reads the command-line tools without running them, since the JDK arrives in the runtimes stage. Canaries run `adb version`, compile a resource with `aapt2` and link an empty app against the platform, in a scratch home. From command-line tools 23.0 on, `sdkmanager` hands its commands to the `android` CLI, which downloads itself unpinned, records the terms without asking and collects usage data by default; the bootstrap keeps the declared earlier release in `cmdline-tools/<release>` as its own manager and leaves `cmdline-tools/latest`, the one on PATH, alone. The updater reports a newer major without moving to it. [sdkmanager](https://developer.android.com/tools/sdkmanager). |
 | Julia / juliaup | Exact initial version/channel mapping and artifacts | Preserve evolving defaults and directory overrides. Qualify version selection and project activation separately from package restoration. [juliaup](https://github.com/JuliaLang/juliaup). |
 
 Native macOS and CachyOS routes require separate qualification. NixOS needs
@@ -370,7 +376,9 @@ upstream script fails closed until its declaration is reviewed. A script from a
 mutable endpoint must stay below 1 MiB. A larger installer is a versioned
 release asset declared per platform with its exact size, which also bounds the
 download; it is streamed to disk and runs, or is placed, only once its size and
-digest match. A `gzip` asset is unpacked after verification. These hashes do
+digest match. A `gzip` asset is unpacked after verification; a zip archive
+(Alire's, Google's command-line tools) is unpacked by its adapter, which
+refuses any entry outside the directory it expects. These hashes do
 not pin every payload downloaded by the upstream installer. FNM does not verify
 Node's published checksums, so Node's integrity rests on HTTPS to nodejs.org,
 which the policy names explicitly; python-build verifies the checksums embedded
@@ -409,10 +417,13 @@ Neither workflow installs native compilers or activates a workstation.
 builds the package and runs a qualification harness on a macOS runner and in
 an Arch container, with real managers, downloads and builds: `adapters` (from
 zero, the default), `lifecycle` (manager updates, native package upgrades and
-user evolution) or `interruption` (signals and a lost network mid-install).
+user evolution), `interruption` (signals and a lost network mid-install) or
+`guided` (setup in a pseudo-terminal). Terms an ecosystem needs are accepted
+only when the `accept` input, or `DEV_BOOTSTRAP_ACCEPT` for a local run, names
+them; Android is therefore not in the default selection.
 Its input lists jobs separated by commas, each a space-separated list of
 ecosystems, or interruption scenarios, run in one disposable root. The default
-covers every adapter in five jobs per platform, with CPython, the OCaml
+covers every adapter but Android in five jobs per platform, with CPython, the OCaml
 compilers and GHC each in a job of their own. The container runs the executor
 as an unprivileged account whose passwordless `sudo` covers only pacman and
 the `true` that checks for cached credentials.

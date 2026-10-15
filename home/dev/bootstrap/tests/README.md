@@ -8,7 +8,7 @@ automatic checks.
 | Category | Coverage |
 | --- | --- |
 | `unit/` | Manifest input validation, CLI diagnostics, selection metadata (requirements, defaults, platforms, consents) and the text report: golden renderings at 40, 65 and 80 columns and in plain output, under `unit/golden/`. The guided setup's summary and review (`guided-*` goldens) and its prompters: Gum behind a recording fake, line prompts and the unattended refusal. `tests/prompter.py` is the scripted person flow tests answer with; `integration/` drives `setup` through the CLI in the setup fixture, apply included. |
-| `integration/` | Native toolchain filesystem transitions, setup orchestration, retired-release pruning, child environments and shell adapters. |
+| `integration/` | Native toolchain filesystem transitions, setup orchestration, retired-release pruning, child environments and shell adapters, including Alire's workspace-local installs and the Android SDK's license guard and archive unpacking. |
 | `bootstrap/` | Pre-Nix foundation entry, runtime CLI recovery and installed command aliases. |
 | `qualification/` | Manual checks against real native managers in disposable roots; excluded from automatic discovery. |
 
@@ -16,7 +16,10 @@ automatic checks.
 real native managers in one disposable root and an empty environment: `plan`,
 `apply`, `verify`, `verify --health`, then a second `apply` for each selected
 ecosystem. Each run also selects what that ecosystem requires, as the
-executor's catalog reports it, so `kotlin` runs with `jvm`. It writes per-step JSON, durations, disk use and a `summary.json`,
+executor's catalog reports it, so `kotlin` runs with `jvm`. Terms an
+ecosystem needs are passed with `--accept` only when `DEV_BOOTSTRAP_ACCEPT`
+lists them (`android-sdk-license` for `android`); otherwise its applies are
+refused, which is itself a check. It writes per-step JSON, durations, disk use and a `summary.json`,
 and fails when the real home's entries or manager selections change, or when
 the second `apply` installs anything. The native package manager stays global;
 the summary lists any package it installed.

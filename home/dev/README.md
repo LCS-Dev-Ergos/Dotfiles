@@ -1,7 +1,10 @@
 # Development Configuration and Native Managers
 
 `toolchains/` selects shared compilers and debuggers. `languages/` owns each
-language's support packages and configuration. Shell integrations are ordered
+language's support packages and configuration, including the languages that
+need no version manager: Lua and PHP on both platforms, Fortran, Free Pascal,
+MIT Scheme and Racket on Linux, where macOS keeps the copy Homebrew or
+fpcupdeluxe already provides. Shell integrations are ordered
 by `home/shells/zsh/config/lib/80-languages.zsh` and implemented under
 `home/shells/zsh/config/languages/`. Manager state and downloaded runtimes
 remain outside the checkout and Nix store.
@@ -40,7 +43,10 @@ declared GHC, and Kotlin, Maven and Gradle as SDKMAN adapters that require
 `jvm` and run on its JDK. Scala comes through Coursier's pinned native launcher
 and also runs on that JDK, and the .NET SDK comes from the hash-checked
 `dotnet-install` script. Conda comes from the matching Miniforge3 installer,
-and only `--only conda` selects it. Each
+and only `--only conda` selects it. Ada comes through Alire's pinned `alr`,
+which deploys GNAT and gprbuild. The Android SDK comes through the bootstrap's
+own `sdkmanager` from Google's pinned command-line tools, requires `jvm`, and
+runs only with `--only android` and `--accept android-sdk-license`. Each
 adapter declares what it requires, whether a run without `--only` selects it,
 its platforms and the terms an apply must accept; JSON reports list this as the
 `catalog`.
@@ -65,7 +71,7 @@ packages or certify every release.
 | `bootstrap/bootstrap.py`, `bootstrap/core/cli.py` | Executable entry, argument handling and structured reporting |
 | `bootstrap/core/engine.py`, `setup.py` | Selection from the adapters' metadata, the catalog, mutation guards, shared lock, setup stages and selection reports |
 | `bootstrap/core/manifest.py`, `process.py`, `paths.py` | Manifest validation, the process boundary and filesystem/state boundaries |
-| `bootstrap/core/adapters/` | One adapter per ecosystem behind a shared contract: Node through FNM and Python through pyenv from their own upstreams, opam switches on the root's own upstream, and the native managers for Rust, Haskell (GHC, Cabal, HLS), Lean, Ruby, JVM, Kotlin, Maven, Gradle and Julia |
+| `bootstrap/core/adapters/` | One adapter per ecosystem behind a shared contract: Node through FNM and Python through pyenv from their own upstreams, opam switches on the root's own upstream, and the native managers for Rust, Haskell (GHC, Cabal, HLS), Lean, Ruby, JVM, Kotlin, Maven, Gradle, Scala, Julia, Ada, Android, .NET and Conda |
 | `bootstrap/probe-shell.zsh` | Disposable startup context loading the production language adapters and PATH module |
 | `native-managers.nix` | Canonical package-manager routes, manager inventory and native build prerequisites |
 
