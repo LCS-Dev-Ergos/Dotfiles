@@ -1,7 +1,8 @@
 """The single process boundary: literal argv, scoped child environments.
 
-Children run without a terminal, in their own process group; attend() is
-the one exception, for the authentication a person answers.
+Children run without a terminal, in their own process group. Two calls keep
+the terminal: attend(), for the authentication a person answers, and
+interact(), for the guided setup's questions.
 """
 
 import os
@@ -192,6 +193,22 @@ def attend(args, *, timeout=600):
         raise BootstrapError(str(error)) from error
     if result.returncode != 0:
         raise BootstrapError(f"{args[0]} exited {result.returncode}")
+
+
+def interact(args, *, env):
+    """Run a widget that asks a person at the terminal (Gum).
+
+    Like attend(), the child keeps bootstrap's terminal and process group,
+    so Ctrl-C reaches both. Its stdout is captured: the answer. It installs
+    and changes nothing; the status is the caller's to read.
+    """
+    try:
+        result = subprocess.run(
+            args, env=env, stdout=subprocess.PIPE, text=True, check=False
+        )
+    except OSError as error:
+        raise BootstrapError(str(error)) from error
+    return result.returncode, result.stdout
 
 
 def complete(args, *, env, timeout, cwd):

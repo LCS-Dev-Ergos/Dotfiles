@@ -113,6 +113,7 @@ bootstrap_sdk() { [[ -f "$FIXTURE/has-sdk" ]]; }
         for arguments in (
             (),
             ("plan", "--json"),
+            ("setup", "--only", "node"),
             ("verify", "--manifest", "a path;$(touch injected)"),
         ):
             with self.subTest(arguments=arguments):

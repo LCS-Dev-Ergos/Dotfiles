@@ -28,6 +28,7 @@ from core.paths import writable_directory
 from core.runs import Recorder
 from core.setup import BootstrapSetup
 from tests.declaration import declared_manifest
+from tests.prompter import ScriptedPrompter
 from tests.unit.test_process import gone
 
 implementation = Path(__file__).resolve().parents[2]
@@ -641,6 +642,57 @@ class SetupTests(unittest.TestCase):
         self.assertTrue(
             all(row["state"] == "present" for row in plan["nativeManagers"])
         )
+
+    def guided(self, *arguments, answers=()):
+        """Run `setup` with a scripted person at the terminal."""
+        prompter = ScriptedPrompter(self, answers)
+        with patch.object(cli, "prompter", return_value=prompter):
+            code, output, errors = self.cli_output("setup", *arguments)
+        prompter.finished()
+        return code, output, errors, prompter
+
+    def test_guided_setup_reviews_without_changing_anything(self):
+        code, output, errors, prompter = self.guided(
+            "--only", "node", "--only", "python", "--only", "ocaml"
+        )
+        self.assertEqual((code, errors), (0, ""))
+        self.assertEqual(self.mutations(), [])
+        # Neither state nor a saved selection: a review writes nothing.
+        self.assertFalse((self.root / "state").exists())
+        self.assertFalse((self.root / "home/.config").exists())
+        lines = [" ".join(line.split()) for line in output.splitlines()]
+        self.assertEqual(lines[0], "dev-bootstrap · Guided setup")
+        self.assertIn("apply carries out this review", lines[-1])
+        python = self.data["python"]["version"]
+        for expected in (
+            "Selection · --only",
+            "fnm Node brew fnm",
+            f"Python {python} source build · medium",
+            # Missing managers arrive as packages, with the build packages.
+            "Apply installs fnm, opam, pyenv and sqlite. It runs:",
+            "dev-bootstrap apply --only node --only python --only ocaml",
+        ):
+            self.assertIn(expected, lines)
+
+    def test_guided_setup_options(self):
+        for arguments in (
+            ("--json",),
+            ("--save-selection", "--all"),
+            ("--runtimes-only",),
+        ):
+            with (
+                self.subTest(arguments=arguments),
+                patch.object(
+                    argparse.ArgumentParser, "error", side_effect=SystemExit
+                ) as error,
+                self.assertRaises(SystemExit),
+            ):
+                self.cli_output("setup", *arguments)
+            self.assertIn("setup guides a person", error.call_args.args[0])
+        self.data["backend"] = "nixpkgs"
+        code, _, errors, _ = self.guided()
+        self.assertEqual(code, 2)
+        self.assertIn("nixpkgs backend", errors)
 
     def test_declared_selection_is_read_but_never_replaced(self):
         declared = self.root / "declared.json"

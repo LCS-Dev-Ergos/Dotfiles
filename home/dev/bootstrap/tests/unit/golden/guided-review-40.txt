@@ -1,0 +1,49 @@
+
+  \e[1;34mSelection\e[0m \e[2;34m───────────────────\e[0m \e[38;5;245m--only\e[0m
+    \e[38;5;245mecosystems\e[0m  Node, Python, Haskell,
+    \e[38;5;245m          \e[0m  JVM, Kotlin
+
+  \e[1;34mBlockers\e[0m \e[2;34m──────\e[0m \e[38;5;245mapply stops on these\e[0m
+      \e[38;5;245mITEM\e[0m
+    \e[1;31m✖\e[0m JVM 21.0.12.1
+      \e[31mAn incomplete installation is in\e[0m
+      \e[31mthe way; inspect it\e[0m
+
+  \e[1;34mManagers to install\e[0m \e[2;34m────────────────\e[0m
+      \e[38;5;245mMANAGER\e[0m
+    \e[1;33m▲\e[0m ghcup
+      \e[38;5;245mHaskell\e[0m
+      \e[38;5;245minstaller get-ghcup.haskell.org\e[0m
+    \e[1;33m▲\e[0m sdkman
+      \e[38;5;245mJVM, Kotlin\e[0m
+      \e[38;5;245minstaller get.sdkman.io\e[0m
+
+  \e[1;34mRuntimes to install\e[0m \e[2;34m────────────────\e[0m
+      \e[38;5;245mRUNTIME        VERSION\e[0m
+    \e[1;33m▲\e[0m Node           26.11.1
+    \e[1;33m▲\e[0m Haskell GHC    9.14.1
+    \e[1;33m▲\e[0m Haskell Cabal  3.16.1.0
+    \e[1;33m▲\e[0m Haskell HLS    2.14.0.0
+    \e[1;33m▲\e[0m Kotlin         2.4.21
+
+  \e[1;34mDefaults\e[0m \e[2;34m────\e[0m \e[38;5;245mwhere none is selected\e[0m
+      \e[38;5;245mRUNTIME      DEFAULT\e[0m
+    \e[1;33m▲\e[0m Haskell GHC  9.14.1
+    \e[1;33m▲\e[0m JVM          21.0.12.1
+    \e[1;33m▲\e[0m Kotlin       2.4.21
+    \e[1;38;5;245m○\e[0m Apply then recreates missing
+      shims and shell hooks, and
+      checks that a fresh shell runs
+      the selected runtimes.
+
+  \e[1;34mNative packages\e[0m \e[2;34m─────────────\e[0m \e[38;5;245mpacman\e[0m
+    \e[1;33m▲\e[0m Apply installs gmp and zip,
+      asking once for administrator
+      rights. It runs:
+    \e[36msudo /usr/bin/pacman -S --needed \\e[0m
+    \e[36m  --noconfirm gmp zip\e[0m
+
+  \e[1;34mWithout the guide\e[0m \e[2;34m──────────────────\e[0m
+    \e[36mdev-bootstrap apply --only node \\e[0m
+    \e[36m  --only python --only haskell \\e[0m
+    \e[36m  --only jvm --only kotlin\e[0m

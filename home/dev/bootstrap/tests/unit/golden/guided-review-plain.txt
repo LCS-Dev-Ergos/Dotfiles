@@ -1,0 +1,34 @@
+
+Selection · --only
+ecosystems  Node, Python, Haskell, JVM, Kotlin
+
+Blockers · apply stops on these
+ITEM           PROBLEM
+JVM 21.0.12.1  An incomplete installation is in the way; inspect it
+
+Managers to install · installers are hash-checked
+MANAGER  FOR          FROM
+ghcup    Haskell      installer get-ghcup.haskell.org
+sdkman   JVM, Kotlin  installer get.sdkman.io
+
+Runtimes to install
+RUNTIME        VERSION   COST
+Node           26.11.1   download · small
+Haskell GHC    9.14.1    download · large
+Haskell Cabal  3.16.1.0  -
+Haskell HLS    2.14.0.0  -
+Kotlin         2.4.21    download · small
+
+Defaults · where none is selected
+RUNTIME      DEFAULT
+Haskell GHC  9.14.1
+JVM          21.0.12.1
+Kotlin       2.4.21
+Apply then recreates missing shims and shell hooks, and checks that a fresh shell runs the selected runtimes.
+
+Native packages · pacman
+Apply installs gmp and zip, asking once for administrator rights. It runs:
+sudo /usr/bin/pacman -S --needed --noconfirm gmp zip
+
+Without the guide
+dev-bootstrap apply --only node --only python --only haskell --only jvm --only kotlin

@@ -81,6 +81,13 @@ def validate_manifest(data):
         version(release)
     validate_toolchains(data)
     validate_retired(data.get("retired", {}))
+    for tool, path in data.get("frontend", {}).items():
+        if (
+            tool != "gum"
+            or not isinstance(path, str)
+            or not path.startswith("/")
+        ):
+            raise BootstrapError("Frontend tools must be absolute paths")
     declared = {
         "node": versions,
         "python": [data["python"]["version"]],

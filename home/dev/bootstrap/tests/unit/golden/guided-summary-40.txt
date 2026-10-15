@@ -1,0 +1,19 @@
+\e[34m╭──────────────────────────────────────╮\e[0m
+\e[34m│\e[0m \e[1;7;36m DEV-BOOTSTRAP \e[0m  \e[1mGuided setup\e[0m        \e[34m│\e[0m
+\e[34m│\e[0m                  \e[38;5;245m6 ecosystems avail…\e[0m \e[34m│\e[0m
+\e[34m╰──────────────────────────────────────╯\e[0m
+
+  \e[1;34mEcosystems\e[0m \e[2;34m──────────────────\e[0m \e[38;5;245mpacman\e[0m
+      \e[38;5;245mECOSYSTEM  STATE\e[0m
+    \e[1;33m▲\e[0m Node       \e[33mmissing\e[0m
+      \e[38;5;245mmissing Node 26.11.1\e[0m
+    \e[1;32m●\e[0m Python     \e[38;5;245mpresent\e[0m
+    \e[1;33m▲\e[0m Haskell    \e[33mmissing\e[0m
+      \e[38;5;245mapply installs ghcup first\e[0m
+    \e[1;31m✖\e[0m JVM        \e[31mconflict\e[0m
+      An incomplete installation is in
+      the way; inspect it
+    \e[1;33m▲\e[0m Kotlin     \e[33mmissing\e[0m
+      \e[38;5;245mapply installs sdkman first\e[0m
+    \e[1;32m●\e[0m Conda      \e[38;5;245mpresent\e[0m
+      \e[38;5;245mnot selected\e[0m

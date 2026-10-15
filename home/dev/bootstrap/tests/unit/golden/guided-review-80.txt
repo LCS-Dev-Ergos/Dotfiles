@@ -1,0 +1,37 @@
+
+  \e[1;34mSelection\e[0m \e[2;34m───────────────────────────────────────────────────────────\e[0m \e[38;5;245m--only\e[0m
+    \e[38;5;245mecosystems\e[0m  Node, Python, Haskell, JVM, Kotlin
+
+  \e[1;34mBlockers\e[0m \e[2;34m──────────────────────────────────────────────\e[0m \e[38;5;245mapply stops on these\e[0m
+      \e[38;5;245mITEM           PROBLEM\e[0m
+    \e[1;31m✖\e[0m JVM 21.0.12.1  \e[31mAn incomplete installation is in the way; inspect it\e[0m
+
+  \e[1;34mManagers to install\e[0m \e[2;34m────────────────────────────\e[0m \e[38;5;245minstallers are hash-checked\e[0m
+      \e[38;5;245mMANAGER  FOR          FROM\e[0m
+    \e[1;33m▲\e[0m ghcup    \e[38;5;245mHaskell\e[0m      \e[38;5;245minstaller get-ghcup.haskell.org\e[0m
+    \e[1;33m▲\e[0m sdkman   \e[38;5;245mJVM, Kotlin\e[0m  \e[38;5;245minstaller get.sdkman.io\e[0m
+
+  \e[1;34mRuntimes to install\e[0m \e[2;34m────────────────────────────────────────────────────────\e[0m
+      \e[38;5;245mRUNTIME        VERSION   COST\e[0m
+    \e[1;33m▲\e[0m Node           26.11.1   \e[38;5;245mdownload · small\e[0m
+    \e[1;33m▲\e[0m Haskell GHC    9.14.1    \e[38;5;245mdownload · large\e[0m
+    \e[1;33m▲\e[0m Haskell Cabal  3.16.1.0
+    \e[1;33m▲\e[0m Haskell HLS    2.14.0.0
+    \e[1;33m▲\e[0m Kotlin         2.4.21    \e[38;5;245mdownload · small\e[0m
+
+  \e[1;34mDefaults\e[0m \e[2;34m────────────────────────────────────────────\e[0m \e[38;5;245mwhere none is selected\e[0m
+      \e[38;5;245mRUNTIME      DEFAULT\e[0m
+    \e[1;33m▲\e[0m Haskell GHC  9.14.1
+    \e[1;33m▲\e[0m JVM          21.0.12.1
+    \e[1;33m▲\e[0m Kotlin       2.4.21
+    \e[1;38;5;245m○\e[0m Apply then recreates missing shims and shell hooks, and checks that a
+      fresh shell runs the selected runtimes.
+
+  \e[1;34mNative packages\e[0m \e[2;34m─────────────────────────────────────────────────────\e[0m \e[38;5;245mpacman\e[0m
+    \e[1;33m▲\e[0m Apply installs gmp and zip, asking once for administrator rights. It
+      runs:
+    \e[36msudo /usr/bin/pacman -S --needed --noconfirm gmp zip\e[0m
+
+  \e[1;34mWithout the guide\e[0m \e[2;34m──────────────────────────────────────────────────────────\e[0m
+    \e[36mdev-bootstrap apply --only node --only python --only haskell --only jvm \\e[0m
+    \e[36m  --only kotlin\e[0m

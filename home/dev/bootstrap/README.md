@@ -43,6 +43,7 @@ flowchart TD
     CLI -->|verify / verify --health| Verify["Direct runtime checks and canaries"]
     CLI -->|prune / prune --yes| Prune["Retired releases: move selections and dependents, then remove"]
     CLI -->|report| Runs["Kept runs: logs, events and reports"]
+    CLI -->|setup| Guided["Guided setup: summary and review of plan --preflight"]
     CLI -->|apply| Guard["Owning user, directory checks, exclusive lock"]
     Guard --> Setup["setup: prerequisites and readiness"]
     Setup --> Adapters["One adapter per ecosystem (core/adapters)"]
@@ -57,6 +58,7 @@ flowchart TD
 | `package.nix`, `policy.nix` | Compose the manifest and literal argv policy, package the executor and run fixture checks. |
 | `bootstrap.py`, `core/cli.py` | Stable executable entry, argument parsing, reporting and process exit status. |
 | `core/render.py`, `core/ui.py`, `core/progress.py` | The text report: how each state reads, drawn in the style every shell tool shares (`ui.py` mirrors the tokens of the Zsh style module); the run's live progress on stderr. |
+| `core/guided.py`, `core/prompt.py` | `setup`: the guided flow over `plan --preflight` reports, and the prompters it asks through (Gum on a color terminal, line prompts otherwise, nothing without a terminal). |
 | `core/manifest.py` | Validate the generated manifest; each toolchain adapter validates its own declaration. |
 | `core/process.py`, `paths.py`, `errors.py` | The single process boundary with scoped child environments, copying output into the run's logs; writable roots and owned directories; operational errors. |
 | `core/runs.py` | The record of each `apply` and `prune --yes`: logs, progress events and the report, the last ten kept; what `report` lists and shows again. |
@@ -79,6 +81,7 @@ bash scripts/bootstrap/dev-bootstrap.sh plan --json
 bash scripts/bootstrap/dev-bootstrap.sh apply --only rust
 bash scripts/bootstrap/dev-bootstrap.sh verify --health --only rust
 bash scripts/bootstrap/dev-bootstrap.sh prune --only rust --yes
+bash scripts/bootstrap/dev-bootstrap.sh setup
 ```
 
 ## Selection
@@ -176,6 +179,22 @@ source build never looks like a hang.
 bash scripts/bootstrap/dev-bootstrap.sh apply --events /tmp/progress.jsonl
 bash scripts/bootstrap/dev-bootstrap.sh report --last
 ```
+
+`setup` guides a person through the native setup. It plans every ecosystem
+available here and summarizes each in one row: its state, its manager and
+what installing it costs. It then reviews what `apply` would do for the
+selection: the managers it installs and where from, the runtimes, the
+defaults it sets where a manager has none, the native packages with the
+exact command and whether it asks for administrator rights, anything that
+would stop it, and the same run as flags. Both steps read the reports
+`plan --preflight` prints; `setup` decides nothing on its own and, for now,
+changes nothing. The selection comes from the usual options and the saved
+selection; `--format json`, `--save-selection` and `--runtimes-only` are
+refused, and the nixpkgs backend has no native setup to guide. Every screen
+is drawn like the reports; questions use Gum on a color terminal, pinned by
+the package and themed with the shared colors, and line prompts otherwise.
+Without a terminal on stdin no question is asked: it fails and names the
+flag that answers it.
 
 `prune` lists the installed releases that the baseline's `retired` mirror
 names, with what removing each takes; `prune --yes` removes them under the

@@ -1,0 +1,18 @@
+
+  \e[1;34mSelection\e[0m \e[2;34m──────────────────────────────────────────────────\e[0m \e[38;5;245msaved selection\e[0m
+    \e[38;5;245mecosystems\e[0m  Node, Python, Haskell, JVM, Kotlin
+    \e[38;5;245msaved in  \e[0m  \e[38;5;245m~/.config/selection.json\e[0m
+
+  \e[1;34mRuntimes to install\e[0m \e[2;34m────────────────────────────────────────────────────────\e[0m
+    \e[1;32m●\e[0m Every runtime of the selection is installed.
+
+  \e[1;34mDefaults\e[0m \e[2;34m────────────────────────────────────────────\e[0m \e[38;5;245mwhere none is selected\e[0m
+    \e[1;32m●\e[0m Every manager keeps its global selection.
+    \e[1;38;5;245m○\e[0m Apply then recreates missing shims and shell hooks, and checks that a
+      fresh shell runs the selected runtimes.
+
+  \e[1;34mNative packages\e[0m \e[2;34m───────────────────────────────────────────────────────\e[0m \e[38;5;245mbrew\e[0m
+    \e[1;32m●\e[0m All 4 packages the selection needs are installed.
+
+  \e[1;34mWithout the guide\e[0m \e[2;34m──────────────────────────────────────────────────────────\e[0m
+    \e[36mdev-bootstrap apply\e[0m

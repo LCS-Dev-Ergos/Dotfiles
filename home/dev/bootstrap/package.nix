@@ -10,6 +10,7 @@
   python314,
   coreutils,
   diffutils,
+  gum,
   writeText,
   runtimeManagerBackend ? "native",
 }:
@@ -48,6 +49,11 @@ let
       shellProbe = "${./probe-shell.zsh}";
       shellConfig = "${../../shells/zsh/config}";
     };
+    # The guided setup's widgets. Pinned here, because `setup` runs on a
+    # clean host before Home Manager puts anything on PATH.
+    frontend = {
+      gum = lib.getExe gum;
+    };
     # Exact versions are checked at runtime; never substitute a nearby release.
     nixRuntimes = lib.optionalAttrs (runtimeManagerBackend == "nixpkgs") {
       "node-${nodejs_24.version}" = nixRuntime "node" nodejs_24;
@@ -75,6 +81,9 @@ assert
     manifest.setup.sdkmanShell
   ]
   || throw "development-bootstrap: shell inputs must be store references";
+assert
+  builtins.all builtins.hasContext (builtins.attrValues manifest.frontend)
+  || throw "development-bootstrap: frontend tools must be store references";
 # Force declaration and target validation even when only drvPath is evaluated.
 builtins.seq baseline (
   stdenvNoCC.mkDerivation {

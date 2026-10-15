@@ -185,7 +185,7 @@ def _reason(text, tone):
     return Note(text, "" if tone in FAILING else ui.MUTED)
 
 
-def _cost(cost):
+def cost_text(cost):
     """How a catalog cost reads: "source build · medium", "download"."""
     build = "source build" if cost.get("build") == "source" else "download"
     return " · ".join(part for part in (build, cost.get("size")) if part)
@@ -258,7 +258,7 @@ def _runtimes(result, style):
         # runtime apply would install.
         if action == "plan" and tone == "pending" and row["language"] in costs:
             cost = costs.pop(row["language"])
-            rows[-1].notes.append(Note(_cost(cost), label="cost"))
+            rows[-1].notes.append(Note(cost_text(cost), label="cost"))
     lines += ui.table(style, RUNTIME_COLUMNS, rows)
 
     managers = [

@@ -9,10 +9,13 @@ import tarfile
 from contextlib import contextmanager
 from pathlib import Path
 
+from . import process
 from .adapters import ADAPTERS
 from .engine import Bootstrap, select
 from .errors import BootstrapError, Interrupted
+from .guided import Guide
 from .manifest import load_manifest
+from .prompt import prompter
 from .progress import Progress
 from .prune import Prune
 from .render import render
@@ -23,6 +26,8 @@ from .ui import Style
 
 # The JSON report's schema; Interfaces.md says what changes it.
 REPORT_SCHEMA = 1
+# What the guided setup reads before each step: plan --preflight.
+PREFLIGHT = argparse.Namespace(action="plan", health=False, preflight=True)
 
 
 def command_line():
@@ -36,7 +41,7 @@ def command_line():
         "action",
         nargs="?",
         default="plan",
-        choices=("plan", "apply", "verify", "prune", "report"),
+        choices=("plan", "apply", "verify", "prune", "report", "setup"),
     )
     chosen = parser.add_mutually_exclusive_group()
     chosen.add_argument(
@@ -143,6 +148,13 @@ def main():
         args.only or args.all or args.accept or args.runtimes_only
     ):
         parser.error("report shows recorded runs; it selects nothing")
+    if args.action == "setup" and (
+        args.format == "json" or args.save_selection or args.runtimes_only
+    ):
+        parser.error(
+            "setup guides a person through the whole native setup; "
+            "plan --preflight --json reports it for programs"
+        )
     os.umask(0o077)
     # The setup in use, so an interruption can name its stage.
     setups = []
@@ -201,6 +213,8 @@ def run(args, setups):
             return show_runs(args)
         manifest = load_manifest(args.manifest)
         only, origin = choose(args, manifest)
+        if args.action == "setup":
+            return guide(manifest, only, origin, args.accept)
         context = Bootstrap(manifest, only, accepted=args.accept)
         if args.action == "apply" or args.yes:
             recorder = Recorder(
@@ -368,6 +382,25 @@ def choose(args, manifest):
             f"{error} (saved selection {path}; --all ignores it)"
         ) from error
     return saved, {"source": "file", "path": str(path)}
+
+
+def guide(manifest, only, origin, accepted):
+    """`setup`: detect, summarize and review, reading plan --preflight."""
+    if manifest["backend"] != "native" or not manifest.get("setup"):
+        raise BootstrapError(
+            "setup guides the native setup, which this baseline does not use "
+            "(nixpkgs backend)"
+        )
+
+    def planner(selection):
+        context = Bootstrap(manifest, selection, accepted=accepted)
+        return execute(context, BootstrapSetup(context), PREFLIGHT)
+
+    style = Style.detect()
+    asker = prompter(
+        manifest.get("frontend", {}), style, attended=process.attended()
+    )
+    return Guide(manifest, planner, asker, style).run(only, origin, accepted)
 
 
 def execute(context, setup, args):
