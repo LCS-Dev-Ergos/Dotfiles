@@ -9,6 +9,7 @@ clang	Clang	any	-	-	clang	clang --version	clang	-	-	-	always	version	systems
 cmake	CMake	any	-	-	cmake	cmake --version	cmake	-	-	-	always	version	systems
 fortran	Fortran	any	-	-	gfortran	gfortran --version	gfortran	-	gcc	brew upgrade gcc	always	version	systems
 fpcupdeluxe	Free Pascal	macOS	-	~/.fpc-deluxe	dir:~/.fpc-deluxe	fpc -iV	fpc	-	-	-	always	version	systems
+fpc	Free Pascal	Linux	-	-	fpc	fpc -iV	fpc	-	-	-	always	version	systems
 gcc	GCC driver	any	-	-	gcc	gcc --version	gcc	-	-	-	always	version	systems
 go	Go	any	-	-	go	go version	go	-	-	-	always	version	systems
 mojo	Mojo	macOS	-	~/.miniforge3/envs/Mojo	file:~/.miniforge3/envs/Mojo/bin/mojo	~/.miniforge3/envs/Mojo/bin/mojo --version	-	-	-	conda env update -n Mojo -f home/dev/languages/mojo/environment.yml	always	version	systems
@@ -44,4 +45,4 @@ elan	Lean	any	ELAN_HOME	~/.elan	elan	lean --version	lean	elan toolchain list	-	e
 dotnet	.NET SDK	any	-	-	dotnet	dotnet --version	dotnet	-	-	-	always	version	apps
 android	Android adb	any	-	-	adb	adb version	adb	-	-	-	always	version	apps
 flutter	Flutter SDK	any	-	-	flutter	hook	flutter	-	-	flutter upgrade	always	version	apps
-swift	Swift	any	-	-	swift	swift --version	swift	-	-	-	always	version	apps
+swift	Swift	macOS	-	-	swift	swift --version	swift	-	-	-	always	version	apps
