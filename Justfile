@@ -26,6 +26,11 @@ foundation:
 plan *args:
     scripts/bootstrap/dev-bootstrap.sh plan "$@"
 
+# Choose ecosystems, review what apply would do, then apply it
+[group('bootstrap')]
+setup *args:
+    scripts/bootstrap/dev-bootstrap.sh setup "$@"
+
 # Install the missing baseline releases
 [group('bootstrap')]
 apply *args:
