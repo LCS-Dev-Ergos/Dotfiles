@@ -14,7 +14,11 @@ on:
       ecosystems:
         description: Ecosystems or interruption scenarios, space-separated within a job and comma-separated between jobs (each ecosystem also selects what it requires)
         required: true
-        default: python, ocaml, haskell, node rust lean ruby julia, jvm kotlin maven gradle scala dotnet conda
+        default: python, ocaml, haskell, node rust lean ruby julia ada, jvm kotlin maven gradle scala dotnet conda
+      accept:
+        description: Terms the harness accepts for the ecosystems that need them, space-separated (android needs android-sdk-license); without them those applies are refused
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -47,7 +51,7 @@ jobs:
             for member in "${members[@]}"; do
               ecosystem=${member%%:*}
               case "$ecosystem" in
-                node|python|ocaml|rust|haskell|lean|ruby|jvm|kotlin|maven|gradle|scala|julia|dotnet|conda) ;;
+                node|python|ocaml|rust|haskell|lean|ruby|jvm|kotlin|maven|gradle|scala|julia|dotnet|conda|ada|android) ;;
                 *) echo "Unsupported ecosystem: $ecosystem" >&2; exit 2 ;;
               esac
               if [[ $HARNESS == interruption ]]; then
@@ -95,6 +99,7 @@ jobs:
       # Runner images are disposable, so the lifecycle harness may upgrade
       # native packages there.
       DEV_BOOTSTRAP_PACKAGE_UPGRADES: "1"
+      DEV_BOOTSTRAP_ACCEPT: ${{ inputs.accept }}
     defaults:
       run:
         shell: bash
@@ -133,7 +138,7 @@ jobs:
             --volume "$PWD:/work:ro" \
             --volume "$RUNNER_TEMP/native:/logs" \
             --env DEV_BOOTSTRAP --env ECOSYSTEMS --env HARNESS \
-            --env DEV_BOOTSTRAP_PACKAGE_UPGRADES \
+            --env DEV_BOOTSTRAP_PACKAGE_UPGRADES --env DEV_BOOTSTRAP_ACCEPT \
             archlinux:base-devel \
             bash -euo pipefail -c '
               pacman -Syu --noconfirm --needed sudo zsh python
@@ -146,6 +151,7 @@ jobs:
               cd /tmp
               sudo -u builder -H \
                 DEV_BOOTSTRAP_PACKAGE_UPGRADES="$DEV_BOOTSTRAP_PACKAGE_UPGRADES" \
+                DEV_BOOTSTRAP_ACCEPT="$DEV_BOOTSTRAP_ACCEPT" \
                 zsh "/work/home/dev/bootstrap/tests/qualification/$HARNESS" \
                 "$DEV_BOOTSTRAP" /logs $ECOSYSTEMS || status=$?
               chmod -R a+rX /logs
