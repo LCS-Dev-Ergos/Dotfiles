@@ -35,8 +35,9 @@ for bootstrap_language in "${bootstrap_languages[@]}"; do
     # PATH-only adapters; selections are inspected without proxies. The SDKMAN
     # build tools and Coursier's launchers are on PATH through 90-path.zsh,
     # keyed on SDKMAN_DIR and COURSIER_BIN_DIR; the .NET muxer on DOTNET_ROOT,
-    # and conda's condabin on CONDA_ROOT_PREFIX.
-    lean|julia|kotlin|maven|gradle|scala|dotnet|conda) ;;
+    # and conda's condabin on CONDA_ROOT_PREFIX; alr on ALR_HOME; adb on
+    # ANDROID_HOME.
+    lean|julia|kotlin|maven|gradle|scala|dotnet|conda|ada|android) ;;
     *) return 1 ;;
   esac
 done
@@ -122,6 +123,25 @@ for bootstrap_language in "${bootstrap_languages[@]}"; do
       expected_name="DEV_BOOTSTRAP_EXPECTED_${(U)bootstrap_language}"
       [[ -x "${(P)expected_name}" ]] || return 1
       print -r -- "$bootstrap_language"$'\t'"${(P)expected_name}"$'\t'prequalified
+      ;;
+    android)
+      # The bootstrap's sdkmanager is its own (cmdline-tools/<release>), not
+      # the one on PATH; what the shell provides is adb.
+      typeset actual_adb="$(whence -p adb)"
+      typeset expected_adb="$ANDROID_HOME/platform-tools/adb"
+      [[ -n "$actual_adb" && "${actual_adb:A}" == "${expected_adb:A}" ]] || {
+        print -u2 "Bootstrap adb is shadowed: $actual_adb"
+        return 1
+      }
+      [[ -x "$DEV_BOOTSTRAP_EXPECTED_ANDROID" ]] || return 1
+      print -r -- android$'\t'"$DEV_BOOTSTRAP_EXPECTED_ANDROID"$'\t'prequalified
+      ;;
+    ada)
+      # alr exposes GNAT only inside a workspace (alr exec, alr printenv, or
+      # direnv's `use alr`); what the shell provides is alr itself.
+      _bootstrap_manager_origin alr "$DEV_BOOTSTRAP_NATIVE_ALR" || return 1
+      [[ -x "$DEV_BOOTSTRAP_EXPECTED_ADA" ]] || return 1
+      print -r -- ada$'\t'"$DEV_BOOTSTRAP_EXPECTED_ADA"$'\t'prequalified
       ;;
   esac
 done

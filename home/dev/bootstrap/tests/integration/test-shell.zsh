@@ -175,6 +175,60 @@ if DEV_BOOTSTRAP_NATIVE_OPAM="$fixture_root/unexpected-opam" \
   return 1
 fi
 
+# alr exposes GNAT only inside a workspace: the shell's part is alr itself,
+# found through ALR_HOME, and the verified GNAT is passed through.
+export ALR_HOME="$fixture_root/alr"
+command mkdir -p "$ALR_HOME/bin" "$fixture_root/gnat/bin"
+print -rl -- "#!$fixture_shell" 'exit 7' > "$ALR_HOME/bin/alr"
+print -rl -- "#!$fixture_shell" 'exit 7' > "$fixture_root/gnat/bin/gnat"
+command chmod 700 "$ALR_HOME/bin/alr" "$fixture_root/gnat/bin/gnat"
+output="$(DEV_BOOTSTRAP_ONLY=ada DEV_BOOTSTRAP_NATIVE_ALR="$ALR_HOME/bin/alr" \
+  DEV_BOOTSTRAP_EXPECTED_ADA="$fixture_root/gnat/bin/gnat" \
+  "$fixture_zsh" -fi "$test_root/probe-shell.zsh")" || {
+  print -u2 'FAIL: fresh shell did not find the bootstrap alr'
+  return 1
+}
+[[ "$output" == "ada"$'\t'"$fixture_root/gnat/bin/gnat"$'\t'prequalified ]] || {
+  print -u2 "FAIL: unexpected Ada probe output: ${(qqq)output}"
+  return 1
+}
+# An alr earlier in the production order (here a manager checkout's bin,
+# as a Homebrew or Nix one would be) shadows the bootstrap one.
+command cp "$ALR_HOME/bin/alr" "$PYENV_ROOT/bin/alr"
+if DEV_BOOTSTRAP_ONLY=ada DEV_BOOTSTRAP_NATIVE_ALR="$ALR_HOME/bin/alr" \
+  DEV_BOOTSTRAP_EXPECTED_ADA="$fixture_root/gnat/bin/gnat" \
+  "$fixture_zsh" -fi "$test_root/probe-shell.zsh" > /dev/null 2>&1; then
+  print -u2 'FAIL: shell accepted a shadowed alr'
+  return 1
+fi
+
+# adb comes from ANDROID_HOME and is the shell's selection; the bootstrap's
+# sdkmanager is not on PATH.
+export ANDROID_HOME="$fixture_root/android"
+command mkdir -p "$ANDROID_HOME/platform-tools" "$ANDROID_HOME/cmdline-tools/latest/bin"
+print -rl -- "#!$fixture_shell" 'exit 7' > "$ANDROID_HOME/platform-tools/adb"
+print -rl -- "#!$fixture_shell" 'exit 7' > "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+command chmod 700 "$ANDROID_HOME/platform-tools/adb" \
+  "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+output="$(DEV_BOOTSTRAP_ONLY=android \
+  DEV_BOOTSTRAP_EXPECTED_ANDROID="$ANDROID_HOME/platform-tools/adb" \
+  "$fixture_zsh" -fi "$test_root/probe-shell.zsh")" || {
+  print -u2 'FAIL: fresh shell did not find the bootstrap adb'
+  return 1
+}
+[[ "$output" == "android"$'\t'"$ANDROID_HOME/platform-tools/adb"$'\t'prequalified ]] || {
+  print -u2 "FAIL: unexpected Android probe output: ${(qqq)output}"
+  return 1
+}
+# An adb earlier in the production order shadows the SDK's.
+command cp "$ANDROID_HOME/platform-tools/adb" "$PYENV_ROOT/bin/adb"
+if DEV_BOOTSTRAP_ONLY=android \
+  DEV_BOOTSTRAP_EXPECTED_ANDROID="$ANDROID_HOME/platform-tools/adb" \
+  "$fixture_zsh" -fi "$test_root/probe-shell.zsh" > /dev/null 2>&1; then
+  print -u2 'FAIL: shell accepted a shadowed adb'
+  return 1
+fi
+
 print -r -- 'PASS: fresh adapters select native runtimes and preserve defaults'
 
 # ============================================================================ #

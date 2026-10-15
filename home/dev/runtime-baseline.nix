@@ -35,6 +35,26 @@ let
       # Coursier's `scala` app; it runs on the JDK above.
       scala.version = "3.9.0";
       julia.version = "1.12.7";
+      # Alire's crates: gnat_native is the GNAT release, gprbuild its build
+      # tool. The crate release is the identity; GNAT reports its GCC's.
+      # GCC 16, as the C/C++ toolchain; GNAT 15.1.2's GCC could neither
+      # target nor link on macOS 26 and later without extra environment.
+      ada = {
+        version = "16.1.0";
+        gprbuild = "26.0.1";
+      };
+      # Selected only by `--only android`, with --accept android-sdk-license.
+      # version is platform-tools, a floor: sdkmanager serves only its newest.
+      # The platform is an API level as sdkmanager names it (android-37.2).
+      # tools is the command-line tools release whose sdkmanager the
+      # bootstrap runs; 23.0 replaced it with the Android CLI. Its archive in
+      # native-managers.nix moves together with it.
+      android = {
+        version = "37.0.1";
+        buildTools = "37.0.0";
+        platform = "37.2";
+        tools = "22.0";
+      };
       # The current LTS feature band; dotnet-install fetches it by version.
       dotnet.version = "10.0.401";
       # Selected only by `--only conda`. Miniforge3 <version>-<build> ships

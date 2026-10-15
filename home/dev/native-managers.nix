@@ -124,9 +124,21 @@ let
     ];
   };
   # Release assets above the 1 MiB script bound, pinned per platform with their
-  # exact size. Coursier's native launcher needs no setup run.
+  # exact size. Coursier's native launcher, the alr binary in Alire's archive
+  # and Google's command-line tools (sdkmanager, at the release
+  # runtime-baseline.nix names in android.tools) need no setup run.
   releaseInstallers = {
     aarch64-darwin = {
+      ada = {
+        url = "https://github.com/alire-project/alire/releases/download/v2.1.1/alr-2.1.1-bin-aarch64-macos.zip";
+        sha256 = "2c4867bfff3b95ecd9d846df460a52983d2b0072808b341f8fa5d82494fb309e";
+        size = 8816840;
+      };
+      android = {
+        url = "https://dl.google.com/android/repository/commandlinetools-mac_arm64-15859902_latest.zip";
+        sha256 = "835b62a26162b229b441d1f6d4680383815a270809eb33522c0d480fa5002c4e";
+        size = 156083281;
+      };
       scala = {
         url = "https://github.com/coursier/coursier/releases/download/v2.1.26/cs-aarch64-apple-darwin.gz";
         sha256 = "8e4d36aa2565276f262af073f0999399e4c2f920f2fe436bb0ae67665eb505e9";
@@ -140,6 +152,16 @@ let
       };
     };
     x86_64-linux = {
+      ada = {
+        url = "https://github.com/alire-project/alire/releases/download/v2.1.1/alr-2.1.1-bin-x86_64-linux.zip";
+        sha256 = "09c66bcd8c35dd4b97b72c3d9b76e44caa6964a2db35aba069f396f00f1f64c7";
+        size = 12800698;
+      };
+      android = {
+        url = "https://dl.google.com/android/repository/commandlinetools-linux-15859902_latest.zip";
+        sha256 = "4e4c464f145a7512b57d088ac6c278c03c9eea610886b35a5e0804e74eedf583";
+        size = 181833628;
+      };
       scala = {
         url = "https://github.com/coursier/coursier/releases/download/v2.1.26/cs-x86_64-pc-linux.gz";
         sha256 = "348e37bc2a8c706640e6b032c4551a0e055a7f1537485b4a91540e9d3598ec6d";
@@ -282,6 +304,8 @@ in
         ];
         # The runtime's globalization support.
         dotnet = [ "icu" ];
+        # alr clones its index with git.
+        ada = [ "git" ];
       };
       sdkProbe = [ ];
       buildEnvironment = {

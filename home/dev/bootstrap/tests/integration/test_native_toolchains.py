@@ -8,12 +8,14 @@ import json
 import os
 import tempfile
 import unittest
+import zipfile
 from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import patch
 
 from core import process
 from core.adapters import TOOLCHAINS
+from core.adapters.android import ANSWERS, AndroidAdapter
 from core.adapters.sdkman import SDK_SCRIPT
 from core.adapters.toolchain import ToolchainAdapter
 from core.engine import Bootstrap
@@ -31,11 +33,20 @@ SPECS = {
     "gradle": {"version": "9.8.1"},
     "scala": {"version": "3.9.0"},
     "julia": {"version": "1.12.6"},
+    "ada": {"version": "15.1.2", "gprbuild": "26.0.1"},
+    "android": {
+        "version": "37.0.1",
+        "buildTools": "37.0.0",
+        "platform": "37.2",
+        "tools": "22.0",
+    },
     "dotnet": {"version": "10.0.401"},
     "conda": {"version": "26.7.2"},
 }
-# Every declared row: one per toolchain, plus GHCup's Cabal and HLS.
-ROWS = len(SPECS) + 2
+# Every declared row: one per toolchain, plus GHCup's Cabal and HLS, Alire's
+# gprbuild, and the Android SDK's build tools and platform.
+ROWS = len(SPECS) + 5
+ACCEPTED = ("android-sdk-license",)
 
 
 class NativeTransitions(unittest.TestCase):
@@ -73,7 +84,8 @@ class NativeTransitions(unittest.TestCase):
             },
             "policy": {},
         }
-        self.recovery = Bootstrap(self.data, list(SPECS))
+        # The Android SDK's license, accepted as an apply names it.
+        self.recovery = Bootstrap(self.data, list(SPECS), accepted=ACCEPTED)
         self.recovery.state.mkdir(parents=True)
         self.calls = []
 
@@ -227,12 +239,50 @@ class NativeTransitions(unittest.TestCase):
                     }
                 )
             )
+        if language == "ada":
+            self.alire_release(row["component"], row["version"])
+        if language == "android":
+            self.android_package(row["component"], row["version"])
         row["path"] = next(
             declared["path"]
             for declared in self.adapter(language).baseline()
             if declared.get("component") == row.get("component")
         )
         self.executable(Path(row["path"]))
+
+    def alire_release(self, component, release, crate=None):
+        """A toolchain release as alr deploys it, with its own metadata."""
+        crate = crate or {"gnat": "gnat_native"}.get(component, component)
+        prefix = self.adapter("ada").root / f"{crate}_{release}_0123abcd"
+        self.executable(prefix / "bin" / component)
+        (prefix / "alire.toml").write_text(
+            f'name = "{crate}"\nversion = "{release}"\n'
+        )
+        return prefix / "bin" / component
+
+    def android_package(self, component, version):
+        """An Android SDK package as sdkmanager lays it out."""
+        android = self.adapter("android")
+        path = self.executable(android.package_binary(component, version))
+        key = (
+            "AndroidVersion.ApiLevel"
+            if component == "platform"
+            else "Pkg.Revision"
+        )
+        (path.parent / "source.properties").write_text(
+            f"Pkg.UserSrc=false\n{key}={version}\n"
+        )
+        return path
+
+    def alire_settings(self, **use):
+        """Alire's global settings, selecting `use` per component."""
+        directory = self.adapter("ada").roots["ALIRE_SETTINGS_DIR"]
+        directory.mkdir(parents=True, exist_ok=True)
+        lines = ["[toolchain.use]"]
+        lines += [
+            f'{component} = "{value}"' for component, value in use.items()
+        ]
+        (directory / "settings.toml").write_text("\n".join(lines) + "\n")
 
     def test_empty_plan_is_read_only_and_reports_all_components(self):
         with (
@@ -255,7 +305,9 @@ class NativeTransitions(unittest.TestCase):
         # Conda's manager lives in the base environment it installs, so a
         # fabricated manager alone describes a broken base (a conflict).
         self.recovery = Bootstrap(
-            self.data, [language for language in SPECS if language != "conda"]
+            self.data,
+            [language for language in SPECS if language != "conda"],
+            accepted=ACCEPTED,
         )
         self.managers()
         extra = self.executable(self.roots["ruby"] / "versions/4.1.0/bin/ruby")
@@ -267,9 +319,11 @@ class NativeTransitions(unittest.TestCase):
                         adapter, "install", side_effect=self.install_fixture
                     )
                 )
-            stack.enter_context(
-                patch.object(ToolchainAdapter, "verify", return_value="ok")
-            )
+            # Android verifies its own way: a floor and package metadata.
+            for adapter in (ToolchainAdapter, AndroidAdapter):
+                stack.enter_context(
+                    patch.object(adapter, "verify", return_value="ok")
+                )
             self.recovery.apply(self.recovery.plan())
             self.assertEqual(len(self.calls), ROWS - 1)
             self.recovery.apply(self.recovery.plan())
@@ -308,6 +362,9 @@ class NativeTransitions(unittest.TestCase):
         config = roots["julia"] / "juliaup/juliaup.json"
         config.parent.mkdir(parents=True)
         config.write_text('{"Default":"release"}')
+        self.alire_settings(
+            gnat="gnat_native=14.2.1", gprbuild="gprbuild=25.0.1"
+        )
         self.executable(roots["ruby"] / "shims/ruby")
         for launcher in ("scala", "scalac"):
             self.executable(self.adapter("scala").home / launcher)
@@ -338,6 +395,10 @@ class NativeTransitions(unittest.TestCase):
                 "scala3-3.8.1-aarch64-apple-darwin",
             ),
             "julia": ("1.10.9", "juliaup/julia-1.10.9"),
+            # Alire's directories carry a hash; alire_release lays them out.
+            "ada": ("14.2.1", None),
+            # adb is the selection, older than the declared floor.
+            "android": ("36.0.0", None),
             # The muxer itself is the selection; it runs the newest SDK.
             "dotnet": ("9.0.318", None),
             # Conda's base environment evolves in place.
@@ -387,6 +448,12 @@ class NativeTransitions(unittest.TestCase):
                 }
             )
         )
+        self.android_package("platform-tools", "36.0.0")
+        self.alire_release("gnat", "14.2.1")
+        self.alire_release("gprbuild", "25.0.1")
+        self.alire_settings(
+            gnat="gnat_native=14.2.1", gprbuild="gprbuild=25.0.1"
+        )
         (roots["ruby"] / "version").write_text("system\n")
         self.executable(roots["conda"] / "bin/python")
         # Coursier's launcher runs the older distribution it was installed for.
@@ -401,8 +468,10 @@ class NativeTransitions(unittest.TestCase):
         }
         ruby = rows.pop(("ruby", None))
         self.assertEqual((ruby["state"], ruby["path"]), ("external", ""))
+        # The selected build tools: GHCup's links, Alire's settings.
+        tools = {"haskell": "2.15.0.0", "ada": "25.0.1"}
         for (language, component), row in rows.items():
-            release = "2.15.0.0" if component else older[language][0]
+            release = tools[language] if component else older[language][0]
             with (
                 self.subTest(language=language, component=component),
                 patch.object(process, "run", return_value=release),
@@ -466,9 +535,10 @@ class NativeTransitions(unittest.TestCase):
             calls = self.invocations(stack)
             for adapter in self.recovery.adapters.values():
                 adapter.initialize_default()
-        # The .NET muxer runs the newest SDK and conda's base environment is
-        # the only global one; nothing records a selection.
-        unselected = {"dotnet", "conda"}
+        # The .NET muxer runs the newest SDK, conda's base environment is
+        # the only global one and Android projects name their packages;
+        # nothing records a selection.
+        unselected = {"dotnet", "conda", "android"}
         for language in TOOLCHAINS:
             with self.subTest(language=language):
                 self.assertEqual(
@@ -482,6 +552,13 @@ class NativeTransitions(unittest.TestCase):
             ("gradle", "default", "gradle", "9.8.1"),
             ("haskell", "set", "cabal", "3.16.1.0"),
             ("haskell", "set", "hls", "2.14.0.0"),
+            (
+                "ada",
+                "toolchain",
+                "--select",
+                "gnat_native=15.1.2",
+                "gprbuild=26.0.1",
+            ),
         ):
             with self.subTest(command=expected):
                 self.assertIn(expected, calls)
@@ -518,10 +595,23 @@ class NativeTransitions(unittest.TestCase):
             ("kotlin", "install", "kotlin", "2.4.21"),
             ("maven", "install", "maven", "3.10.0"),
             ("gradle", "install", "gradle", "9.8.1"),
+            # Inside a throwaway crate, so only that crate records it.
+            ("ada", "toolchain", "--select", "--local", "gnat_native=15.1.2"),
+            ("ada", "toolchain", "--select", "--local", "gprbuild=26.0.1"),
+            ("android", "--install", "platform-tools"),
+            ("android", "--install", "build-tools;37.0.0"),
+            ("android", "--install", "platforms;android-37.2"),
         ):
             with self.subTest(command=expected):
                 self.assertIn(expected, calls)
         self.assertTrue(all("default" not in call[1:3] for call in calls))
+        self.assertFalse(
+            any(
+                call[1:3] == ("toolchain", "--select")
+                and "--local" not in call
+                for call in calls
+            )
+        )
         # Coursier fills its archive cache from a discarded staging directory,
         # so the user's launchers, its global selection, stay untouched.
         (scala,) = [call for call in calls if call[0] == "scala"]
@@ -549,13 +639,27 @@ class NativeTransitions(unittest.TestCase):
                     ),
                 ):
                     self.assertEqual(self.recovery.verify(row), row["version"])
-                    # An installed .NET SDK runs through its muxer.
-                    executable = (
-                        str(self.adapter("dotnet").manager())
-                        if row["language"] == "dotnet"
-                        else row["path"]
+                    if row["language"] in ("ada", "android"):
+                        # The package's own metadata, not the binary.
+                        runner.assert_not_called()
+                    else:
+                        # An installed .NET SDK runs through its muxer.
+                        executable = (
+                            str(self.adapter("dotnet").manager())
+                            if row["language"] == "dotnet"
+                            else row["path"]
+                        )
+                        self.assertEqual(
+                            runner.call_args.args[0][0], executable
+                        )
+                if row["language"] == "ada":
+                    metadata = Path(row["path"]).parents[1] / "alire.toml"
+                    metadata.write_text('version = "0.0.1"\n')
+                if row["language"] == "android":
+                    metadata = Path(row["path"]).parent / "source.properties"
+                    metadata.write_text(
+                        "Pkg.Revision=0.0.1\nAndroidVersion.ApiLevel=0.0.1\n"
                     )
-                    self.assertEqual(runner.call_args.args[0][0], executable)
                 with (
                     patch.object(process, "run", return_value="0.0.1"),
                     self.assertRaisesRegex(
@@ -1163,6 +1267,461 @@ class NativeTransitions(unittest.TestCase):
                 ):
                     adapter.initialize_default()
                 invoke.assert_not_called()
+
+    def test_alire_installs_in_a_throwaway_crate_without_selecting(self):
+        self.managers()
+        ada = self.adapter("ada")
+        calls = []
+
+        def run(args, **kwargs):
+            calls.append((args, kwargs))
+            return ""
+
+        with patch.object(process, "run", side_effect=run):
+            for row in ada.baseline():
+                ada.install(row)
+        manager = str(ada.manager())
+        switches = [manager, "-n", "--no-color", "--no-tty"]
+        (init, gnat), (_, gprbuild) = calls[:2], calls[2:]
+        self.assertEqual(
+            init[0],
+            [*switches, "init", "--bin", "--no-skel", "bootstrap_seed"],
+        )
+        work = Path(init[1]["cwd"])
+        self.assertEqual(work.parent, self.recovery.state)
+        self.assertFalse(work.exists())
+        self.assertEqual(
+            gnat[0],
+            [
+                *switches,
+                "toolchain",
+                "--select",
+                "--local",
+                "gnat_native=15.1.2",
+            ],
+        )
+        self.assertEqual(gnat[1]["cwd"], str(work / "bootstrap_seed"))
+        self.assertEqual(gprbuild[0][-1], "gprbuild=26.0.1")
+        environment = gnat[1]["env"]
+        self.assertEqual(
+            Path(environment["XDG_CONFIG_HOME"]) / "alire",
+            ada.roots["ALIRE_SETTINGS_DIR"],
+        )
+        self.assertNotIn("ALIRE_SETTINGS_DIR", environment)
+        self.assertTrue(gnat[1]["source_build"])
+        self.assertFalse(
+            (ada.roots["ALIRE_SETTINGS_DIR"] / "settings.toml").exists()
+        )
+
+    def test_alire_roots_follow_its_settings_and_data_home(self):
+        ada = self.adapter("ada")
+        # Roots are resolved; the temporary directory may sit behind a link.
+        home = Path(os.environ["HOME"]).resolve()
+        self.assertEqual(ada.root, home / ".local/share/alire/toolchains")
+        self.assertEqual(
+            ada.roots["ALIRE_SETTINGS_DIR"], home / ".config/alire"
+        )
+        moved = self.root.resolve() / "moved"
+        with patch.dict(
+            os.environ,
+            {
+                "XDG_DATA_HOME": str(moved / "data"),
+                "ALIRE_SETTINGS_DIR": str(moved / "settings"),
+            },
+        ):
+            # An explicit settings directory holds the cache too, as alr's.
+            ada = Bootstrap(self.data, ["ada"]).adapter("ada")
+            self.assertEqual(ada.root, moved / "settings/cache/toolchains")
+            self.assertEqual(
+                ada.environment()["ALIRE_SETTINGS_DIR"],
+                str(moved / "settings"),
+            )
+        with patch.dict(os.environ, {"XDG_DATA_HOME": str(moved / "data")}):
+            ada = Bootstrap(self.data, ["ada"]).adapter("ada")
+            self.assertEqual(ada.root, moved / "data/alire/toolchains")
+            self.assertEqual(
+                ada.environment(),
+                {
+                    "XDG_CONFIG_HOME": str(home / ".config"),
+                    "XDG_DATA_HOME": str(moved / "data"),
+                    "ALR_HOME": str(home / ".ada"),
+                },
+            )
+        with patch.dict(
+            os.environ,
+            {
+                "XDG_DATA_HOME": str(moved / "data"),
+                "ALIRE_SETTINGS_DIR": str(moved / "settings"),
+            },
+        ):
+            settings = moved / "settings/settings.toml"
+            settings.parent.mkdir(parents=True)
+            settings.write_text(f'[cache]\ndir = "{moved / "cache"}"\n')
+            ada = Bootstrap(self.data, ["ada"]).adapter("ada")
+            self.assertEqual(ada.root, moved / "cache/toolchains")
+            settings.write_text(
+                f'[toolchain]\ndir = "{moved / "toolchains"}"\n'
+            )
+            ada = Bootstrap(self.data, ["ada"]).adapter("ada")
+            self.assertEqual(ada.root, moved / "toolchains")
+            settings.write_text('[toolchain]\ndir = "relative"\n')
+            with self.assertRaisesRegex(BootstrapError, "must be absolute"):
+                Bootstrap(self.data, ["ada"])
+            settings.write_text("[toolchain\n")
+            with self.assertRaisesRegex(BootstrapError, "Alire settings"):
+                Bootstrap(self.data, ["ada"])
+
+    def test_alire_selections_name_crates_and_external_tools(self):
+        self.managers()
+        ada = self.adapter("ada")
+        gnat = self.alire_release("gnat", "14.2.1")
+        self.alire_release("gnat", "15.1.2", crate="gnat_arm_elf")
+        self.alire_settings(
+            gnat="gnat_native=14.2.1", gprbuild="gprbuild_external=25.0.1"
+        )
+        self.assertEqual(ada.selection(), "gnat_native=14.2.1")
+        gnat_row, gprbuild_row = ada.selected()
+        self.assertEqual(
+            (gnat_row["state"], gnat_row["path"]), ("present", str(gnat))
+        )
+        self.assertEqual(gprbuild_row["state"], "external")
+        self.assertEqual(
+            ada.installed(), ["gnat_arm_elf=15.1.2", "gnat_native=14.2.1"]
+        )
+        self.alire_settings(gnat="gnat_external=13.2.0")
+        gnat_row, gprbuild_row = ada.selected()
+        self.assertEqual(gnat_row["state"], "external")
+        self.assertIn("No global gprbuild selection", gprbuild_row["reason"])
+        self.alire_settings(gnat="gnat_native 14.2.1")
+        self.assertEqual(ada.selected()[0]["state"], "blocked")
+        self.assertIn(
+            "Invalid Alire gnat selection", ada.selected()[0]["reason"]
+        )
+        # A selection alr has not deployed is no runtime.
+        self.alire_settings(
+            gnat="gnat_native=16.1.0", gprbuild="gprbuild=26.0.1"
+        )
+        self.assertEqual(ada.selected()[0]["state"], "blocked")
+
+    def test_alire_canary_builds_as_a_plain_alr_build_would(self):
+        self.managers()
+        ada = self.adapter("ada")
+        gnat = self.alire_release("gnat", "15.1.2")
+        gprbuild = self.alire_release("gprbuild", "26.0.1")
+        for path, row in (
+            (gnat, {"component": "gnat"}),
+            (gprbuild, {"component": "gprbuild"}),
+        ):
+            with self.subTest(path=path.name):
+                calls = []
+
+                def run(args, calls=calls, **kwargs):
+                    calls.append((args, kwargs))
+                    return (
+                        "bootstrap-ok"
+                        if Path(args[0]).name == "canary"
+                        else ""
+                    )
+
+                with patch.object(process, "run", side_effect=run):
+                    ada.canary(row, path, complete=True)
+                build, launch = calls
+                environment = build[1]["env"]
+                search = environment["PATH"].split(os.pathsep)
+                self.assertEqual(search[0], str(path.parent))
+                self.assertIn(str(gnat.parent), search)
+                self.assertEqual(search[-2:], ["/usr/bin", "/bin"])
+                # Only the declared build environment and the toolchain.
+                self.assertEqual(set(environment), {"PATH"})
+                if row["component"] == "gprbuild":
+                    self.assertEqual(build[0][:3], [str(path), "-q", "-P"])
+                else:
+                    self.assertEqual(
+                        build[0][0], str(gnat.parent / "gnatmake")
+                    )
+                self.assertEqual(Path(launch[0][0]).name, "canary")
+
+    def test_alire_archive_places_only_its_launcher(self):
+        def archive(**members):
+            data = io.BytesIO()
+            with zipfile.ZipFile(data, "w") as file:
+                for name, content in members.items():
+                    file.writestr(name.replace("__", "/"), content)
+            return data.getvalue()
+
+        ada = self.adapter("ada")
+        manager = ada.manager_candidates()[0]
+        for label, payload, placed in (
+            ("missing", archive(LICENSE_txt=b"license"), False),
+            ("valid", archive(bin__alr=b"alr", LICENSE_txt=b"license"), True),
+        ):
+            with self.subTest(archive=label):
+                self.data["setup"]["installers"] = {
+                    "ada": {
+                        "url": "https://example.invalid/alr-bin.zip",
+                        "sha256": hashlib.sha256(payload).hexdigest(),
+                        "size": len(payload),
+                    }
+                }
+                with (
+                    patch(
+                        "urllib.request.urlopen",
+                        return_value=io.BytesIO(payload),
+                    ),
+                    patch.object(process, "run") as runner,
+                ):
+                    if placed:
+                        ada.acquire()
+                    else:
+                        with self.assertRaisesRegex(BootstrapError, "bin/alr"):
+                            ada.acquire()
+                runner.assert_not_called()
+                self.assertEqual(manager.is_file(), placed)
+        self.assertEqual(manager.read_bytes(), b"alr")
+        self.assertEqual(manager.stat().st_mode & 0o777, 0o755)
+        self.assertEqual(
+            sorted(path.name for path in ada.home.rglob("*")), ["alr", "bin"]
+        )
+
+    def test_android_accepts_only_the_license_the_apply_named(self):
+        self.managers()
+        java = self.executable(self.adapter("jvm").binary())
+        android = self.adapter("android")
+        licenses = android.root / "licenses"
+        recorded = {"name": "android-sdk-license"}
+        calls = []
+
+        def run(args, **kwargs):
+            calls.append((args, kwargs))
+            licenses.mkdir(parents=True, exist_ok=True)
+            (licenses / recorded["name"]).write_text("hash\n")
+            return ""
+
+        row = android.baseline()[1]
+        with patch.object(process, "run", side_effect=run):
+            android.install(row)
+        ((args, kwargs),) = calls
+        self.assertEqual(
+            args,
+            [
+                str(android.manager()),
+                f"--sdk_root={android.root}",
+                "--install",
+                "build-tools;37.0.0",
+            ],
+        )
+        self.assertEqual(kwargs["answers"], ANSWERS)
+        self.assertEqual(
+            kwargs["env"]["JAVA_HOME"], str(java.parents[1].resolve())
+        )
+        self.assertEqual(
+            sorted(path.name for path in licenses.iterdir()),
+            ["android-sdk-license"],
+        )
+        # Another license recorded on the way is reverted and fails the row.
+        recorded["name"] = "android-sdk-preview-license"
+        with (
+            patch.object(process, "run", side_effect=run),
+            self.assertRaisesRegex(BootstrapError, "did not accept"),
+        ):
+            android.install(android.baseline()[2])
+        self.assertEqual(
+            sorted(path.name for path in licenses.iterdir()),
+            ["android-sdk-license"],
+        )
+        # One the account had accepted before is restored as it was.
+        (licenses / "android-sdk-preview-license").write_text("before\n")
+        with (
+            patch.object(process, "run", side_effect=run),
+            self.assertRaisesRegex(BootstrapError, "did not accept"),
+        ):
+            android.install(android.baseline()[2])
+        self.assertEqual(
+            (licenses / "android-sdk-preview-license").read_text(), "before\n"
+        )
+
+    def test_android_readiness_reads_the_tools_without_a_jdk(self):
+        android = self.adapter("android")
+        self.executable(android.manager_candidates()[0])
+        with (
+            patch.object(process, "run") as runner,
+            self.assertRaisesRegex(BootstrapError, "Incomplete Android"),
+        ):
+            android.readiness()
+        properties = android.tools / "source.properties"
+        # Another release in the declared directory is not the declared tools.
+        properties.write_text(
+            "Pkg.Revision=23.0\nPkg.Path=cmdline-tools;23.0\n"
+        )
+        with self.assertRaisesRegex(BootstrapError, "reports 23.0"):
+            android.readiness()
+        properties.write_text(
+            "Pkg.Revision=22.0\nPkg.Path=cmdline-tools;22.0\n"
+        )
+        with patch.object(process, "run") as runner:
+            android.readiness()
+        runner.assert_not_called()
+        # The account's own cmdline-tools/latest is never the bootstrap's.
+        self.assertEqual(
+            android.manager_candidates(),
+            [android.root / "cmdline-tools/22.0/bin/sdkmanager"],
+        )
+
+    def test_android_apply_needs_the_license_named(self):
+        recovery = Bootstrap(self.data, ["jvm", "android"])
+        with self.assertRaisesRegex(
+            BootstrapError, "--accept android-sdk-license"
+        ):
+            recovery.apply([])
+        self.assertFalse((recovery.state / "apply.lock").exists())
+
+    def test_android_archive_unpacks_as_cmdline_tools_latest(self):
+        def archive(*members):
+            data = io.BytesIO()
+            with zipfile.ZipFile(data, "w") as file:
+                for name, mode in members:
+                    info = zipfile.ZipInfo(name)
+                    info.external_attr = mode << 16
+                    file.writestr(info, b"fixture")
+            return data.getvalue()
+
+        android = self.adapter("android")
+        manager = android.manager_candidates()[0]
+        for label, payload, placed in (
+            (
+                "escaping",
+                archive(
+                    ("cmdline-tools/bin/sdkmanager", 0o100755),
+                    ("cmdline-tools/../../evil", 0o100644),
+                ),
+                False,
+            ),
+            ("elsewhere", archive(("tools/bin/sdkmanager", 0o100755)), False),
+            (
+                "linked",
+                archive(("cmdline-tools/bin/sdkmanager", 0o120777)),
+                False,
+            ),
+            (
+                "valid",
+                archive(
+                    ("cmdline-tools/bin/sdkmanager", 0o100755),
+                    ("cmdline-tools/lib/sdkmanager.jar", 0o100644),
+                ),
+                True,
+            ),
+        ):
+            with self.subTest(archive=label):
+                self.data["setup"]["installers"] = {
+                    "android": {
+                        "url": "https://example.invalid/commandlinetools.zip",
+                        "sha256": hashlib.sha256(payload).hexdigest(),
+                        "size": len(payload),
+                    }
+                }
+                with (
+                    patch(
+                        "urllib.request.urlopen",
+                        return_value=io.BytesIO(payload),
+                    ),
+                    patch.object(process, "run") as runner,
+                ):
+                    if placed:
+                        android.acquire()
+                    else:
+                        with self.assertRaisesRegex(
+                            BootstrapError, "Unexpected entry"
+                        ):
+                            android.acquire()
+                runner.assert_not_called()
+                self.assertEqual(manager.is_file(), placed)
+        self.assertEqual(manager.stat().st_mode & 0o777, 0o755)
+        library = manager.parents[1] / "lib/sdkmanager.jar"
+        self.assertEqual(library.stat().st_mode & 0o777, 0o644)
+        self.assertFalse((self.root / "evil").exists())
+
+    def test_android_platform_tools_declaration_is_a_floor(self):
+        self.managers()
+        android = self.adapter("android")
+        tools = self.android_package("platform-tools", "37.0.2")
+        platform = self.android_package("platform", "37.2")
+        rows = {row["component"]: row for row in android.baseline()}
+        with patch.object(AndroidAdapter, "canary"):
+            self.assertEqual(android.verify(rows["platform-tools"]), "37.0.2")
+            self.assertEqual(android.verify(rows["platform"]), "37.2")
+            self.android_package("platform-tools", "36.0.0")
+            with self.assertRaisesRegex(BootstrapError, "identity mismatch"):
+                android.verify(rows["platform-tools"])
+            # Health accepts whatever adb the SDK has.
+            self.assertEqual(
+                android.verify(rows["platform-tools"], exact=False), "36.0.0"
+            )
+        self.assertEqual(android.selected_runtime(), tools)
+        self.assertEqual(android.selection(), None)
+        self.assertTrue(platform.is_file())
+
+    def test_android_canary_links_an_app_against_the_platform(self):
+        self.managers()
+        android = self.adapter("android")
+        adb = self.android_package("platform-tools", "37.0.1")
+        aapt2 = self.android_package("build-tools", "37.0.0")
+        # Only an older platform is installed; the build tools link against it.
+        older = self.android_package("platform", "36")
+        calls = []
+
+        def run(args, **kwargs):
+            args = [str(arg) for arg in args]
+            calls.append((args, kwargs))
+            if args[1:] == ["version"]:
+                return "Android Debug Bridge version 1.0.41"
+            if "badging" in args:
+                return "package: name='dev.bootstrap.canary' compileSdkVersion='36'"
+            return ""
+
+        rows = {row["component"]: row for row in android.baseline()}
+        with patch.object(process, "run", side_effect=run):
+            android.canary(rows["platform-tools"], adb, complete=True)
+            android.canary(rows["build-tools"], aapt2, complete=True)
+        (version, _), (link, link_options), _ = calls
+        self.assertEqual(version, [str(adb), "version"])
+        scratch = Path(link_options["cwd"])
+        self.assertEqual(link_options["env"]["HOME"], str(scratch))
+        self.assertEqual(link[:2], [str(aapt2), "link"])
+        self.assertIn(str(older), link)
+        with (
+            patch.object(
+                process, "run", return_value="compileSdkVersion='35'"
+            ),
+            self.assertRaisesRegex(BootstrapError, "canary failed"),
+        ):
+            android.canary(rows["build-tools"], aapt2, complete=True)
+        # Before any platform, as in a first apply, the build tools only
+        # report themselves; a platform alone is checked as an archive.
+        older.unlink()
+
+        def compile(args, **kwargs):
+            # aapt2 writes the compiled resource beside the output option.
+            Path(args[3], "values_strings.arsc.flat").write_bytes(b"flat")
+            return ""
+
+        with patch.object(process, "run", side_effect=compile) as runner:
+            android.canary(rows["build-tools"], aapt2, complete=True)
+        self.assertEqual(
+            runner.call_args.args[0][:3], [str(aapt2), "compile", "-o"]
+        )
+        with (
+            patch.object(process, "run", return_value=""),
+            self.assertRaisesRegex(BootstrapError, "canary failed"),
+        ):
+            android.canary(rows["build-tools"], aapt2, complete=True)
+        aapt2.unlink()
+        platform = android.package_binary("platform", "37.2")
+        platform.parent.mkdir(parents=True)
+        with zipfile.ZipFile(platform, "w") as archive:
+            archive.writestr("android/app/Activity.class", b"")
+        with patch.object(process, "run") as runner:
+            android.canary(rows["platform"], platform, complete=True)
+        runner.assert_not_called()
 
 
 if __name__ == "__main__":

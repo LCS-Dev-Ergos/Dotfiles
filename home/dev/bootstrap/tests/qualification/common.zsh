@@ -27,7 +27,7 @@ typeset -ga guarded=(
   .sdkman/candidates/gradle/current .juliaup/juliaup.json
   .local/share/coursier/bin/scala
   'Library/Application Support/Coursier/bin/scala' .dotnet/dotnet
-  .miniforge3/bin/conda
+  .miniforge3/bin/conda .config/alire/settings.toml
 )
 # Directories whose every entry is a manager's selection or launcher.
 typeset -ga guarded_directories=(
@@ -86,35 +86,45 @@ _executor() {
 
 # -----------------------------------------------------------------------------
 # _requirements
-# @description Reads each ecosystem's requirements from the executor's catalog,
-#   which rejects a selection without them.
+# @description Reads each ecosystem's requirements and terms from the
+#   executor's catalog, which rejects a selection without them.
 # @set requires assoc Language to its space-separated requirements.
+# @set consents assoc Language to its space-separated terms.
 # -----------------------------------------------------------------------------
 _requirements() {
-  typeset -gA requires
-  local language required
+  typeset -gA requires consents
+  local language required terms
   _executor plan --json > "$log/catalog.json" 2> "$log/catalog.err" || {
     print -u2 'The executor did not report its catalog'
     return 1
   }
-  while IFS=$'\t' read -r language required; do
+  while IFS=$'\t' read -r language required terms; do
     requires[$language]="$required"
+    consents[$language]="$terms"
   done < <("$analysis" -I -c '
 import json, sys
 for entry in json.load(open(sys.argv[1]))["catalog"]:
-    print(entry["language"], " ".join(entry["requires"]), sep="\t")
+    print(
+        entry["language"],
+        " ".join(entry["requires"]),
+        " ".join(entry["consents"]),
+        sep="\t",
+    )
 ' "$log/catalog.json")
 }
 
 # -----------------------------------------------------------------------------
 # _selection
-# @description Builds --only arguments for ecosystems and their requirements.
+# @description Builds --only arguments for ecosystems and their requirements,
+#   and --accept for the terms they need. Terms are accepted only when the
+#   operator lists them in DEV_BOOTSTRAP_ACCEPT; otherwise apply refuses.
 # @arg $@ string Ecosystems.
-# @set reply array The arguments, each requirement once.
+# @set reply array The arguments, each requirement and term once.
 # -----------------------------------------------------------------------------
 _selection() {
-  local language required
-  local -aU languages=()
+  local language term
+  local -aU languages=() terms=()
+  local -a accepted=(${=DEV_BOOTSTRAP_ACCEPT:-})
   reply=()
   for language in "$@"; do
     (( ${+requires[$language]} )) || {
@@ -125,6 +135,10 @@ _selection() {
   done
   for language in "${languages[@]}"; do
     reply+=(--only "$language")
+    terms+=(${=consents[$language]:-})
+  done
+  for term in "${terms[@]}"; do
+    (( ${accepted[(Ie)$term]} )) && reply+=(--accept "$term")
   done
 }
 

@@ -121,13 +121,14 @@ class SelectionTests(unittest.TestCase):
         self.assertTrue(all(row["title"] for row in catalog.values()))
         self.assertEqual(catalog["ocaml"]["title"], "OCaml")
         self.assertEqual(catalog["haskell"]["componentTitles"]["ghc"], "GHC")
+        self.assertEqual(catalog["ada"]["primaryComponent"], "gnat")
         self.assertEqual(
             {
                 name
                 for name, row in catalog.items()
                 if "componentTitles" in row
             },
-            {"haskell"},
+            {"ada", "android", "haskell"},
         )
         # Every ecosystem is measured; the managers that compile the
         # runtime say so.

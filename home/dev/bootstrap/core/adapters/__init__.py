@@ -4,6 +4,8 @@ An adapter follows every adapter it requires, so registry order is also a
 valid installation order.
 """
 
+from .ada import AdaAdapter
+from .android import AndroidAdapter
 from .conda import CondaAdapter
 from .coursier import ScalaAdapter
 from .dotnet import DotnetAdapter
@@ -35,6 +37,8 @@ ADAPTERS = {
         GradleAdapter,
         ScalaAdapter,
         JuliaAdapter,
+        AdaAdapter,
+        AndroidAdapter,
         DotnetAdapter,
         CondaAdapter,
     )
