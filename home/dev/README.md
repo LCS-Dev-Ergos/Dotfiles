@@ -111,7 +111,13 @@ afterwards:
 scripts/bootstrap/dev-bootstrap.sh --check-foundation
 scripts/bootstrap/dev-bootstrap.sh --install-foundation plan --json
 scripts/bootstrap/dev-bootstrap.sh apply --only node
+scripts/bootstrap/dev-bootstrap.sh setup
 ```
+
+`setup` is the guided form of the same steps: it summarizes every ecosystem,
+asks which to set up, reviews what `apply` would do and runs it once the
+review is accepted; the bootstrap README describes each question and its
+flag.
 
 The standalone expression `scripts/bootstrap/development-bootstrap.nix` reads
 only the public nixpkgs revision in `flake.lock`; unrelated application inputs
