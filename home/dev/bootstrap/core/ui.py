@@ -144,6 +144,11 @@ def sanitize(text):
     )
 
 
+def sanitize_lines(text):
+    """sanitize() for a message of several lines, which stay lines."""
+    return "\n".join(sanitize(line) for line in str(text).split("\n"))
+
+
 def strip(text):
     """The text without its color sequences."""
     return _SGR.sub("", text)

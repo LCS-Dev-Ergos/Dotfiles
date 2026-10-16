@@ -22,7 +22,7 @@ from .render import render
 from .runs import Recorder, recorded_runs, runs_directory, stored_report
 from .selection import load_selection, save_selection, selection_path
 from .setup import BootstrapSetup
-from .ui import Style
+from .ui import Style, sanitize_lines
 
 # The JSON report's schema; Interfaces.md says what changes it.
 REPORT_SCHEMA = 1
@@ -302,7 +302,9 @@ def run(args, setups):
         ValueError,
         tarfile.TarError,
     ) as error:
-        print(f"dev-bootstrap: {error}", file=sys.stderr)
+        # The message may quote a child's output: its control characters
+        # must not drive the terminal.
+        print(f"dev-bootstrap: {sanitize_lines(error)}", file=sys.stderr)
         if recorder:
             stopped(recorder, context, args, origin, setups, 2, str(error))
             if recorder.failed_log:

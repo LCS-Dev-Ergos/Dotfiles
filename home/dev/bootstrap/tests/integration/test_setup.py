@@ -1107,6 +1107,19 @@ class SetupTests(unittest.TestCase):
                 self.assertEqual(row["state"], "ok")
                 self.assertEqual(row["actualVersion"], older[row["language"]])
 
+    def test_error_lines_escape_a_childs_control_characters(self):
+        self.failure = lambda args: "--formula" in args and "install" in args
+        self.failure_message = (
+            "brew exited 1: \x1b]0;title\x07Error: \x1b[2Jfailed\nstdout: done"
+        )
+        code, _, errors = self.cli_output("apply", scoped=True)
+        self.assertEqual(code, 2)
+        self.assertNotIn("\x1b", errors)
+        self.assertNotIn("\x07", errors)
+        self.assertIn("\\x1b]0;title\\x07Error: \\x1b[2Jfailed", errors)
+        # The message keeps its lines.
+        self.assertIn("\nstdout: done", errors)
+
     def test_the_shell_probe_keeps_its_own_home_and_xdg_directories(self):
         self.setup.apply()
         # An adapter that passes the account's XDG directories to its
