@@ -51,6 +51,11 @@ health *args:
 prune *args:
     scripts/bootstrap/dev-bootstrap.sh prune "$@"
 
+# List the recorded runs; --last or --run ID shows one again
+[group('bootstrap')]
+report *args:
+    scripts/bootstrap/dev-bootstrap.sh report "$@"
+
 # Updates ----------------------------------------------------------------------
 
 # Compare the runtime baseline with its upstreams; --apply advances patches

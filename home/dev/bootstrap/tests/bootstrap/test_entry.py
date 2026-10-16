@@ -32,7 +32,9 @@ class BootstrapEntryTests(unittest.TestCase):
         self.log = self.root / "commands"
         self.nix = self.root / "nix"
         self.nix.write_text(
-            '#!/bin/bash\nprintf "%s\\n" "$@" >> "$LOG"\nexit "${NIX_STATUS:-0}"\n'
+            '#!/bin/bash\nprintf "%s\\n" "$@" >> "$LOG"\n'
+            'printf "%s\\n" "${DEV_BOOTSTRAP_COMMAND-unset}" > "$LOG.command"\n'
+            'exit "${NIX_STATUS:-0}"\n'
         )
         self.nix.chmod(0o700)
         self.environment = dict(
@@ -114,6 +116,7 @@ bootstrap_sdk() { [[ -f "$FIXTURE/has-sdk" ]]; }
             (),
             ("plan", "--json"),
             ("setup", "--only", "node"),
+            ("report", "--last"),
             ("verify", "--manifest", "a path;$(touch injected)"),
         ):
             with self.subTest(arguments=arguments):
@@ -137,6 +140,12 @@ bootstrap_sdk() { [[ -f "$FIXTURE/has-sdk" ]]; }
                         "--",
                         *arguments,
                     ],
+                )
+                # What to run next names this entry until activation puts
+                # dev-bootstrap on PATH.
+                self.assertEqual(
+                    Path(f"{self.log}.command").read_text().strip(),
+                    str(ENTRY),
                 )
 
     def test_runtime_operations_leave_privilege_to_the_executor(self):

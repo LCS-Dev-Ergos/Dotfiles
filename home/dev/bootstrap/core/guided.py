@@ -8,6 +8,7 @@ prompter. Nothing changes before the person accepts the review: then the
 selection is saved, and apply runs in-process like `dev-bootstrap apply`.
 """
 
+import os
 import shlex
 import sys
 from pathlib import Path
@@ -331,10 +332,15 @@ class Guide:
             raise
         run = recorded()
         if code == 0:
-            # apply's report already names the logs and the new shell.
+            # apply's report already names the logs and the new shell. The
+            # pre-Nix entry names itself: dev-bootstrap is not on PATH
+            # before activation.
+            command = shlex.quote(
+                os.environ.get("DEV_BOOTSTRAP_COMMAND") or "dev-bootstrap"
+            )
             fields = [
-                ("check", "dev-bootstrap verify --health"),
-                ("again", "dev-bootstrap report --last"),
+                ("check", f"{command} verify --health"),
+                ("again", f"{command} report --last"),
             ]
             self.print([""] + ui.card(self.style, "Next", fields))
         elif code == 2:

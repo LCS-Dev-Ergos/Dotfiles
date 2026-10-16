@@ -9,7 +9,7 @@
 # nothing.
 #
 # Usage:
-#   scripts/bootstrap/dev-bootstrap.sh [--install-foundation] [plan|apply|verify|prune|setup] [options]
+#   scripts/bootstrap/dev-bootstrap.sh [--install-foundation] [plan|apply|verify|prune|report|setup] [options]
 #   scripts/bootstrap/dev-bootstrap.sh --check-foundation
 #
 # ============================================================================ #
@@ -20,7 +20,7 @@ bootstrap_error() { printf 'dev-bootstrap: %s\n' "$*" >&2; return 2; }
 
 bootstrap_usage() {
   cat <<'EOF'
-Usage: scripts/bootstrap/dev-bootstrap.sh [--install-foundation] [plan|apply|verify|prune|setup] [options]
+Usage: scripts/bootstrap/dev-bootstrap.sh [--install-foundation] [plan|apply|verify|prune|report|setup] [options]
        scripts/bootstrap/dev-bootstrap.sh --check-foundation
 
 No operation defaults to plan. Runtime options pass literally to dev-bootstrap.
@@ -31,6 +31,7 @@ be required. Existing foundations are never replaced or upgraded by this entry.
 Use apply --only LANGUAGE to limit installation; omit apply to avoid runtimes.
 --only ... --save-selection keeps that selection for later runs; --all ignores it.
 prune lists the installed releases the baseline retired; prune --yes removes them.
+report lists the recorded runs; report --last shows the newest one again.
 setup walks a person through the same setup: what is here, what apply would do.
 EOF
 }
@@ -161,8 +162,8 @@ bootstrap_main() {
     [[ $# == 0 ]] || bootstrap_error '--check-foundation accepts no runtime options.'
   else
     case "${1:-plan}" in
-      plan|apply|verify|prune|setup) ;;
-      *) bootstrap_error 'Expected plan, apply, verify, prune or setup; use --help for entry options.' ;;
+      plan|apply|verify|prune|report|setup) ;;
+      *) bootstrap_error 'Expected plan, apply, verify, prune, report or setup; use --help for entry options.' ;;
     esac
   fi
   platform=$(bootstrap_platform)
@@ -179,6 +180,9 @@ bootstrap_main() {
   # Apply retains its own language-specific readiness checks, and asks for
   # administrator rights itself, only when it has packages to install.
   cd -- "$root"
+  # How the executor names itself in what to run next: before activation
+  # puts dev-bootstrap on PATH, this entry is the command.
+  export DEV_BOOTSTRAP_COMMAND="$root/scripts/bootstrap/dev-bootstrap.sh"
   # Apply expression defaults explicitly; the empty attribute selects the
   # resulting derivation and keeps runtime arguments out of Nix selection.
   exec "$nix" --extra-experimental-features 'nix-command flakes' \

@@ -513,6 +513,24 @@ class FlowTests(unittest.TestCase):
         self.assertIn("dev-bootstrap apply --only node --only python", printed)
         self.assertIn("Next", printed)
 
+    def test_next_names_the_command_this_run_came_from(self):
+        script = [("choose_many", SELECTION), ("confirm", True)]
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("DEV_BOOTSTRAP_COMMAND", None)
+            self.guide(script)
+        self.assertIn(
+            "dev-bootstrap verify --health", "\n".join(self.printed())
+        )
+        # Before activation the pre-Nix entry is the command to run.
+        entry = "/home/a b/Dotfiles/scripts/bootstrap/dev-bootstrap.sh"
+        self.output.seek(0)
+        self.output.truncate()
+        with patch.dict(os.environ, {"DEV_BOOTSTRAP_COMMAND": entry}):
+            self.guide(script)
+        self.assertIn(
+            f"{shlex.quote(entry)} report --last", "\n".join(self.printed())
+        )
+
     def test_an_unchanged_selection_is_not_saved(self):
         self.guide([("choose_many", SELECTION), ("confirm", True)])
         self.assertFalse(self.selection_file.exists())
