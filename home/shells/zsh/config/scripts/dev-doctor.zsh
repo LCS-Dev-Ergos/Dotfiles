@@ -615,6 +615,22 @@ _devdoctor_version_sdkman() {
 }
 
 # -----------------------------------------------------------------------------
+# _devdoctor_version_gradle
+# @internal
+# @description Reads the current Gradle candidate from its symlink. Running
+#   `gradle --version` would start a JVM and initialize ~/.gradle.
+# @arg $1 path SDKMAN root.
+# @exitcode 1 If no current Gradle candidate is selected.
+# @stdout The selected candidate version.
+# -----------------------------------------------------------------------------
+_devdoctor_version_gradle() {
+  emulate -L zsh
+  local current="$1/candidates/gradle/current"
+  [[ -e "$current" ]] || return 1
+  print -r -- "${current:A:t}"
+}
+
+# -----------------------------------------------------------------------------
 # _devdoctor_managed_sdkman
 # @internal
 # @description Lists the SDKMAN candidates that have a current selection.
