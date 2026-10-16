@@ -251,6 +251,38 @@ runtime_output="$(DEVDOCTOR_REGISTRY="$verdict_registry" devdoctor --json)" || t
 command rm -f "$bin_dir/cc-toolchain-check"
 rehash
 
+# The Nix row compares the client on PATH, the daemon and the locked release:
+# a stale client or a daemon behind the lock is broken, and an unreachable
+# daemon leaves the verdict unknown.
+typeset nix_registry="$fixture_root/nix.tsv"
+print -- "nix\tNix\tany\t-\t-\tnix\tnix --version\t-\t-\t-\t-\talways\t-" >| "$nix_registry"
+print -- "2.34.8" >| "$fixture_root/nix-release"
+_dd_stub "$bin_dir/nix" 'case "$*" in
+  --version) echo "nix (Nix) $DD_NIX_CLIENT" ;;
+  *"store info"*) [ "$NIX_REMOTE" = daemon ] && [ -n "$DD_NIX_DAEMON" ] || exit 1
+    printf "{\"trusted\":false,\"url\":\"daemon\",\"version\":\"%s\"}\n" "$DD_NIX_DAEMON" ;;
+esac'
+rehash
+_dd_nix() {
+  DD_NIX_CLIENT="$1" DD_NIX_DAEMON="$2" DEVDOCTOR_NIX_RELEASE_FILE="$fixture_root/nix-release" \
+    DEVDOCTOR_REGISTRY="$nix_registry" devdoctor --json
+}
+runtime_output="$(_dd_nix 2.34.8 2.34.8)" || true
+[[ "$runtime_output" == *'"label":"Nix","state":"ok"'*'client 2.34.8, daemon 2.34.8, locked 2.34.8'* ]] ||
+  _dd_fail "matching Nix releases must be ok: $runtime_output"
+runtime_output="$(_dd_nix 2.24.5 2.34.8)" || true
+[[ "$runtime_output" == *'"label":"Nix","state":"broken"'*'is 2.24.5, the daemon 2.34.8'* ]] ||
+  _dd_fail "a client older than the daemon must be broken: $runtime_output"
+runtime_output="$(_dd_nix 2.33.0 2.33.0)" || true
+[[ "$runtime_output" == *'"label":"Nix","state":"broken"'*'older than the locked 2.34.8'* ]] ||
+  _dd_fail "a daemon behind the lock must be broken and say how to move it: $runtime_output"
+runtime_output="$(_dd_nix 2.34.8 '')" || true
+[[ "$runtime_output" == *'"label":"Nix","state":"unknown"'*'cannot be asked'* ]] ||
+  _dd_fail "an unreachable daemon must leave the Nix verdict unknown: $runtime_output"
+command rm -f "$bin_dir/nix"
+rehash
+unfunction _dd_nix
+
 # No managed runtime: a version shim must not be invoked (some download a
 # toolchain on first use). This holds independently of PATH precedence.
 typeset empty_registry="$fixture_root/empty-runtime.tsv"

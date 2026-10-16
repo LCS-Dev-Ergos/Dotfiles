@@ -585,6 +585,58 @@ _devdoctor_verdict_cctoolchain() {
 }
 
 # -----------------------------------------------------------------------------
+# _devdoctor_verdict_nix
+# @internal
+# @description Compares three Nix releases: the `nix` on PATH, the daemon it
+# talks to, and the one this configuration's locked nixpkgs carries (written
+# by Home Manager to $XDG_CONFIG_HOME/devdoctor/nix-release). A client older
+# than the daemon is an installer's copy that PATH still prefers; a daemon
+# older than the lock missed the update that moves it, which nix-darwin makes
+# on macOS and `dev-bootstrap.sh --update-nix` on Linux.
+# @set REPLY string The releases, or what to do about them.
+# @exitcode 0 If current, 1 if the daemon cannot be asked, 2 if stale.
+# -----------------------------------------------------------------------------
+_devdoctor_verdict_nix() {
+  emulate -L zsh
+  setopt localoptions extendedglob
+  autoload -Uz is-at-least
+  local client daemon locked output fix
+  local release_file="${DEVDOCTOR_NIX_RELEASE_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/devdoctor/nix-release}"
+  output="$(_devdoctor_run_timeout "${DEVDOCTOR_TIMEOUT:-5}" nix --version 2>/dev/null)" || {
+    REPLY="nix --version failed"
+    return 1
+  }
+  _devdoctor_version_token "$output"
+  client="$REPLY"
+  output="$(NIX_REMOTE=daemon _devdoctor_run_timeout "${DEVDOCTOR_TIMEOUT:-5}" \
+    nix --extra-experimental-features nix-command store info --json 2>/dev/null)"
+  if [[ "$output" != *'"version":"'[0-9]* ]]; then
+    REPLY="client $client; the daemon cannot be asked for its release"
+    return 1
+  fi
+  daemon="${${output#*\"version\":\"}%%\"*}"
+  if [[ -r "$release_file" ]]; then
+    locked="$(<"$release_file")"
+    locked="${locked%%[[:space:]]#}"
+  fi
+  if [[ -n "$locked" ]] && ! is-at-least "$locked" "$daemon"; then
+    if [[ "$OSTYPE" == darwin* ]]; then
+      fix="switch the nix-darwin configuration"
+    else
+      fix="run scripts/bootstrap/dev-bootstrap.sh --update-nix in the Dotfiles checkout"
+    fi
+    REPLY="daemon $daemon is older than the locked $locked; $fix"
+    return 2
+  fi
+  if ! is-at-least "$daemon" "$client"; then
+    REPLY="nix on PATH ($(whence -p nix)) is $client, the daemon $daemon; remove the stale copy ahead on PATH"
+    return 2
+  fi
+  REPLY="client $client, daemon $daemon${locked:+, locked $locked}"
+  return 0
+}
+
+# -----------------------------------------------------------------------------
 # _devdoctor_probe_sdkman
 # @internal
 # @description Detects SDKMAN without sourcing its init script.

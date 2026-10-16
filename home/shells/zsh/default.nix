@@ -81,7 +81,13 @@ in
     };
   };
 
-  xdg.configFile."zsh".source = "${zshSource}/config";
+  xdg.configFile = {
+    "zsh".source = "${zshSource}/config";
+    # The Nix release this configuration's locked nixpkgs carries: the one
+    # nix-darwin runs, and the one dev-bootstrap.sh --update-nix installs on
+    # Linux. devdoctor reports a daemon older than it.
+    "devdoctor/nix-release".text = pkgs.nix.version;
+  };
 
   assertions = [
     {

@@ -106,6 +106,12 @@ Clang, GCC, CMake, ccache, Perl, .NET SDK, Bun, Android adb and Flutter. Flutter
 reads cached version metadata and starts its bundled Dart VM: the Flutter
 launcher itself can download artifacts even for a version request. Android
 checks adb startup, not SDK platforms, licenses or emulator readiness.
+The Nix row compares the `nix` on PATH, the daemon it reaches and the release
+the configuration's locked nixpkgs carries, which Home Manager writes to
+`$XDG_CONFIG_HOME/devdoctor/nix-release`. A client older than the daemon, or a
+daemon older than that release, is `broken` and names the fix: removing the
+stale client from PATH, switching nix-darwin on macOS, or
+`scripts/bootstrap/dev-bootstrap.sh --update-nix` on Linux.
 
 A failed runtime startup is `broken` (exit 2). A timeout or missing version
 output is `unknown` (exit 1). Empty managers and unactivated session managers
