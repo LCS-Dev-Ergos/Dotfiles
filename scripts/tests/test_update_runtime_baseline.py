@@ -28,6 +28,7 @@ from update_runtime_baseline import upstream as transport  # noqa: E402
 from update_runtime_baseline.resolvers import (  # noqa: E402
     RESOLVERS,
     android,
+    foundation,
     installers,
     licenses,
     sources,
@@ -825,6 +826,125 @@ def copy_declarations(test):
         (tree / relative).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(ROOT / relative, tree / relative)
     return tree / "home/dev/runtime-baseline.nix"
+
+
+class Foundation(unittest.TestCase):
+    """The Homebrew and Nix installers dev-bootstrap.sh pins."""
+
+    BREW = b"#!/bin/bash\necho homebrew\n"
+    NIX = b"#!/bin/sh\necho nix 2.34.8\n"
+    REVISION = "a" * 40
+
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix="runtime-baseline-")
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        environment = patch.dict(
+            os.environ, {"XDG_CACHE_HOME": str(self.root)}
+        )
+        environment.start()
+        self.addCleanup(environment.stop)
+        # The real file's layout, with pins for the fixture bytes.
+        real = declarations.evaluate(foundation.FOUNDATION)
+        text = foundation.FOUNDATION.read_text()
+        for old, new in (
+            (real["homebrewRevision"], self.REVISION),
+            (real["homebrewSha256"], self.digest(self.BREW)),
+            (real["nixVersion"], "2.34.8"),
+            (real["nixSha256"], self.digest(self.NIX)),
+        ):
+            text = text.replace(f'"{old}"', f'"{new}"')
+        self.pins = self.root / "foundation.nix"
+        self.pins.write_text(text)
+        moved = patch.object(foundation, "FOUNDATION", self.pins)
+        moved.start()
+        self.addCleanup(moved.stop)
+        self.locked = "2.34.8"
+        locked = patch.object(foundation, "locked_nix", lambda: self.locked)
+        locked.start()
+        self.addCleanup(locked.stop)
+
+    @staticmethod
+    def digest(data):
+        return hashlib.sha256(data).hexdigest()
+
+    def upstream(self, revision=REVISION, brew=BREW, nix=None):
+        return FakeUpstream(
+            {
+                "https://api.github.com/" + foundation.HOMEBREW_COMMITS: [
+                    {"sha": revision}
+                ],
+                foundation.HOMEBREW_URL.format(revision=revision): brew,
+                foundation.NIX_URL.format(version=self.locked): nix
+                or self.NIX,
+            }
+        )
+
+    def test_pins_that_match_upstream_are_current(self):
+        found = foundation.resolve(self.upstream(), {}, {})
+        self.assertEqual(
+            [(f.name, f.kind) for f in found],
+            [
+                ("foundation homebrew installer", "current"),
+                ("foundation nix installer", "current"),
+            ],
+        )
+
+    def test_a_commit_serving_the_same_installer_is_current(self):
+        found = foundation.resolve(self.upstream("c" * 40), {}, {})
+        self.assertEqual(found[0].kind, model.Kind.CURRENT)
+
+    def test_a_new_homebrew_commit_is_reviewed_then_accepted(self):
+        revision, brew = "b" * 40, b"#!/bin/bash\necho newer homebrew\n"
+        upstream = self.upstream(revision, brew)
+        with self.assertRaisesRegex(model.SourceError, "nobody reviewed"):
+            foundation.accept(["homebrew"], upstream)
+        self.assertEqual(
+            declarations.evaluate(self.pins)["homebrewRevision"],
+            self.REVISION,
+        )
+        (drift,) = [
+            f
+            for f in foundation.resolve(upstream, {}, {})
+            if f.kind == model.Kind.DRIFT
+        ]
+        self.assertIn("--accept-foundation homebrew", drift.note)
+        foundation.accept(["homebrew"], upstream)
+        after = declarations.evaluate(self.pins)
+        self.assertEqual(after["homebrewRevision"], revision)
+        self.assertEqual(after["homebrewSha256"], self.digest(brew))
+        self.assertEqual(after["nixSha256"], self.digest(self.NIX))
+
+    def test_nix_follows_the_locked_release(self):
+        self.locked = "2.35.0"
+        nix = b"#!/bin/sh\necho nix 2.35.0\n"
+        (update,) = [
+            f
+            for f in foundation.resolve(self.upstream(nix=nix), {}, {})
+            if f.kind == model.Kind.UPDATE
+        ]
+        self.assertEqual(
+            (update.pinned, update.available), ("2.34.8", "2.35.0")
+        )
+        declarations.apply_edits(update.edits())
+        after = declarations.evaluate(self.pins)
+        self.assertEqual(after["nixVersion"], "2.35.0")
+        self.assertEqual(after["nixSha256"], self.digest(nix))
+        self.assertEqual(after["homebrewRevision"], self.REVISION)
+
+    def test_a_release_serving_other_bytes_is_drift(self):
+        upstream = self.upstream(nix=b"#!/bin/sh\necho tampered\n")
+        (drift,) = [
+            f
+            for f in foundation.resolve(upstream, {}, {})
+            if f.kind == model.Kind.DRIFT
+        ]
+        self.assertEqual(drift.name, "foundation nix installer")
+        self.assertIsNone(drift.edits)
+
+    def test_unknown_names_are_refused(self):
+        with self.assertRaisesRegex(model.SourceError, "choose from"):
+            foundation.accept(["rustup"], self.upstream())
 
 
 class Rewrite(unittest.TestCase):

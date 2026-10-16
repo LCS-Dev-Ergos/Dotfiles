@@ -25,7 +25,8 @@ python_sources=(
 )
 
 mapfile -t nix_files < <(find flake.nix darwin home hosts -type f -name '*.nix' | sort)
-nixfmt --check "${nix_files[@]}" scripts/bootstrap/development-bootstrap.nix
+nixfmt --check "${nix_files[@]}" scripts/bootstrap/development-bootstrap.nix \
+  scripts/bootstrap/foundation.nix
 actionlint .github/workflows/*.yml
 ruff check --isolated --target-version py313 --select E4,E7,E9,F,B "${python_sources[@]}"
 ruff format --isolated --target-version py313 --line-length 79 --check "${python_sources[@]}"

@@ -5,7 +5,7 @@ are the whole difference between them. The JVM, the .NET SDK, release assets,
 installer scripts and recorded licenses need logic of their own.
 """
 
-from . import android, dotnet, installers, jvm, licenses, sources
+from . import android, dotnet, foundation, installers, jvm, licenses, sources
 from .assets import ReleaseAssets, miniforge_version, tag_version
 from .tracks import Resolver, Track, combine
 
@@ -188,6 +188,8 @@ RESOLVERS: dict[str, Resolver] = {
     "installers": installers.resolve,
     # The reviewed terms an apply records as accepted.
     "licenses": licenses.resolve,
+    # The pinned Homebrew and Nix installers dev-bootstrap.sh runs.
+    "foundation": foundation.resolve,
 }
 ECOSYSTEMS = tuple(RESOLVERS)
 # Resolvers that read GHCup's YAML metadata, which needs PyYAML.

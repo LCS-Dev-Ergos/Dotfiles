@@ -31,6 +31,13 @@ let
     ccToolchain = import ../../home/dev/toolchains/cc-toolchain.nix pkgs;
     homeDirectory = null;
   };
+  # What the official installer keeps in the default profile, at the locked
+  # release: dev-bootstrap.sh --update-nix installs it there on Linux, and
+  # update-runtime-baseline.py pins the installer of this Nix.
+  targets.nix = [
+    pkgs.nix.out
+    pkgs.cacert.out
+  ];
   # scripts/updates/update-runtime-baseline.py reads GHCup's YAML metadata.
   targets.freshness = pkgs.mkShellNoCC {
     packages = [ (pkgs.python3.withPackages (python: [ python.pyyaml ])) ];

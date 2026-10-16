@@ -191,6 +191,7 @@ and `just prune`.
 | --- | --- |
 | `scripts/bootstrap/dev-bootstrap.sh --check-foundation` | Checks the platform, Nix daemon, Homebrew or pacman and the build tools (Apple SDK or `base-devel`); downloads nothing |
 | `scripts/bootstrap/dev-bootstrap.sh --install-foundation plan --json` | Installs what is missing (Homebrew on macOS, `base-devel` on Arch/CachyOS, Nix), then plans |
+| `scripts/bootstrap/dev-bootstrap.sh --update-nix` | Linux: moves the Nix daemon to the locked nixpkgs' release, never back; nix-darwin does this on macOS |
 | `scripts/bootstrap/dev-bootstrap.sh plan` | Default operation: reports what `apply` would change |
 | `scripts/bootstrap/dev-bootstrap.sh setup` | Guided: shows each ecosystem's state and cost, asks which to set up, reviews what `apply` would do and applies it once accepted |
 | `scripts/bootstrap/dev-bootstrap.sh apply --only node` | Installs the selected ecosystems |

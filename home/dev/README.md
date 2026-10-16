@@ -145,17 +145,24 @@ only missing foundations. On macOS that is the revision/checksum-pinned
 official Homebrew installer (including its headless CLT acquisition); on
 Arch/CachyOS it is `base-devel`, through the same `pacman -S --needed` apply
 uses, without a repository refresh or upgrade. Both then run the official
-Nix 2.34.8 multi-user installer, the release the locked nixpkgs carries. The
-entry checks the installer script's SHA-256, and the script checks the
-platform tarball's. It lists what it is about to install before asking for
-administrator authentication. Existing foundations are not upgraded.
-Installer-script pinning does not freeze Homebrew's package repositories,
-Apple's software-update catalog or the pacman mirrors.
+Nix multi-user installer for the release the locked nixpkgs carries; on Linux
+it needs systemd. `scripts/bootstrap/foundation.nix` pins both installers: the
+entry checks each script's SHA-256, and the Nix script checks the platform
+tarball's. It lists what it is about to install and, at a terminal, asks
+before administrator authentication; without a terminal the flag is the
+consent. Existing foundations are not upgraded. Installer-script pinning does
+not freeze Homebrew's package repositories, Apple's software-update catalog or
+the pacman mirrors.
 
-After installation, nix-darwin owns Nix daemon updates on macOS. On Linux
-nothing in this repository does: the daemon stays at the installed release
-until it is upgraded through
-[Nix's upgrade procedure](https://nix.dev/manual/nix/latest/installation/upgrading).
+After installation, nix-darwin moves the Nix daemon with the lock on macOS.
+On Linux, `scripts/bootstrap/dev-bootstrap.sh --update-nix` does the same
+step of [Nix's upgrade procedure](https://nix.dev/manual/nix/latest/installation/upgrading)
+with the locked nixpkgs: it builds that release's `nix` and CA bundle (or
+substitutes them, signatures checked), installs both into the default profile
+the daemon's unit links into, restarts the daemon and checks its release. It
+never downgrades, and refuses a Nix the official installer did not lay out,
+such as Arch's package, which `pacman -Syu` updates. `devdoctor` reports a
+daemon older than the lock, and a `nix` on PATH older than the daemon.
 
 Administrative authentication occurs in the foreground when needed; unattended
 execution requires available noninteractive sudo privileges. Upstream installers
@@ -163,7 +170,8 @@ own their system changes, including Nix's store volume on macOS, its daemon
 service, build users and shell profile integration. Installation failure
 stops before runtime bootstrap. The Nix installer does not roll back a failed
 run, and refuses to start over the `/nix` tree and `*.backup-before-nix`
-profile backups it leaves; the entry names them before changing anything, and
+profile backups it leaves. The entry names them when the installer fails, and
+again before a later run changes anything;
 [Nix's uninstall guide](https://nix.dev/manual/nix/latest/installation/uninstall)
 removes them. Existing
 Homebrew with a missing/broken SDK is reported, not automatically reinstalled.
@@ -363,8 +371,10 @@ command):
    `~/.cache/update-runtime-baseline/installers/`, then record it with
    `--accept-installer NAME`; for a changed license text, read it under
    `~/.cache/update-runtime-baseline/licenses/` and record it with
-   `--accept-license NAME`. Both refuse if upstream changed again after the
-   review.
+   `--accept-license NAME`. A new Homebrew installer for the foundation is
+   saved there too and recorded with `--accept-foundation homebrew`; the Nix
+   installer follows the locked nixpkgs, so a lock update that moves Nix is
+   an `update`. All refuse if upstream changed again after the review.
 3. Build the bootstrap package, then run the native CI adapters for the
    changed ecosystems:
    `gh workflow run development-bootstrap-native.yml -f harness=adapters -f ecosystems='rust julia'`.

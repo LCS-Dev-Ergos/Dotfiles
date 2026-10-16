@@ -11,6 +11,7 @@
 # Usage:
 #   scripts/bootstrap/dev-bootstrap.sh [--install-foundation] [plan|apply|verify|prune|report|setup] [options]
 #   scripts/bootstrap/dev-bootstrap.sh --check-foundation
+#   scripts/bootstrap/dev-bootstrap.sh --update-nix
 #
 # ============================================================================ #
 
@@ -18,24 +19,60 @@ set -euo pipefail
 
 bootstrap_error() { printf 'dev-bootstrap: %s\n' "$*" >&2; return 2; }
 
+# The installer pins, beside this script.
+BOOTSTRAP_PINS="$(dirname -- "${BASH_SOURCE[0]}")/foundation.nix"
+# Nix and its CA bundle from the locked nixpkgs, evaluated from the checkout.
+BOOTSTRAP_LOCKED_NIX='import ./scripts/bootstrap/development-bootstrap.nix { target = "nix"; }'
+
 bootstrap_usage() {
   cat <<'EOF'
 Usage: scripts/bootstrap/dev-bootstrap.sh [--install-foundation] [plan|apply|verify|prune|report|setup] [options]
        scripts/bootstrap/dev-bootstrap.sh --check-foundation
+       scripts/bootstrap/dev-bootstrap.sh --update-nix
 
 No operation defaults to plan. Runtime options pass literally to dev-bootstrap.
 --check-foundation checks native platform, Nix daemon, Homebrew/pacman and
 build tools (Apple SDK or base-devel).
 --install-foundation installs the missing ones (Homebrew and Apple's developer
 tools on macOS, base-devel on Arch/CachyOS, and Nix), then continues with the
-requested operation. It lists them before administrative authentication.
-Existing foundations are never replaced or upgraded by this entry.
+requested operation. It lists them, and asks at a terminal, before
+administrative authentication. Existing foundations are never replaced.
+--update-nix moves the Linux Nix daemon to the locked nixpkgs' release, never
+back; on macOS nix-darwin owns it.
 Use apply --only LANGUAGE to limit installation; omit apply to avoid runtimes.
 --only ... --save-selection keeps that selection for later runs; --all ignores it.
 prune lists the installed releases the baseline retired; prune --yes removes them.
 report lists the recorded runs; report --last shows the newest one again.
 setup walks a person through the same setup: what is here, what apply would do.
 EOF
+}
+
+# One pin from foundation.nix: exactly one `name = "value";` line.
+bootstrap_pin() {
+  local name="$1" line value='' count=0
+  while IFS= read -r line; do
+    if [[ "$line" =~ ^[[:space:]]*${name}[[:space:]]=[[:space:]]\"([0-9A-Za-z.]+)\"\;$ ]]; then
+      value=${BASH_REMATCH[1]}
+      count=$((count + 1))
+    fi
+  done < "$BOOTSTRAP_PINS"
+  [[ $count == 1 ]] || bootstrap_error "$BOOTSTRAP_PINS must declare $name once."
+  printf '%s\n' "$value"
+}
+
+# Someone at a terminal, who can answer a question and a password prompt.
+bootstrap_attended() { [[ -t 0 ]]; }
+
+bootstrap_confirm() {
+  local answer=''
+  bootstrap_attended || return 0
+  printf 'Proceed? [y/N] ' >&2
+  read -r answer || true
+  case "$answer" in
+    y|Y|yes|Yes|YES) return 0 ;;
+  esac
+  printf 'dev-bootstrap: nothing was changed.\n' >&2
+  return 1
 }
 
 bootstrap_platform() {
@@ -72,6 +109,30 @@ bootstrap_nix_residue() {
     /etc/zshrc.backup-before-nix /etc/zsh/zshrc.backup-before-nix; do
     if [[ -e "$path" ]]; then printf '%s\n' "$path"; fi
   done
+}
+
+# The multi-user daemon is a systemd service on Linux.
+bootstrap_systemd() { [[ -d /run/systemd/system ]]; }
+
+# The daemon's release, as the daemon itself reports it.
+bootstrap_daemon_version() {
+  local info
+  info=$(NIX_REMOTE=daemon "$1" --extra-experimental-features nix-command store info --json) || return 1
+  [[ "$info" =~ \"version\":\"([0-9][0-9A-Za-z.+-]*)\" ]] || return 1
+  printf '%s\n' "${BASH_REMATCH[1]}"
+}
+
+# Whether release $1 is older than release $2.
+bootstrap_older() {
+  [[ "$1" != "$2" && "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n 1)" == "$1" ]]
+}
+
+# The official installer links the daemon's unit into the default profile, so
+# installing a release there and restarting the service moves the daemon.
+bootstrap_official_nix() {
+  local unit
+  unit=$(readlink /etc/systemd/system/nix-daemon.service 2>/dev/null) || return 1
+  [[ "$unit" == /nix/var/nix/profiles/default/* && -x /nix/var/nix/profiles/default/bin/nix-env ]]
 }
 
 bootstrap_native() {
@@ -143,7 +204,7 @@ bootstrap_download() {
 }
 
 bootstrap_announce() {
-  local platform="$1" missing_native="$2" missing_tools="$3" missing_nix="$4"
+  local version="$1" missing_native="$2" missing_tools="$3" missing_nix="$4"
   printf 'dev-bootstrap: installing the missing foundations:\n'
   if (( missing_native )); then
     printf '  Homebrew    official installer at a pinned revision, into /opt/homebrew;\n'
@@ -153,14 +214,21 @@ bootstrap_announce() {
     printf '  base-devel  pacman -S --needed base-devel; no repository refresh or upgrade\n'
   fi
   if (( missing_nix )); then
-    printf '  Nix 2.34.8  official multi-user installer: /nix, the nix-daemon service,\n'
+    printf '  Nix %-7s official multi-user installer: /nix, the nix-daemon service,\n' "$version"
     printf '              nixbld build users and Nix lines in the system shell profiles\n'
   fi
   printf 'Administrator authentication follows.\n'
 }
 
+# How to clear what a failed or removed Nix installation left behind.
+bootstrap_residue_error() {
+  bootstrap_error "$1 ${2//$'\n'/ }. Remove it as" \
+    'https://nix.dev/manual/nix/latest/installation/uninstall describes, then rerun.'
+}
+
 bootstrap_install() (
   local platform="$1" missing_nix=0 missing_native=0 missing_tools=0 residue
+  local brew_revision brew_sha256 nix_version nix_sha256
   bootstrap_nix >/dev/null || missing_nix=1
   bootstrap_native "$platform" || missing_native=1
   if [[ "$platform" == arch ]]; then
@@ -171,14 +239,23 @@ bootstrap_install() (
   export PATH=/usr/bin:/bin:/usr/sbin:/sbin
   if (( missing_nix )); then
     residue=$(bootstrap_nix_residue)
-    [[ -z "$residue" ]] || bootstrap_error "Nix is not usable, but an earlier installation left" \
-      "${residue//$'\n'/ }. Remove it as https://nix.dev/manual/nix/latest/installation/uninstall describes, then rerun."
+    [[ -z "$residue" ]] ||
+      bootstrap_residue_error 'Nix is not usable, but an earlier installation left' "$residue"
+    if [[ "$platform" == arch ]]; then
+      bootstrap_systemd || bootstrap_error 'The Nix multi-user installation needs systemd as the init system.'
+    fi
   fi
+  # Read before anything changes: assignments stop on a malformed pin file.
+  brew_revision=$(bootstrap_pin homebrewRevision)
+  brew_sha256=$(bootstrap_pin homebrewSha256)
+  nix_version=$(bootstrap_pin nixVersion)
+  nix_sha256=$(bootstrap_pin nixSha256)
   # Without sudo nothing here can be installed; root has to provide it.
   [[ -x /usr/bin/sudo ]] || bootstrap_error 'sudo is missing; as root, install it and allow this account to use it.'
-  bootstrap_announce "$platform" "$missing_native" "$missing_tools" "$missing_nix" >&2
+  bootstrap_announce "$nix_version" "$missing_native" "$missing_tools" "$missing_nix" >&2
+  bootstrap_confirm
   # Authentication is part of this explicit command; no passwords are stored.
-  if [[ -t 0 ]]; then sudo -v; else sudo -n -v; fi
+  if bootstrap_attended; then sudo -v; else sudo -n -v; fi
   # Subshell-local, not function-local: EXIT also runs after function unwinding.
   temporary=$(mktemp -d "${TMPDIR:-/tmp}/dev-bootstrap.XXXXXXXX")
   trap 'rm -rf -- "$temporary"' EXIT
@@ -188,9 +265,8 @@ bootstrap_install() (
     # Homebrew's official installer handles missing CLT through softwareupdate.
     # Pin the acquisition script, not the rolling Homebrew package inventory.
     bootstrap_download \
-      https://raw.githubusercontent.com/Homebrew/install/8ab1549dfa1189fd4d818a2116592d8f0ee06d8c/install.sh \
-      5f333bbe53bc490e51e7ccb1df8779b3dd6ee73a1a7379efda216edb08ccb148 \
-      "$temporary/homebrew.sh"
+      "https://raw.githubusercontent.com/Homebrew/install/$brew_revision/install.sh" \
+      "$brew_sha256" "$temporary/homebrew.sh"
     (unset INTERACTIVE; NONINTERACTIVE=1 /bin/bash "$temporary/homebrew.sh" </dev/null)
     bootstrap_native "$platform" || bootstrap_error 'Homebrew installation did not produce /opt/homebrew/bin/brew.'
   fi
@@ -205,24 +281,81 @@ bootstrap_install() (
     # Match the Nix release the locked nixpkgs carries. On macOS nix-darwin
     # owns later daemon updates; on Linux they stay with the Nix upgrade
     # procedure. The script carries each platform's tarball SHA-256.
-    bootstrap_download https://releases.nixos.org/nix/nix-2.34.8/install \
-      96c10e102c88809dd9ec0bee89200c4a51eae4c9f6d8698c26b16788d131e078 \
-      "$temporary/nix.sh"
-    /bin/sh "$temporary/nix.sh" --daemon --yes --no-channel-add </dev/null
+    bootstrap_download \
+      "https://releases.nixos.org/nix/nix-$nix_version/install" \
+      "$nix_sha256" "$temporary/nix.sh"
+    # The installer does not roll back; what it leaves blocks the next run.
+    if ! /bin/sh "$temporary/nix.sh" --daemon --yes --no-channel-add </dev/null; then
+      residue=$(bootstrap_nix_residue)
+      [[ -z "$residue" ]] || bootstrap_residue_error 'The Nix installer failed and left' "$residue"
+      bootstrap_error 'The Nix installer failed.'
+    fi
     bootstrap_nix >/dev/null || bootstrap_error 'Nix installation did not produce a usable executable.'
   fi
 )
 
+# Linux has no nix-darwin to move the daemon with the lock: install the
+# locked Nix into the profile the daemon's unit links into, then restart it.
+bootstrap_update_nix() (
+  local platform="$1" root="$2" nix daemon locked paths path nix_out=''
+  if [[ "$platform" == darwin ]]; then
+    printf 'nix-darwin owns the Nix daemon on macOS; switching the configuration updates it.\n'
+    return
+  fi
+  nix=$(bootstrap_nix) || bootstrap_error 'Nix is missing. Use --install-foundation.'
+  bootstrap_official_nix || bootstrap_error 'This Nix is not the official installer'"'"'s:' \
+    '/etc/systemd/system/nix-daemon.service does not link into /nix/var/nix/profiles/default.' \
+    'Update it with what installed it (pacman -Syu for Arch'"'"'s nix).'
+  daemon=$(bootstrap_daemon_version "$nix") || bootstrap_error 'The Nix daemon cannot be reached.'
+  cd -- "$root"
+  # fetchTree, which reads the lock, is part of the flakes feature.
+  locked=$("$nix" --extra-experimental-features 'nix-command flakes' eval --raw --impure \
+    --expr "(builtins.head ($BOOTSTRAP_LOCKED_NIX)).version")
+  if [[ "$daemon" == "$locked" ]]; then
+    printf 'ready   Nix daemon %s, the locked release\n' "$daemon"
+    return
+  fi
+  if ! bootstrap_older "$daemon" "$locked"; then
+    printf 'ready   Nix daemon %s, newer than the locked %s; never downgraded\n' "$daemon" "$locked"
+    return
+  fi
+  [[ $(id -u) != 0 ]] || bootstrap_error 'Run as the target user, not root.'
+  [[ -x /usr/bin/sudo ]] || bootstrap_error 'sudo is missing; as root, install it and allow this account to use it.'
+  # Built, or substituted with signatures checked, before anything changes.
+  paths=$("$nix" --extra-experimental-features 'nix-command flakes' build --no-link --print-out-paths \
+    --impure --expr "$BOOTSTRAP_LOCKED_NIX")
+  for path in $paths; do
+    [[ "$path" != */*-nix-"$locked" ]] || nix_out=$path
+  done
+  [[ -n "$nix_out" ]] || bootstrap_error "The locked nixpkgs built no nix-$locked."
+  {
+    printf 'dev-bootstrap: updating the Nix daemon from %s to %s:\n' "$daemon" "$locked"
+    printf '  installs nix and its CA bundle from the locked nixpkgs into\n'
+    printf '  /nix/var/nix/profiles/default, then restarts nix-daemon\n'
+    printf 'Administrator authentication follows.\n'
+  } >&2
+  bootstrap_confirm
+  if bootstrap_attended; then sudo -v; else sudo -n -v; fi
+  # shellcheck disable=SC2086 # one store path per word
+  sudo -n -H "$nix_out/bin/nix-env" --profile /nix/var/nix/profiles/default --install $paths
+  sudo -n systemctl daemon-reload
+  sudo -n systemctl restart nix-daemon.service
+  daemon=$(bootstrap_daemon_version "$nix_out/bin/nix") || bootstrap_error 'The restarted Nix daemon cannot be reached.'
+  [[ "$daemon" == "$locked" ]] || bootstrap_error "The Nix daemon reports $daemon after the update, not $locked."
+  printf 'ready   Nix daemon %s, the locked release\n' "$daemon"
+)
+
 bootstrap_main() {
-  local root platform nix install=0 check=0
+  local root platform nix install=0 check=0 update=0
   root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
   case "${1:-}" in
     --help|-h) bootstrap_usage; return ;;
     --check-foundation) check=1; shift ;;
     --install-foundation) install=1; shift ;;
+    --update-nix) update=1; shift ;;
   esac
-  if (( check )); then
-    [[ $# == 0 ]] || bootstrap_error '--check-foundation accepts no runtime options.'
+  if (( check || update )); then
+    [[ $# == 0 ]] || bootstrap_error 'Foundation checks and updates accept no runtime options.'
   else
     case "${1:-plan}" in
       plan|apply|verify|prune|report|setup) ;;
@@ -235,6 +368,7 @@ bootstrap_main() {
     bootstrap_check "$platform" || return 1
   fi
   if (( check )); then bootstrap_check "$platform"; return; fi
+  if (( update )); then bootstrap_update_nix "$platform" "$root"; return; fi
   nix=$(bootstrap_nix) || {
     bootstrap_error 'Nix is missing. Use --check-foundation or --install-foundation.'
     return 2

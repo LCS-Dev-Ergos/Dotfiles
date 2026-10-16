@@ -6,8 +6,8 @@ No real installer, privilege request, daemon mutation or runtime install runs.
 """
 
 import hashlib
+import json
 import os
-import re
 import subprocess
 import tempfile
 import unittest
@@ -23,12 +23,24 @@ if not ENTRY.is_file():
     )
 
 
+PINS = ENTRY.parent / "foundation.nix"
 # The Nix release the locked nixpkgs carries, which nix-darwin starts from.
 LOCKED_NIX = (
-    "let lock = builtins.fromJSON (builtins.readFile ./flake.lock); in "
-    "(import (builtins.fetchTree "
-    "lock.nodes.${lock.nodes.root.inputs.nixpkgs}.locked) { }).nix.version"
+    "(builtins.head (import ./scripts/bootstrap/development-bootstrap.nix "
+    '{ target = "nix"; })).version'
 )
+
+
+def nix_eval(*arguments):
+    return subprocess.run(
+        ["nix", "--extra-experimental-features", "nix-command flakes", "eval"]
+        + list(arguments),
+        cwd=ENTRY.parents[2],
+        capture_output=True,
+        text=True,
+        timeout=300,
+        check=True,
+    ).stdout
 
 
 class BootstrapEntryTests(unittest.TestCase):
@@ -62,6 +74,7 @@ bootstrap_native() { [[ -f "$FIXTURE/has-homebrew" ]]; }
 bootstrap_sdk() { [[ -f "$FIXTURE/has-sdk" ]]; }
 bootstrap_build_tools() { [[ -f "$FIXTURE/has-tools" ]]; }
 bootstrap_nix_residue() { [[ ! -f "$FIXTURE/has-residue" ]] || printf '/nix\\n'; }
+bootstrap_systemd() { [[ ! -f "$FIXTURE/has-no-systemd" ]]; }
 """
 
     def run_shell(self, code, *arguments, environment=None):
@@ -83,7 +96,14 @@ bootstrap_nix_residue() { [[ ! -f "$FIXTURE/has-residue" ]] || printf '/nix\\n';
         )
 
     def mark(self, *names):
-        for name in ("nix", "homebrew", "sdk", "tools", "residue"):
+        for name in (
+            "nix",
+            "homebrew",
+            "sdk",
+            "tools",
+            "residue",
+            "no-systemd",
+        ):
             (self.root / f"has-{name}").unlink(missing_ok=True)
         for name in names:
             (self.root / f"has-{name}").touch()
@@ -148,28 +168,25 @@ bootstrap_main "$@"
 
     def test_installed_nix_is_the_locked_release(self):
         """--install-foundation installs the Nix the configuration starts from."""
-        pinned = re.search(
-            r"releases\.nixos\.org/nix/nix-([0-9.]+)/install",
-            ENTRY.read_text(),
+        pinned = json.loads(nix_eval("--json", "--file", str(PINS)))
+        locked = nix_eval("--raw", "--impure", "--expr", LOCKED_NIX)
+        self.assertEqual(pinned["nixVersion"], locked)
+
+    def test_entry_reads_the_pins_nix_reads(self):
+        """The line reader and Nix agree on every pin, so updates reach both."""
+        pinned = json.loads(nix_eval("--json", "--file", str(PINS)))
+        result = self.run_shell(
+            'for name in "$@"; do bootstrap_pin "$name"; done', *pinned
         )
-        locked = subprocess.run(
-            [
-                "nix",
-                "--extra-experimental-features",
-                "nix-command",
-                "eval",
-                "--raw",
-                "--impure",
-                "--expr",
-                LOCKED_NIX,
-            ],
-            cwd=ENTRY.parents[2],
-            capture_output=True,
-            text=True,
-            timeout=300,
-            check=True,
-        ).stdout
-        self.assertEqual(pinned.group(1), locked)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.splitlines(), list(pinned.values()))
+        broken = self.root / "foundation.nix"
+        broken.write_text(PINS.read_text() + '  nixVersion = "9.9.9";\n')
+        result = self.run_shell(
+            f'BOOTSTRAP_PINS="{broken}"; bootstrap_pin nixVersion'
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("must declare nixVersion once", result.stderr)
 
     def test_runtime_arguments_and_exit_status_are_preserved(self):
         """No shell re-evaluation, lockfile update or implicit apply is introduced."""
@@ -239,6 +256,7 @@ bootstrap_main "$@"
         for arguments in (
             ("--install-foundation", "typo"),
             ("--check-foundation", "apply"),
+            ("--update-nix", "apply"),
             ("plan",),
         ):
             with self.subTest(arguments=arguments):
@@ -338,6 +356,143 @@ bootstrap_install arch
                 )
                 self.assertEqual(
                     "Nix 2.34.8" in result.stderr, "nix" not in present
+                )
+
+    def test_attended_install_asks_before_authentication(self):
+        """At a terminal, only an explicit yes reaches sudo."""
+        for answer, status in (("n\n", 1), ("\n", 1), ("y\n", 0)):
+            with self.subTest(answer=answer):
+                self.mark("homebrew")
+                result = subprocess.run(
+                    [
+                        "/bin/bash",
+                        "-c",
+                        'source "$1"; shift\n'
+                        + self.discovery
+                        + """
+bootstrap_attended() { :; }
+id() { printf '1000\\n'; }
+sudo() { printf 'sudo %s\\n' "$*" >> "$LOG"; }
+bootstrap_download() { printf 'touch "$FIXTURE/has-nix"\\n' > "$3"; }
+bootstrap_install darwin
+""",
+                        "bootstrap-test",
+                        str(ENTRY),
+                    ],
+                    env=self.environment,
+                    input=answer,
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, status, result.stderr)
+                self.assertIn("Proceed? [y/N]", result.stderr)
+                self.assertEqual(self.log.exists(), status == 0)
+                if status:
+                    self.assertIn("nothing was changed", result.stderr)
+
+    def test_failed_nix_installer_names_what_it_left(self):
+        """The installer does not roll back; the entry says what blocks a rerun."""
+        self.mark("homebrew")
+        result = self.run_shell(
+            self.discovery
+            + """
+id() { printf '1000\\n'; }
+sudo() { :; }
+bootstrap_download() {
+  printf 'touch "$FIXTURE/has-residue"; exit 5\\n' > "$3"
+}
+bootstrap_install darwin
+"""
+        )
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("The Nix installer failed and left /nix", result.stderr)
+        self.assertIn("installation/uninstall", result.stderr)
+
+    def test_linux_nix_needs_systemd(self):
+        """Without systemd the multi-user daemon cannot run; stop first."""
+        self.mark("tools", "no-systemd")
+        result = self.run_shell(
+            self.discovery
+            + """
+bootstrap_native() { :; }
+id() { printf '1000\\n'; }
+sudo() { printf 'sudo %s\\n' "$*" >> "$LOG"; }
+bootstrap_install arch
+"""
+        )
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("needs systemd", result.stderr)
+        self.assertFalse(self.log.exists())
+
+    def update_nix(self, platform, daemon, *marks):
+        """--update-nix against a stub client, daemon and store."""
+        self.mark("nix", *marks)
+        (self.root / "updated").unlink(missing_ok=True)
+        client = self.root / "client"
+        client.write_text(
+            '#!/bin/bash\nprintf "nix %s\\n" "$*" >> "$LOG"\n'
+            'case "$*" in\n'
+            '  *" eval "*) printf 2.40.1 ;;\n'
+            '  *" build "*) printf "%s\\n" /nix/store/a-nss-cacert-3.1 '
+            "/nix/store/b-nix-2.40.1 ;;\n"
+            "esac\n"
+        )
+        client.chmod(0o700)
+        return self.run_shell(
+            self.discovery
+            + f"""
+bootstrap_nix() {{ [[ -f "$FIXTURE/has-nix" ]] && printf '%s\\n' "$FIXTURE/client"; }}
+bootstrap_official_nix() {{ [[ ! -f "$FIXTURE/has-foreign" ]]; }}
+bootstrap_daemon_version() {{
+  if [[ -f "$FIXTURE/updated" ]]; then printf '2.40.1\\n'; else printf '{daemon}\\n'; fi
+}}
+id() {{ printf '1000\\n'; }}
+sudo() {{
+  printf 'sudo %s\\n' "$*" >> "$LOG"
+  [[ "$*" != *restart* ]] || touch "$FIXTURE/updated"
+}}
+bootstrap_update_nix {platform} "$FIXTURE"
+"""
+        )
+
+    def commands(self):
+        return self.log.read_text().splitlines() if self.log.exists() else []
+
+    def test_update_nix_moves_an_older_linux_daemon_to_the_lock(self):
+        """Install the locked nix and CA bundle in the default profile, restart."""
+        result = self.update_nix("arch", "2.34.8")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("from 2.34.8 to 2.40.1", result.stderr)
+        self.assertIn("ready   Nix daemon 2.40.1", result.stdout)
+        sudo = [line for line in self.commands() if line.startswith("sudo")]
+        self.assertEqual(
+            sudo,
+            [
+                "sudo -n -v",
+                "sudo -n -H /nix/store/b-nix-2.40.1/bin/nix-env --profile "
+                "/nix/var/nix/profiles/default --install "
+                "/nix/store/a-nss-cacert-3.1 /nix/store/b-nix-2.40.1",
+                "sudo -n systemctl daemon-reload",
+                "sudo -n systemctl restart nix-daemon.service",
+            ],
+        )
+
+    def test_update_nix_changes_nothing_otherwise(self):
+        """Current, newer, foreign, macOS: nothing to install, no sudo."""
+        for platform, daemon, marks, status, message in (
+            ("arch", "2.40.1", (), 0, "the locked release"),
+            ("arch", "2.41.0", (), 0, "never downgraded"),
+            ("arch", "2.34.8", ("foreign",), 2, "pacman -Syu"),
+            ("darwin", "2.34.8", (), 0, "nix-darwin owns"),
+        ):
+            with self.subTest(platform=platform, daemon=daemon, marks=marks):
+                result = self.update_nix(platform, daemon, *marks)
+                self.assertEqual(result.returncode, status, result.stderr)
+                self.assertIn(message, result.stdout + result.stderr)
+                self.assertFalse(
+                    any(line.startswith("sudo") for line in self.commands())
                 )
 
     def test_announcement_precedes_authentication(self):
