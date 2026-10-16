@@ -32,6 +32,13 @@ TOOLCHAINS = {
     "scala": {"version": "3.9.0"},
     "julia": {"version": "1.12.2"},
     "dotnet": {"version": "10.0.402"},
+    "ada": {"version": "16.1.0", "gprbuild": "26.0.1"},
+    "android": {
+        "version": "37.0.1",
+        "buildTools": "37.0.0",
+        "platform": "37.2",
+        "tools": "22.0",
+    },
 }
 
 
@@ -219,6 +226,21 @@ class PruneTests(unittest.TestCase):
         }
         (root / "juliaup.json").write_text(json.dumps(config))
 
+    def alire(self, component, release):
+        """A toolchain release as alr deploys it."""
+        crate = {"gnat": "gnat_native"}.get(component, component)
+        prefix = self.adapter("ada").root / f"{crate}_{release}_0123abcd"
+        self.executable(prefix / "bin" / component)
+        return prefix
+
+    def alire_selects(self, **use):
+        directory = self.adapter("ada").roots["ALIRE_SETTINGS_DIR"]
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / "settings.toml").write_text(
+            "[toolchain.use]\n"
+            + "".join(f'{key} = "{value}"\n' for key, value in use.items())
+        )
+
     # Fixture managers -------------------------------------------------------
 
     def run_process(self, arguments, **kwargs):
@@ -305,6 +327,19 @@ class PruneTests(unittest.TestCase):
             entry = config["InstalledVersions"].pop(identity)
             shutil.rmtree(root / "juliaup" / entry["Path"])
             (root / "juliaup/juliaup.json").write_text(json.dumps(config))
+        elif language == "ada" and args[:2] == ("toolchain", "--select"):
+            crate, release = args[2].split("=")
+            component = {"gnat_native": "gnat"}.get(crate, crate)
+            path = adapter.roots["ALIRE_SETTINGS_DIR"] / "settings.toml"
+            use = dict(
+                line.replace('"', "").split(" = ")
+                for line in path.read_text().splitlines()[1:]
+            )
+            self.alire_selects(**(use | {component: args[2]}))
+        elif language == "android" and args[0] == "--uninstall":
+            # sdkmanager's package path names its directory under the root.
+            kind, _, release = args[1].partition(";")
+            shutil.rmtree(root / kind / release)
         elif language == "scala" and args[0] == "install":
             for spec in args[3:]:
                 launcher, release = spec.split(":")
@@ -615,6 +650,107 @@ class PruneTests(unittest.TestCase):
         (row,) = self.apply()
         self.assertEqual(row["state"], "blocked")
         self.assertIn("launcher scala-runner", row["reason"])
+
+    def test_ada_moves_the_selection_and_removes_the_directory(self):
+        self.select(
+            "ada",
+            retired={
+                "nativeToolchains": {
+                    "ada": {"version": ["15.1.2"], "gprbuild": ["25.0.1"]}
+                }
+            },
+        )
+        retired = self.alire("gnat", "15.1.2")
+        self.alire("gnat", "16.1.0")
+        self.alire("gprbuild", "26.0.1")
+        self.alire_selects(
+            gnat="gnat_native=15.1.2", gprbuild="gprbuild=26.0.1"
+        )
+        # gprbuild 25.0.1 is not deployed, so there is nothing to retire.
+        (row,) = self.apply()
+        self.assertEqual((row["component"], row["state"]), ("gnat", "removed"))
+        self.assertEqual(row["steps"], ["select 16.1.0 globally", "remove it"])
+        self.assertEqual(
+            [event for event in self.events if event[0] == "ada"],
+            [("ada", "toolchain", "--select", "gnat_native=16.1.0")],
+        )
+        self.assertFalse(retired.exists())
+        self.assertTrue(self.alire("gnat", "16.1.0").is_dir())
+
+    def test_ada_keeps_a_selected_release_without_its_successor(self):
+        self.select(
+            "ada",
+            retired={"nativeToolchains": {"ada": {"version": ["15.1.2"]}}},
+        )
+        retired = self.alire("gnat", "15.1.2")
+        self.alire_selects(gnat="gnat_native=15.1.2")
+        (row,) = self.apply()
+        self.assertEqual(row["state"], "blocked")
+        self.assertIn("successor 16.1.0 is not installed", row["reason"])
+        self.assertTrue(retired.is_dir())
+
+    def test_android_removes_packages_and_old_command_line_tools(self):
+        self.select(
+            "jvm",
+            "android",
+            retired={
+                "nativeToolchains": {
+                    "android": {
+                        "version": ["36.0.0"],
+                        "buildTools": ["36.0.0"],
+                        "platform": ["36"],
+                        "tools": ["21.0"],
+                    }
+                }
+            },
+        )
+        android = self.adapter("android")
+        for component, release in (
+            ("platform-tools", "37.0.1"),
+            ("build-tools", "36.0.0"),
+            ("build-tools", "37.0.0"),
+            ("platform", "36"),
+        ):
+            self.executable(android.package_binary(component, release))
+        old_tools = self.executable(
+            android.root / "cmdline-tools/21.0/bin/sdkmanager"
+        )
+        rows = {row["component"]: row for row in self.apply()}
+        # platform-tools is a floor updated in place, never retired.
+        self.assertEqual(sorted(rows), ["build-tools", "platform", "tools"])
+        self.assertTrue(
+            all(row["state"] == "removed" for row in rows.values())
+        )
+        self.assertEqual(
+            [event for event in self.events if event[0] == "android"],
+            [
+                ("android", "--uninstall", "build-tools;36.0.0"),
+                ("android", "--uninstall", "platforms;android-36"),
+                ("android", "--uninstall", "cmdline-tools;21.0"),
+            ],
+        )
+        self.assertFalse(old_tools.exists())
+        self.assertTrue(
+            android.package_binary("build-tools", "37.0.0").is_file()
+        )
+        self.assertTrue(
+            android.package_binary("platform-tools", "37.0.1").is_file()
+        )
+
+    def test_android_waits_for_the_declared_command_line_tools(self):
+        self.select(
+            "jvm",
+            "android",
+            retired={
+                "nativeToolchains": {"android": {"buildTools": ["36.0.0"]}}
+            },
+        )
+        android = self.adapter("android")
+        self.executable(android.package_binary("build-tools", "36.0.0"))
+        android.manager().unlink()
+        (row,) = self.plan()
+        self.assertEqual(row["state"], "blocked")
+        self.assertIn("command-line tools 22.0", row["reason"])
 
     def test_ocaml_removes_only_unused_seed_switches(self):
         self.select(

@@ -357,9 +357,11 @@ command):
 Prune removes only releases listed under `retired`, never one installed by
 hand, and each through its manager (`fnm uninstall`, `pyenv uninstall`,
 `rbenv uninstall`, `rustup toolchain uninstall`, `elan toolchain uninstall`,
-`ghcup rm`, `sdk uninstall`, `juliaup remove`, `opam switch remove`); a Scala
-distribution or a .NET SDK, which no manager tracks, is deleted as one
-directory. Before removing a release it:
+`ghcup rm`, `sdk uninstall`, `juliaup remove`, `opam switch remove`,
+`sdkmanager --uninstall`); a Scala distribution, a .NET SDK or an Alire
+toolchain, which no manager removes, is deleted as one directory. Android's
+platform-tools is a floor sdkmanager updates in place, so it is never
+retired. Before removing a release it:
 
 - moves a global selection that names it to the declared release that
   replaced it, which must already be installed;

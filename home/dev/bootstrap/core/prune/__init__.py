@@ -8,6 +8,8 @@ last, so a failure keeps that release installed and the others proceed.
 from ..errors import BootstrapError
 from .runtimes import NodeRetirer, OcamlRetirer, PythonRetirer
 from .toolchains import (
+    AdaRetirer,
+    AndroidRetirer,
     DotnetRetirer,
     HaskellRetirer,
     JuliaRetirer,
@@ -33,6 +35,8 @@ RETIRERS = {
     "gradle": SdkmanRetirer,
     "scala": ScalaRetirer,
     "julia": JuliaRetirer,
+    "ada": AdaRetirer,
+    "android": AndroidRetirer,
     "dotnet": DotnetRetirer,
 }
 

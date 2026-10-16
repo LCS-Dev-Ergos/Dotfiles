@@ -4,6 +4,8 @@ import shutil
 import tomllib
 
 from .. import process
+from ..adapters.ada import CRATES
+from ..adapters.android import PACKAGES
 from ..adapters.coursier import EXEC, LAUNCHERS
 from ..adapters.rust import HOSTS
 from ..errors import BootstrapError
@@ -317,3 +319,69 @@ class DotnetRetirer(DirectoryRetirer):
             "the runtimes it brought under shared/ stay, and a global.json "
             "that requires exactly this SDK stops resolving"
         )
+
+
+class AdaRetirer(DirectoryRetirer):
+    """alr has no uninstall: a release is its directory in the toolchain folder.
+
+    The global selection moves with `alr toolchain --select` first.
+    """
+
+    def paths(self):
+        base = "nativeToolchains.ada"
+        return {"gnat": f"{base}.version", "gprbuild": f"{base}.gprbuild"}
+
+    def prefix(self, release, component):
+        return self.adapter.deployed(CRATES[component], release)
+
+    def inspect(self, retirement):
+        retirement.notes.append(
+            "a crate whose own settings select it deploys it again on use"
+        )
+
+    def reselect(self, retirement):
+        crate = CRATES[retirement.component]
+        self.invoke("toolchain", "--select", f"{crate}={retirement.successor}")
+
+
+class AndroidRetirer(ToolchainRetirer):
+    """Build tools, platforms and the bootstrap's own command-line tools.
+
+    platform-tools is a floor sdkmanager updates in place, so it is never
+    retired. Nothing is selected globally, so nothing moves first; the
+    declared command-line tools' sdkmanager removes each package.
+    """
+
+    KEYS = {
+        "build-tools": "buildTools",
+        "platform": "platform",
+        "tools": "tools",
+    }
+
+    def paths(self):
+        base = "nativeToolchains.android"
+        return {
+            component: f"{base}.{key}" for component, key in self.KEYS.items()
+        }
+
+    def prefix(self, release, component):
+        if component == "tools":
+            return self.adapter.root / "cmdline-tools" / release
+        return self.adapter.package_directory(component, release)
+
+    def inspect(self, retirement):
+        try:
+            self.adapter.manager()
+        except BootstrapError:
+            retirement.blockers.append(
+                f"the declared command-line tools {self.adapter.spec['tools']} "
+                "remove it and are not installed; apply first"
+            )
+
+    def uninstall(self, retirement):
+        component, release = retirement.component, retirement.release
+        if component == "tools":
+            package = f"cmdline-tools;{release}"
+        else:
+            package = PACKAGES[component].format(release)
+        self.invoke("--uninstall", package)

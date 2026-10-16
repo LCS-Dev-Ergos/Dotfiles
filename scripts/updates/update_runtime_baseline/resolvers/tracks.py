@@ -37,6 +37,9 @@ class Track:
     default: bool = True
     # Whether --line may rewrite a newer line; MANUAL_LINES never can.
     movable_lines: bool = True
+    # Whether a replaced pin is listed under `retired`; not for a floor the
+    # manager updates in place, which leaves nothing behind to remove.
+    retire: bool = True
 
     def __call__(
         self, upstream: Source, baseline: dict, managers: dict
@@ -59,7 +62,7 @@ class Track:
                 edits=edits,
                 line_edits=edits if self.movable_lines else None,
                 lines=pinned == newest,
-                retires=((self.declaration, pinned),),
+                retires=((self.declaration, pinned),) if self.retire else (),
             )
         return found
 

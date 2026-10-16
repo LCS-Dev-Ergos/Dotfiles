@@ -528,6 +528,16 @@ class Resolvers(unittest.TestCase):
                 ("android platform", "line", "38"),
             ],
         )
+        # sdkmanager updates platform-tools in place; the replaced build
+        # tools and platform stay installed until prune removes them.
+        self.assertEqual(
+            [finding.retires for finding in found[:3]],
+            [
+                (),
+                (("nativeToolchains.android.buildTools", "37.0.0"),),
+                (("nativeToolchains.android.platform", "37.2"),),
+            ],
+        )
 
 
 class Installers(unittest.TestCase):

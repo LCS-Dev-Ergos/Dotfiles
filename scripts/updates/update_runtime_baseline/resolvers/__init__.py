@@ -110,7 +110,8 @@ RESOLVERS: dict[str, Resolver] = {
         ),
     ),
     # Google's repository index, as sdkmanager reads it. platform-tools has
-    # one release at a time; build tools and platforms keep lines.
+    # one release at a time, updated in place, so nothing retires with it;
+    # build tools and platforms keep lines.
     "android": combine(
         Track(
             ecosystem="android",
@@ -118,6 +119,7 @@ RESOLVERS: dict[str, Resolver] = {
             declaration="nativeToolchains.android.version",
             releases=android.listing("platform-tools"),
             depth=0,
+            retire=False,
         ),
         Track(
             ecosystem="android",
