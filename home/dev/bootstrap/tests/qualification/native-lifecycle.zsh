@@ -11,7 +11,8 @@
 #      apply, verify, verify --health.
 # After steps 2 and 3, apply must install nothing and change no selection,
 # the seeds must still pass exact verification and health must pass; step 3
-# must also have changed what it meant to change. Native package upgrades
+# must also have changed what it meant to change. Finally prune, and prune
+# --yes, must find nothing retired to remove. Native package upgrades
 # are global, so they run only with DEV_BOOTSTRAP_PACKAGE_UPGRADES=1, as in
 # CI: Homebrew upgrades the declared managers and build libraries, pacman the
 # whole system. Health after them is the native ABI drift check.
@@ -66,7 +67,7 @@ fi
 # HOME, so every Coursier directory is named explicitly; otherwise `cs`
 # writes into the real home.
 typeset -a manager_environment=(
-  PATH="$home/.cargo/bin:$home/.elan/bin:$home/.ghcup/bin:$home/.juliaup/bin:$coursier_bin:$root/data/fnm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+  PATH="$home/.cargo/bin:$home/.elan/bin:$home/.ghcup/bin:$home/.juliaup/bin:$home/.ada/bin:$coursier_bin:$root/data/fnm:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
   FNM_DIR="$root/data/fnm"
   COURSIER_BIN_DIR="$coursier_bin"
   COURSIER_CACHE="$coursier_cache"
@@ -158,6 +159,7 @@ _has lean && _manager update-elan elan self update
 _has jvm && _sdk update-sdkman selfupdate
 _has scala && _manager update-coursier cs update
 _has julia && _manager update-juliaup juliaup self update
+_has ada && _manager update-alire alr -n index --update-all
 _step 2-plan-updated plan
 _step 3-apply-updated apply
 _step 4-verify-updated verify
@@ -213,6 +215,11 @@ if _has maven; then
   _sdk evolve-maven-default default maven 3.9.16
   evolved+=(maven)
 fi
+if _has gradle; then
+  _sdk evolve-gradle install gradle 9.8.0
+  _sdk evolve-gradle-default default gradle 9.8.0
+  evolved+=(gradle)
+fi
 if _has scala; then
   _manager evolve-scala cs install scala:3.8.1 scalac:3.8.1
   evolved+=(scala)
@@ -226,6 +233,10 @@ _step 6-plan-evolved plan
 _step 7-apply-evolved apply
 _step 8-verify-evolved verify
 _step 9-health-evolved verify --health
+# 4. prune against real managers: nothing the evolution added is retired, so
+# it lists nothing and removes nothing.
+_step 10-prune prune
+_step 11-prune-yes prune --yes
 if _has haskell; then
   _manager kept-cabal sh -c \
     'test "$("$HOME/.ghcup/bin/cabal" --numeric-version)" = 3.14.2.0'
@@ -270,6 +281,12 @@ report = {
         if selection != updated["globalSelections"][language]
     ),
     "expectedEvolution": sorted(sys.argv[2:]),
+    # Nothing installed here is retired, so prune finds nothing to remove.
+    "pruneRemovedNothing": [
+        json.loads((log / f"{name}.json").read_text())["retired"]
+        for name in ("10-prune", "11-prune-yes")
+    ]
+    == [[], []],
 }
 (log / "summary.json").write_text(json.dumps(report, indent=2) + "\n")
 print(json.dumps({k: v for k, v in report.items() if k != "steps"}, indent=2))
@@ -278,6 +295,7 @@ ok = (
     and report["applyKeptUpdatedState"]
     and report["applyKeptEvolvedState"]
     and set(report["expectedEvolution"]) <= set(report["evolvedSelections"])
+    and report["pruneRemovedNothing"]
 )
 sys.exit(0 if ok else 1)
 PY

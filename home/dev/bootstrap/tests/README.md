@@ -19,10 +19,17 @@ ecosystem. Each run also selects what that ecosystem requires, as the
 executor's catalog reports it, so `kotlin` runs with `jvm`. Terms an
 ecosystem needs are passed with `--accept` only when `DEV_BOOTSTRAP_ACCEPT`
 lists them (`android-sdk-license` for `android`); otherwise its applies are
-refused, which is itself a check. It writes per-step JSON, durations, disk use and a `summary.json`,
-and fails when the real home's entries or manager selections change, or when
-the second `apply` installs anything. The native package manager stays global;
-the summary lists any package it installed.
+refused, which is itself a check. It writes per-step JSON, durations, disk use
+of every root an adapter fills and a `summary.json`. It fails when the real
+home's entries or manager selections change, when anything is written below a
+manager's default directory in the real home (`~/.android`, `~/.gradle`,
+Coursier's caches and so on), or when the second `apply` installs anything,
+by its releases on disk and by its own events. The native package manager
+stays global; the summary lists any package it installed. On a macOS host
+without the Home Manager profile that provides the Nix compiler drivers,
+`DEV_BOOTSTRAP_TOOLCHAIN` names a build of them
+(`development-bootstrap.nix`'s `toolchain` target), linked as each disposable
+home's profile.
 
 ```sh
 zsh home/dev/bootstrap/tests/qualification/native-adapters.zsh \
@@ -33,20 +40,23 @@ zsh home/dev/bootstrap/tests/qualification/native-adapters.zsh \
 bootstrap coexists with the managers' ordinary evolution, in one root for the
 whole selection. After a from-zero `apply` it runs each manager's own update
 (`rustup update`, `ghcup upgrade`, `elan self update`, `sdk selfupdate`,
-`juliaup self update`, `opam update`, `cs update`), then user evolution: an
-extra release and a changed default where that is cheap (`fnm default 22`,
-`rustup default 1.97.0`, `pyenv global system`, `cs install scala:3.8.1`, and
-so on). After each phase, `apply` must install nothing and change no
-selection, the seeds must pass exact verification and health must pass. With
-`DEV_BOOTSTRAP_PACKAGE_UPGRADES=1` it also upgrades the declared Homebrew
-formulae, or runs `pacman -Syu`, before health: the native ABI drift check.
-Package upgrades are global, so set it only on disposable hosts.
+`juliaup self update`, `opam update`, `cs update`, `alr index --update-all`),
+then user evolution: an extra release and a changed default where that is
+cheap (`fnm default 22`, `rustup default 1.97.0`, `pyenv global system`,
+`sdk default gradle 9.8.0`, `cs install scala:3.8.1`, and so on). After each
+phase, `apply` must install nothing and change no selection, the seeds must
+pass exact verification and health must pass. Last, `prune` and `prune --yes`
+must find nothing retired to remove. With `DEV_BOOTSTRAP_PACKAGE_UPGRADES=1`
+it also upgrades the declared Homebrew formulae, or runs `pacman -Syu`, before
+health: the native ABI drift check. Package upgrades are global, so set it
+only on disposable hosts.
 
 `qualification/native-interruption.zsh` takes `LANGUAGE:SIGINT`,
 `LANGUAGE:SIGTERM` or `LANGUAGE:network[:BYTES]` scenarios, each in a fresh
-root. A signal goes to the executor once the language's installation runs; a
-network scenario routes HTTPS through `cut-proxy.py`, which drops every tunnel
-after the byte budget. The interrupted run must exit with 128 plus the signal
+root. A signal goes to the executor once the language's installation runs
+(each language names the command line that shows it; one without is
+refused); a network scenario routes HTTPS through `cut-proxy.py`, which drops
+every tunnel after the byte budget. The interrupted run must exit with 128 plus the signal
 (2 for the network), leave the lock free and no process behind, and a plain
 retry must complete.
 

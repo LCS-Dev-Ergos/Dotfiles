@@ -33,6 +33,19 @@ typeset -ga guarded=(
 typeset -ga guarded_directories=(
   .local/share/coursier/bin 'Library/Application Support/Coursier/bin'
 )
+# Where a manager, or a runtime it runs, writes in the real home when a root
+# escapes the redirection: anything written below them during the run is a
+# leak, even inside a directory that already existed (the account's
+# ~/.android received sdkmanager's cache that way).
+typeset -ga watched=(
+  .ada .android .cabal .cache/coursier .cache/dev-bootstrap .cargo .conda
+  .config/alire .dotnet .elan .gem .ghcup .gradle .ivy2 .julia .juliaup
+  .local/share/alire .local/share/coursier .local/share/fnm
+  .local/share/npm-global .local/state/dev-bootstrap .m2 .miniforge3 .npm
+  .nuget .opam .pyenv .rbenv .rustup .sbt .sdkman .stack Android
+  Library/Android 'Library/Application Support/Coursier'
+  Library/Caches/Coursier
+)
 
 _snapshot_home() {
   local entry file
@@ -50,6 +63,11 @@ _snapshot_home() {
     for file in "$HOME/$entry"/*(DN.); do
       print -r -- "$entry/${file:t} file $(command cksum < "$file")"
     done
+  done
+  for entry in "${watched[@]}"; do
+    [[ -e "$HOME/$entry" ]] || continue
+    command find "$HOME/$entry" -newer "$log/real-home.marker" \
+      -exec printf 'written %s\n' {} + 2>/dev/null
   done
 }
 
@@ -168,6 +186,8 @@ root="${root:A}"
 command mkdir -p "$log" "$root"/{home,tmp,cache,state,data,config}
 _seed_home "$root/home" || return 2
 log="${log:A}"
+# Everything written into the real home after this is reported.
+: > "$log/real-home.marker"
 if [[ "${DEV_BOOTSTRAP_KEEP_ROOT:-0}" != 1 ]]; then
   trap 'command rm -rf -- "$root"' EXIT
 fi

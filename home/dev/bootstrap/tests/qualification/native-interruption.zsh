@@ -42,6 +42,7 @@ typeset -A installing=(
   kotlin 'dev-bootstrap-sdkman.* install' maven 'dev-bootstrap-sdkman.* install'
   gradle 'dev-bootstrap-sdkman.* install' scala 'cs install' julia
   'juliaup add' dotnet dotnet-install conda Miniforge3
+  ada 'alr .*toolchain --select --local' android 'sdkmanager.* --install'
 )
 typeset bootstrap="${executable:A:h:h}/share/development-bootstrap/bootstrap.py"
 # A non-interactive shell starts background jobs with SIGINT ignored, and
@@ -87,6 +88,11 @@ for scenario in "$@"; do
   budget="${${scenario#*:*:}:-}"
   [[ "$scenario" == *:*:* ]] || budget=$(( 4 * 1024 * 1024 ))
   name="${language}-${kind}"
+  # Without its pattern the harness could not tell when to interrupt.
+  (( ${+installing[$language]} )) || {
+    print -u2 "No installation pattern for $language"
+    return 2
+  }
   _selection "$language" || return 2
   root="$base/$name"
   command mkdir -p "$root"/{home,tmp,cache,state,data,config}

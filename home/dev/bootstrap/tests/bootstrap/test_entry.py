@@ -7,6 +7,7 @@ No real installer, privilege request, daemon mutation or runtime install runs.
 
 import hashlib
 import os
+import re
 import subprocess
 import tempfile
 import unittest
@@ -20,6 +21,14 @@ if not ENTRY.is_file():
     raise unittest.SkipTest(
         "pre-Nix entry is available in the source checkout"
     )
+
+
+# The Nix release the locked nixpkgs carries, which nix-darwin starts from.
+LOCKED_NIX = (
+    "let lock = builtins.fromJSON (builtins.readFile ./flake.lock); in "
+    "(import (builtins.fetchTree "
+    "lock.nodes.${lock.nodes.root.inputs.nixpkgs}.locked) { }).nix.version"
+)
 
 
 class BootstrapEntryTests(unittest.TestCase):
@@ -108,6 +117,31 @@ bootstrap_sdk() { [[ -f "$FIXTURE/has-sdk" ]]; }
                             "daemon",
                         ],
                     )
+
+    def test_installed_nix_is_the_locked_release(self):
+        """--install-foundation installs the Nix the configuration starts from."""
+        pinned = re.search(
+            r"releases\.nixos\.org/nix/nix-([0-9.]+)/install",
+            ENTRY.read_text(),
+        )
+        locked = subprocess.run(
+            [
+                "nix",
+                "--extra-experimental-features",
+                "nix-command",
+                "eval",
+                "--raw",
+                "--impure",
+                "--expr",
+                LOCKED_NIX,
+            ],
+            cwd=ENTRY.parents[2],
+            capture_output=True,
+            text=True,
+            timeout=300,
+            check=True,
+        ).stdout
+        self.assertEqual(pinned.group(1), locked)
 
     def test_runtime_arguments_and_exit_status_are_preserved(self):
         """No shell re-evaluation, lockfile update or implicit apply is introduced."""

@@ -41,7 +41,10 @@ for language in "$@"; do
     name="$language-$index-${step// /}"
     start=$EPOCHREALTIME
     code=0
-    _executor ${=step} "${selection[@]}" --json \
+    # Applies stream their events: the second must start no installation.
+    typeset -a events=()
+    [[ "$step" != apply ]] || events=(--events "$log/$name.events")
+    _executor ${=step} "${selection[@]}" --json "${events[@]}" \
       > "$log/$name.json" 2> "$log/$name.err" || code=$?
     printf '%s\t%s\t%d\t%.1f\n' "$language" "$step" "$code" \
       $(( EPOCHREALTIME - start )) >> "$log/steps.tsv"
@@ -52,22 +55,28 @@ for language in "$@"; do
 done
 _snapshot_home > "$log/real-home-after.txt"
 _snapshot_packages > "$log/packages-after.txt"
+# Every root an adapter may fill: the dot directories, data and caches, and
+# the SDK and Coursier directories macOS and Android keep without a dot.
 command du -sk "$root"/home/.[!.]*(N) "$root"/data/*(N) "$root"/cache/*(N) \
+  "$root"/home/{Android/Sdk,Library/Android/sdk}(N) \
+  "$root"/home/Library/{Caches,'Application Support'}/Coursier(N) \
   > "$log/disk-kib.txt" 2>/dev/null || true
 
 # The second apply must install nothing: its installed releases equal those
 # reported by the verification that preceded it.
-"$analysis" -I - "$log" "$@" <<'PY' || failed=1
+"$analysis" -I - "$log" "$root" "$@" <<'PY' || failed=1
 import json
+import os
 import pathlib
 import sys
 
 log = pathlib.Path(sys.argv[1])
+root = sys.argv[2]
 steps = [line.split("\t") for line in (log / "steps.tsv").read_text().splitlines()]
 disk = {}
 for line in (log / "disk-kib.txt").read_text().splitlines():
     size, path = line.split("\t", 1)
-    disk[pathlib.Path(path).name] = int(size)
+    disk[os.path.relpath(path, root)] = int(size)
 before = set((log / "packages-before.txt").read_text().split())
 after = set((log / "packages-after.txt").read_text().split())
 report = {
@@ -81,13 +90,21 @@ report = {
     == (log / "real-home-after.txt").read_text(),
     "secondApplyInstalledNothing": {},
 }
-for language in sys.argv[2:]:
+for language in sys.argv[3:]:
     try:
         verified = json.loads((log / f"{language}-3-verify.json").read_text())
         repeated = json.loads((log / f"{language}-5-apply.json").read_text())
+        events = [
+            json.loads(line)["event"]
+            for line in (log / f"{language}-5-apply.events").read_text().splitlines()
+        ]
+        # Neither the releases on disk nor the run's own events show work;
+        # the events also cover what `installed` cannot list (Conda's base).
         same = (
             verified["observed"]["installed"]
             == repeated["observed"]["installed"]
+            and "run-finish" in events
+            and not {"ecosystem-start", "packages-start"} & set(events)
         )
     except (OSError, ValueError, KeyError):
         same = False
