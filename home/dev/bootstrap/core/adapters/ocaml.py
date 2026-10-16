@@ -23,6 +23,7 @@ class OcamlAdapter(Adapter):
     cost = "medium"
     manager_name = "opam"
     compiles = True
+    records_compiler = True
 
     def resolve_roots(self):
         return {"OPAMROOT": self.locate("OPAMROOT", Path.home() / ".opam")}
@@ -205,7 +206,7 @@ class OcamlAdapter(Adapter):
                 "opamCreate", switch=switch, version=row["version"]
             ),
             timeout=timeouts["ocaml"],
-            env=self.recipe.get("buildEnvironment", {}),
+            env=self.build_environment,
             source_build=True,
         )
         row["path"] = str(self.root / switch / "bin/ocamlc")

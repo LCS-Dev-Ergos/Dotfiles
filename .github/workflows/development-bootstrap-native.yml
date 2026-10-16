@@ -89,8 +89,11 @@ jobs:
         platform: [macOS, Arch container]
         group: ${{ fromJSON(needs.groups.outputs.groups) }}
         include:
+          # macOS builds target the deployment target the compiler drivers
+          # declare (home/dev/toolchains/cc-toolchain.nix), so their canaries
+          # run only on a release at least as new.
           - platform: macOS
-            os: macos-15
+            os: macos-26
           - platform: Arch container
             os: ubuntu-24.04
     env:
@@ -119,6 +122,18 @@ jobs:
             --no-link --print-out-paths)
           echo "DEV_BOOTSTRAP=$package/bin/dev-bootstrap" >> "$GITHUB_ENV"
           mkdir -p "$RUNNER_TEMP/native"
+
+      # macOS source builds record the Nix compiler drivers a Home Manager
+      # profile provides; the runner has none, so the harness links this
+      # build as each disposable home's profile.
+      - name: Build the compiler drivers
+        if: runner.os == 'macOS'
+        run: |
+          toolchain=$(nix --extra-experimental-features 'nix-command flakes' \
+            build --impure \
+            --expr 'import ./scripts/bootstrap/development-bootstrap.nix { target = "toolchain"; }' \
+            --no-link --print-out-paths)
+          echo "DEV_BOOTSTRAP_TOOLCHAIN=$toolchain" >> "$GITHUB_ENV"
 
       - name: Run the harness on macOS
         if: runner.os == 'macOS'

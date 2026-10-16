@@ -7,6 +7,7 @@ import fcntl
 import io
 import json
 import os
+import pwd
 import re
 import shlex
 import shutil
@@ -1278,6 +1279,71 @@ class SetupTests(unittest.TestCase):
         self.events.clear()
         self.setup.apply()
         self.assertFalse(any("rehash" in e for e in self.events))
+
+    def test_which_runtimes_need_the_sdk_and_the_declared_compiler(self):
+        # GNAT and rustc link with the platform's linker; only runtimes that
+        # record their configure-time compiler need the declared one.
+        self.assertEqual(
+            sorted(name for name, a in ADAPTERS.items() if a.compiles),
+            ["ada", "haskell", "ocaml", "python", "ruby", "rust"],
+        )
+        self.assertEqual(
+            sorted(name for name, a in ADAPTERS.items() if a.records_compiler),
+            ["haskell", "ocaml", "python", "ruby"],
+        )
+
+    def test_macos_source_builds_record_the_profile_compiler(self):
+        store = self.root / "store"
+        drivers = store / "drivers/bin"
+        for name in ("clang", "clang++"):
+            self.executable(drivers / name)
+        per_user = self.root / "profiles/per-user"
+        profile = per_user / pwd.getpwuid(os.geteuid()).pw_name
+        (profile / "bin").mkdir(parents=True)
+        self.data["setup"].update(
+            compilerProfiles=[str(per_user / "{USER}"), "{HOME}/.nix-profile"],
+            buildEnvironment={
+                "CC": "{compiler}/bin/clang",
+                "CXX": "{compiler}/bin/clang++",
+                "PATH": "/fixture/native",
+            },
+        )
+        with patch("core.engine.NIX_STORE", store):
+            # No profile provides the drivers: the compiler is left out, and
+            # apply stops before any package for the runtimes recording it.
+            self.assertIsNone(self.recovery.compiler_profile())
+            self.assertEqual(
+                self.recovery.build_environment(), {"PATH": "/fixture/native"}
+            )
+            self.assertEqual(self.setup.preflight()["compiler"], "missing")
+            with self.assertRaisesRegex(
+                BootstrapError, "activate the configuration"
+            ):
+                self.setup.apply()
+            self.assertEqual(self.mutations(), [])
+            # Drivers from outside the store are not the declared ones.
+            home_profile = Path.home() / ".nix-profile/bin"
+            for name in ("clang", "clang++"):
+                self.executable(home_profile / name)
+            self.assertIsNone(self.recovery.compiler_profile())
+            # The first profile holding the store's drivers serves, by the
+            # profile path a runtime then records.
+            for name in ("clang", "clang++"):
+                (profile / "bin" / name).symlink_to(drivers / name)
+            self.assertEqual(self.recovery.compiler_profile(), profile)
+            self.assertEqual(
+                self.recovery.build_environment(),
+                {
+                    "CC": f"{profile}/bin/clang",
+                    "CXX": f"{profile}/bin/clang++",
+                    "PATH": "/fixture/native",
+                },
+            )
+            self.assertEqual(self.setup.preflight()["compiler"], "present")
+        # Node alone records no compiler, so nothing asks for one.
+        self.scope(["node"])
+        with patch("core.engine.NIX_STORE", store):
+            self.assertNotIn("compiler", self.setup.preflight())
 
     def test_missing_foundation_or_sdk_precedes_package_mutation(self):
         self.failure = lambda args: Path(args[0]).name == "xcrun"

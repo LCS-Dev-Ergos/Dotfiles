@@ -81,13 +81,15 @@ shell, compares the evaluated `homebrew.brews`, `homebrew.casks` and
   nonzero exit status means the report contains drift or a precedence problem.
 
 On macOS, pyenv's `python-build` compiles CPython with the Nix compiler drivers
-against Apple's SDK. The external libraries it links against are declared in
-`darwin/homebrew.nix` and found through Homebrew and pkg-config; they do not
-belong in the compiler package. Tcl/Tk 8 is declared for tkinter. The
-development bootstrap declares build dependencies per ecosystem in
-`home/dev/native-managers.nix` and installs them through Homebrew or pacman, so
-it also works before nix-darwin is active. A project that needs a fully pinned
-Python environment uses a development shell in its own flake instead.
+against Apple's SDK, from the shell and from the development bootstrap alike.
+Both name the drivers by their Home Manager profile path, so the compiler a
+runtime records keeps working across generations. The external libraries it
+links against are declared in `darwin/homebrew.nix` and found through Homebrew
+and pkg-config; they do not belong in the compiler package. Tcl/Tk 8 is
+declared for tkinter. The development bootstrap declares build dependencies
+per ecosystem in `home/dev/native-managers.nix` and installs them through
+Homebrew or pacman. A project that needs a fully pinned Python environment
+uses a development shell in its own flake instead.
 
 ### Compiler Toolchains
 
@@ -163,9 +165,10 @@ installs a missing Homebrew and Nix (see
 ## Bootstrap and Installation
 
 Installation has two independent stages. The development bootstrap installs
-language runtimes and can run before any configuration is active. Activation
-applies the system and Home Manager configuration. Neither stage invokes the
-other.
+language runtimes and can run before any configuration is active, except on
+macOS for Python, Ruby, OCaml and Haskell: their builds record the Nix
+compiler drivers that the active configuration provides. Activation applies
+the system and Home Manager configuration. Neither stage invokes the other.
 
 ### Clone
 

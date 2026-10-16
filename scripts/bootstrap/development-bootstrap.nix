@@ -23,6 +23,14 @@ let
       pkgs.statix
     ];
   };
+  # The Nix compiler drivers macOS source builds use, for a host whose Home
+  # Manager profile does not provide them yet (the native CI runner, whose
+  # harness links this as its disposable home's profile). Runtime libraries
+  # stay referenced in the store: no home directory relocates them.
+  targets.toolchain = pkgs.callPackage ../../home/dev/toolchains/llvm/package.nix {
+    ccToolchain = import ../../home/dev/toolchains/cc-toolchain.nix pkgs;
+    homeDirectory = null;
+  };
   # scripts/updates/update-runtime-baseline.py reads GHCup's YAML metadata.
   targets.freshness = pkgs.mkShellNoCC {
     packages = [ (pkgs.python3.withPackages (python: [ python.pyyaml ])) ];

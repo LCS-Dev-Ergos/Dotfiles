@@ -54,7 +54,7 @@ class ToolchainAdapter(Adapter):
     def invoke(self, *arguments, timeout=7200):
         return process.run(
             [str(self.manager()), *arguments],
-            env=self.recipe.get("buildEnvironment", {}) | self.environment(),
+            env=self.build_environment | self.environment(),
             source_build=True,
             cwd=str(self.context.state),
             timeout=timeout,
@@ -139,7 +139,7 @@ class ToolchainAdapter(Adapter):
     def install_manager(self, recipe, payload, directory):
         """Run a verified installer script with its declared arguments."""
         environment = (
-            self.recipe.get("buildEnvironment", {})
+            self.build_environment
             | self.environment()
             | recipe.get("environment", {})
         )
@@ -230,10 +230,7 @@ class ToolchainAdapter(Adapter):
 
     def canary(self, row, path, *, complete):
         """Small local compiler/interpreter probes, with no package resolution."""
-        environment = (
-            self.recipe.get("buildEnvironment", {})
-            | self.runtime_environment()
-        )
+        environment = self.build_environment | self.runtime_environment()
         with tempfile.TemporaryDirectory(prefix="native-canary-") as directory:
 
             def call(args):

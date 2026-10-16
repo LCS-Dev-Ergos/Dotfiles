@@ -142,6 +142,23 @@ _selection() {
   done
 }
 
+# -----------------------------------------------------------------------------
+# _seed_home
+# @description Gives a disposable home what the host's configuration would.
+#   macOS source builds record the Nix compiler drivers of a Home Manager
+#   profile; on a host without one (the CI runner) DEV_BOOTSTRAP_TOOLCHAIN
+#   names a build of them, linked as the home's profile.
+# @arg $1 path The disposable home.
+# -----------------------------------------------------------------------------
+_seed_home() {
+  [[ -n "${DEV_BOOTSTRAP_TOOLCHAIN:-}" ]] || return 0
+  [[ -x "$DEV_BOOTSTRAP_TOOLCHAIN/bin/clang" ]] || {
+    print -u2 "Not a compiler driver build: $DEV_BOOTSTRAP_TOOLCHAIN"
+    return 2
+  }
+  command ln -s "$DEV_BOOTSTRAP_TOOLCHAIN" "$1/.nix-profile"
+}
+
 # The root is created here, at the sourcing script's top level: an EXIT trap
 # set inside a function would run when that function returns.
 typeset root
@@ -149,6 +166,7 @@ root="$(mktemp -d "${TMPDIR:-/tmp}/bootstrap-native-adapters.XXXXXX")" || return
 root="${root:A}"
 [[ -d "$root" && "$root:t" == bootstrap-native-adapters.* ]] || return 1
 command mkdir -p "$log" "$root"/{home,tmp,cache,state,data,config}
+_seed_home "$root/home" || return 2
 log="${log:A}"
 if [[ "${DEV_BOOTSTRAP_KEEP_ROOT:-0}" != 1 ]]; then
   trap 'command rm -rf -- "$root"' EXIT

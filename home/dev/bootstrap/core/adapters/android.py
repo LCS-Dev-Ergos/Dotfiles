@@ -136,7 +136,7 @@ class AndroidAdapter(JdkTool, ToolchainAdapter):
     def invoke(self, *arguments, timeout=3600, answers=None):
         return process.run(
             [str(self.manager()), f"--sdk_root={self.root}", *arguments],
-            env=self.recipe.get("buildEnvironment", {})
+            env=self.build_environment
             | self.environment()
             | {
                 "JAVA_HOME": str(self.java_home()),
@@ -417,7 +417,7 @@ class AndroidAdapter(JdkTool, ToolchainAdapter):
         with tempfile.TemporaryDirectory(prefix="native-canary-") as directory:
             work = Path(directory)
             # Scratch home: adb creates ~/.android even for `version`.
-            environment = self.recipe.get("buildEnvironment", {}) | {
+            environment = self.build_environment | {
                 "HOME": directory,
                 "ANDROID_USER_HOME": str(work / ".android"),
             }

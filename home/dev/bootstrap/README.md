@@ -240,8 +240,15 @@ interface's PATH discovery.
 `run(..., source_build=True)` starts from an allowlist of account, temporary,
 PATH, proxy and certificate variables. Compiler, SDK, flags and package-search
 settings must come from the platform's `buildEnvironment`, not a project
-shell. SDK probing uses the same policy. Ordinary manager commands retain
-their existing environment filtering. Absolute manager paths avoid
+shell. SDK probing uses the same policy. On macOS the compiler is the Nix host
+drivers: `buildEnvironment` names it `{compiler}`, bound to the first
+`compilerProfiles` entry whose `clang` and `clang++` come from the Nix store.
+That is the profile path the shell's `CC` names, so what a runtime records
+(sysconfig, rbconfig, OCaml's and GHC's settings) survives every generation,
+and `MACOSX_DEPLOYMENT_TARGET` comes from `cc-toolchain.nix`. Without such a
+profile, an apply that would build Python, Ruby, OCaml or Haskell stops in its
+prerequisites stage, and `plan --preflight` reports the compiler missing.
+Ordinary manager commands retain their existing environment filtering. Absolute manager paths avoid
 process-global PATH changes. An intentional SDK override belongs in the
 declaration; inherited `SDKROOT` and `DEVELOPER_DIR` are not build inputs.
 

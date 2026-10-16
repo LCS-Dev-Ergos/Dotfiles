@@ -64,7 +64,7 @@ class DotnetAdapter(ToolchainAdapter):
         """Run the muxer with a scratch home, never the real ~/.dotnet state."""
         return process.run(
             [str(self.manager()), *map(str, arguments)],
-            env=self.recipe.get("buildEnvironment", {})
+            env=self.build_environment
             | self.environment()
             | CLI_ENVIRONMENT
             | {

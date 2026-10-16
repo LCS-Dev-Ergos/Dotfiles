@@ -32,6 +32,7 @@ class PythonAdapter(Adapter):
     manager_name = "pyenv"
     runtime_directory = "versions"
     compiles = True
+    records_compiler = True
 
     def resolve_roots(self):
         return {
@@ -183,7 +184,7 @@ class PythonAdapter(Adapter):
                 ),
             ],
             env={
-                **self.recipe.get("buildEnvironment", {}),
+                **self.build_environment,
                 "PYENV_ROOT": str(self.root),
             },
             source_build=True,

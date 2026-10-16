@@ -49,6 +49,9 @@ class AdaAdapter(ToolchainAdapter):
     primary_component = "gnat"
     cost = "medium"
     manager_name = "alr"
+    # GNAT links with the platform's linker, and alr clones its index with
+    # the platform's git: both come with the Apple developer tools.
+    compiles = True
 
     @classmethod
     def validate_declaration(cls, spec):
@@ -129,7 +132,7 @@ class AdaAdapter(ToolchainAdapter):
     def invoke(self, *arguments, timeout=7200, cwd=None):
         return process.run(
             [str(self.manager()), *SWITCHES, *arguments],
-            env=self.recipe.get("buildEnvironment", {}) | self.environment(),
+            env=self.build_environment | self.environment(),
             source_build=True,
             cwd=str(cwd or self.context.state),
             timeout=timeout,
@@ -249,14 +252,14 @@ class AdaAdapter(ToolchainAdapter):
             )
         return selected
 
-    def build_environment(self, *directories):
+    def canary_environment(self, *directories):
         """The build environment with these toolchain directories first.
 
         Nothing else is added: the canary builds the way a plain `alr build`
         does, so a GNAT that cannot find the SDK or target this macOS fails
         here instead of in a project.
         """
-        environment = self.recipe.get("buildEnvironment", {})
+        environment = self.build_environment
         search = os.pathsep.join(
             [*(str(directory) for directory in directories)]
             + [environment.get("PATH", "/usr/bin:/bin")]
@@ -268,7 +271,7 @@ class AdaAdapter(ToolchainAdapter):
         gprbuild = row.get("component") == "gprbuild"
         compiler = self.compiler() if gprbuild else path
         self.check_runtime(compiler)
-        environment = self.build_environment(
+        environment = self.canary_environment(
             *dict.fromkeys((path.parent, compiler.parent))
         )
         with tempfile.TemporaryDirectory(prefix="native-canary-") as directory:

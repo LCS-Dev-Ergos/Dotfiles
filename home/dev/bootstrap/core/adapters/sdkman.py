@@ -66,7 +66,7 @@ class SdkmanAdapter(LinkedToolchain):
                 str(self.manager()),
                 *arguments,
             ],
-            env=self.recipe.get("buildEnvironment", {}) | self.environment(),
+            env=self.build_environment | self.environment(),
             source_build=True,
             cwd="/",
             timeout=timeout,

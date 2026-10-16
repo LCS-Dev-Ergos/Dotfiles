@@ -165,8 +165,7 @@ class RubyRetirer(ToolchainRetirer):
                 "--no-document",
                 *(f"{name}:{version}" for name, version in gems.items()),
             ],
-            env=self.adapter.recipe.get("buildEnvironment", {})
-            | self.adapter.environment(),
+            env=self.context.build_environment() | self.adapter.environment(),
             source_build=True,
             cwd=str(self.context.state),
             timeout=3600,

@@ -40,6 +40,10 @@ class Adapter:
     runtime_directory = None
     # Missing runtimes compile natively and need the platform SDK.
     compiles = False
+    # Missing runtimes record the C compiler they were configured with
+    # (CPython's sysconfig, rbconfig, OCaml's and GHC's settings), so they
+    # need the declared one, not whichever cc the host has.
+    records_compiler = False
     # The manager script is sourced rather than executed (SDKMAN).
     sourced_manager = False
     # The manager keeps a global selection, which apply initializes to the
@@ -123,6 +127,11 @@ class Adapter:
     @property
     def recipe(self):
         return self.context.data.get("setup", {})
+
+    @property
+    def build_environment(self):
+        """The declared compiler, SDK and search path for native builds."""
+        return self.context.build_environment()
 
     def environment(self):
         return {name: str(path) for name, path in self.roots.items()}

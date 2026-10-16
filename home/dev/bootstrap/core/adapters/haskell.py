@@ -26,6 +26,7 @@ class HaskellAdapter(LinkedToolchain):
     selection_link = "bin/ghc"
     identity_arguments = ("--numeric-version",)
     compiles = True
+    records_compiler = True
 
     @classmethod
     def validate_declaration(cls, spec):

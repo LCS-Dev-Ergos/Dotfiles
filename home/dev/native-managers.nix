@@ -257,9 +257,19 @@ in
         "/usr/bin/xcrun"
         "--show-sdk-path"
       ];
+      # Source builds compile with the Nix host drivers of
+      # home/dev/toolchains/llvm, named by the profile path the shell's CC
+      # names too: what a runtime records (CPython's sysconfig, rbconfig,
+      # OCaml's and GHC's settings) then survives every generation, and a
+      # rebuild from the shell uses the same compiler. The first profile
+      # that provides them serves; package.nix adds the deployment target.
+      compilerProfiles = [
+        "/etc/profiles/per-user/{USER}"
+        "{HOME}/.nix-profile"
+      ];
       buildEnvironment = {
-        CC = "/usr/bin/cc";
-        CXX = "/usr/bin/c++";
+        CC = "{compiler}/bin/clang";
+        CXX = "{compiler}/bin/clang++";
         PATH = "/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin";
       };
     };

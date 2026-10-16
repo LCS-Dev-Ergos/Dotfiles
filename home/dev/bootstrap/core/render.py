@@ -57,6 +57,11 @@ RETIRED_TONES = {
 }
 NOT_HEALTHY = ("pending", "warn", "error", "muted")
 FAILING = ("warn", "error")
+# What to do when no profile provides the compiler macOS builds record.
+COMPILER_FIX = (
+    "activate the configuration: its Home Manager profile provides the "
+    "Nix compiler drivers"
+)
 
 # The name and version always stay; the state folds under the row when it
 # must go, and so does the location of a failing row. A location shorter
@@ -491,6 +496,19 @@ def _preflight(result, name):
                             label="fix",
                         )
                     ],
+                )
+            )
+
+    if "compiler" in preflight:
+        if preflight["compiler"] == "present":
+            rows.append(Row(["C compiler", Cell("present", ui.MUTED)], "ok"))
+        else:
+            blocked = True
+            rows.append(
+                Row(
+                    ["C compiler", _state("missing", "error")],
+                    "error",
+                    [Note(COMPILER_FIX, ui.ACCENT, label="fix")],
                 )
             )
 

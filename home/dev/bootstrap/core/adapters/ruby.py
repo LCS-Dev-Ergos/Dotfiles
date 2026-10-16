@@ -16,6 +16,7 @@ class RubyAdapter(ToolchainAdapter):
     manager_name = "rbenv"
     runtime_directory = "versions"
     compiles = True
+    records_compiler = True
 
     def resolve_roots(self):
         return {

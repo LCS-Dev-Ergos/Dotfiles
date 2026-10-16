@@ -15,6 +15,11 @@ from .errors import BootstrapError
 from .paths import NIX_STORE
 
 STAGES = ("prerequisites", "readiness", "runtimes", "defaults", "shell")
+COMPILER_MISSING = (
+    "Runtimes built here record their C compiler, the Nix drivers of "
+    "home/dev/toolchains/llvm, which no Home Manager profile provides yet: "
+    "activate the configuration, then apply again"
+)
 
 
 class BootstrapSetup:
@@ -120,21 +125,33 @@ class BootstrapSetup:
             required[adapter.language] = packages
         return required
 
-    def needs_sdk(self, rows):
-        """Whether a runtime to install builds from source against the SDK."""
+    def building(self, rows, need):
+        """Whether a runtime to install belongs to an adapter with `need`."""
         incomplete = {
             row["language"] for row in rows if row["state"] != "present"
         }
-        return bool(self.recipe["sdkProbe"]) and any(
-            adapter.compiles and adapter.language in incomplete
+        return any(
+            getattr(adapter, need) and adapter.language in incomplete
             for adapter in self.adapters
+        )
+
+    def needs_sdk(self, rows):
+        """Whether a runtime to install builds from source against the SDK."""
+        return bool(self.recipe["sdkProbe"]) and self.building(
+            rows, "compiles"
+        )
+
+    def needs_compiler(self, rows):
+        """Whether a runtime to install records the declared C compiler."""
+        return bool(self.recipe.get("compilerProfiles")) and self.building(
+            rows, "records_compiler"
         )
 
     def sdk_present(self, **options):
         try:
             sdk = process.run(
                 self.recipe["sdkProbe"],
-                env=self.recipe.get("buildEnvironment", {}),
+                env=self.context.build_environment(),
                 source_build=True,
                 **options,
             )
@@ -149,6 +166,11 @@ class BootstrapSetup:
             raise BootstrapError(
                 "Install/select Apple developer tools and accept their license"
             )
+        if (
+            self.needs_compiler(rows)
+            and self.context.compiler_profile() is None
+        ):
+            raise BootstrapError(COMPILER_MISSING)
         if required:
             self.install_packages(required)
         for adapter in self.adapters:
@@ -233,6 +255,9 @@ class BootstrapSetup:
             result["sdk"] = (
                 "present" if self.sdk_present(cwd=directory) else "missing"
             )
+        if self.needs_compiler(rows):
+            profile = self.context.compiler_profile()
+            result["compiler"] = "missing" if profile is None else "present"
         return result
 
     def install_packages(self, required):

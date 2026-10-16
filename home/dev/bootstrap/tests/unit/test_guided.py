@@ -308,6 +308,7 @@ class ReviewTests(GoldenCase):
     def test_blockers(self):
         result = copy.deepcopy(REVIEWED)
         result["preflight"]["sdk"] = "missing"
+        result["preflight"]["compiler"] = "missing"
         result["preflight"]["ecosystems"][0]["unbuildable"] = ["26.11.1"]
         result["runtimes"][2].update(
             state="conflict",
@@ -317,8 +318,19 @@ class ReviewTests(GoldenCase):
         found = blockers(result)
         self.assertEqual(
             [item for item, _, _ in found],
-            ["Apple SDK", "Node 26.11.1", "Python 3.14.8", "JVM 21.0.12.1"],
+            [
+                "Apple SDK",
+                "C compiler",
+                "Node 26.11.1",
+                "Python 3.14.8",
+                "JVM 21.0.12.1",
+            ],
         )
+        self.assertIn("activate the configuration", found[1][2])
+        self.assertIn(
+            "activate the configuration", "\n".join(self.plain(result))
+        )
+        found = found[:1] + found[2:]
         self.assertEqual(
             found[1][1:],
             ("fnm cannot build it", "upgrade fnm, then run setup again"),

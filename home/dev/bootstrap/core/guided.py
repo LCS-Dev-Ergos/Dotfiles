@@ -21,6 +21,7 @@ from .prompt import Cancelled
 from .runs import recorded_runs, stored_report
 from .selection import save_selection
 from .render import (
+    COMPILER_FIX,
     NOT_HEALTHY,
     RUNTIME_STATES,
     cost_text,
@@ -517,6 +518,8 @@ def blockers(result):
                 "install the Apple developer tools and accept their license",
             )
         )
+    if preflight.get("compiler") == "missing":
+        found.append(("C compiler", "missing", COMPILER_FIX))
     name = namer(result)
     managers = {
         entry["language"]: entry.get("manager") or "its manager"

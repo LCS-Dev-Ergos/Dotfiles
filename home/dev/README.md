@@ -87,6 +87,9 @@ the six additional ecosystems. Supported Git pyenv installations take precedence
 over host packages consistently in setup, installation and shell checks.
 Native builds accept compiler/SDK overrides only from the declared platform
 environment, preserving account paths and proxy/certificate transport settings.
+On macOS that compiler is the Nix host drivers by their Home Manager profile
+path, as in the shell, so Python, Ruby, OCaml and Haskell wait for an active
+configuration.
 
 ## Reproducibility Boundary
 

@@ -90,6 +90,7 @@ for scenario in "$@"; do
   _selection "$language" || return 2
   root="$base/$name"
   command mkdir -p "$root"/{home,tmp,cache,state,data,config}
+  _seed_home "$root/home" || return 2
   print -r -- "== $scenario"
   case "$kind" in
     SIGINT|SIGTERM)

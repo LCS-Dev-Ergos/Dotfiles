@@ -1,5 +1,6 @@
 {
   lib,
+  pkgs,
   bash,
   makeWrapper,
   python3,
@@ -31,11 +32,19 @@ let
   };
   recipe = nativeManagers.bootstrap.${system};
   sdkmanShell = lib.getExe bash;
+  # The deployment target the compiler drivers and the shell use, so a
+  # runtime built here records the same one (wheel tags, rbconfig).
+  inherit (import ../toolchains/cc-toolchain.nix pkgs) darwinDeploymentTarget;
   manifest = baseline // {
     platform = system;
     backend = runtimeManagerBackend;
     inherit policy;
     setup = recipe // {
+      buildEnvironment =
+        recipe.buildEnvironment
+        // lib.optionalAttrs stdenvNoCC.hostPlatform.isDarwin {
+          MACOSX_DEPLOYMENT_TARGET = darwinDeploymentTarget;
+        };
       shell = lib.getExe zsh;
       inherit sdkmanShell;
       installers = recipe.installers // {
