@@ -188,8 +188,25 @@ _seed_home "$root/home" || return 2
 log="${log:A}"
 # Everything written into the real home after this is reported.
 : > "$log/real-home.marker"
+# The executor's run records keep each stage's whole output, which the step
+# logs only tail; they go with the logs before the root goes.
+_keep_runs() {
+  [[ ! -d "$root/state/dev-bootstrap/runs" ]] ||
+    command cp -R "$root/state/dev-bootstrap/runs" "$log/runs" 2>/dev/null
+  return 0
+}
 if [[ "${DEV_BOOTSTRAP_KEEP_ROOT:-0}" != 1 ]]; then
-  trap 'command rm -rf -- "$root"' EXIT
+  trap '_keep_runs; command rm -rf -- "$root"' EXIT
+else
+  trap '_keep_runs' EXIT
+fi
+# The host toolchain a source build meets, for reading a failure later.
+if [[ "$OSTYPE" == darwin* ]]; then
+  {
+    print -r -- "developer directory: $(/usr/bin/xcode-select -p 2>&1)"
+    print -r -- "linker: $(/usr/bin/ld -v 2>&1 | head -n 1)"
+    print -r -- "SDKs: $(command ls /Library/Developer/CommandLineTools/SDKs 2>&1 | tr '\n' ' ')"
+  } > "$log/host.txt"
 fi
 trap 'exit 130' INT TERM HUP
 print -r -- "root=$root"

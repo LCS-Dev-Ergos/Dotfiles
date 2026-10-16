@@ -316,11 +316,16 @@ class AdaAdapter(ToolchainAdapter):
                     timeout=300,
                 )
 
+            # The driver prints its linker command (-largs -v) into the log:
+            # a link that fails on a host's SDK or linker then shows what ran.
             if gprbuild:
                 (work / "canary.gpr").write_text(PROJECT)
-                call([path, "-q", "-P", work / "canary.gpr"])
+                call([path, "-q", "-P", work / "canary.gpr", "-largs", "-v"])
             else:
-                call([path.parent / "gnatmake", "-q", "canary.adb"])
+                call(
+                    [path.parent / "gnatmake", "-q", "canary.adb"]
+                    + ["-largs", "-v"]
+                )
             output = call([work / "canary"])
         if output != "bootstrap-ok":
             raise BootstrapError(f"ada runtime canary failed: {output}")

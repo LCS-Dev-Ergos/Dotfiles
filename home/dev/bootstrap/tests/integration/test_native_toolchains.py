@@ -1458,6 +1458,8 @@ class NativeTransitions(unittest.TestCase):
                     self.assertEqual(
                         build[0][0], str(gnat.parent / "gnatmake")
                     )
+                # The link prints its command into the log.
+                self.assertEqual(build[0][-2:], ["-largs", "-v"])
                 self.assertEqual(Path(launch[0][0]).name, "canary")
 
     def test_alire_archive_places_only_its_launcher(self):
