@@ -28,15 +28,16 @@ state and cache move from `devrestore` to `dev-bootstrap` once, on the first
 `apply`.
 Neither activation nor shell startup performs provisioning.
 
-The bootstrap covers Node, Python and OCaml, plus the six native toolchain
+The bootstrap covers Node, Python and OCaml, plus the native toolchain
 integrations below. Isolated contract tests exercise empty roots, reruns,
 evolved selections, stage failures and the production Zsh adapters. Acceptance
 on a clean supported host, native dependency retention, deployed-shell
 acceptance and a NixOS target are separate qualification requirements.
 
-Six native toolchain integrations cover Rust, GHC/Cabal, Lean/Lake, Ruby, Java
-and Julia. Their exact identities, with the SDKMAN candidate beside the Java
-release, live in `runtime-baseline.nix`; this README does not repeat them.
+Native toolchain integrations cover Rust, GHC/Cabal, Lean/Lake, Ruby, Java
+and Julia, then the ecosystems below. Their exact identities, with the SDKMAN
+candidate beside the Java release, live in `runtime-baseline.nix`; this README
+does not repeat them.
 
 The core language set includes HLS in GHCup's rows, with a server for the
 declared GHC, and Kotlin, Maven and Gradle as SDKMAN adapters that require
@@ -82,8 +83,8 @@ runtime prefixes remain outside the store. Ordinary upgrades and project
 selection stay with the native ecosystem managers.
 
 The [bootstrap integration contract](bootstrap/README.md) defines manager
-resolution, source-build isolation, shared test boundaries and the model for
-the six additional ecosystems. Supported Git pyenv installations take precedence
+resolution, source-build isolation, shared test boundaries and the model every
+toolchain adapter follows. Supported Git pyenv installations take precedence
 over host packages consistently in setup, installation and shell checks.
 Native builds accept compiler/SDK overrides only from the declared platform
 environment, preserving account paths and proxy/certificate transport settings.

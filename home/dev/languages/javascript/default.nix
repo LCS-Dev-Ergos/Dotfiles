@@ -13,8 +13,8 @@
   # standalone binary in ~/.local/bin, OpenCode an npm global install
   # (opencode-ai) at ~/.local/share/npm-global; both sit ahead of the Nix
   # profile on PATH, so their releases update directly instead of through a
-  # flake bump. scripts/opencode-update.sh is retained but no longer wired
-  # into any module.
+  # flake bump. home/cli/cli-tools/scripts/opencode-update.sh is retained but
+  # no longer wired into any module.
   #
   # Native hosts transfer FNM only after the replacement has been verified.
   # Keep the old manager during this explicit transition. NixOS consumers

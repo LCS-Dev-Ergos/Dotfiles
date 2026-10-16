@@ -197,7 +197,6 @@ in
       documentation = "https://archlinux.org/packages/extra/x86_64/fnm/";
       destination = "/usr/bin/fnm";
     };
-    buildPrerequisites = archPythonPackages;
   };
   # Explicit post-Nix bootstrap routes; no OS foundation or system upgrade.
   bootstrap = {

@@ -5,7 +5,6 @@ import json
 import os
 import signal
 import sys
-import tarfile
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -296,12 +295,7 @@ def run(args, setups):
             recorder.finish(result, code)
         report(result, args.format)
         return code
-    except (
-        BootstrapError,
-        OSError,
-        ValueError,
-        tarfile.TarError,
-    ) as error:
+    except (BootstrapError, OSError, ValueError) as error:
         # The message may quote a child's output: its control characters
         # must not drive the terminal.
         print(f"dev-bootstrap: {sanitize_lines(error)}", file=sys.stderr)

@@ -6,7 +6,6 @@ behind the explicit bootstrap entry, never shell startup.
 
 import os
 import shlex
-import tarfile
 import tempfile
 from pathlib import Path
 
@@ -538,12 +537,7 @@ class BootstrapSetup:
                     "defaults", lambda: (self.defaults(), self.hooks())
                 )
                 selections = self.run_stage("shell", self.qualify)
-        except (
-            BootstrapError,
-            OSError,
-            ValueError,
-            tarfile.TarError,
-        ) as error:
+        except (BootstrapError, OSError, ValueError) as error:
             raise BootstrapError(
                 f"{self.stage}: {error}. Retry apply after resolving this "
                 "stage; plan reports any incomplete installation."

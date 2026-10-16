@@ -120,8 +120,9 @@ export BUN_INSTALL="$HOME/.bun"
 
 # ---------- Android SDK ------------- #
 # Android Studio's default SDK location, unless one is set already; it is
-# also where dev-bootstrap installs the SDK. 90-path.zsh adds adb and
-# sdkmanager from it.
+# also where dev-bootstrap installs the SDK. 90-path.zsh adds adb from it, and
+# sdkmanager from cmdline-tools/latest when Android Studio installed one;
+# dev-bootstrap keeps its own sdkmanager off PATH.
 if [[ "$PLATFORM" == 'macOS' ]]; then
   export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
 else

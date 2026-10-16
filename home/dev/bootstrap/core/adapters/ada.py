@@ -218,6 +218,12 @@ class AdaAdapter(ToolchainAdapter):
         ]
 
     def prefix(self, row):
+        """The deployed directory, which only a finished deployment names.
+
+        alr fetches, checks and unpacks a release into a temporary sibling
+        and renames it into place, so an interruption leaves no partial
+        directory under this name and there is nothing to journal.
+        """
         prefix = Path(row["path"]).parent.parent
         return prefix if DEPLOYED.fullmatch(prefix.name) else None
 

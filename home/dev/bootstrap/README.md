@@ -248,9 +248,10 @@ That is the profile path the shell's `CC` names, so what a runtime records
 and `MACOSX_DEPLOYMENT_TARGET` comes from `cc-toolchain.nix`. Without such a
 profile, an apply that would build Python, Ruby, OCaml or Haskell stops in its
 prerequisites stage, and `plan --preflight` reports the compiler missing.
-Ordinary manager commands retain their existing environment filtering. Absolute manager paths avoid
-process-global PATH changes. An intentional SDK override belongs in the
-declaration; inherited `SDKROOT` and `DEVELOPER_DIR` are not build inputs.
+Ordinary manager commands retain their existing environment filtering.
+Absolute manager paths avoid process-global PATH changes. An intentional SDK
+override belongs in the declaration; inherited `SDKROOT` and `DEVELOPER_DIR`
+are not build inputs.
 
 Mutable roots, caches and locks remain outside the repository and store.
 Bootstrap's own state (`apply.lock`, `installing.json`, `runs/`) lives in
@@ -276,6 +277,18 @@ contains executable paths, command arguments and installer policies. Version
 validation and literal argv prevent accidental interpretation of identifiers;
 they cannot make an arbitrary recipe safe. Project files and inherited build
 settings are excluded from bootstrap command construction.
+
+Downloads are checked where bootstrap fetches them and trusted to HTTPS
+beyond that. The installer scripts (rustup, GHCup, elan, SDKMAN,
+dotnet-install, juliaup) must match their pinned SHA-256, and the release
+assets (alr, the command-line tools, `cs`, Miniforge3) their SHA-256 and exact
+size, before anything runs or unpacks. The manager binaries those scripts then
+fetch are trusted to HTTPS, as are Node's archives (fnm checks no checksum)
+and the .NET SDK (dotnet-install compares sizes only). The managers check
+everything else against metadata they fetch: python-build's and ruby-build's
+definitions, opam with `--require-checksums`, rustup's and GHCup's
+manifests, Alire's index, sdkmanager's repository, Coursier's checksums and
+SDKMAN's, where a candidate publishes one.
 
 Homebrew exits 1 when it installs a formula but cannot link it over a file
 that another formula owns, for example an old `openssl@1.1`. Setup then
