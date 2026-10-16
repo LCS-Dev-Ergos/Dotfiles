@@ -227,6 +227,7 @@ class SetupTests(unittest.TestCase):
             self.assertNotEqual(kwargs["env"]["HOME"], str(self.root / "home"))
             self.assertEqual(kwargs["env"]["LCS_NATIVE_FNM_READY"], "1")
             self.probe = kwargs["env"]["DEV_BOOTSTRAP_ONLY"].split()
+            self.probe_environment = kwargs["env"]
             if self.shadow:
                 return "node\t/unexpected/node\tv26.10.0"
             # Independent fixture observations, not production health() output.
@@ -1105,6 +1106,29 @@ class SetupTests(unittest.TestCase):
             with self.subTest(language=row["language"]):
                 self.assertEqual(row["state"], "ok")
                 self.assertEqual(row["actualVersion"], older[row["language"]])
+
+    def test_the_shell_probe_keeps_its_own_home_and_xdg_directories(self):
+        self.setup.apply()
+        # An adapter that passes the account's XDG directories to its
+        # manager (Alire) must not hand them to the fresh shell.
+        account = {
+            "XDG_CONFIG_HOME": str(self.root / "account-config"),
+            "XDG_DATA_HOME": str(self.root / "account-data"),
+            "FNM_DIR": str(self.fnm),
+        }
+        with patch.object(self.recovery, "environment", return_value=account):
+            self.setup.qualify()
+        environment = self.probe_environment
+        home = Path(environment["HOME"])
+        for name in (
+            "XDG_CACHE_HOME",
+            "XDG_CONFIG_HOME",
+            "XDG_DATA_HOME",
+            "XDG_STATE_HOME",
+        ):
+            with self.subTest(variable=name):
+                self.assertTrue(Path(environment[name]).is_relative_to(home))
+        self.assertEqual(environment["FNM_DIR"], str(self.fnm))
 
     def test_system_selections_are_external_and_do_not_block_apply(self):
         self.setup.apply()

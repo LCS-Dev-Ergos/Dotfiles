@@ -449,15 +449,19 @@ class BootstrapSetup:
                 for entry in os.environ.get("PATH", "").split(os.pathsep)
                 if entry
             ]
+            # The managers' roots first: the probe's own home and XDG
+            # directories then win over any an adapter passes its manager
+            # (alr's settings follow the account's XDG directories).
             environment = {
+                **self.context.environment(),
                 "PATH": os.pathsep.join(dict.fromkeys(search)),
                 "HOME": str(root),
                 "ZDOTDIR": str(root),
                 "XDG_CACHE_HOME": str(root / "cache"),
+                "XDG_CONFIG_HOME": str(root / "config"),
                 "XDG_DATA_HOME": str(root / "data"),
                 "XDG_STATE_HOME": str(root / "state"),
                 "XDG_RUNTIME_DIR": str(root / "runtime"),
-                **self.context.environment(),
                 "DEV_BOOTSTRAP_ONLY": " ".join(languages),
                 "ZSH_CONFIG_DIR": self.recipe["shellConfig"],
                 "LCS_RUNTIME_MANAGER_BACKEND": "native",
