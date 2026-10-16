@@ -49,6 +49,26 @@ def validate_toolchains(data):
             raise BootstrapError("Unsupported installer format")
 
 
+def validate_licenses(licenses):
+    """Recorded terms name a consent an adapter asks for, and its SHA-1.
+
+    The hash is written into a manager's license record, so it must be the
+    exact form that record holds.
+    """
+    consents = {
+        name for adapter in ADAPTERS.values() for name in adapter.consents
+    }
+    if not isinstance(licenses, dict) or not all(
+        name in consents
+        and isinstance(digest, str)
+        and re.fullmatch(r"[0-9a-f]{40}", digest)
+        for name, digest in licenses.items()
+    ):
+        raise BootstrapError(
+            "Recorded licenses must name a consent and its SHA-1"
+        )
+
+
 # Retired releases reach manager arguments and paths below a manager root.
 RETIRED_RELEASE = re.compile(r"[0-9][0-9A-Za-z.+_-]*")
 
@@ -80,6 +100,7 @@ def validate_manifest(data):
     for release in data["ocaml"]["versions"]:
         version(release)
     validate_toolchains(data)
+    validate_licenses(data.get("setup", {}).get("licenses", {}))
     validate_retired(data.get("retired", {}))
     for tool, path in data.get("frontend", {}).items():
         if (

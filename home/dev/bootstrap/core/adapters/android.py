@@ -7,9 +7,11 @@ release, but only the newest platform-tools and a platform's newest
 revision, so the platform-tools declaration is a floor.
 
 Every package needs the Android SDK License. An apply names it with
-`--accept android-sdk-license`; sdkmanager then prints the text into the log
-and records its acceptance under licenses/. Any other license it records
-fails the install and is removed again.
+`--accept android-sdk-license`, and the adapter records that acceptance under
+licenses/ itself, as the hash of the reviewed text the declaration pins
+(native-managers.nix). sdkmanager then asks nothing for these packages, and
+every question it still asks is declined: a package that needs other terms
+is not installed, and the row fails.
 
 From command-line tools 23.0 on, sdkmanager only hands its arguments to the
 `android` CLI, which downloads itself unpinned, records the terms without
@@ -45,9 +47,9 @@ KEYS = {
     "build-tools": "buildTools",
     "platform": "platform",
 }
-# The first license sdkmanager shows is accepted, any further one declined:
-# the packages above need no other, and the guard catches a substitution.
-ANSWERS = b"y\n" + b"n\n" * 4
+# Every license sdkmanager still shows is declined: the one the apply
+# accepted is already on file, so a question means other terms.
+DECLINE = b"n\n" * 8
 PLATFORM = re.compile(r"[1-9][0-9]*(?:\.[0-9]+)?")
 RESOURCES = (
     '<resources><string name="canary">bootstrap-ok</string></resources>\n'
@@ -250,26 +252,65 @@ class AndroidAdapter(JdkTool, ToolchainAdapter):
             if path.is_file()
         }
 
+    def accept_license(self):
+        """Record the accepted license as sdkmanager does, if not on file.
+
+        sdkmanager keeps one hash per line, the first line empty; it treats
+        the license as accepted when any line holds the current text's hash.
+        """
+        digest = self.recipe.get("licenses", {}).get(LICENSE)
+        if not digest:
+            raise BootstrapError(
+                f"The baseline records no reviewed {LICENSE} to accept"
+            )
+        path = self.root / "licenses" / LICENSE
+        if os.path.lexists(path) and not path.is_file():
+            raise BootstrapError(f"Inspect the existing license record {path}")
+        recorded = path.read_text() if path.is_file() else ""
+        if digest in recorded.split():
+            return
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_name(f".{LICENSE}.dev-bootstrap")
+        temporary.write_text(f"{recorded.rstrip()}\n{digest}")
+        os.replace(temporary, path)
+
     def install(self, row):
         component = row["component"]
         package = PACKAGES[component].format(row["version"])
+        self.accept_license()
         before = self.licenses()
         try:
-            self.invoke("--install", package, answers=ANSWERS)
+            self.invoke("--install", package, answers=DECLINE)
         finally:
-            # Only the license the apply named may be recorded.
-            for name, content in self.licenses().items():
-                if name != LICENSE and before.get(name) != content:
-                    path = self.root / "licenses" / name
-                    if name in before:
-                        path.write_bytes(before[name])
-                    else:
-                        path.unlink()
-                    raise BootstrapError(
-                        f"Installing {package} recorded {name}, which this "
-                        f"apply did not accept; it was reverted"
-                    )
-        row["path"] = str(self.package_binary(component, row["version"]))
+            self.keep_licenses(before, package)
+        path = self.package_binary(component, row["version"])
+        if not path.is_file():
+            raise BootstrapError(
+                f"sdkmanager did not install {package}: it asked for terms "
+                f"other than {LICENSE}, which were declined; see the log"
+            )
+        row["path"] = str(path)
+
+    def keep_licenses(self, before, package):
+        """Revert every license record but the accepted one, then fail.
+
+        Nothing records another license while every question is declined;
+        a change here means sdkmanager accepted terms on its own.
+        """
+        changed = []
+        for name, content in self.licenses().items():
+            if name != LICENSE and before.get(name) != content:
+                path = self.root / "licenses" / name
+                if name in before:
+                    path.write_bytes(before[name])
+                else:
+                    path.unlink()
+                changed.append(name)
+        if changed:
+            raise BootstrapError(
+                f"Installing {package} recorded {', '.join(sorted(changed))}, "
+                "which this apply did not accept; reverted"
+            )
 
     def installed(self):
         found = []

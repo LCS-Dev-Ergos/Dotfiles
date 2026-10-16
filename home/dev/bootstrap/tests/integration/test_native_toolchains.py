@@ -15,7 +15,7 @@ from unittest.mock import patch
 
 from core import process
 from core.adapters import TOOLCHAINS
-from core.adapters.android import ANSWERS, AndroidAdapter
+from core.adapters.android import DECLINE, AndroidAdapter
 from core.adapters.sdkman import SDK_SCRIPT
 from core.adapters.toolchain import ToolchainAdapter
 from core.engine import Bootstrap
@@ -47,6 +47,14 @@ SPECS = {
 # gprbuild, and the Android SDK's build tools and platform.
 ROWS = len(SPECS) + 5
 ACCEPTED = ("android-sdk-license",)
+# The reviewed license's hash, as sdkmanager records it.
+LICENSE_HASH = "24333f8a63b6825ea9c5514f83c2829b004d1fee"
+# sdkmanager's package paths for the declared SDK, as component and release.
+ANDROID_PACKAGES = {
+    "platform-tools": ("platform-tools", "37.0.1"),
+    "build-tools;37.0.0": ("build-tools", "37.0.0"),
+    "platforms;android-37.2": ("platform", "37.2"),
+}
 
 
 class NativeTransitions(unittest.TestCase):
@@ -81,6 +89,7 @@ class NativeTransitions(unittest.TestCase):
                 "managerDirectory": str(self.root / "bin"),
                 "buildEnvironment": {"PATH": "/usr/bin:/bin"},
                 "sdkmanShell": "/fixture/bash-5",
+                "licenses": {"android-sdk-license": LICENSE_HASH},
             },
             "policy": {},
         }
@@ -116,15 +125,25 @@ class NativeTransitions(unittest.TestCase):
         ]
 
     def invocations(self, stack):
-        """Record every manager invocation as (language, *arguments)."""
+        """Record every manager invocation as (language, *arguments).
+
+        sdkmanager also lays out the package it installs, which the adapter
+        checks for afterwards.
+        """
         calls = []
+
+        def invoke(language, *args, **_):
+            calls.append((language, *args))
+            if language == "android" and args[:1] == ("--install",):
+                self.android_package(*ANDROID_PACKAGES[args[1]])
+
         for language, adapter in self.recovery.adapters.items():
             stack.enter_context(
                 patch.object(
                     adapter,
                     "invoke",
-                    side_effect=lambda *args, language=language, **_: (
-                        calls.append((language, *args))
+                    side_effect=lambda *args, language=language, **kwargs: (
+                        invoke(language, *args, **kwargs)
                     ),
                 )
             )
@@ -1483,23 +1502,32 @@ class NativeTransitions(unittest.TestCase):
             sorted(path.name for path in ada.home.rglob("*")), ["alr", "bin"]
         )
 
-    def test_android_accepts_only_the_license_the_apply_named(self):
+    def test_android_records_the_accepted_license_and_declines_the_rest(
+        self,
+    ):
         self.managers()
         java = self.executable(self.adapter("jvm").binary())
         android = self.adapter("android")
         licenses = android.root / "licenses"
-        recorded = {"name": "android-sdk-license"}
+        record = licenses / "android-sdk-license"
         calls = []
+        # What the fixture sdkmanager does: install the package unless it
+        # needs other terms, and record licenses on its own.
+        behavior = {"installs": True, "records": ()}
 
         def run(args, **kwargs):
             calls.append((args, kwargs))
-            licenses.mkdir(parents=True, exist_ok=True)
-            (licenses / recorded["name"]).write_text("hash\n")
+            # The acceptance is on file before sdkmanager runs.
+            self.assertIn(LICENSE_HASH, record.read_text().split())
+            for name in behavior["records"]:
+                (licenses / name).write_text("hash\n")
+            if behavior["installs"]:
+                self.android_package(*ANDROID_PACKAGES[args[-1]])
             return ""
 
-        row = android.baseline()[1]
+        build_tools, platform = android.baseline()[1:3]
         with patch.object(process, "run", side_effect=run):
-            android.install(row)
+            android.install(build_tools)
         ((args, kwargs),) = calls
         self.assertEqual(
             args,
@@ -1510,7 +1538,8 @@ class NativeTransitions(unittest.TestCase):
                 "build-tools;37.0.0",
             ],
         )
-        self.assertEqual(kwargs["answers"], ANSWERS)
+        self.assertEqual(kwargs["answers"], DECLINE)
+        self.assertNotIn(b"y", kwargs["answers"])
         self.assertEqual(
             kwargs["env"]["JAVA_HOME"], str(java.parents[1].resolve())
         )
@@ -1520,31 +1549,60 @@ class NativeTransitions(unittest.TestCase):
             kwargs["env"]["ANDROID_USER_HOME"],
             str((Path.home() / ".android").resolve()),
         )
+        # sdkmanager's own layout: an empty first line, one hash per line.
+        self.assertEqual(record.read_text(), f"\n{LICENSE_HASH}")
         self.assertEqual(
-            sorted(path.name for path in licenses.iterdir()),
-            ["android-sdk-license"],
+            build_tools["path"],
+            str(android.package_binary("build-tools", "37.0.0")),
         )
-        # Another license recorded on the way is reverted and fails the row.
-        recorded["name"] = "android-sdk-preview-license"
+        # An older acceptance stays beside the new one, which is added once.
+        record.write_text("\nolder")
+        with patch.object(process, "run", side_effect=run):
+            android.install(build_tools)
+            android.install(build_tools)
+        self.assertEqual(record.read_text(), f"\nolder\n{LICENSE_HASH}")
+        # A package that needs other terms is declined, so never installed.
+        behavior["installs"] = False
         with (
             patch.object(process, "run", side_effect=run),
-            self.assertRaisesRegex(BootstrapError, "did not accept"),
+            self.assertRaisesRegex(BootstrapError, "did not install"),
         ):
-            android.install(android.baseline()[2])
-        self.assertEqual(
-            sorted(path.name for path in licenses.iterdir()),
-            ["android-sdk-license"],
-        )
-        # One the account had accepted before is restored as it was.
+            android.install(platform)
+        self.assertFalse(android.package_binary("platform", "37.2").exists())
+        # Licenses sdkmanager recorded on its own are all reverted; one the
+        # account had accepted before is restored as it was.
         (licenses / "android-sdk-preview-license").write_text("before\n")
+        behavior.update(
+            installs=True,
+            records=(
+                "android-sdk-preview-license",
+                "intel-android-extra-license",
+            ),
+        )
         with (
             patch.object(process, "run", side_effect=run),
-            self.assertRaisesRegex(BootstrapError, "did not accept"),
+            self.assertRaisesRegex(
+                BootstrapError,
+                "android-sdk-preview-license, intel-android-extra-license",
+            ),
         ):
-            android.install(android.baseline()[2])
+            android.install(platform)
+        self.assertEqual(
+            sorted(path.name for path in licenses.iterdir()),
+            ["android-sdk-license", "android-sdk-preview-license"],
+        )
         self.assertEqual(
             (licenses / "android-sdk-preview-license").read_text(), "before\n"
         )
+        # Without a reviewed hash in the baseline nothing is accepted or run.
+        del self.data["setup"]["licenses"]
+        calls.clear()
+        with (
+            patch.object(process, "run", side_effect=run),
+            self.assertRaisesRegex(BootstrapError, "no reviewed"),
+        ):
+            android.install(build_tools)
+        self.assertEqual(calls, [])
 
     def test_android_readiness_reads_the_tools_without_a_jdk(self):
         android = self.adapter("android")
@@ -1581,7 +1639,7 @@ class NativeTransitions(unittest.TestCase):
             recovery.apply([])
         self.assertFalse((recovery.state / "apply.lock").exists())
 
-    def test_android_archive_unpacks_as_cmdline_tools_latest(self):
+    def test_android_archive_unpacks_as_the_declared_cmdline_tools(self):
         def archive(*members):
             data = io.BytesIO()
             with zipfile.ZipFile(data, "w") as file:

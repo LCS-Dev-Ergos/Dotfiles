@@ -9,7 +9,7 @@ from . import declarations
 from .declarations import ROOT, apply_edits, evaluate, retirement
 from .model import MANUAL_LINES, Finding, Kind, SourceError
 from .report import render_markdown, render_text
-from .resolvers import ECOSYSTEMS, NEEDS_YAML, RESOLVERS, installers
+from .resolvers import ECOSYSTEMS, NEEDS_YAML, RESOLVERS, installers, licenses
 from .upstream import Source, Upstream
 
 PROGRAM = "update-runtime-baseline"
@@ -28,6 +28,7 @@ def parse_arguments(argv: list[str]) -> argparse.Namespace:
     mode.add_argument("--check", action="store_true")
     mode.add_argument("--apply", action="store_true")
     mode.add_argument("--accept-installer", metavar="NAME", action="append")
+    mode.add_argument("--accept-license", metavar="NAME", action="append")
     parser.add_argument(
         "--line",
         choices=ECOSYSTEMS,
@@ -131,6 +132,9 @@ def main(argv: list[str] | None = None) -> int:
         managers = evaluate(declarations.MANAGERS)
         if args.accept_installer:
             installers.accept(args.accept_installer, upstream, managers)
+            return 0
+        if args.accept_license:
+            licenses.accept(args.accept_license, upstream, managers)
             return 0
         if needs_yaml(selected):
             reexecute(argv)

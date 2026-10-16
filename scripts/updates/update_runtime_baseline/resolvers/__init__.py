@@ -1,11 +1,11 @@
 """Every pinned ecosystem and how its upstream is read, in bootstrap order.
 
 Most entries are a `Track`: the declaration, the listing and the line depth
-are the whole difference between them. The JVM, the .NET SDK, release assets
-and installer scripts need logic of their own.
+are the whole difference between them. The JVM, the .NET SDK, release assets,
+installer scripts and recorded licenses need logic of their own.
 """
 
-from . import android, dotnet, installers, jvm, sources
+from . import android, dotnet, installers, jvm, licenses, sources
 from .assets import ReleaseAssets, miniforge_version, tag_version
 from .tracks import Resolver, Track, combine
 
@@ -184,6 +184,8 @@ RESOLVERS: dict[str, Resolver] = {
     # The pinned command-line tools archive that provides sdkmanager.
     "android-tools": android.tools,
     "installers": installers.resolve,
+    # The reviewed terms an apply records as accepted.
+    "licenses": licenses.resolve,
 }
 ECOSYSTEMS = tuple(RESOLVERS)
 # Resolvers that read GHCup's YAML metadata, which needs PyYAML.

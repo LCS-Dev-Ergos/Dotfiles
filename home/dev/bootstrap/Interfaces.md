@@ -87,8 +87,8 @@ in every report's `catalog`.
   health accepts any release the global selection names.
 - Every child process goes through `core.process.run`: literal arguments, a
   scoped environment, its own process group and a timeout. Its standard input
-  is empty, or `answers` the caller decided on beforehand (the Android SDK
-  license prompt), never a person. The exceptions
+  is empty, or `answers` the caller decided on beforehand (declining every
+  license prompt sdkmanager still shows), never a person. The exceptions
   install nothing: `core.process.attend`, the authentication an attended
   apply lets a person answer before a privileged install;
   and `core.process.interact`, the Gum widget a guided setup asks with.

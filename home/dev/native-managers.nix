@@ -126,6 +126,14 @@ let
       "{CONDA_ROOT_PREFIX}"
     ];
   };
+  # Terms an apply records as accepted once its --accept names them, as the
+  # hash sdkmanager itself writes under licenses/: SHA-1 of the reviewed text
+  # in Google's repository index, normalized the way sdkmanager reads it.
+  # With it on file sdkmanager asks nothing, and bootstrap declines every
+  # question it still asks, so no package needing other terms is installed.
+  # scripts/updates/update-runtime-baseline.py reports a changed text, and
+  # --accept-license records the hash of the reviewed one.
+  licenses.android-sdk-license = "24333f8a63b6825ea9c5514f83c2829b004d1fee";
   # Release assets above the 1 MiB script bound, pinned per platform with their
   # exact size. Coursier's native launcher, the alr binary in Alire's archive
   # and Google's command-line tools (sdkmanager, at the release
@@ -180,6 +188,7 @@ let
   };
 in
 {
+  inherit licenses;
   homebrew = managerPackages;
   arch = {
     packages = managerPackages;
@@ -193,7 +202,7 @@ in
   # Explicit post-Nix bootstrap routes; no OS foundation or system upgrade.
   bootstrap = {
     aarch64-darwin = {
-      inherit managers;
+      inherit licenses managers;
       installerPackages = [ ];
       installers = installers // releaseInstallers.aarch64-darwin;
       packageManager = "/opt/homebrew/bin/brew";
@@ -255,7 +264,7 @@ in
       };
     };
     x86_64-linux = {
-      inherit managers;
+      inherit licenses managers;
       installerPackages = archInstallerPackages;
       installers = installers // releaseInstallers.x86_64-linux;
       packageManager = "/usr/bin/pacman";

@@ -42,6 +42,13 @@ class ManifestTests(unittest.TestCase):
         node_default["defaults"]["node"] = "99.0.0"
         native_default = copy.deepcopy(BASELINE)
         native_default["defaults"]["rust"] = "99.0.0"
+        # A recorded license is written into the manager's record as is.
+        unknown_license = copy.deepcopy(BASELINE)
+        unknown_license["setup"] = {"licenses": {"other-license": "0" * 40}}
+        license_hash = copy.deepcopy(BASELINE)
+        license_hash["setup"] = {
+            "licenses": {"android-sdk-license": "hash\nextra"}
+        }
         cases = (
             ("malformed JSON", "{", "Invalid baseline"),
             ("wrong shape", "[]", "Invalid baseline"),
@@ -49,6 +56,8 @@ class ManifestTests(unittest.TestCase):
             ("native identity", json.dumps(native), "exact releases"),
             ("seed default", json.dumps(node_default), "Default node"),
             ("native default", json.dumps(native_default), "Default rust"),
+            ("license name", json.dumps(unknown_license), "Recorded licenses"),
+            ("license hash", json.dumps(license_hash), "Recorded licenses"),
         )
         with tempfile.TemporaryDirectory(prefix="bootstrap-manifest-") as root:
             path = Path(root) / "baseline.json"

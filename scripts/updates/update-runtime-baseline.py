@@ -8,6 +8,7 @@ Usage:
   scripts/updates/update-runtime-baseline.py --check [--markdown] [ecosystem...]
   scripts/updates/update-runtime-baseline.py --apply [--line ECOSYSTEM]... [ecosystem...]
   scripts/updates/update-runtime-baseline.py --accept-installer NAME...
+  scripts/updates/update-runtime-baseline.py --accept-license NAME...
 
 The implementation is the update_runtime_baseline package beside this file;
 its docstring describes the finding classes and the rewrite rules.

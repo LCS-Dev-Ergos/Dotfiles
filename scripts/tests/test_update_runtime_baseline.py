@@ -29,6 +29,7 @@ from update_runtime_baseline.resolvers import (  # noqa: E402
     RESOLVERS,
     android,
     installers,
+    licenses,
     sources,
 )
 from update_runtime_baseline.resolvers import (  # noqa: E402
@@ -731,6 +732,74 @@ class Installers(unittest.TestCase):
     def test_unknown_installer_is_refused(self):
         with self.assertRaisesRegex(model.SourceError, "choose from"):
             installers.accept(["scala"], FakeUpstream(), self.managers)
+
+    @staticmethod
+    def license_index(text):
+        return FakeUpstream(
+            {
+                android.INDEX: '<sdk-repository><license id="android-sdk-'
+                f'license" type="text">{text}</license></sdk-repository>'
+            }
+        )
+
+    def test_license_hash_is_the_one_sdkmanager_records(self):
+        # Blanks after a newline go, a single newline joins its lines, and
+        # the ends are trimmed; paragraphs keep their blank lines.
+        text = "Terms\n\nThis is the\n   License.\n\n\nJanuary 16, 2019\n"
+        normalized = "Terms\n\nThis is the License.\n\n\nJanuary 16, 2019"
+        self.assertEqual(
+            licenses.sdkmanager_hash(text),
+            hashlib.sha1(normalized.encode()).hexdigest(),
+        )
+        (finding,) = licenses.resolve(
+            self.license_index(text),
+            {},
+            {
+                "licenses": {
+                    "android-sdk-license": licenses.sdkmanager_hash(text)
+                }
+            },
+        )
+        self.assertEqual(finding.kind, "current")
+
+    def test_a_changed_license_is_reviewed_before_it_is_recorded(self):
+        pinned = self.managers["licenses"]["android-sdk-license"]
+        changed = "New terms.\n"
+        digest = licenses.sdkmanager_hash(changed)
+        (finding,) = licenses.resolve(
+            self.license_index(changed), {}, self.managers
+        )
+        self.assertEqual(
+            (finding.kind, finding.available), ("drift", digest[:12])
+        )
+        self.assertIn("--accept-license android-sdk-license", finding.note)
+        saved = licenses.review_path("android-sdk-license", digest)
+        self.assertEqual(saved.read_text(), changed)
+        # Upstream changed again after the review: refuse.
+        with self.assertRaisesRegex(model.SourceError, "nobody reviewed"):
+            licenses.accept(
+                ["android-sdk-license"],
+                self.license_index("Newer still.\n"),
+                self.managers,
+            )
+        self.assertIn(pinned, self.managers_file.read_text())
+        with contextlib.redirect_stdout(io.StringIO()):
+            licenses.accept(
+                ["android-sdk-license"],
+                self.license_index(changed),
+                self.managers,
+            )
+        after = declarations.evaluate(self.managers_file)
+        self.assertEqual(after["licenses"]["android-sdk-license"], digest)
+        for platform in declarations.PLATFORMS:
+            self.assertEqual(
+                after["bootstrap"][platform]["licenses"][
+                    "android-sdk-license"
+                ],
+                digest,
+            )
+        with self.assertRaisesRegex(model.SourceError, "choose from"):
+            licenses.accept(["other-license"], FakeUpstream(), self.managers)
 
 
 def copy_declarations(test):

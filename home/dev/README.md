@@ -342,8 +342,10 @@ command):
    attribute path it was declared at.
 2. For `drift`, read the script saved under
    `~/.cache/update-runtime-baseline/installers/`, then record it with
-   `--accept-installer NAME`. The command refuses if upstream changed again
-   after the review.
+   `--accept-installer NAME`; for a changed license text, read it under
+   `~/.cache/update-runtime-baseline/licenses/` and record it with
+   `--accept-license NAME`. Both refuse if upstream changed again after the
+   review.
 3. Build the bootstrap package, then run the native CI adapters for the
    changed ecosystems:
    `gh workflow run development-bootstrap-native.yml -f harness=adapters -f ecosystems='rust julia'`.
