@@ -1,5 +1,12 @@
 let
   nativeManagers = import ../home/dev/native-managers.nix;
+  inherit (nativeManagers.bootstrap.aarch64-darwin) buildPackages;
+  # Each library once, and none a manager package already declares.
+  darwinBuildPackages = builtins.filter (name: !builtins.elem name nativeManagers.homebrew) (
+    builtins.foldl' (found: name: if builtins.elem name found then found else found ++ [ name ]) [ ] (
+      builtins.concatLists (builtins.attrValues buildPackages)
+    )
+  );
 in
 _: {
   # Captured via `brew bundle dump` against the live system (2026-07-20).
@@ -156,8 +163,6 @@ _: {
       "icu4c@78"
       "imagemagick"
       "jbreckmckye/formulae/daylight"
-      "libb2"
-      "libffi"
       "libgccjit"
       "libsixel"
       "libvterm"
@@ -167,31 +172,20 @@ _: {
       "models"
       "msgpack"
       "mypy"
-      "ncurses"
       "neovim"
       "oci-cli"
       "ocrmypdf"
-      "openssl@3"
       "pandoc"
       "pdfcpu"
       "perl"
-      "pkgconf"
       "plantuml"
       "powerlevel10k"
-      # Host Python builds use Apple's SDK and the Nix compiler drivers, with
-      # Homebrew's optional libraries discovered by python-build. Keep libb2,
-      # ncurses, openssl@3, readline, sqlite, xz, zlib and zstd declared even
-      # when another formula currently pulls them in transitively. Tcl/Tk 8
-      # supplies tkinter without opting into Tcl/Tk 9's experimental support.
       "qrencode"
       "raylib"
-      "readline"
       "reaver"
       "redis"
       "serkanyersen/dotstate/dotstate"
       "smartmontools"
-      "sqlite"
-      "tcl-tk@8"
       "teamookla/speedtest/speedtest"
       "tesseract-lang"
       "thefuck"
@@ -201,13 +195,17 @@ _: {
       # The locked Darwin build fails at link time and also injects a
       # Homebrew Samba library path, so this is not a clean Nix owner yet.
       "veeso/termscp/termscp"
-      "xz"
       "zackelia/formulae/bclm"
-      "zlib"
       "zsh"
-      "zstd"
     ]
-    ++ nativeManagers.homebrew;
+    # The native managers, then the libraries their source builds link
+    # against, as the development bootstrap declares them: Python, Ruby,
+    # OCaml and Haskell build with the Nix compiler drivers against Apple's
+    # SDK, finding these through Homebrew. They stay declared even when
+    # another formula pulls them in today. Tcl/Tk 8 supplies tkinter without
+    # opting into Tcl/Tk 9's experimental support.
+    ++ nativeManagers.homebrew
+    ++ darwinBuildPackages;
 
     casks = [
       "1password-cli@beta"
