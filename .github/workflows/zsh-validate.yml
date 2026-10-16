@@ -78,7 +78,8 @@ jobs:
       # GCC and LLVM must come from the binary cache: building GCC locally has
       # failed on the workstation before. A nixpkgs update that leaves the
       # selected releases unbuilt fails here, before anyone switches to it; a
-      # newer GCC in nixpkgs is only reported, since adopting it is a choice.
+      # newer GCC, LLVM, Go, PHP, Lua, BEAM or Elixir line in nixpkgs is only
+      # reported, since adopting it is a choice.
       - name: Check that the pinned toolchains are prebuilt and current
         shell: bash
         run: |
@@ -91,13 +92,28 @@ jobs:
                 pkgs = import source { system = \"$system\"; };
                 inherit (pkgs) lib;
                 toolchain = import ./home/dev/toolchains/cc-toolchain.nix pkgs;
-                # Highest N among the attributes named <prefix>N.
-                newest = prefix: lib.foldl' lib.max 0 (
-                  map (name: lib.toInt (lib.removePrefix prefix name)) (
-                    builtins.filter (name: builtins.match \"\${prefix}[0-9]+\" name != null) (builtins.attrNames pkgs)
+                # Highest N among the attributes of set named <prefix>N<suffix>.
+                newestIn = set: prefix: suffix: lib.foldl' lib.max 0 (
+                  map (name: lib.toInt (lib.removeSuffix suffix (lib.removePrefix prefix name))) (
+                    builtins.filter (name: builtins.match \"\${prefix}[0-9]+\${suffix}\" name != null) (builtins.attrNames set)
                   )
                 );
+                newest = prefix: newestIn pkgs prefix \"\";
                 go = builtins.head (import ./home/dev/languages/go/default.nix { inherit pkgs; }).home.packages;
+                # Languages pinned to a nixpkgs attribute named after their
+                # line: label, selected and newest line, attribute prefix.
+                packages = name: (import ./home/dev/languages/\${name}/default.nix { inherit pkgs; }).home.packages;
+                php = builtins.head (packages \"php\");
+                lua = builtins.head (packages \"lua\");
+                erlang = builtins.elemAt (packages \"beam\") 0;
+                elixir = builtins.elemAt (packages \"beam\") 1;
+                line = version: lib.concatStrings (lib.take 2 (lib.splitVersion version));
+                pins = [
+                  \"pin php \${line php.version} \${toString (newest \"php\")} php home/dev/languages/php\"
+                  \"pin lua \${lib.versions.minor lua.version} \${toString (newest \"lua5_\")} lua5_ home/dev/languages/lua\"
+                  \"pin beam \${lib.versions.major erlang.version} \${toString (newestIn pkgs \"beam\" \"Packages\")} beam home/dev/languages/beam\"
+                  \"pin elixir \${lib.versions.minor elixir.version} \${toString (newestIn pkgs.\"beam\${lib.versions.major erlang.version}Packages\" \"elixir_1_\" \"\")} elixir_1_ home/dev/languages/beam\"
+                ];
                 paths = [
                   toolchain.gcc.cc
                   toolchain.llvmPackages.clang-unwrapped
@@ -115,6 +131,7 @@ jobs:
                   \"selected-go \${lib.versions.minor go.version}\"
                   \"newest-go \${toString (newest \"go_1_\")}\"
                 ]
+                ++ pins
               )")"
             while read -r kind value; do
               case "$kind" in
@@ -140,6 +157,12 @@ jobs:
                 newest-go)
                   if (( value > selected_go )); then
                     echo "::notice::$system: nixpkgs offers go_1_$value; home/dev/languages/go selects go_1_$selected_go"
+                  fi
+                  ;;
+                pin)
+                  read -r _ selected newest prefix module <<<"$value"
+                  if (( newest > selected )); then
+                    echo "::notice::$system: nixpkgs offers $prefix$newest; $module selects $prefix$selected"
                   fi
                   ;;
               esac
