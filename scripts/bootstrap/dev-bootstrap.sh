@@ -97,7 +97,9 @@ bootstrap_sdk() {
 bootstrap_check() {
   local platform="$1" nix missing=0
   if nix=$(bootstrap_nix); then
-    if "$nix" --extra-experimental-features nix-command store info --json --store daemon >/dev/null; then
+    # NIX_REMOTE, not --store: an untrusted client's --store is forwarded to
+    # the daemon, which ignores it with a warning.
+    if NIX_REMOTE=daemon "$nix" --extra-experimental-features nix-command store info --json >/dev/null; then
       printf 'ready   Nix daemon (%s)\n' "$nix"
     else
       printf 'blocked Nix is installed but the daemon cannot be reached\n'

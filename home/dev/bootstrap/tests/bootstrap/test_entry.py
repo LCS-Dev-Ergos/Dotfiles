@@ -43,6 +43,7 @@ class BootstrapEntryTests(unittest.TestCase):
         self.nix.write_text(
             '#!/bin/bash\nprintf "%s\\n" "$@" >> "$LOG"\n'
             'printf "%s\\n" "${DEV_BOOTSTRAP_COMMAND-unset}" > "$LOG.command"\n'
+            'printf "%s\\n" "${NIX_REMOTE-unset}" > "$LOG.remote"\n'
             'exit "${NIX_STATUS:-0}"\n'
         )
         self.nix.chmod(0o700)
@@ -115,9 +116,11 @@ bootstrap_nix_residue() { [[ ! -f "$FIXTURE/has-residue" ]] || printf '/nix\\n';
                             "store",
                             "info",
                             "--json",
-                            "--store",
-                            "daemon",
                         ],
+                    )
+                    self.assertEqual(
+                        Path(f"{self.log}.remote").read_text().strip(),
+                        "daemon",
                     )
 
     def test_arch_foundation_check_reports_build_tools(self):
