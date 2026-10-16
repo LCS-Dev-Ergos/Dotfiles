@@ -8,8 +8,10 @@ workspace: `alr toolchain --select --local` inside a throwaway crate
 downloads into the shared folder and records the choice in that crate only.
 """
 
+import json
 import os
 import re
+import sys
 import tempfile
 import tomllib
 import zipfile
@@ -26,6 +28,8 @@ CRATES = {"gnat": "gnat_native", "gprbuild": "gprbuild"}
 DEPLOYED = re.compile(rf"([a-z0-9_]+?)_({RELEASE})_[0-9a-f]{{8}}")
 # A settings value: <crate>=<release>.
 CHOICE = re.compile(rf"([a-z0-9_]+)=({RELEASE})")
+# GNAT's macOS builds link against this SDK whenever it exists.
+TOOLS_SDK = Path("/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk")
 # Never prompt, colour or redraw: every call runs without a terminal.
 SWITCHES = ("-n", "--no-color", "--no-tty")
 CANARY = """with Ada.Text_IO;
@@ -63,6 +67,45 @@ def setting(settings, *keys):
             f"Inspect the Alire setting {'.'.join(keys)}: it is not a path"
         )
     return value
+
+
+def sdk_version(sdk):
+    """An SDK's version as a tuple, or None when it does not say."""
+    try:
+        version = json.loads((sdk / "SDKSettings.json").read_text())["Version"]
+        return tuple(int(part) for part in version.split("."))
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return None
+
+
+def linker_hint():
+    """Why a GNAT link fails on this Mac, when the developer tools disagree.
+
+    GNAT links against the Command Line Tools SDK, while `ld` comes from the
+    selected developer directory. When that SDK is the newer one, the linker
+    can fail to read its libraries (libSystem.tbd "malformed file") and every
+    libc symbol is undefined. Empty when nothing points there.
+    """
+    if sys.platform != "darwin":
+        return ""
+    bundled = sdk_version(TOOLS_SDK)
+    try:
+        developer = Path(process.run(["/usr/bin/xcode-select", "-p"]))
+    except BootstrapError:
+        return ""
+    selected = sdk_version(
+        developer / "Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
+    ) or sdk_version(developer / "SDKs/MacOSX.sdk")
+    if bundled is None or selected is None or bundled <= selected:
+        return ""
+    return (
+        "; GNAT links against the Command Line Tools SDK "
+        f"{'.'.join(map(str, bundled))}, newer than the "
+        f"{'.'.join(map(str, selected))} SDK of the selected developer "
+        f"directory {developer}, whose linker may not read it: select "
+        "matching tools (sudo xcode-select -s "
+        "/Library/Developer/CommandLineTools) or update Xcode"
+    )
 
 
 class AdaAdapter(ToolchainAdapter):
@@ -318,14 +361,20 @@ class AdaAdapter(ToolchainAdapter):
 
             # The driver prints its linker command (-largs -v) into the log:
             # a link that fails on a host's SDK or linker then shows what ran.
-            if gprbuild:
-                (work / "canary.gpr").write_text(PROJECT)
-                call([path, "-q", "-P", work / "canary.gpr", "-largs", "-v"])
-            else:
-                call(
-                    [path.parent / "gnatmake", "-q", "canary.adb"]
-                    + ["-largs", "-v"]
-                )
+            try:
+                if gprbuild:
+                    (work / "canary.gpr").write_text(PROJECT)
+                    call(
+                        [path, "-q", "-P", work / "canary.gpr"]
+                        + ["-largs", "-v"]
+                    )
+                else:
+                    call(
+                        [path.parent / "gnatmake", "-q", "canary.adb"]
+                        + ["-largs", "-v"]
+                    )
+            except BootstrapError as error:
+                raise BootstrapError(f"{error}{linker_hint()}") from error
             output = call([work / "canary"])
         if output != "bootstrap-ok":
             raise BootstrapError(f"ada runtime canary failed: {output}")

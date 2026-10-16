@@ -14,7 +14,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from core import process
-from core.adapters import TOOLCHAINS
+from core.adapters import TOOLCHAINS, ada as ada_module
 from core.adapters.android import DECLINE, AndroidAdapter
 from core.adapters.sdkman import SDK_SCRIPT
 from core.adapters.toolchain import ToolchainAdapter
@@ -1461,6 +1461,41 @@ class NativeTransitions(unittest.TestCase):
                 # The link prints its command into the log.
                 self.assertEqual(build[0][-2:], ["-largs", "-v"])
                 self.assertEqual(Path(launch[0][0]).name, "canary")
+
+    def test_a_failed_gnat_link_names_disagreeing_developer_tools(self):
+        """A Tools SDK newer than the selected one is named; others are not."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+
+            def sdk(path, version):
+                path.mkdir(parents=True)
+                (path / "SDKSettings.json").write_text(
+                    json.dumps({"Version": version})
+                )
+
+            tools = root / "tools/MacOSX.sdk"
+            developer = root / "Xcode.app/Contents/Developer"
+            sdk(tools, "27.0")
+            sdk(
+                developer
+                / "Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk",
+                "26.5",
+            )
+            with (
+                patch.object(ada_module, "TOOLS_SDK", tools),
+                patch.object(ada_module.sys, "platform", "darwin"),
+                patch.object(
+                    ada_module.process, "run", return_value=str(developer)
+                ),
+            ):
+                hint = ada_module.linker_hint()
+                self.assertIn("Command Line Tools SDK 27.0", hint)
+                self.assertIn("26.5 SDK", hint)
+                self.assertIn("xcode-select -s", hint)
+                (tools / "SDKSettings.json").write_text('{"Version": "26.5"}')
+                self.assertEqual(ada_module.linker_hint(), "")
+            with patch.object(ada_module.sys, "platform", "linux"):
+                self.assertEqual(ada_module.linker_hint(), "")
 
     def test_alire_archive_places_only_its_launcher(self):
         def archive(**members):

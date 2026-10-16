@@ -135,6 +135,25 @@ jobs:
             --no-link --print-out-paths)
           echo "DEV_BOOTSTRAP_TOOLCHAIN=$toolchain" >> "$GITHUB_ENV"
 
+      # GNAT links against the Command Line Tools SDK whenever it exists,
+      # with the selected developer directory's linker. An image whose Tools
+      # carry a newer SDK than its default Xcode (macos-26 since October 2026:
+      # SDK 27.0 beside Xcode 26.6) selects the Tools, so the two agree as on
+      # a coherent workstation; Ada otherwise fails to read libSystem.tbd.
+      - name: Match the developer tools to their SDK
+        if: runner.os == 'macOS'
+        run: |
+          version() { plutil -extract Version raw -o - "$1/SDKSettings.json" 2>/dev/null; }
+          tools=/Library/Developer/CommandLineTools
+          bundled=$(version "$tools/SDKs/MacOSX.sdk" || true)
+          selected=$(version "$(xcrun --show-sdk-path)" || true)
+          echo "Tools SDK ${bundled:-none}; $(xcode-select -p) SDK ${selected:-none}"
+          newest=$(printf '%s\n%s\n' "$selected" "$bundled" | sort -V | tail -n 1)
+          if [[ -n $bundled && -n $selected && $newest != "$selected" ]]; then
+            sudo xcode-select -s "$tools"
+            echo "Selected $(xcode-select -p): $(ld -v 2>&1 | head -n 1)"
+          fi
+
       - name: Run the harness on macOS
         if: runner.os == 'macOS'
         run: |
