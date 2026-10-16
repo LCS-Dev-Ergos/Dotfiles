@@ -80,6 +80,8 @@ command env -i \
   ZSH_CONFIG_DIR="$test_root" \
   zsh -dfc '
     source "$ZSH_CONFIG_DIR/lib/90-path.zsh" || exit 1
+    # Every assertion below counts, not only the last.
+    setopt err_exit
     typeset nix_bin="/etc/profiles/per-user/$USER/bin"
     typeset brew_bin="/opt/homebrew/bin"
     typeset system_bin="/bin"
@@ -89,6 +91,10 @@ command env -i \
     (( nix_index > 0 && brew_index > 0 && system_index > 0 ))
     (( nix_index < brew_index && nix_index < system_index ))
     (( ${path[(Ie)/opt/homebrew/opt/llvm/bin]} == 0 ))
+    # The installer'"'"'s Nix in the default profile must not shadow nix-darwin'"'"'s.
+    if [[ -d /nix/var/nix/profiles/default/bin ]]; then
+      (( ${path[(Ie)/run/current-system/sw/bin]} < ${path[(Ie)/nix/var/nix/profiles/default/bin]} ))
+    fi
     (( ${path[(Ie)/opt/homebrew/opt/ccache/libexec]} == 0 ))
   ' || {
   print -u2 \

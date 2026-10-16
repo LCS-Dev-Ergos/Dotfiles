@@ -168,10 +168,13 @@ zsh_rebuild_path() {
 
       # ------------------ Nix ------------------ #
       # Declaratively managed tools win over duplicate Homebrew formulae.
+      # nix-darwin's system profile precedes the default profile, as in
+      # nix-darwin's own PATH: the installer's Nix stays there, at the
+      # release it installed, while nix-darwin moves its own with the lock.
       "${USER:+/etc/profiles/per-user/$USER/bin}"
       "$HOME/.nix-profile/bin"
-      "/nix/var/nix/profiles/default/bin"
       "/run/current-system/sw/bin"
+      "/nix/var/nix/profiles/default/bin"
 
       # --------------- Homebrew ---------------- #
       "/opt/homebrew/bin"
