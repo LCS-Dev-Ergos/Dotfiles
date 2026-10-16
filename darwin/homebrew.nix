@@ -196,7 +196,6 @@ _: {
       # Homebrew Samba library path, so this is not a clean Nix owner yet.
       "veeso/termscp/termscp"
       "zackelia/formulae/bclm"
-      "zsh"
     ]
     # The native managers, then the libraries their source builds link
     # against, as the development bootstrap declares them: Python, Ruby,
