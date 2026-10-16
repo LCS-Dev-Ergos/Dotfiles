@@ -189,8 +189,8 @@ and `just prune`.
 
 | Invocation | Effect |
 | --- | --- |
-| `scripts/bootstrap/dev-bootstrap.sh --check-foundation` | Checks the platform, Nix daemon, Homebrew or pacman and the Apple SDK; downloads nothing |
-| `scripts/bootstrap/dev-bootstrap.sh --install-foundation plan --json` | Apple Silicon only: installs a missing Homebrew and Nix, then plans |
+| `scripts/bootstrap/dev-bootstrap.sh --check-foundation` | Checks the platform, Nix daemon, Homebrew or pacman and the build tools (Apple SDK or `base-devel`); downloads nothing |
+| `scripts/bootstrap/dev-bootstrap.sh --install-foundation plan --json` | Installs what is missing (Homebrew on macOS, `base-devel` on Arch/CachyOS, Nix), then plans |
 | `scripts/bootstrap/dev-bootstrap.sh plan` | Default operation: reports what `apply` would change |
 | `scripts/bootstrap/dev-bootstrap.sh setup` | Guided: shows each ecosystem's state and cost, asks which to set up, reviews what `apply` would do and applies it once accepted |
 | `scripts/bootstrap/dev-bootstrap.sh apply --only node` | Installs the selected ecosystems |
@@ -209,8 +209,8 @@ and `just prune`.
 - A rerun adds missing baseline entries and leaves later upgrades, additional
   releases and project selections in place.
 - Foundation installation runs only the installers for missing foundations:
-  the pinned official Homebrew installer, then the official Nix multi-user
-  installer. On Linux, Nix and pacman must already be present.
+  the pinned official Homebrew installer on macOS or `base-devel` through
+  pacman on Arch/CachyOS, then the pinned official Nix multi-user installer.
 - The bootstrap never activates nix-darwin or Home Manager and never installs
   desktop applications.
 

@@ -59,6 +59,8 @@ bootstrap_platform() { printf 'darwin\\n'; }
 bootstrap_nix() { [[ -f "$FIXTURE/has-nix" ]] && printf '%s\\n' "$NIX"; }
 bootstrap_native() { [[ -f "$FIXTURE/has-homebrew" ]]; }
 bootstrap_sdk() { [[ -f "$FIXTURE/has-sdk" ]]; }
+bootstrap_build_tools() { [[ -f "$FIXTURE/has-tools" ]]; }
+bootstrap_nix_residue() { [[ ! -f "$FIXTURE/has-residue" ]] || printf '/nix\\n'; }
 """
 
     def run_shell(self, code, *arguments, environment=None):
@@ -80,7 +82,7 @@ bootstrap_sdk() { [[ -f "$FIXTURE/has-sdk" ]]; }
         )
 
     def mark(self, *names):
-        for name in ("nix", "homebrew", "sdk"):
+        for name in ("nix", "homebrew", "sdk", "tools", "residue"):
             (self.root / f"has-{name}").unlink(missing_ok=True)
         for name in names:
             (self.root / f"has-{name}").touch()
@@ -117,6 +119,29 @@ bootstrap_sdk() { [[ -f "$FIXTURE/has-sdk" ]]; }
                             "daemon",
                         ],
                     )
+
+    def test_arch_foundation_check_reports_build_tools(self):
+        """base-devel is to Arch what the Apple SDK is to macOS."""
+        for present, expected in (
+            (("nix",), 1),
+            (("nix", "tools"), 0),
+        ):
+            with self.subTest(present=present):
+                self.mark(*present)
+                result = self.run_shell(
+                    self.discovery
+                    + """
+bootstrap_platform() { printf 'arch\\n'; }
+bootstrap_native() { :; }
+bootstrap_main "$@"
+""",
+                    "--check-foundation",
+                )
+                self.assertEqual(result.returncode, expected, result.stderr)
+                state = "ready  " if expected == 0 else "missing"
+                self.assertIn(
+                    f"{state} native build tools (base-devel)", result.stdout
+                )
 
     def test_installed_nix_is_the_locked_release(self):
         """--install-foundation installs the Nix the configuration starts from."""
@@ -256,6 +281,95 @@ bootstrap_install darwin
                     self.assertIn("Homebrew/install/", fetches[0])
                     self.assertIn("nix-2.34.8/install", fetches[1])
                 self.assertFalse(list(self.root.glob("dev-bootstrap.*")))
+
+    def test_arch_installs_build_tools_and_nix_only_when_missing(self):
+        """Arch gets base-devel through pacman and the same pinned Nix."""
+        installers = """
+bootstrap_platform() { printf 'arch\\n'; }
+bootstrap_native() { :; }
+id() { printf '1000\\n'; }
+sudo() {
+  printf 'sudo %s\\n' "$*" >> "$LOG"
+  [[ "$*" != *pacman* ]] || touch "$FIXTURE/has-tools"
+}
+bootstrap_download() {
+  printf 'fetch %s\\n' "$1" >> "$LOG"
+  printf 'touch "$FIXTURE/has-nix"\\n' > "$3"
+}
+bootstrap_install arch
+bootstrap_install arch
+"""
+        for present in ((), ("nix",), ("tools",), ("nix", "tools")):
+            with self.subTest(present=present):
+                self.mark(*present)
+                result = self.run_shell(self.discovery + installers)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                lines = (
+                    self.log.read_text().splitlines()
+                    if self.log.exists()
+                    else []
+                )
+                pacman = [line for line in lines if "pacman" in line]
+                fetches = [line for line in lines if line.startswith("fetch ")]
+                self.assertEqual(
+                    pacman,
+                    []
+                    if "tools" in present
+                    else [
+                        "sudo -n /usr/bin/pacman -S --needed --noconfirm "
+                        "base-devel"
+                    ],
+                )
+                self.assertEqual(
+                    fetches,
+                    []
+                    if "nix" in present
+                    else [
+                        "fetch https://releases.nixos.org/nix/nix-2.34.8/install"
+                    ],
+                )
+                self.assertNotIn("Homebrew", result.stderr)
+                # The announcement names exactly what is missing.
+                self.assertEqual(
+                    "base-devel" in result.stderr, "tools" not in present
+                )
+                self.assertEqual(
+                    "Nix 2.34.8" in result.stderr, "nix" not in present
+                )
+
+    def test_announcement_precedes_authentication(self):
+        """The person sees what will be installed before sudo asks."""
+        self.mark("homebrew")
+        result = self.run_shell(
+            self.discovery
+            + """
+id() { printf '1000\\n'; }
+sudo() { printf 'sudo %s\\n' "$*" >&2; return 1; }
+bootstrap_install darwin
+"""
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertLess(
+            result.stderr.index("Nix 2.34.8"), result.stderr.index("sudo -n")
+        )
+        self.assertNotIn("Homebrew ", result.stderr)
+
+    def test_earlier_nix_residue_stops_before_any_change(self):
+        """A half-removed Nix is named, not handed to an installer that fails."""
+        self.mark("residue")
+        result = self.run_shell(
+            self.discovery
+            + """
+id() { printf '1000\\n'; }
+sudo() { printf 'sudo %s\\n' "$*" >> "$LOG"; }
+bootstrap_download() { printf 'fetch %s\\n' "$1" >> "$LOG"; }
+bootstrap_install darwin
+"""
+        )
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("/nix", result.stderr)
+        self.assertIn("installation/uninstall", result.stderr)
+        self.assertFalse(self.log.exists())
 
     def test_failed_foundation_stops_before_runtime(self):
         """Acquisition/installer errors stop the sequence and clean private scratch."""

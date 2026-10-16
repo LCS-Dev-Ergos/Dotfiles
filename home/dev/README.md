@@ -135,29 +135,44 @@ are not required. CI builds the same package through this expression.
 
 The foundation check makes no downloads or configuration changes. It reports
 Nix daemon connectivity, the canonical native package-manager executable and
-Apple SDK presence. SDK presence is not compiler or license qualification.
+the native build tools: Apple SDK presence on macOS, an installed `base-devel`
+on Arch/CachyOS. SDK presence is not compiler or license qualification.
 Normal plan/verify commands can inspect incomplete native environments;
 `apply` retains language-specific prerequisite checks.
 
-Explicit foundation installation supports Apple Silicon macOS.
-It invokes only missing foundations: the revision/checksum-pinned official
-Homebrew installer (including its headless CLT acquisition), then the official
-Nix 2.34.8 multi-user installer. This matches the initially locked Darwin Nix
-release and leaves subsequent Nix daemon updates to nix-darwin. Existing
-foundations are not upgraded. Installer-script pinning does not freeze
-Homebrew's package repositories or Apple's software-update catalog.
+Explicit foundation installation covers both supported platforms and invokes
+only missing foundations. On macOS that is the revision/checksum-pinned
+official Homebrew installer (including its headless CLT acquisition); on
+Arch/CachyOS it is `base-devel`, through the same `pacman -S --needed` apply
+uses, without a repository refresh or upgrade. Both then run the official
+Nix 2.34.8 multi-user installer, the release the locked nixpkgs carries. The
+entry checks the installer script's SHA-256, and the script checks the
+platform tarball's. It lists what it is about to install before asking for
+administrator authentication. Existing foundations are not upgraded.
+Installer-script pinning does not freeze Homebrew's package repositories,
+Apple's software-update catalog or the pacman mirrors.
+
+After installation, nix-darwin owns Nix daemon updates on macOS. On Linux
+nothing in this repository does: the daemon stays at the installed release
+until it is upgraded through
+[Nix's upgrade procedure](https://nix.dev/manual/nix/latest/installation/upgrading).
 
 Administrative authentication occurs in the foreground when needed; unattended
 execution requires available noninteractive sudo privileges. Upstream installers
-own their system changes, including Nix's store volume, daemon and shell profile
-integration. Installation failure stops before runtime bootstrap. Existing
+own their system changes, including Nix's store volume on macOS, its daemon
+service, build users and shell profile integration. Installation failure
+stops before runtime bootstrap. The Nix installer does not roll back a failed
+run, and refuses to start over the `/nix` tree and `*.backup-before-nix`
+profile backups it leaves; the entry names them before changing anything, and
+[Nix's uninstall guide](https://nix.dev/manual/nix/latest/installation/uninstall)
+removes them. Existing
 Homebrew with a missing/broken SDK is reported, not automatically reinstalled.
 This entry never activates Darwin/Home Manager or installs desktop applications.
 GitHub Actions exercises isolated bootstrap contracts and package builds; that
 evidence does not replace an installation on a pristine operating system.
 
-On Arch/CachyOS, use the same entry after the native OS/Nix foundation exists;
-automatic foundation installation is deliberately macOS-only.
+On Arch/CachyOS, pacman and `sudo` must already be present; without `sudo`
+the entry stops, because only root can provide it.
 The entry enables flakes per invocation without changing the lockfile. Its
 default operation is `plan`. Nix may acquire/build the bootstrap package even
 for planning; `--only` restricts native operations,

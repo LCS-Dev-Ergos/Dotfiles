@@ -24,10 +24,12 @@ Usage: scripts/bootstrap/dev-bootstrap.sh [--install-foundation] [plan|apply|ver
        scripts/bootstrap/dev-bootstrap.sh --check-foundation
 
 No operation defaults to plan. Runtime options pass literally to dev-bootstrap.
---check-foundation checks native platform, Nix daemon, Homebrew/pacman and SDK.
---install-foundation installs missing Nix/Homebrew on Apple Silicon macOS,
-then continues with the requested operation. Administrative authentication may
-be required. Existing foundations are never replaced or upgraded by this entry.
+--check-foundation checks native platform, Nix daemon, Homebrew/pacman and
+build tools (Apple SDK or base-devel).
+--install-foundation installs the missing ones (Homebrew and Apple's developer
+tools on macOS, base-devel on Arch/CachyOS, and Nix), then continues with the
+requested operation. It lists them before administrative authentication.
+Existing foundations are never replaced or upgraded by this entry.
 Use apply --only LANGUAGE to limit installation; omit apply to avoid runtimes.
 --only ... --save-selection keeps that selection for later runs; --all ignores it.
 prune lists the installed releases the baseline retired; prune --yes removes them.
@@ -51,7 +53,7 @@ bootstrap_platform() {
 
 bootstrap_nix() {
   local candidate
-  for candidate in "$(command -v nix || true)" \
+  for candidate in "$(command -v nix || true)" /run/current-system/sw/bin/nix \
     /nix/var/nix/profiles/default/bin/nix "$HOME/.nix-profile/bin/nix"; do
     if [[ -n "$candidate" && -x "$candidate" ]]; then
       printf '%s\n' "$candidate"
@@ -61,11 +63,28 @@ bootstrap_nix() {
   return 1
 }
 
+# A failed or removed installation leaves files the official Nix installer
+# refuses to overwrite. Name them before anything changes, instead of
+# failing deep in the installer's output.
+bootstrap_nix_residue() {
+  local path
+  for path in /nix /etc/bashrc.backup-before-nix /etc/bash.bashrc.backup-before-nix \
+    /etc/zshrc.backup-before-nix /etc/zsh/zshrc.backup-before-nix; do
+    if [[ -e "$path" ]]; then printf '%s\n' "$path"; fi
+  done
+}
+
 bootstrap_native() {
   case "$1" in
     darwin) [[ -x /opt/homebrew/bin/brew ]] ;;
     arch) [[ -x /usr/bin/pacman ]] ;;
   esac
+}
+
+# Arch's counterpart of Apple's developer tools: the compiler, make and sudo
+# that source builds and this entry assume. -T asks the local database only.
+bootstrap_build_tools() {
+  /usr/bin/pacman -T base-devel >/dev/null 2>&1
 }
 
 bootstrap_sdk() {
@@ -92,13 +111,20 @@ bootstrap_check() {
   else
     printf 'missing native package manager\n'; missing=1
   fi
-  if [[ "$platform" == darwin ]]; then
-    if bootstrap_sdk; then
-      printf 'ready   Apple SDK (presence only; compiler acceptance is separate)\n'
-    else
-      printf 'missing Apple developer tools or selected SDK\n'; missing=1
-    fi
-  fi
+  case "$platform" in
+    darwin)
+      if bootstrap_sdk; then
+        printf 'ready   Apple SDK (presence only; compiler acceptance is separate)\n'
+      else
+        printf 'missing Apple developer tools or selected SDK\n'; missing=1
+      fi ;;
+    arch)
+      if bootstrap_build_tools; then
+        printf 'ready   native build tools (base-devel)\n'
+      else
+        printf 'missing native build tools (base-devel)\n'; missing=1
+      fi ;;
+  esac
   return "$missing"
 }
 
@@ -114,14 +140,41 @@ bootstrap_download() {
   [[ "${actual%% *}" == "$expected" ]] || bootstrap_error "Installer checksum mismatch: $url"
 }
 
+bootstrap_announce() {
+  local platform="$1" missing_native="$2" missing_tools="$3" missing_nix="$4"
+  printf 'dev-bootstrap: installing the missing foundations:\n'
+  if (( missing_native )); then
+    printf '  Homebrew    official installer at a pinned revision, into /opt/homebrew;\n'
+    printf '              installs Apple'"'"'s Command Line Tools when they are missing\n'
+  fi
+  if (( missing_tools )); then
+    printf '  base-devel  pacman -S --needed base-devel; no repository refresh or upgrade\n'
+  fi
+  if (( missing_nix )); then
+    printf '  Nix 2.34.8  official multi-user installer: /nix, the nix-daemon service,\n'
+    printf '              nixbld build users and Nix lines in the system shell profiles\n'
+  fi
+  printf 'Administrator authentication follows.\n'
+}
+
 bootstrap_install() (
-  local platform="$1" nix missing_nix=0 missing_native=0
-  [[ "$platform" == darwin ]] || bootstrap_error 'Automatic foundation installation is currently macOS-only.'
-  nix=$(bootstrap_nix) || missing_nix=1
+  local platform="$1" missing_nix=0 missing_native=0 missing_tools=0 residue
+  bootstrap_nix >/dev/null || missing_nix=1
   bootstrap_native "$platform" || missing_native=1
-  if (( !missing_nix && !missing_native )); then return; fi
+  if [[ "$platform" == arch ]]; then
+    bootstrap_build_tools || missing_tools=1
+  fi
+  if (( !missing_nix && !missing_native && !missing_tools )); then return; fi
   [[ $(id -u) != 0 ]] || bootstrap_error 'Run as the target user, not root.'
   export PATH=/usr/bin:/bin:/usr/sbin:/sbin
+  if (( missing_nix )); then
+    residue=$(bootstrap_nix_residue)
+    [[ -z "$residue" ]] || bootstrap_error "Nix is not usable, but an earlier installation left" \
+      "${residue//$'\n'/ }. Remove it as https://nix.dev/manual/nix/latest/installation/uninstall describes, then rerun."
+  fi
+  # Without sudo nothing here can be installed; root has to provide it.
+  [[ -x /usr/bin/sudo ]] || bootstrap_error 'sudo is missing; as root, install it and allow this account to use it.'
+  bootstrap_announce "$platform" "$missing_native" "$missing_tools" "$missing_nix" >&2
   # Authentication is part of this explicit command; no passwords are stored.
   if [[ -t 0 ]]; then sudo -v; else sudo -n -v; fi
   # Subshell-local, not function-local: EXIT also runs after function unwinding.
@@ -139,9 +192,17 @@ bootstrap_install() (
     (unset INTERACTIVE; NONINTERACTIVE=1 /bin/bash "$temporary/homebrew.sh" </dev/null)
     bootstrap_native "$platform" || bootstrap_error 'Homebrew installation did not produce /opt/homebrew/bin/brew.'
   fi
+  if (( missing_tools )); then
+    # The same transaction apply uses: install what is missing, never refresh
+    # the sync database alone, never upgrade.
+    sudo -n /usr/bin/pacman -S --needed --noconfirm base-devel </dev/null ||
+      bootstrap_error 'pacman could not install base-devel; if the sync database is stale, run sudo pacman -Syu first.'
+    bootstrap_build_tools || bootstrap_error 'base-devel is still not installed.'
+  fi
   if (( missing_nix )); then
-    # Match the initial Nix release in the locked Darwin configuration.
-    # Subsequent daemon/package updates remain nix-darwin-owned.
+    # Match the Nix release the locked nixpkgs carries. On macOS nix-darwin
+    # owns later daemon updates; on Linux they stay with the Nix upgrade
+    # procedure. The script carries each platform's tarball SHA-256.
     bootstrap_download https://releases.nixos.org/nix/nix-2.34.8/install \
       96c10e102c88809dd9ec0bee89200c4a51eae4c9f6d8698c26b16788d131e078 \
       "$temporary/nix.sh"

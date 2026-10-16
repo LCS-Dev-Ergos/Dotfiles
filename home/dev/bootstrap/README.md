@@ -7,7 +7,7 @@ Exact baseline verification and selected-environment health are separate
 operations. Neither substitutes for project dependency locks.
 
 `scripts/bootstrap/dev-bootstrap.sh` is the pre-Nix workstation entry. It
-acquires missing macOS foundations only with `--install-foundation`, then
+acquires missing foundations only with `--install-foundation`, then
 invokes this packaged executor. Its `--check-foundation` mode avoids downloads,
 Nix realization and runtime installation. The executor remains responsible for
 native prerequisites and runtime semantics; the entry does not reproduce those
@@ -32,7 +32,7 @@ expression and host system; it does not update the lock or select a channel.
 ```mermaid
 flowchart TD
     Entry["scripts/bootstrap/dev-bootstrap.sh"] --> Foundation{"Foundations available?"}
-    Foundation -->|No; explicit --install-foundation| Foundations["Missing Homebrew / Nix installation"]
+    Foundation -->|No; explicit --install-foundation| Foundations["Missing Homebrew / base-devel / Nix installation"]
     Foundations --> Package
     Foundation -->|Yes| Package["Standalone Nix package from flake.lock"]
     Baseline["runtime-baseline.nix + native-managers.nix"] --> Validation["platforms.nix + validate.nix"]
