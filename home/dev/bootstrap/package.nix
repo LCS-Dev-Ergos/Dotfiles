@@ -142,8 +142,10 @@ builtins.seq baseline (
       cp -r core "$out/share/development-bootstrap/"
       cp ${manifestFile} \
         "$out/share/development-bootstrap/baseline.json"
+      # -I: the caller's PYTHONPATH, PYTHONSAFEPATH and user site-packages
+      # never reach the executor's imports.
       makeWrapper ${lib.getExe python3} "$out/bin/dev-bootstrap" \
-        --add-flags "$out/share/development-bootstrap/bootstrap.py" \
+        --add-flags "-I $out/share/development-bootstrap/bootstrap.py" \
         --add-flags "--manifest $out/share/development-bootstrap/baseline.json" \
         --suffix PATH : ${lib.makeBinPath [ coreutils ]}
       ln -s dev-bootstrap "$out/bin/devrestore"

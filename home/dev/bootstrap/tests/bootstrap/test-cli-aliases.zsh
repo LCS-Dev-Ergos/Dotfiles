@@ -58,6 +58,20 @@ command mkdir -p "$HOME"
   return 1
 }
 
+# The caller's Python settings never reach the executor: a module on
+# PYTHONPATH that shadows the standard library, or PYTHONSAFEPATH dropping
+# the entry's own directory, would otherwise break every command.
+typeset shadow="$fixture_root/shadow"
+command mkdir -p "$shadow"
+print -r -- 'raise SystemExit("shadowed json")' > "$shadow/json.py"
+PYTHONPATH="$shadow" PYTHONSAFEPATH=1 \
+  "$bootstrap_package/bin/dev-bootstrap" plan --runtimes-only --json \
+  > "$fixture_root/isolated.json" || {
+  print -u2 'FAIL: the executor depends on the caller'"'"'s Python settings'
+  return 1
+}
+[[ -s "$fixture_root/isolated.json" ]] || return 1
+
 print -r -- 'PASS: CLI alias identity and packaged plan smoke'
 
 # ============================================================================ #
