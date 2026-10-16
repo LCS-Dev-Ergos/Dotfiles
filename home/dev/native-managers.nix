@@ -15,7 +15,10 @@ let
     managers.ruby
     "ruby-build"
   ];
-  installerPackages = [
+  # What the installer scripts call (SDKMAN needs zip and unzip). macOS ships
+  # all three in /usr/bin, where Homebrew's copies are keg-only and unused, so
+  # only Arch declares them.
+  archInstallerPackages = [
     "curl"
     "unzip"
     "zip"
@@ -190,7 +193,8 @@ in
   # Explicit post-Nix bootstrap routes; no OS foundation or system upgrade.
   bootstrap = {
     aarch64-darwin = {
-      inherit installerPackages managers;
+      inherit managers;
+      installerPackages = [ ];
       installers = installers // releaseInstallers.aarch64-darwin;
       packageManager = "/opt/homebrew/bin/brew";
       managerDirectory = "/opt/homebrew/bin";
@@ -251,7 +255,8 @@ in
       };
     };
     x86_64-linux = {
-      inherit installerPackages managers;
+      inherit managers;
+      installerPackages = archInstallerPackages;
       installers = installers // releaseInstallers.x86_64-linux;
       packageManager = "/usr/bin/pacman";
       managerDirectory = "/usr/bin";

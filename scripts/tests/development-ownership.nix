@@ -79,6 +79,15 @@ let
     nativeMacFnm = builtins.elem "fnm" inventory.homebrew;
     archFnmIsNative = inventory.arch.fnm.method == "pacman";
     archFnmPackageDeclared = builtins.elem "fnm" inventory.arch.packages;
+    # macOS's own curl, unzip and zip serve the installers; Homebrew's would
+    # be keg-only duplicates nothing runs.
+    darwinUsesSystemInstallerTools = inventory.bootstrap.aarch64-darwin.installerPackages == [ ];
+    archInstallerToolsDeclared =
+      inventory.bootstrap.x86_64-linux.installerPackages == [
+        "curl"
+        "unzip"
+        "zip"
+      ];
   }
   // builtins.mapAttrs (_: declaration: !(acceptsDeclaration declaration)) rejectedDeclarations;
 in
