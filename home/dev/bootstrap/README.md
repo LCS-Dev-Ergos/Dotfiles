@@ -245,7 +245,10 @@ drivers: `buildEnvironment` names it `{compiler}`, bound to the first
 `compilerProfiles` entry whose `clang` and `clang++` come from the Nix store.
 That is the profile path the shell's `CC` names, so what a runtime records
 (sysconfig, rbconfig, OCaml's and GHC's settings) survives every generation,
-and `MACOSX_DEPLOYMENT_TARGET` comes from `cc-toolchain.nix`. Without such a
+and `MACOSX_DEPLOYMENT_TARGET` comes from `cc-toolchain.nix`. Builds that call
+the compiler by name (`cc`, as OCaml's and rustc's links do) find the
+profile's drivers first on their search path, through a scratch directory
+linking only `compilerCommands`, never the profile's other tools. Without such a
 profile, an apply that would build Python, Ruby, OCaml or Haskell stops in its
 prerequisites stage, and `plan --preflight` reports the compiler missing.
 Ordinary manager commands retain their existing environment filtering.

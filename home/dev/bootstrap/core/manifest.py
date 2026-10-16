@@ -101,6 +101,13 @@ def validate_manifest(data):
         version(release)
     validate_toolchains(data)
     validate_licenses(data.get("setup", {}).get("licenses", {}))
+    commands = data.get("setup", {}).get("compilerCommands", [])
+    if not isinstance(commands, list) or not all(
+        isinstance(name, str)
+        and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9+._-]*", name)
+        for name in commands
+    ):
+        raise BootstrapError("Compiler commands must be plain command names")
     validate_retired(data.get("retired", {}))
     for tool, path in data.get("frontend", {}).items():
         if (

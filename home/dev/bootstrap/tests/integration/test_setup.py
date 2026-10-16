@@ -1339,6 +1339,7 @@ class SetupTests(unittest.TestCase):
         (profile / "bin").mkdir(parents=True)
         self.data["setup"].update(
             compilerProfiles=[str(per_user / "{USER}"), "{HOME}/.nix-profile"],
+            compilerCommands=["cc", "clang", "gcc"],
             buildEnvironment={
                 "CC": "{compiler}/bin/clang",
                 "CXX": "{compiler}/bin/clang++",
@@ -1367,14 +1368,27 @@ class SetupTests(unittest.TestCase):
             # profile path a runtime then records.
             for name in ("clang", "clang++"):
                 (profile / "bin" / name).symlink_to(drivers / name)
+            self.executable(drivers / "cc")
+            (profile / "bin/cc").symlink_to(drivers / "cc")
             self.assertEqual(self.recovery.compiler_profile(), profile)
+            environment = self.recovery.build_environment()
+            commands, _, search = environment.pop("PATH").partition(":")
             self.assertEqual(
-                self.recovery.build_environment(),
+                environment,
                 {
                     "CC": f"{profile}/bin/clang",
                     "CXX": f"{profile}/bin/clang++",
-                    "PATH": "/fixture/native",
                 },
+            )
+            # Builds that call cc by name reach the same drivers first, and
+            # nothing else of the profile; a command it lacks is left out.
+            self.assertEqual(search, "/fixture/native")
+            self.assertEqual(
+                {
+                    path.name: path.readlink()
+                    for path in Path(commands).iterdir()
+                },
+                {"cc": profile / "bin/cc", "clang": profile / "bin/clang"},
             )
             self.assertEqual(self.setup.preflight()["compiler"], "present")
         # Node alone records no compiler, so nothing asks for one.

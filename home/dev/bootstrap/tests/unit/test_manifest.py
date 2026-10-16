@@ -49,6 +49,8 @@ class ManifestTests(unittest.TestCase):
         license_hash["setup"] = {
             "licenses": {"android-sdk-license": "hash\nextra"}
         }
+        commands = copy.deepcopy(BASELINE)
+        commands["setup"] = {"compilerCommands": ["../cc"]}
         cases = (
             ("malformed JSON", "{", "Invalid baseline"),
             ("wrong shape", "[]", "Invalid baseline"),
@@ -58,6 +60,7 @@ class ManifestTests(unittest.TestCase):
             ("native default", json.dumps(native_default), "Default rust"),
             ("license name", json.dumps(unknown_license), "Recorded licenses"),
             ("license hash", json.dumps(license_hash), "Recorded licenses"),
+            ("compiler command", json.dumps(commands), "plain command names"),
         )
         with tempfile.TemporaryDirectory(prefix="bootstrap-manifest-") as root:
             path = Path(root) / "baseline.json"

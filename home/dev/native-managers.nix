@@ -266,6 +266,19 @@ in
         "/etc/profiles/per-user/{USER}"
         "{HOME}/.nix-profile"
       ];
+      # Commands a build calls by name instead of CC (OCaml's and rustc's
+      # links call cc): the profile's drivers come first on the build's
+      # search path, as in the shell, without the profile's other tools.
+      compilerCommands = [
+        "cc"
+        "c++"
+        "cpp"
+        "clang"
+        "clang++"
+        "gcc"
+        "g++"
+        "ld"
+      ];
       buildEnvironment = {
         CC = "{compiler}/bin/clang";
         CXX = "{compiler}/bin/clang++";
