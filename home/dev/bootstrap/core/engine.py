@@ -286,7 +286,9 @@ class Bootstrap:
                 if not exact:
                     row["actualVersion"] = identity
                 row["state"] = "ok"
-            except BootstrapError as error:
+            except (BootstrapError, OSError) as error:
+                # A damaged installation is this row's conflict, not the
+                # end of the report.
                 row.update(state="conflict", reason=str(error))
                 remedy = adapter.remediation(row)
                 if remedy:

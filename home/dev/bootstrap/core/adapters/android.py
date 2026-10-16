@@ -446,9 +446,14 @@ class AndroidAdapter(JdkTool, ToolchainAdapter):
                 )
                 ok = (work / "values_strings.arsc.flat").is_file()
             elif component == "platform" and not self.has("build-tools"):
-                with zipfile.ZipFile(path) as archive:
-                    output = "android/app/Activity.class"
-                    ok = output in archive.namelist()
+                output = "android/app/Activity.class"
+                try:
+                    with zipfile.ZipFile(path) as archive:
+                        ok = output in archive.namelist()
+                except zipfile.BadZipFile as error:
+                    raise BootstrapError(
+                        f"android canary failed: {path} is damaged ({error})"
+                    ) from error
             else:
                 aapt2 = (
                     path

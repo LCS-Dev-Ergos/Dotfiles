@@ -1724,6 +1724,38 @@ class NativeTransitions(unittest.TestCase):
         self.assertEqual(android.selection(), None)
         self.assertTrue(platform.is_file())
 
+    def test_damaged_packages_and_settings_are_reported_not_raised(self):
+        self.managers()
+        android = self.adapter("android")
+        jar = self.android_package("platform", "37.2")
+        jar.write_text("not a zip")
+        row = next(
+            row for row in android.baseline() if row["component"] == "platform"
+        )
+        with self.assertRaisesRegex(BootstrapError, "is damaged"):
+            android.verify(row)
+        # Qualification turns any failure to read an installation into that
+        # row's conflict, so the rest of the report still follows.
+        row = dict(row, state="present")
+        with patch.object(
+            AndroidAdapter, "verify", side_effect=PermissionError("denied")
+        ):
+            self.recovery.qualify([row], exact=True)
+        self.assertEqual((row["state"], row["reason"]), ("conflict", "denied"))
+        # alr's settings keep tables where it reads tables and paths where
+        # it reads paths; anything else needs a person.
+        settings = self.adapter("ada").roots["ALIRE_SETTINGS_DIR"]
+        settings.mkdir(parents=True, exist_ok=True)
+        for text, message in (
+            ('cache = "elsewhere"\n', "setting cache: it is not a table"),
+            ("[toolchain]\ndir = 5\n", "toolchain.dir: it is not a path"),
+            ('toolchain = "gnat"\n', "setting toolchain: it is not a table"),
+        ):
+            with self.subTest(settings=text):
+                (settings / "settings.toml").write_text(text)
+                with self.assertRaisesRegex(BootstrapError, message):
+                    Bootstrap(self.data, ["ada"])
+
     def test_android_canary_links_an_app_against_the_platform(self):
         self.managers()
         android = self.adapter("android")

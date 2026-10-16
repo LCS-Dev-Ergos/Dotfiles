@@ -42,6 +42,29 @@ end Canary;
 """
 
 
+def setting(settings, *keys):
+    """A value in alr's settings by its dotted key, or None when unset.
+
+    Every level but the last must be a table; anything else is a settings
+    file alr itself would not read, which needs a person.
+    """
+    value = settings
+    for depth, key in enumerate(keys):
+        if not isinstance(value, dict):
+            raise BootstrapError(
+                f"Inspect the Alire setting {'.'.join(keys[:depth])}: "
+                "it is not a table"
+            )
+        value = value.get(key)
+        if value is None:
+            return None
+    if len(keys) > 1 and keys[-1] == "dir" and not isinstance(value, str):
+        raise BootstrapError(
+            f"Inspect the Alire setting {'.'.join(keys)}: it is not a path"
+        )
+    return value
+
+
 class AdaAdapter(ToolchainAdapter):
     language = "ada"
     title = "Ada"
@@ -64,7 +87,7 @@ class AdaAdapter(ToolchainAdapter):
             "ALIRE_SETTINGS_DIR", self.config_home() / "alire"
         )
         configured = self.settings(settings)
-        cache = configured.get("cache", {}).get("dir")
+        cache = setting(configured, "cache", "dir")
         if not cache:
             # An explicit settings directory takes the cache along with it;
             # otherwise the cache follows the data home.
@@ -72,7 +95,7 @@ class AdaAdapter(ToolchainAdapter):
                 cache = settings / "cache"
             else:
                 cache = self.data_home() / "alire"
-        toolchains = configured.get("toolchain", {}).get("dir")
+        toolchains = setting(configured, "toolchain", "dir")
         if not toolchains:
             toolchains = Path(cache) / "toolchains"
         # Named after the setting that moves them; no variable does.
@@ -300,11 +323,11 @@ class AdaAdapter(ToolchainAdapter):
 
     def choice(self, component):
         """The crate and release the global settings select, or None."""
-        value = (
-            self.settings(self.roots["ALIRE_SETTINGS_DIR"])
-            .get("toolchain", {})
-            .get("use", {})
-            .get(component)
+        value = setting(
+            self.settings(self.roots["ALIRE_SETTINGS_DIR"]),
+            "toolchain",
+            "use",
+            component,
         )
         if value is None:
             return None
