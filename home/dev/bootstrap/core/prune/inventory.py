@@ -61,7 +61,11 @@ def normalize(name):
 
 
 def python_distributions(prefix):
-    """Distributions installed into an interpreter, by normalized name."""
+    """Distributions installed into an interpreter, by normalized name.
+
+    The version, or None for one installed from a URL, a VCS or a local
+    path, which PEP 610's direct_url.json records: no index reinstalls it.
+    """
     found = {}
     for site in sorted(prefix.glob("lib/python3*/site-packages")):
         for info in site.glob("*.dist-info"):
@@ -69,7 +73,8 @@ def python_distributions(prefix):
                 "-"
             )
             if DISTRIBUTION.fullmatch(name) and version:
-                found[normalize(name)] = version
+                direct = (info / "direct_url.json").is_file()
+                found[normalize(name)] = None if direct else version
     return {
         name: version
         for name, version in found.items()

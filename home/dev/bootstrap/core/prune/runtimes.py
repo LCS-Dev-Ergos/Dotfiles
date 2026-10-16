@@ -22,6 +22,11 @@ COMPILERS = frozenset(
     }
 )
 COMPILER_PREFIXES = ("ocaml-option", "base-", "host-arch-", "host-system-")
+# What carrying packages over means, for the person reading the plan.
+REINSTALLED = (
+    "carried-over packages are reinstalled by name and version from {}, as "
+    "configured; one installed from elsewhere becomes the one published there"
+)
 
 
 def described(names, limit=6):
@@ -82,6 +87,9 @@ class NodeRetirer(Retirer):
                 lambda: self.install_globals(target, missing),
             )
         )
+        # npm records no source for a global package, so one installed from
+        # a tarball or a Git URL cannot be told apart.
+        retirement.notes.append(REINSTALLED.format("the npm registry"))
 
     def install_globals(self, installation, packages):
         binaries = installation / "bin"
@@ -172,11 +180,20 @@ class PythonRetirer(Retirer):
                 f"recreating: {described(copied)}"
             )
         present = python_distributions(target)
-        missing = {
+        held = {
             name: version
             for name, version in python_distributions(prefix).items()
             if name not in present
         }
+        # Reinstalling by name would fetch whatever the index serves under
+        # it, not what was installed from elsewhere.
+        direct = [name for name, version in held.items() if version is None]
+        if direct:
+            retirement.blockers.append(
+                "packages installed from a URL, a VCS or a local path need "
+                f"reinstalling into {successor} by hand: {described(direct)}"
+            )
+        missing = {name: version for name, version in held.items() if version}
         if (dependents or missing) and not target.is_dir():
             retirement.blockers.append(
                 f"what it holds needs {successor} installed; apply first"
@@ -201,6 +218,7 @@ class PythonRetirer(Retirer):
                     lambda: self.install_distributions(target, missing),
                 )
             )
+            retirement.notes.append(REINSTALLED.format("the package index"))
 
     def repoint(self, environments, retirement, target):
         """Same minor release: only the interpreter links and settings move."""

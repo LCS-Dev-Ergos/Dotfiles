@@ -11,7 +11,7 @@ from ..adapters.rust import HOSTS
 from ..errors import BootstrapError
 from .base import Retirer, Step
 from .inventory import ruby_gems, rust_components
-from .runtimes import described, inside
+from .runtimes import REINSTALLED, described, inside
 
 TIMEOUT = 600
 
@@ -154,6 +154,8 @@ class RubyRetirer(ToolchainRetirer):
                 lambda: self.install_gems(target, missing),
             )
         )
+        # RubyGems records no source for an installed gem.
+        retirement.notes.append(REINSTALLED.format("the gem sources"))
 
     def install_gems(self, target, gems):
         # gem's shebang names its own interpreter; native extensions build

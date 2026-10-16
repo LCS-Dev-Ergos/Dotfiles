@@ -415,6 +415,7 @@ class PruneTests(unittest.TestCase):
             row["steps"],
             ["install global packages into 26.2.0: @scope/tool", "remove it"],
         )
+        self.assertIn("from the npm registry", " ".join(row["notes"]))
         self.apply()
         npm = next(event for event in self.events if event[0].endswith("npm"))
         self.assertEqual(npm[-1], "@scope/tool@1.0.0")
@@ -458,12 +459,29 @@ class PruneTests(unittest.TestCase):
             settings = (environment / "pyvenv.cfg").read_text()
             self.assertIn(f"home = {new}/bin\n", settings)
             self.assertIn("version_info = 3.14.2\n", settings)
+        self.assertIn("from the package index", " ".join(row["notes"]))
         pip = next(event for event in self.events if "pip" in event)
         self.assertEqual(pip[-1], "cocotb==2.0")
         self.assertEqual(
             (self.adapter("python").root / "version").read_text(), "3.14.2\n"
         )
         self.assertFalse(old.exists())
+
+    def test_python_packages_from_outside_an_index_block(self):
+        self.select("python", retired={"python": {"version": ["3.14.1"]}})
+        old = self.python("3.14.1", ("cocotb", "2.0"), ("internal", "1.0"))
+        self.python("3.14.2")
+        # pip records a URL, VCS or local-path install in direct_url.json;
+        # the index would serve another package under the same name.
+        site = old / "lib/python3.14/site-packages"
+        (site / "internal-1.0.dist-info/direct_url.json").write_text(
+            '{"url": "file:///src/internal", "dir_info": {}}'
+        )
+        (row,) = self.apply()
+        self.assertEqual(row["state"], "blocked")
+        self.assertIn("by hand: internal", row["reason"])
+        self.assertFalse(any("pip" in event for event in self.events))
+        self.assertTrue(old.is_dir())
 
     def test_python_dependents_that_cannot_follow_block(self):
         self.select("python", retired={"python": {"version": ["3.13.5"]}})
@@ -511,6 +529,7 @@ class PruneTests(unittest.TestCase):
         self.assertIn("fixture failure", rows["ruby"]["reason"])
         self.assertIn("cocoapods", rows["ruby"]["steps"][0])
         self.assertNotIn("ffi", rows["ruby"]["steps"][0])
+        self.assertIn("from the gem sources", " ".join(rows["ruby"]["notes"]))
         self.assertTrue(old.is_dir())
         self.assertEqual(rows["rust"]["state"], "removed")
         self.assertIn(
