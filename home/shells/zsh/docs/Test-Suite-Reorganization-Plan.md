@@ -27,7 +27,6 @@ home/shells/zsh/config/tests/
 │   ├── test-function-safety.zsh
 │   └── test-zfuncs.zsh
 ├── tools/                           # CLI scripts, dependencies, presentation
-│   ├── test-brew-stats.zsh
 │   ├── test-dependency-contract.zsh
 │   ├── test-fabric-tools.zsh
 │   └── test-script-presentation.zsh

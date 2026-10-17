@@ -4,6 +4,7 @@ _: {
   # `lib.mkIf pkgs.stdenv.hostPlatform.isDarwin`, so a module stays correct on its own even
   # if it is ever imported from somewhere other than this file.
   imports = [
+    ./cli/brew-stats
     ./desktop/aerospace
     ./desktop/borders
     ./desktop/sketchybar

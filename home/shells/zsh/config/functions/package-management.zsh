@@ -44,38 +44,24 @@ if [[ "$PLATFORM" == macOS ]]; then
     return $rc
   }
 
-  # The report implementation is a deep internal module; keep only its public
-  # interface in the package-management catalog.
-  if [[ -r \
-    "${ZSH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zsh}/scripts/brew-stats.zsh" ]]; then
-    source \
-      "${ZSH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zsh}/scripts/brew-stats.zsh"
-  fi
-
   # ---------------------------------------------------------------------------
   # brew_stats
   # @description Reports the number and on-disk size of installed Homebrew
-  # packages (formulae and canonical casks), sorted largest-first by default,
-  # plus the download cache size. Files placed by .pkg installers cannot be
-  # attributed reliably.
+  # packages, largest first, plus the download cache; `brew-stats` from
+  # home/cli/brew-stats.
   # @arg $@ string Optional flags; see --help.
   # @option -f | --formula Show only formulae.
   # @option -c | --cask Show only casks.
   # @option --top <n> Limit the table to the n largest (or first) entries.
   # @option --sort size|name Sort order; defaults to size.
-  # @option -q | --quiet Print only the table, no heading or summary card.
+  # @option -q | --quiet Print only the table, no summary.
   # @option -h | --help Show usage information.
-  # @exitcode 1 If inventory, metadata, cache, rendering, or size resolution
-  # fails, or if the installed inventory changes while the report is built.
+  # @exitcode 1 If Homebrew, the inventory or a measurement fails, or some
+  # linked artifacts could not be measured.
   # @exitcode 2 If command-line arguments are invalid.
   # ---------------------------------------------------------------------------
   brew_stats() {
-    emulate -L zsh
-    (( $+functions[_brew_stats_main] )) || {
-      print -u2 "brew_stats: report implementation is unavailable."
-      return 1
-    }
-    _brew_stats_main "$@"
+    command brew-stats "$@"
   }
 fi
 

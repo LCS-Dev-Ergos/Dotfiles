@@ -179,7 +179,7 @@ take precedence over the generated baseline.
 | `get_toolchain_info`, `get_toolchain_sdk_support` | `functions/development-tools.zsh` | `toolchain info` and `toolchain sdk` (home/dev/doctor) |
 | `use_llvm`, `use_gnu`, `use_system` | `functions/development-tools.zsh` | Reversible per-shell compiler selection through `toolchain env` |
 | `fnm_clean`, `zsh_profile`, `zshdeps` | `functions/development-tools.zsh` | Maintain fnm, profile startup, inspect dependencies |
-| `brew_stats` | `functions/package-management.zsh` | Report installed Homebrew package sizes |
+| `brew_stats` | `functions/package-management.zsh` | `brew-stats` (home/cli/brew-stats): installed Homebrew package sizes |
 | `security_scan`, `secscan` | `scripts/security-scan.zsh` | Structural, YARA, and ClamAV file scanning |
 | `utm_ubuntu_start`, `utm_ubuntu_login` | `scripts/utm-ubuntu.zsh` | Start/login to the UTM Ubuntu VM |
 

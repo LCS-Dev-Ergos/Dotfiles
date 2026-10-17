@@ -205,7 +205,8 @@
       # `nix build .#vscode-host-settings` for the VS Code settings tool,
       # `nix build .#vscode-sync` for the Stable-to-Insiders sharing tool,
       # `nix build .#dev-doctor` for the environment health and compiler tools,
-      # and `nix build .#terminal-style` for the style the shell tools share.
+      # `nix build .#brew-stats` for the Homebrew disk report, and
+      # `nix build .#terminal-style` for the style the shell tools share.
       packages = forAllSystems (
         system:
         let
@@ -219,6 +220,7 @@
           vscode-sync = pkgs.callPackage ./home/editors/vscode/sync/package.nix { };
           dev-bootstrap = pkgs.callPackage ./home/dev/bootstrap/package.nix { };
           dev-doctor = pkgs.callPackage ./home/dev/doctor/package.nix { };
+          brew-stats = pkgs.callPackage ./home/cli/brew-stats/package.nix { };
           development-recovery = self.packages.${system}.dev-bootstrap;
           default = self.packages.${system}.cpp-tools;
         }
@@ -247,6 +249,7 @@
           vscode-sync = self.packages.aarch64-darwin.vscode-sync;
           dev-bootstrap = self.packages.aarch64-darwin.dev-bootstrap;
           dev-doctor = self.packages.aarch64-darwin.dev-doctor;
+          brew-stats = self.packages.aarch64-darwin.brew-stats;
           development-recovery = self.checks.aarch64-darwin.dev-bootstrap;
           llvm-darwin-toolchain = self.packages.aarch64-darwin.llvm-darwin-toolchain.tests.default;
         };
