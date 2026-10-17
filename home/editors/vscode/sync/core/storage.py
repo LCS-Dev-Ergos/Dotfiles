@@ -4,13 +4,19 @@ Everything the tool keeps lives below ``$XDG_STATE_HOME/vscode-sync``,
 readable by its owner only:
 
 - ``lock``: held for the whole of a run that changes anything.
-- ``runs/``: one workspace per running change, holding whatever the run
-  moved aside, so it can be put back. A successful run removes its
-  workspace; one left behind belongs to an interrupted run.
-- ``kept/``: Insiders user files a run replaced although they differed from
-  Stable's. Only the newest ``KEPT_RUNS`` are kept.
-- ``quarantine/``: folders ``clean`` moved out of an extensions directory.
-  Only the newest ``QUARANTINE_RUNS`` are kept.
+- ``runs/``: one workspace per running change, with its journal and
+  whatever the run moved aside, so it can be put back. A successful run
+  removes its workspace; one left behind belongs to an interrupted run,
+  which the next changing run undoes.
+- ``backups/``: before a run changes anything, a copy of every extension
+  list and deletion list of both editions and of Insiders' own user files.
+  Only the newest ``BACKUP_RUNS`` are kept, and a file that did not change
+  since the previous backup is a hard link to it, not another copy.
+- ``downloads/``: builds being downloaded for a repair; removed afterwards,
+  and by the next run if one was interrupted.
+- ``quarantine/``: folders ``clean`` moved out of an extensions directory,
+  and originals a recovery found their place taken for. Only the newest
+  ``QUARANTINE_RUNS`` are kept.
 """
 
 import errno
@@ -19,13 +25,14 @@ import os
 import re
 import shutil
 import tempfile
+from collections.abc import Iterable
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .errors import SyncError
 
-KEPT_RUNS = 10
-"""How many runs' kept user files survive; older ones are pruned."""
+BACKUP_RUNS = 5
+"""How many runs' backups survive; older ones are pruned."""
 
 QUARANTINE_RUNS = 5
 """How many ``clean`` runs' quarantined folders survive."""
@@ -68,6 +75,88 @@ def new_workspace(state_dir: Path, label: str) -> Path:
             f"cannot create {workspace}: {reason(error)}"
         ) from None
     return workspace
+
+
+def backup(
+    state_dir: Path, home: Path, label: str, paths: Iterable[Path]
+) -> tuple[Path | None, list[str]]:
+    """Copy ``paths`` into a fresh directory below ``backups/``.
+
+    Each path is stored under its place relative to ``home``, or under
+    ``_root`` for one outside it. Symlinks are not followed: a link is no
+    file of its own. A file identical to the same file in the newest
+    earlier backup becomes a hard link to it.
+
+    Returns:
+        The backup directory, None if there was nothing to copy, and
+        warnings for older backups that could not be pruned.
+
+    Raises:
+        SyncError: If a file cannot be copied.
+    """
+    root = private_dir(state_dir / "backups")
+    earlier = _newest_stamped(root)
+    directory = root / stamp(label)
+    copied = 0
+    for path in paths:
+        if path.is_symlink() or not path.exists():
+            continue
+        relative = _relative(path, home)
+        destination = directory / relative
+        previous = earlier / relative if earlier else None
+        try:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            if path.is_dir():
+                shutil.copytree(path, destination, symlinks=True)
+            elif previous is not None and _same_file(path, previous):
+                os.link(previous, destination)
+            else:
+                shutil.copy2(path, destination)
+        except OSError as error:
+            raise SyncError(
+                f"cannot back up {path}: {reason(error)}"
+            ) from None
+        copied += 1
+    if not copied:
+        return None, []
+    return directory, prune(root, BACKUP_RUNS)
+
+
+def count_stamped(directory: Path) -> int:
+    """How many stamped entries ``directory`` holds."""
+    try:
+        return sum(
+            1
+            for entry in os.scandir(directory)
+            if _STAMPED.fullmatch(entry.name)
+        )
+    except FileNotFoundError:
+        return 0
+
+
+def _newest_stamped(directory: Path) -> Path | None:
+    """The newest stamped entry of ``directory``."""
+    names = sorted(
+        entry.name
+        for entry in os.scandir(directory)
+        if _STAMPED.fullmatch(entry.name)
+    )
+    return directory / names[-1] if names else None
+
+
+def _relative(path: Path, home: Path) -> Path:
+    """Where a backed-up path is stored inside a backup."""
+    try:
+        return path.relative_to(home)
+    except ValueError:
+        return Path("_root") / path.relative_to(path.anchor)
+
+
+def _same_file(path: Path, previous: Path) -> bool:
+    """Whether ``previous`` is a regular file with ``path``'s bytes."""
+    if previous.is_symlink() or not previous.is_file():
+        return False
+    return filecmp.cmp(path, previous, shallow=False)
 
 
 def prune(directory: Path, keep: int) -> list[str]:
@@ -133,28 +222,6 @@ def copy(source: Path, destination: Path) -> None:
         shutil.copy2(source, destination)
 
 
-def same_content(left: Path, right: Path) -> bool:
-    """Whether two files, or two directory trees, hold the same bytes."""
-    if left.is_dir() != right.is_dir():
-        return False
-    if not left.is_dir():
-        return filecmp.cmp(left, right, shallow=False)
-    comparison = filecmp.dircmp(left, right)
-    if comparison.left_only or comparison.right_only:
-        return False
-    if comparison.funny_files or comparison.common_funny:
-        return False
-    _, mismatch, errors = filecmp.cmpfiles(
-        left, right, comparison.common_files, shallow=False
-    )
-    if mismatch or errors:
-        return False
-    return all(
-        same_content(left / name, right / name)
-        for name in comparison.common_dirs
-    )
-
-
 def sibling(path: Path, label: str) -> Path:
     """An unused hidden name next to ``path``, for staging a replacement."""
     for attempt in range(1000):
@@ -176,15 +243,8 @@ def write_atomically(path: Path, expected: bytes | None, data: bytes) -> None:
     Raises:
         SyncError: If the file changed, or cannot be written.
     """
-    real = Path(os.path.realpath(path))
-    try:
-        current = real.read_bytes()
-    except FileNotFoundError:
-        current = None
-    except OSError as error:
-        raise SyncError(f"cannot read {real}: {reason(error)}") from None
-    if current != expected:
-        raise SyncError(f"{real} changed while it was being processed")
+    real = ensure_unchanged(path, expected)
+    current = expected
     try:
         descriptor, name = tempfile.mkstemp(
             prefix=f".{real.name}.", dir=real.parent
@@ -209,6 +269,24 @@ def write_atomically(path: Path, expected: bytes | None, data: bytes) -> None:
     finally:
         temp.unlink(missing_ok=True)
     sync_directory(real.parent)
+
+
+def ensure_unchanged(path: Path, expected: bytes | None) -> Path:
+    """The file ``path`` names, after checking it still holds ``expected``.
+
+    Raises:
+        SyncError: If it changed, or cannot be read.
+    """
+    real = Path(os.path.realpath(path))
+    try:
+        current = real.read_bytes()
+    except FileNotFoundError:
+        current = None
+    except OSError as error:
+        raise SyncError(f"cannot read {real}: {reason(error)}") from None
+    if current != expected:
+        raise SyncError(f"{real} changed while it was being processed")
+    return real
 
 
 def sync_directory(directory: Path) -> None:

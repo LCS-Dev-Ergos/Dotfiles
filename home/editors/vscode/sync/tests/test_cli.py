@@ -1,10 +1,13 @@
 """The command line, end to end in a throwaway home."""
 
 import json
+import shutil
 import unittest
 from unittest.mock import patch
 
 from core.cli import ExitCode
+from core.plan import LinkItem
+from core.transaction import Transaction
 from tests.support import INSIDERS, STABLE, Machine
 from tests.test_guards import script
 
@@ -47,7 +50,7 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(self.machine.tree(), before)
 
     def test_refusals(self) -> None:
-        """No terminal, a running editor or a leftover run stop a change."""
+        """No terminal or a running editor stop a change."""
         before = self.machine.tree()
         code, _, err = self.machine.run("setup")
         self.assertEqual(code, ExitCode.ERROR)
@@ -55,24 +58,51 @@ class CommandTests(unittest.TestCase):
         code, _, err = self.machine.run("setup", "--yes", processes=RUNNING)
         self.assertEqual(code, ExitCode.ERROR)
         self.assertIn("close VS Code Stable first", err)
-        leftover = self.machine.host.state_dir() / "runs" / "old"
-        leftover.mkdir(parents=True)
-        code, _, err = self.machine.run("setup", "--yes")
-        self.assertEqual(code, ExitCode.ERROR)
-        self.assertIn("interrupted", err)
         self.assertEqual(self.machine.tree(), before)
+
+    def test_an_interrupted_run_is_undone_first(self) -> None:
+        """Status reports it; the next change undoes it and goes on."""
+        before = self.machine.tree()
+        workspace = self.machine.host.state_dir() / "runs" / "old"
+        workspace.mkdir(parents=True)
+        settings = self.machine.host.user_dir(INSIDERS) / "settings.json"
+        source = self.machine.host.user_dir(STABLE) / "settings.json"
+        Transaction(workspace).apply(
+            LinkItem("settings.json", settings, source)
+        )
+        self.assertNotEqual(self.machine.tree(), before)
+        code, out, _ = self.machine.run("check")
+        self.assertEqual(code, ExitCode.ATTENTION)
+        self.assertIn("the next change undoes it", out)
+        code, out, err = self.machine.run("remove", "--yes")
+        self.assertEqual((code, err), (ExitCode.OK, ""))
+        self.assertIn("Undid an interrupted run (1 step)", out)
+        self.assertEqual(self.machine.tree(), before)
+        self.assertFalse(workspace.exists())
+
+    def test_the_environment_is_reported(self) -> None:
+        """Status names a running editor and the backups."""
+        _, out, _ = self.machine.run("status", processes=RUNNING)
+        self.assertIn("running; a change waits until it is closed", out)
+        self.machine.run("setup", "--yes")
+        _, out, _ = self.machine.run("status")
+        self.assertIn("1 in ", out)
 
     def test_setup_then_remove(self) -> None:
         """Setup shares and keeps Insiders' own settings; remove undoes."""
         code, out, err = self.machine.run("setup", "--yes")
         self.assertEqual((code, err), (ExitCode.OK, ""))
         self.assertIn("Applied 2 changes", out)
-        self.assertIn("kept Insiders' own", out)
+        self.assertIn("Backed up to", out)
         shared = self.machine.root(INSIDERS) / self.folder
         self.assertTrue(shared.is_symlink())
         self.assertEqual(self.machine.run("check")[0], ExitCode.OK)
-        kept = list((self.machine.host.state_dir() / "kept").rglob("*.json"))
-        self.assertEqual([path.read_text() for path in kept], ['{"own": 1}'])
+        backups = self.machine.host.state_dir() / "backups"
+        saved = {
+            path.name: path.read_text() for path in backups.rglob("*.json")
+        }
+        self.assertEqual(saved["settings.json"], '{"own": 1}')
+        self.assertIn("extensions.json", saved)
         self.assertFalse(
             any((self.machine.host.state_dir() / "runs").iterdir())
         )
@@ -112,6 +142,70 @@ class CommandTests(unittest.TestCase):
         self.assertEqual((code, out.strip()), (0, "vscode-sync 1.0.0"))
 
 
+DOWNLOAD = """\
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --extensions-dir) ext="$2"; shift ;;
+    --install-extension) spec="$2"; shift ;;
+  esac
+  shift
+done
+echo "$spec" >> "{log}"
+case "$spec" in *@*) exit 1 ;; esac
+mkdir -p "$ext/pub.gone-2.0.0"
+echo '{{"publisher":"pub","name":"gone","version":"2.0.0"}}' \\
+  > "$ext/pub.gone-2.0.0/package.json"
+echo '[{{"identifier":{{"id":"pub.gone"}},"version":"2.0.0",\
+"relativeLocation":"pub.gone-2.0.0"}}]' > "$ext/extensions.json"
+"""
+
+
+class RepairCommandTests(unittest.TestCase):
+    """A missing folder is downloaded again with Insiders' command line."""
+
+    def setUp(self) -> None:
+        """Insiders lists a build whose folder is gone."""
+        self.machine = Machine(self)
+        self.machine.manifest(INSIDERS, ["pub.gone-1.0.0"])
+        self.bin = self.machine.home / "bin"
+        self.log = self.machine.home / "downloads.log"
+        self.machine.set_env(PATH=str(self.bin))
+
+    def test_the_build_is_downloaded_and_adopted(self) -> None:
+        """The named version is tried first, then the latest is adopted."""
+        script(self.bin, "code-insiders", DOWNLOAD.format(log=self.log))
+        code, out, err = self.machine.run("setup", "--yes")
+        self.assertEqual((code, err), (ExitCode.OK, ""), out)
+        self.assertEqual(
+            self.log.read_text().split(), ["pub.gone@1.0.0", "pub.gone"]
+        )
+        adopted = self.machine.root(INSIDERS) / "pub.gone-2.0.0"
+        self.assertTrue((adopted / "package.json").is_file())
+        (entry,) = self.machine.read_manifest(INSIDERS)
+        self.assertEqual(
+            (entry["relativeLocation"], entry["version"]),
+            ("pub.gone-2.0.0", "2.0.0"),
+        )
+        downloads = self.machine.host.state_dir() / "downloads"
+        self.assertEqual(list(downloads.iterdir()), [])
+        self.assertEqual(self.machine.run("check")[0], ExitCode.OK)
+
+    def test_a_failed_download_is_an_error(self) -> None:
+        """Everything else is applied; the entry stays for the next run."""
+        script(self.bin, "code-insiders", "exit 1")
+        self.machine.user_file(STABLE, "settings.json", "{}")
+        code, out, _ = self.machine.run("setup", "--yes")
+        self.assertEqual(code, ExitCode.ERROR)
+        self.assertIn("Not downloaded", out)
+        settings = self.machine.host.user_dir(INSIDERS) / "settings.json"
+        self.assertTrue(settings.is_symlink())
+        self.assertEqual(
+            self.machine.read_manifest(INSIDERS)[0]["relativeLocation"],
+            "pub.gone-1.0.0",
+        )
+        self.assertEqual(self.machine.run("check")[0], ExitCode.ATTENTION)
+
+
 class UpdateCommandTests(unittest.TestCase):
     """``update`` with fake editions that install a newer build."""
 
@@ -148,6 +242,28 @@ class UpdateCommandTests(unittest.TestCase):
         self.assertEqual(
             machine.read_manifest(INSIDERS)[0]["relativeLocation"], new
         )
+
+    def test_stable_alone_is_updated_without_insiders(self) -> None:
+        """A host without Insiders updates and cleans Stable only."""
+        machine = Machine(self)
+        old = machine.extension(STABLE, "pub.tool", "1.0.0")
+        new = machine.extension(STABLE, "pub.tool", "2.0.0")
+        machine.manifest(STABLE, [new])
+        shutil.rmtree(machine.root(INSIDERS).parent)
+        shutil.rmtree(machine.host.user_dir(INSIDERS).parent)
+        bin_dir = machine.home / "bin"
+        script(bin_dir, "code", 'echo "All extensions up to date"')
+        script(bin_dir, "code-insiders", "exit 7")
+        machine.set_env(PATH=str(bin_dir))
+        code, out, _ = machine.run("status")
+        self.assertIn("not installed here; nothing to share", out)
+        self.assertNotIn("User files", out)
+        code, out, err = machine.run("update", "--yes")
+        self.assertEqual((code, err), (ExitCode.OK, ""), out)
+        self.assertIn("quarantine unused duplicates in Stable", out)
+        self.assertNotIn("code-insiders", out)
+        self.assertNotIn("Insiders already follows", out)
+        self.assertFalse((machine.root(STABLE) / old).exists())
 
     def test_update_needs_the_stable_command(self) -> None:
         """Without code on PATH nothing runs."""

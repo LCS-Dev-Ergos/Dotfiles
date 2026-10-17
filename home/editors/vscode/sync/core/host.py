@@ -121,7 +121,7 @@ class Host:
         return self.env_directory("XDG_STATE_HOME") or fallback
 
     def state_dir(self) -> Path:
-        """The tool's own state: lock, run workspaces, kept copies."""
+        """The tool's own state: lock, run workspaces, backups."""
         return self.state_home() / PROG
 
     def user_dir(self, edition: Edition) -> Path:

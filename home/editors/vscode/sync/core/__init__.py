@@ -10,9 +10,13 @@ snippets and MCP servers become links to Stable's files.
   ``update`` and by ``clean``, which quarantines unused duplicate folders.
 - Only links this tool made are ever replaced or removed. A link that points
   anywhere else is reported and left alone.
-- Every change is planned from a read-only snapshot first, applied inside a
-  transaction that can undo it, and checked by planning again: a run that
-  leaves anything to do is rolled back.
+- Every change is planned from a read-only snapshot first, backed up,
+  applied inside a transaction whose journal can undo it, and checked by
+  planning again: a run that leaves anything to do is rolled back, and one
+  an interruption cut short is undone by the next run.
+- Problems are repaired, not only reported: a folder that is gone is
+  replaced by another build or downloaded again, and a link to a folder
+  Stable dropped becomes Insiders' own copy.
 - Nothing changes while VS Code runs, without a terminal to confirm on or
   ``--yes``, or while another run holds the lock.
 

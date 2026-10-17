@@ -15,7 +15,9 @@ from . import PROG
 from .plan import (
     ACTION_TONES,
     Action,
+    AdoptFolder,
     Decision,
+    Install,
     ItemStatus,
     LinkFolder,
     LinkItem,
@@ -34,7 +36,7 @@ ITEM_TONES = {
     ItemStatus.LINKED: "ok",
     ItemStatus.INDEPENDENT: "pending",
     ItemStatus.MISSING: "pending",
-    ItemStatus.BROKEN: "error",
+    ItemStatus.BROKEN: "pending",
     ItemStatus.FOREIGN: "warn",
     ItemStatus.NO_SOURCE: "muted",
 }
@@ -43,12 +45,18 @@ ITEM_DETAILS = {
     ItemStatus.LINKED: "",
     ItemStatus.INDEPENDENT: "Insiders' own file; setup links it",
     ItemStatus.MISSING: "setup links it",
-    ItemStatus.BROKEN: "Stable has none",
+    ItemStatus.BROKEN: "Stable has none; setup removes the link",
     ItemStatus.FOREIGN: "links elsewhere; left alone",
     ItemStatus.NO_SOURCE: "Stable has none",
 }
 
-_PENDING = (Action.LINK, Action.REBIND, Action.RELOCATE, Action.RESTORE)
+_PENDING = (
+    Action.LINK,
+    Action.REBIND,
+    Action.RELOCATE,
+    Action.RESTORE,
+    Action.INSTALL,
+)
 _QUIET = (Action.SHARED, Action.NATIVE)
 
 TITLES = {
@@ -92,29 +100,30 @@ def render(
         style, PROG, TITLES[plan.command], subtitle, context=context
     )
     if plan.command in ("status", "check", "setup", "update"):
-        lines += ["", *_items(plan, style)]
+        if plan.items:
+            lines += ["", *_items(plan, style)]
         if plan.decisions:
             lines += ["", *_profiles(plan, style)]
     lines += _sections(plan, style)
-    if changes and plan.operations:
-        lines += ["", *render_changes(plan.operations, style)]
+    if changes and plan.changed:
+        lines += ["", *render_changes(plan, style)]
     lines += ["", *_summary(plan, style)]
     return lines
 
 
-def render_changes(
-    operations: Sequence[Operation], style: ui.Style
-) -> list[str]:
-    """A section listing each change."""
+def render_changes(plan: Plan, style: ui.Style) -> list[str]:
+    """A section listing each change: downloads first, as a run makes them."""
     columns = [
         Column("Change"),
         Column("What", shrink=24),
         Column("Detail", priority=50, shrink=16),
     ]
-    rows = [
-        Row(list(_change(operation)), "pending") for operation in operations
+    rows = [Row(list(_install(item)), "pending") for item in plan.installs]
+    rows += [
+        Row(list(_change(operation)), "pending")
+        for operation in plan.operations
     ]
-    title = ui.section(style, "Changes", str(len(operations)))
+    title = ui.section(style, "Changes", str(len(rows)))
     return title + ui.table(style, columns, rows)
 
 
@@ -169,7 +178,17 @@ def to_json(plan: Plan) -> dict[str, object]:
             }
             for finding in plan.findings
         ],
-        "changes": [_change_json(operation) for operation in plan.operations],
+        "changes": [
+            *(
+                {
+                    "kind": "download",
+                    "extension": item.extension_id,
+                    "version": item.version,
+                }
+                for item in plan.installs
+            ),
+            *(_change_json(operation) for operation in plan.operations),
+        ],
     }
 
 
@@ -277,11 +296,11 @@ def _summary(plan: Plan, style: ui.Style) -> list[str]:
     tones = Counter(finding.tone for finding in plan.findings)
     counts = [
         ("ok", buckets["shared"], "shared"),
-        ("pending", len(plan.operations), "changes"),
+        ("pending", plan.size, "changes"),
         ("warn", buckets["warn"] + tones["warn"], "warnings"),
         ("error", buckets["error"] + tones["error"], "problems"),
     ]
-    hint = HINTS[plan.command] if plan.operations else "nothing to do"
+    hint = HINTS[plan.command] if plan.changed else "nothing to do"
     return ui.summary(style, counts, hint)
 
 
@@ -310,7 +329,9 @@ def _change(operation: Operation) -> tuple[str | Cell, ...]:
     if isinstance(operation, RestoreFolder):
         return "copy", operation.name, "from Stable's folder"
     if isinstance(operation, UnlinkFolder):
-        return "unlink", operation.name, "no profile lists it"
+        return "unlink", operation.name, "no profile uses it"
+    if isinstance(operation, AdoptFolder):
+        return "adopt", operation.name, "the downloaded build"
     if isinstance(operation, LinkItem):
         return "link", operation.name, "to Stable's"
     if isinstance(operation, RestoreItem):
@@ -322,12 +343,19 @@ def _change(operation: Operation) -> tuple[str | Cell, ...]:
     return "quarantine", operation.name, operation.edition.label
 
 
+def _install(item: Install) -> tuple[str, str, str]:
+    """The cells of one download."""
+    version = f"@{item.version}" if item.version else ""
+    return "download", f"{item.extension_id}{version}", "with Insiders"
+
+
 def _change_json(operation: Operation) -> dict[str, object]:
     """One change for programs."""
     kinds = {
         LinkFolder: "link-folder",
         RestoreFolder: "restore-folder",
         UnlinkFolder: "unlink-folder",
+        AdoptFolder: "adopt-folder",
         LinkItem: "link-item",
         RestoreItem: "restore-item",
         UnlinkItem: "unlink-item",
@@ -341,7 +369,7 @@ def _change_json(operation: Operation) -> dict[str, object]:
         change.update(name=operation.name, path=str(operation.path))
     if isinstance(operation, LinkFolder | LinkItem):
         change["target"] = str(operation.target)
-    if isinstance(operation, RestoreFolder | RestoreItem):
+    if isinstance(operation, RestoreFolder | RestoreItem | AdoptFolder):
         change["source"] = str(operation.source)
     if isinstance(operation, Quarantine):
         change["edition"] = operation.edition.value

@@ -4,6 +4,7 @@ import os
 import stat
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from core.errors import SyncError
 from core.plan import (
@@ -14,8 +15,8 @@ from core.plan import (
     plan_clean,
     plan_setup,
 )
-from core.storage import prune, same_content, stamp, write_atomically
-from core.transaction import Transaction, quarantine
+from core.storage import BACKUP_RUNS, backup, prune, stamp, write_atomically
+from core.transaction import JOURNAL, Transaction, quarantine, recover
 from tests.support import INSIDERS, STABLE, Machine
 
 
@@ -77,19 +78,31 @@ class StorageTests(unittest.TestCase):
         )
         self.assertRegex(stamp("clean"), r"^\d{8}T\d{6}Z-\d+-clean$")
 
-    def test_same_content_compares_trees(self) -> None:
-        """Files by bytes, directories by every file inside."""
+    def test_backups_are_bounded_and_shared(self) -> None:
+        """Unchanged files are hard links; only the newest runs stay."""
         machine = Machine(self)
-        left, right = machine.home / "l", machine.home / "r"
-        for side in (left, right):
-            (side / "sub").mkdir(parents=True)
-            (side / "sub" / "a").write_text("1")
-        self.assertTrue(same_content(left, right))
-        (right / "sub" / "a").write_text("2")
-        self.assertFalse(same_content(left, right))
-        (right / "sub" / "a").write_text("1")
-        (right / "extra").write_text("")
-        self.assertFalse(same_content(left, right))
+        state = machine.host.state_dir()
+        settings = machine.user_file(INSIDERS, "settings.json", "{}")
+        link = machine.host.user_dir(INSIDERS) / "keybindings.json"
+        link.symlink_to(settings)
+        names = [f"20260101T00000{index}Z-1-setup" for index in range(6)]
+        for name in names:
+            with patch("core.storage.stamp", return_value=name):
+                directory, warnings = backup(
+                    state, machine.home, "setup", [settings, link]
+                )
+            self.assertEqual(warnings, [])
+            assert directory is not None
+        kept = sorted(path.name for path in (state / "backups").iterdir())
+        self.assertEqual(kept, names[-BACKUP_RUNS:])
+        copies = list((state / "backups").rglob("settings.json"))
+        self.assertEqual(
+            {path.stat().st_ino for path in copies}, {copies[0].stat().st_ino}
+        )
+        self.assertFalse(list((state / "backups").rglob("keybindings.json")))
+        self.assertEqual(
+            backup(state, machine.home, "setup", [link]), (None, [])
+        )
 
 
 class TransactionTests(unittest.TestCase):
@@ -112,33 +125,78 @@ class TransactionTests(unittest.TestCase):
 
     def transaction(self) -> Transaction:
         """A transaction in the test workspace."""
-        return Transaction(self.workspace, self.state / "kept" / "test")
+        return Transaction(self.workspace)
+
+    def apply_setup(self) -> Transaction:
+        """A transaction that applied every operation of setup."""
+        transaction = self.transaction()
+        for operation in plan_setup(self.machine.snapshot()).operations:
+            transaction.apply(operation)
+        return transaction
 
     def test_rollback_restores_everything(self) -> None:
         """A failing step undoes every step before it, byte for byte."""
         before = self.machine.tree()
-        plan = plan_setup(self.machine.snapshot())
-        transaction = self.transaction()
-        for operation in plan.operations:
-            transaction.apply(operation)
+        transaction = self.apply_setup()
         stale = WriteFile("test", self.machine.home / "x", b"gone", b"")
         with self.assertRaises(SyncError):
             transaction.apply(stale)
-        self.assertEqual(transaction.rollback(), [])
+        undone = transaction.rollback()
+        self.assertEqual((undone.failures, undone.notes), ((), ()))
+        self.assertEqual(self.machine.tree(), before)
+        self.assertFalse(self.workspace.exists())
+
+    def test_commit_keeps_the_changes(self) -> None:
+        """Commit removes the workspace and nothing else."""
+        transaction = self.apply_setup()
+        lines = (self.workspace / JOURNAL).read_text().splitlines()
+        self.assertEqual(len(lines), 4)
+        self.assertEqual(transaction.commit(), [])
+        self.assertFalse(self.workspace.exists())
+        self.assertFalse(plan_setup(self.machine.snapshot()).changed)
+
+    def test_an_interrupted_run_is_recovered(self) -> None:
+        """The journal alone undoes a run that never finished."""
+        before = self.machine.tree()
+        self.apply_setup()
+        with (self.workspace / JOURNAL).open("a") as journal:
+            journal.write('{"op":"link","pa')
+        undone = recover(self.workspace)
+        self.assertEqual((undone.steps, undone.failures), (4, ()))
+        self.assertEqual(self.machine.tree(), before)
+        self.assertFalse(self.workspace.exists())
+
+    def test_a_step_cut_short_is_undone(self) -> None:
+        """A link step that moved the original but made no link."""
+        target = self.machine.root(INSIDERS) / "pub.tool-0.5.0"
+        before = self.machine.tree()
+        operation = LinkFolder(target.name, target, Path("/nowhere"))
+        with (
+            patch("core.transaction.os.symlink", side_effect=OSError(5, "")),
+            self.assertRaises(SyncError),
+        ):
+            self.transaction().apply(operation)
+        self.assertFalse(os.path.lexists(target))
+        recover(self.workspace)
         self.assertEqual(self.machine.tree(), before)
 
-    def test_commit_keeps_only_differing_user_files(self) -> None:
-        """Insiders' own settings are kept; an identical file is not."""
-        plan = plan_setup(self.machine.snapshot())
-        transaction = self.transaction()
-        for operation in plan.operations:
-            transaction.apply(operation)
-        journal = (self.workspace / "journal.txt").read_text()
-        self.assertEqual(journal.count("\n"), len(plan.operations))
-        kept, warnings = transaction.commit()
-        self.assertEqual(warnings, [])
-        self.assertEqual([path.read_text() for path in kept], ['{"own": 1}'])
-        self.assertFalse(self.workspace.exists())
+    def test_recovery_keeps_what_changed_since(self) -> None:
+        """A file rewritten after the run, or a place taken, is kept."""
+        manifest = self.machine.root(INSIDERS) / "extensions.json"
+        self.apply_setup()
+        manifest.write_text("[]")
+        settings = self.machine.host.user_dir(INSIDERS) / "settings.json"
+        settings.unlink()
+        settings.write_text('{"new": 1}')
+        undone = recover(self.workspace)
+        self.assertEqual(undone.failures, ())
+        self.assertEqual(manifest.read_text(), "[]")
+        self.assertEqual(settings.read_text(), '{"new": 1}')
+        self.assertEqual(len(undone.notes), 2)
+        rescued = list(self.state.glob("quarantine/*-recovered/*"))
+        self.assertEqual(
+            [path.read_text() for path in rescued], ['{"own": 1}']
+        )
 
     def test_a_failed_link_puts_the_original_back(self) -> None:
         """A step that fails half way leaves nothing changed."""

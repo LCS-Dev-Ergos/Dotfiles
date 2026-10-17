@@ -11,7 +11,7 @@ import terminal_style as ui
 from core.errors import SyncError
 from core.host import Edition, Host, Platform
 from core.safety import confirm, locked, running_editions
-from core.update import find_command, update_extensions
+from core.update import find_command, install_extension, update_extensions
 from tests.support import Machine
 
 
@@ -187,6 +187,26 @@ class UpdateTests(unittest.TestCase):
             self.lines,
             [f"--extensions-dir {root} --update-extensions", "hook="],
         )
+
+    def test_downloads_are_kept_apart(self) -> None:
+        """An install names its own user data and extensions directory."""
+        command = self.code('echo "$@"')
+        stage = self.machine.home / "stage"
+        root = install_extension(
+            command, stage, "a.b", {}, self.lines.append, pre_release=True
+        )
+        self.assertEqual(root, stage / "extensions")
+        self.assertEqual(
+            self.lines,
+            [
+                f"--user-data-dir {stage / 'user'} --extensions-dir {root} "
+                "--install-extension a.b --pre-release"
+            ],
+        )
+        with self.assertRaisesRegex(SyncError, "--install-extension a.b@1"):
+            install_extension(
+                self.code("exit 1"), stage, "a.b@1", {}, self.lines.append
+            )
 
     def test_failure_and_timeout(self) -> None:
         """A failing or hanging update stops the run."""

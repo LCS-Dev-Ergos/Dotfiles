@@ -160,16 +160,14 @@ class Machine:
         """Read the machine."""
         return take_snapshot(self.host)
 
-    def apply(self, plan: Plan) -> list[Path]:
-        """Apply a plan as a run would; the kept user files."""
+    def apply(self, plan: Plan) -> None:
+        """Apply a plan's operations as a run would."""
         workspace = self.host.state_dir() / "runs" / "test"
         workspace.mkdir(parents=True)
-        transaction = Transaction(workspace, self.host.state_dir() / "kept")
+        transaction = Transaction(workspace)
         for operation in plan.operations:
             transaction.apply(operation)
-        kept, warnings = transaction.commit()
-        self.testcase.assertEqual(warnings, [])
-        return kept
+        self.testcase.assertEqual(transaction.commit(), [])
 
     def setup(self) -> Plan:
         """Plan and apply setup; the plan."""

@@ -6,18 +6,20 @@ import unittest
 
 from core.plan import (
     Action,
+    Install,
     ItemStatus,
     LinkFolder,
-    LinkItem,
     Plan,
     Quarantine,
     RestoreFolder,
     RestoreItem,
     UnlinkFolder,
     WriteFile,
+    is_excluded,
     plan_clean,
     plan_remove,
     plan_setup,
+    read_downloads,
 )
 from tests.support import INSIDERS, STABLE, Machine
 
@@ -154,7 +156,10 @@ class SetupTests(unittest.TestCase):
         self.assertEqual(chosen, {"Work": self.folder, "Other": newer})
 
     def test_folders_stable_drops_are_not_shared(self) -> None:
-        """Unlisted and obsolete Stable folders are never linked to."""
+        """Unlisted and obsolete Stable folders are never linked to.
+
+        Insiders has no folder for either, so both are downloaded again.
+        """
         unlisted = self.machine.extension(STABLE, "pub.unlisted", "1.0.0")
         doomed = self.machine.extension(STABLE, "pub.doomed", "1.0.0")
         self.machine.manifest(STABLE, [self.folder, doomed])
@@ -163,9 +168,14 @@ class SetupTests(unittest.TestCase):
         plan = plan_setup(self.machine.snapshot())
         self.assertEqual(
             actions(plan),
-            {unlisted: Action.MISSING, doomed: Action.MISSING},
+            {unlisted: Action.INSTALL, doomed: Action.INSTALL},
         )
-        self.assertEqual(plan.problems, 2)
+        self.assertEqual(
+            [(item.extension_id, item.version) for item in plan.installs],
+            [("pub.unlisted", "1.0.0"), ("pub.doomed", "1.0.0")],
+        )
+        self.assertEqual(plan.operations, ())
+        self.assertEqual(plan.problems, 0)
 
     def test_unlisted_links_are_removed_but_not_other_folders(self) -> None:
         """A stale extension link goes; a shared non-extension one stays."""
@@ -213,11 +223,15 @@ class SetupTests(unittest.TestCase):
                 "mcp.json": ItemStatus.BROKEN,
             },
         )
-        linked = [
-            op.name for op in plan.operations if isinstance(op, LinkItem)
-        ]
-        self.assertEqual(linked, ["settings.json", "snippets"])
-        self.assertEqual(plan.problems, 1)
+        self.assertEqual(
+            kinds(plan),
+            [
+                "LinkItem settings.json",
+                "LinkItem snippets",
+                "UnlinkItem mcp.json",
+            ],
+        )
+        self.assertEqual(plan.problems, 0)
 
     def test_insiders_without_a_user_directory_is_left_alone(self) -> None:
         """Nothing is created for an Insiders that never ran."""
@@ -242,6 +256,115 @@ class SetupTests(unittest.TestCase):
             self.machine.read_manifest(INSIDERS)[0]["relativeLocation"],
             self.folder,
         )
+
+
+class RepairTests(unittest.TestCase):
+    """Entries whose folder is gone are repaired without help."""
+
+    def setUp(self) -> None:
+        """A machine where Stable has one extension in its default profile."""
+        self.machine = Machine(self)
+        self.folder = self.machine.extension(STABLE, "pub.tool", "1.0.0")
+        self.machine.manifest(STABLE, [self.folder])
+
+    def test_families_are_excluded(self) -> None:
+        """A family member is excluded with its root; a namesake is not."""
+        for ident, expected in (
+            ("github.copilot", True),
+            ("github.copilot-chat", True),
+            ("github.copilot-labs", True),
+            ("github.copilotish", False),
+            ("anthropic.claude-code", True),
+            ("pub.tool", False),
+        ):
+            with self.subTest(ident=ident):
+                self.assertIs(is_excluded(ident), expected)
+
+    def test_a_link_stable_dropped_becomes_a_copy(self) -> None:
+        """Before Stable deletes the folder, Insiders gets its own copy."""
+        dropped = self.machine.extension(STABLE, "pub.dropped", "1.0.0")
+        self.machine.link(dropped)
+        self.machine.manifest(INSIDERS, [dropped])
+        plan = plan_setup(self.machine.snapshot())
+        self.assertEqual(actions(plan), {dropped: Action.RESTORE})
+        self.assertEqual(kinds(plan), [f"RestoreFolder {dropped}"])
+        self.machine.apply(plan)
+        copy = self.machine.root(INSIDERS) / dropped
+        self.assertFalse(copy.is_symlink())
+        self.assertFalse(plan_setup(self.machine.snapshot()).changed)
+
+    def test_another_build_of_insiders_is_used(self) -> None:
+        """An entry moves to the newest build another profile has."""
+        own = self.machine.extension(INSIDERS, "pub.own", "2.0.0")
+        self.machine.manifest(INSIDERS, [own], profile="Work")
+        self.machine.manifest(INSIDERS, ["pub.own-1.0.0"])
+        plan = plan_setup(self.machine.snapshot())
+        (decision,) = [d for d in plan.decisions if d.scope == "Default"]
+        self.assertEqual(
+            (decision.action, decision.target), (Action.REBIND, own)
+        )
+        self.assertEqual(plan.installs, ())
+        self.machine.apply(plan)
+        self.assertFalse(plan_setup(self.machine.snapshot()).changed)
+
+    def test_a_dangling_excluded_link_is_downloaded(self) -> None:
+        """Copilot keeps to Insiders' own builds; the dead link goes."""
+        self.machine.link("github.copilot-chat-0.1.0")
+        entry = self.machine.entry(
+            INSIDERS,
+            "github.copilot-chat-0.1.0",
+            metadata={"isPreReleaseVersion": True},
+        )
+        self.machine.manifest(INSIDERS, [entry])
+        plan = plan_setup(self.machine.snapshot())
+        self.assertEqual(
+            kinds(plan), ["UnlinkFolder github.copilot-chat-0.1.0"]
+        )
+        self.assertEqual(
+            plan.installs, (Install("github.copilot-chat", "0.1.0", True),)
+        )
+        self.machine.apply(plan)
+        self.assertEqual(plan_setup(self.machine.snapshot()).operations, ())
+
+    def test_a_download_is_adopted(self) -> None:
+        """The downloaded build moves in, and the entry follows it."""
+        self.machine.manifest(INSIDERS, ["pub.gone-1.0.0"])
+        stage = self.machine.home / "stage"
+        stage.mkdir()
+        (stage / "pub.gone-1.1.0").mkdir()
+        (stage / "pub.gone-1.1.0" / "package.json").write_text(
+            '{"publisher": "pub", "name": "gone", "version": "1.1.0"}'
+        )
+        (stage / "extensions.json").write_text(
+            json.dumps([self.machine.entry(INSIDERS, "pub.gone-1.1.0")])
+        )
+        downloads = read_downloads(stage)
+        plan = plan_setup(self.machine.snapshot(), downloads)
+        self.assertEqual(plan.installs, ())
+        self.assertIn("AdoptFolder pub.gone-1.1.0", kinds(plan))
+        self.machine.apply(plan)
+        (entry,) = self.machine.read_manifest(INSIDERS)
+        self.assertEqual(entry["version"], "1.1.0")
+        self.assertFalse(plan_setup(self.machine.snapshot()).changed)
+
+    def test_remove_copies_stables_build_for_a_dead_link(self) -> None:
+        """Remove repairs a dead link with a copy, offline."""
+        self.machine.link("pub.tool-0.9.0")
+        self.machine.manifest(INSIDERS, ["pub.tool-0.9.0"])
+        plan = plan_remove(self.machine.snapshot())
+        self.assertEqual(
+            sorted(kinds(plan)),
+            [
+                f"RestoreFolder {self.folder}",
+                "UnlinkFolder pub.tool-0.9.0",
+                "WriteFile extensions.json",
+            ],
+        )
+        self.machine.apply(plan)
+        copy = self.machine.root(INSIDERS) / self.folder
+        self.assertTrue((copy / "package.json").is_file())
+        self.assertFalse(copy.is_symlink())
+        self.assertFalse(plan_remove(self.machine.snapshot()).changed)
 
 
 class RemoveTests(unittest.TestCase):

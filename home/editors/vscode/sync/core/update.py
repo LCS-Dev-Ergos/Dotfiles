@@ -1,10 +1,11 @@
-"""VS Code's own extension update, run through each edition's command.
+"""VS Code's own command line: extension updates and downloads.
 
 ``code --update-extensions`` updates an edition's extensions the way the
-editor would, against the marketplace, and leaves its lists consistent. The
-tool only runs it, with the edition's extensions directory named explicitly
-and without the variables that would hand the command to a running editor,
-and passes on what it prints.
+editor would, against the marketplace, and leaves its lists consistent;
+``--install-extension`` downloads a build a repair needs. The tool only runs
+them, with the extensions directory named explicitly and without the
+variables that would hand the command to a running editor, and passes on
+what they print.
 """
 
 import os
@@ -48,18 +49,94 @@ def update_extensions(
     Raises:
         SyncError: If it cannot start, fails or runs out of time.
     """
+    updated: list[str] = []
+
+    def line(text: str) -> None:
+        """Pass on one printed line and note an updated extension."""
+        found = _UPDATED.search(text)
+        if found and found[1] not in updated:
+            updated.append(found[1])
+        on_line(text)
+
+    _run(
+        command,
+        ["--extensions-dir", str(extensions_dir), "--update-extensions"],
+        environ,
+        line,
+        timeout,
+        "--update-extensions",
+    )
+    return tuple(updated)
+
+
+def install_extension(
+    command: Path,
+    stage: Path,
+    spec: str,
+    environ: Mapping[str, str],
+    on_line: Callable[[str], None],
+    *,
+    pre_release: bool = False,
+    timeout: float = UPDATE_TIMEOUT,
+) -> Path:
+    """Download one extension into ``stage``, apart from every real profile.
+
+    VS Code's command line refuses to install an extension a profile lists
+    even when its folder is gone, so the build is installed into a scratch
+    extensions directory with a scratch user data directory, and adopted
+    from there.
+
+    Returns:
+        The scratch extensions directory, whose ``extensions.json`` lists
+        what was installed.
+
+    Raises:
+        SyncError: If it cannot start, fails or runs out of time.
+    """
+    extensions = stage / "extensions"
+    arguments = [
+        "--user-data-dir",
+        str(stage / "user"),
+        "--extensions-dir",
+        str(extensions),
+        "--install-extension",
+        spec,
+    ]
+    if pre_release:
+        arguments.append("--pre-release")
+    _run(
+        command,
+        arguments,
+        environ,
+        on_line,
+        timeout,
+        f"--install-extension {spec}",
+    )
+    return extensions
+
+
+def _run(
+    command: Path,
+    arguments: list[str],
+    environ: Mapping[str, str],
+    on_line: Callable[[str], None],
+    timeout: float,
+    what: str,
+) -> None:
+    """Run VS Code's command line detached from any running editor.
+
+    Every non-empty line it prints reaches ``on_line``, stripped; ``what``
+    names the run in an error.
+
+    Raises:
+        SyncError: If it cannot start, fails or runs out of time.
+    """
     env = {
         key: value for key, value in environ.items() if key not in _DETACHED
     }
-    arguments = [
-        str(command),
-        "--extensions-dir",
-        str(extensions_dir),
-        "--update-extensions",
-    ]
     try:
         process = subprocess.Popen(
-            arguments,
+            [str(command), *arguments],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -67,17 +144,12 @@ def update_extensions(
         )
     except OSError as error:
         raise SyncError(f"cannot run {command}: {reason(error)}") from None
-    updated: list[str] = []
 
     def line(text: str) -> None:
-        """Pass on one printed line and note an updated extension."""
+        """Pass on one printed line, if it has any text."""
         text = text.strip()
-        if not text:
-            return
-        found = _UPDATED.search(text)
-        if found and found[1] not in updated:
-            updated.append(found[1])
-        on_line(text)
+        if text:
+            on_line(text)
 
     try:
         _pump(process, line, timeout)
@@ -88,10 +160,7 @@ def update_extensions(
         if process.stdout is not None:
             process.stdout.close()
     if process.returncode != 0:
-        raise SyncError(
-            f"{command.name} --update-extensions exited {process.returncode}"
-        )
-    return tuple(updated)
+        raise SyncError(f"{command.name} {what} exited {process.returncode}")
 
 
 def _pump(
