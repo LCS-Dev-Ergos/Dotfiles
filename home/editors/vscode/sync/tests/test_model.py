@@ -6,7 +6,7 @@ from pathlib import Path
 
 from core.errors import SyncError
 from core.host import Edition, Host, Platform
-from core.inventory import Kind, inspect, scan
+from core.inventory import Kind, inspect, scan, servers
 from core.manifest import (
     location_payload,
     read_manifest,
@@ -14,7 +14,7 @@ from core.manifest import (
     read_obsolete,
     read_profiles,
 )
-from core.versions import parse_version
+from core.versions import engine_allows, parse_version
 from tests.support import INSIDERS, STABLE, Machine
 
 
@@ -41,6 +41,26 @@ class VersionTests(unittest.TestCase):
     def test_build_metadata_is_ignored(self) -> None:
         """``+build`` does not change the precedence."""
         self.assertEqual(parse_version("1.2.3+abc"), parse_version("1.2.3"))
+
+    def test_engines_allow_their_versions(self) -> None:
+        """``^``, ``>=``, ``x`` and ``*`` as VS Code reads them."""
+        server = parse_version("1.100.2")
+        assert server is not None
+        for requirement, expected in (
+            (None, True),
+            ("*", True),
+            ("^1.100.0", True),
+            (">=1.100.2", True),
+            ("1.100.x", True),
+            ("^1.100.3", False),
+            ("^1.101.0", False),
+            ("^1.100.0-20251020", False),
+            ("^1.99.0-20251020", True),
+            ("latest", False),
+            (100, False),
+        ):
+            with self.subTest(requirement=requirement):
+                self.assertIs(engine_allows(requirement, server), expected)
 
     def test_other_text_is_no_version(self) -> None:
         """Anything else parses to None."""
@@ -203,6 +223,34 @@ class HostTests(unittest.TestCase):
             home / ".vscode-insiders/extensions",
         )
         self.assertEqual(darwin.state_dir(), home / ".local/state/vscode-sync")
+
+    def test_servers_keep_their_data_below_their_root(self) -> None:
+        """Extensions, profiles and builds of both server layouts."""
+        machine = Machine(self)
+        home = machine.home
+        host = machine.host
+        self.assertEqual(
+            host.extensions_dir(Edition.SERVER),
+            home / ".vscode-server/extensions",
+        )
+        self.assertEqual(
+            host.user_dir(Edition.SERVER_INSIDERS),
+            home / ".vscode-server-insiders/data/User",
+        )
+        new = machine.server(Edition.SERVER, "1.100.0")
+        legacy = home / ".vscode-server/bin/abc"
+        (legacy / "bin").mkdir(parents=True)
+        (legacy / "product.json").write_text('{"version": "1.101.0"}')
+        (legacy / "bin" / "code-server").write_text("")
+        machine.server(Edition.SERVER_INSIDERS, "1.200.0")
+        found = servers(host.server_builds(Edition.SERVER))
+        self.assertEqual(
+            [(str(s.version), s.command) for s in found],
+            [
+                ("1.101.0", legacy / "bin" / "code-server"),
+                ("1.100.0", new),
+            ],
+        )
 
     def test_relative_variables_are_ignored(self) -> None:
         """A relative XDG directory would depend on the working directory."""

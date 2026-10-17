@@ -8,7 +8,7 @@ from unittest.mock import patch
 from core.cli import ExitCode
 from core.plan import LinkItem
 from core.transaction import Transaction
-from tests.support import INSIDERS, STABLE, Machine
+from tests.support import INSIDERS, SERVER, STABLE, Machine
 from tests.test_guards import script
 
 RUNNING = ["/usr/share/code/code --type=renderer"]
@@ -35,7 +35,7 @@ class CommandTests(unittest.TestCase):
         self.assertIn("2 changes; vscode-sync setup applies them.", out)
         code, out, _ = self.machine.run("check", "--json")
         self.assertEqual(code, ExitCode.ATTENTION)
-        report = json.loads(out)
+        (report,) = json.loads(out)
         self.assertEqual(
             [change["kind"] for change in report["changes"]],
             ["link-item", "link-folder"],
@@ -204,6 +204,92 @@ class RepairCommandTests(unittest.TestCase):
             "pub.gone-1.0.0",
         )
         self.assertEqual(self.machine.run("check")[0], ExitCode.ATTENTION)
+
+
+class ServerCommandTests(unittest.TestCase):
+    """Commands with VS Code Server installed next to Insiders."""
+
+    def setUp(self) -> None:
+        """Insiders and a server, both with their own copy of one build."""
+        self.machine = Machine(self)
+        self.folder = self.machine.extension(STABLE, "pub.tool", "1.0.0")
+        self.machine.manifest(STABLE, [self.folder])
+        self.command = self.machine.server(SERVER, "1.100.0")
+        for consumer in (INSIDERS, SERVER):
+            self.machine.extension(consumer, "pub.tool", "1.0.0")
+            self.machine.manifest(consumer, [self.folder])
+
+    def test_every_installed_consumer_is_reported(self) -> None:
+        """Both by default; ``--target`` picks one."""
+        code, out, _ = self.machine.run("check", "--json")
+        self.assertEqual(code, ExitCode.ATTENTION)
+        consumers = [plan["consumer"] for plan in json.loads(out)]
+        self.assertEqual(consumers, ["insiders", "server"])
+        _, out, _ = self.machine.run("status", "--target", "server")
+        self.assertIn("Stable → Server", out)
+        self.assertNotIn("Insiders", out)
+
+    def test_setup_shares_with_both_and_backs_up_once(self) -> None:
+        """One question, one backup, one transaction per consumer."""
+        code, out, err = self.machine.run("setup", "--yes")
+        self.assertEqual((code, err), (ExitCode.OK, ""), out)
+        for consumer in (INSIDERS, SERVER):
+            self.assertTrue(
+                (self.machine.root(consumer) / self.folder).is_symlink()
+            )
+        backups = self.machine.host.state_dir() / "backups"
+        self.assertEqual(len(list(backups.iterdir())), 1)
+        self.assertEqual(self.machine.run("check")[0], ExitCode.OK)
+
+    def test_a_connected_client_stops_a_change(self) -> None:
+        """The server's processes count as running."""
+        server = self.command.parent.parent / "node"
+        code, _, err = self.machine.run(
+            "setup", "--yes", processes=[f"{server} out/server-main.js"]
+        )
+        self.assertEqual(code, ExitCode.ERROR)
+        self.assertIn("close VS Code Server first", err)
+        _, _, err = self.machine.run(
+            "setup",
+            "--yes",
+            "--target",
+            "insiders",
+            processes=[f"{server} out/server-main.js"],
+        )
+        self.assertEqual(err, "")
+
+    def test_update_runs_the_servers_own_command_line(self) -> None:
+        """The server's build updates its own extensions."""
+        bin_dir = self.machine.home / "bin"
+        script(bin_dir, "code", 'echo "All extensions up to date"')
+        self.machine.set_env(PATH=str(bin_dir))
+        code, out, err = self.machine.run(
+            "update", "--yes", "--target", "server"
+        )
+        self.assertEqual((code, err), (ExitCode.OK, ""), out)
+        calls = (self.command.parent.parent / "calls").read_text()
+        root = self.machine.root(SERVER)
+        self.assertEqual(
+            calls.strip(), f"--extensions-dir {root} --update-extensions"
+        )
+
+    def test_a_missing_folder_is_downloaded_by_the_server(self) -> None:
+        """The download names the server's data directory option."""
+        self.machine.manifest(SERVER, ["pub.gone-1.0.0"])
+        log = self.machine.home / "downloads.log"
+        script(
+            self.command.parent,
+            "code-server",
+            f'echo "$1" >> "{log}"\n'
+            + DOWNLOAD.format(log=self.machine.home / "specs.log"),
+        )
+        code, out, err = self.machine.run(
+            "setup", "--yes", "--target", "server"
+        )
+        self.assertEqual((code, err), (ExitCode.OK, ""), out)
+        self.assertEqual(set(log.read_text().split()), {"--server-data-dir"})
+        adopted = self.machine.root(SERVER) / "pub.gone-2.0.0"
+        self.assertTrue((adopted / "package.json").is_file())
 
 
 class UpdateCommandTests(unittest.TestCase):

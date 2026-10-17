@@ -71,6 +71,27 @@ class RunningTests(unittest.TestCase):
         )
         self.assertEqual(running_editions(host, lines[2:]), set())
 
+    def test_a_server_runs_while_a_client_is_connected(self) -> None:
+        """Its builds' programs count; the tunnel service does not."""
+        for platform, home in (
+            (Platform.LINUX, Path("/home/u")),
+            (Platform.DARWIN, Path("/Users/u")),
+        ):
+            host = Host(platform, home)
+            root = home / ".vscode-server"
+            lines = [
+                f"{root}/cli/servers/Stable-abc/server/node "
+                f"{root}/cli/servers/Stable-abc/server/out/server-main.js",
+                f"{root}/bin/abc/node {root}/bin/abc/out/server-main.js",
+            ]
+            with self.subTest(platform=platform):
+                for line in lines:
+                    self.assertEqual(
+                        running_editions(host, [line]), {Edition.SERVER}
+                    )
+                tunnel = [f"{root}/code-abc tunnel --accept-server-license"]
+                self.assertEqual(running_editions(host, tunnel), set())
+
     def test_an_unreadable_process_list_counts_as_running(self) -> None:
         """Without ps, the run is refused rather than guessed."""
         machine = Machine(self)
@@ -193,7 +214,13 @@ class UpdateTests(unittest.TestCase):
         command = self.code('echo "$@"')
         stage = self.machine.home / "stage"
         root = install_extension(
-            command, stage, "a.b", {}, self.lines.append, pre_release=True
+            command,
+            Edition.INSIDERS,
+            stage,
+            "a.b",
+            {},
+            self.lines.append,
+            pre_release=True,
         )
         self.assertEqual(root, stage / "extensions")
         self.assertEqual(
@@ -205,7 +232,12 @@ class UpdateTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(SyncError, "--install-extension a.b@1"):
             install_extension(
-                self.code("exit 1"), stage, "a.b@1", {}, self.lines.append
+                self.code("exit 1"),
+                Edition.SERVER,
+                stage,
+                "a.b@1",
+                {},
+                self.lines.append,
             )
 
     def test_failure_and_timeout(self) -> None:

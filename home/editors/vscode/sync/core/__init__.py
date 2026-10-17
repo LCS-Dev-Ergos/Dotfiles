@@ -1,10 +1,11 @@
-"""Share VS Code Stable's extensions and user files with VS Code Insiders.
+"""Share VS Code Stable's extensions with Insiders and VS Code Server.
 
-Insiders keeps its own list of extensions, per profile, and Stable stays the
-owner of every folder they share. Where both editions use the same extension,
-Insiders' folder becomes a symlink to Stable's, so an extension is
+Each consumer (VS Code Insiders, or VS Code Server for Stable or Insiders
+clients) keeps its own list of extensions, per profile, and Stable stays the
+owner of every folder they share. Where a consumer uses the same build as
+Stable, its folder becomes a symlink to Stable's, so an extension is
 downloaded, updated and stored once. Insiders' settings, keybindings,
-snippets and MCP servers become links to Stable's files.
+snippets and MCP servers become links to Stable's files too.
 
 - Stable is never changed, except by VS Code's own ``code`` command during
   ``update`` and by ``clean``, which quarantines unused duplicate folders.

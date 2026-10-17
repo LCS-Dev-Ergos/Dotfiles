@@ -12,7 +12,7 @@ import argparse
 import dataclasses
 import json
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from enum import IntEnum
 from pathlib import Path
@@ -21,7 +21,7 @@ import terminal_style as ui
 
 from . import PROG, __version__
 from .errors import SyncError
-from .host import Edition, Host
+from .host import TARGETS, Edition, Host
 from .plan import (
     Downloads,
     Finding,
@@ -29,11 +29,14 @@ from .plan import (
     Plan,
     Quarantine,
     Snapshot,
+    interrupted_runs,
     plan_clean,
     plan_remove,
     plan_setup,
     read_downloads,
+    read_side,
     take_snapshot,
+    unusable,
 )
 from .report import event, notice, render, to_json
 from .safety import confirm, locked, running_editions
@@ -79,8 +82,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog=PROG,
         description=(
-            "Share VS Code Stable's extensions, settings, keybindings, "
-            "snippets and MCP servers with VS Code Insiders, through links."
+            "Share VS Code Stable's extensions with VS Code Insiders and "
+            "VS Code Server through links, and Stable's settings, "
+            "keybindings, snippets and MCP servers with Insiders."
         ),
     )
     parser.add_argument(
@@ -95,24 +99,27 @@ def build_parser() -> argparse.ArgumentParser:
         command.add_argument(
             "--json", action="store_true", help="print the report as JSON"
         )
+        _targets(command)
     for name, text in (
-        ("setup", "make Insiders share what it can with Stable"),
-        ("remove", "give Insiders its own copy of everything shared"),
+        ("setup", "make each consumer share what it can with Stable"),
+        ("remove", "give each consumer its own copy of everything shared"),
     ):
         command = commands.add_parser(name, help=text, description=text)
+        _targets(command)
         _changing(command)
     update = commands.add_parser(
         "update",
-        help="update both editions' extensions, then share again",
+        help="update every edition's extensions, then share again",
         description=(
-            "Run VS Code's own extension update for Stable, let Insiders "
-            "follow, update Insiders' own extensions, share again and "
-            "clean up duplicates."
+            "Run VS Code's own extension update for Stable, let each "
+            "consumer follow, update each consumer's own extensions, share "
+            "again and clean up duplicates."
         ),
     )
     update.add_argument(
         "--skip-clean", action="store_true", help="leave duplicates in place"
     )
+    _targets(update)
     _changing(update)
     clean = commands.add_parser(
         "clean",
@@ -124,12 +131,25 @@ def build_parser() -> argparse.ArgumentParser:
     )
     clean.add_argument(
         "--edition",
-        choices=["stable", "insiders", "both"],
-        default="both",
-        help="which extensions directory to clean (default: both)",
+        choices=["all", *(edition.value for edition in Edition)],
+        default="all",
+        help="which extensions directory to clean (default: every one here)",
     )
     _changing(clean)
     return parser
+
+
+def _targets(command: argparse.ArgumentParser) -> None:
+    """The option that picks the consumers a command works on."""
+    command.add_argument(
+        "--target",
+        action="append",
+        choices=[edition.value for edition in TARGETS],
+        help=(
+            "the consumer to work on, repeatable "
+            "(default: every one installed here)"
+        ),
+    )
 
 
 def _changing(command: argparse.ArgumentParser) -> None:
@@ -181,23 +201,49 @@ def _run(args: argparse.Namespace, context: Context) -> ExitCode:
     return _update(args, context)
 
 
+def _snapshots(args: argparse.Namespace, context: Context) -> list[Snapshot]:
+    """One snapshot per consumer the command works on.
+
+    Without ``--target``, every consumer installed here; when there is
+    none, Insiders, so that the report says it is not installed.
+    """
+    host = context.host
+    if args.target:
+        chosen = dict.fromkeys(Edition(value) for value in args.target)
+        return [take_snapshot(host, edition) for edition in chosen]
+    snapshots = [take_snapshot(host, edition) for edition in TARGETS]
+    return [s for s in snapshots if s.consumer.installed] or snapshots[:1]
+
+
+def _editions(snapshots: Sequence[Snapshot]) -> list[Edition]:
+    """Stable and the consumers of ``snapshots``: what a run touches."""
+    return [Edition.STABLE, *(s.consumer.edition for s in snapshots)]
+
+
 def _report(args: argparse.Namespace, context: Context) -> ExitCode:
     """``status`` and ``check``: what setup would do, changing nothing."""
-    snapshot = take_snapshot(context.host)
-    plan = plan_setup(snapshot)
-    plan = dataclasses.replace(
-        plan,
-        command=args.command,
-        findings=plan.findings + tuple(_environment(context)),
+    snapshots = _snapshots(args, context)
+    plans = [
+        dataclasses.replace(plan_setup(snapshot), command=args.command)
+        for snapshot in snapshots
+    ]
+    plans[-1] = dataclasses.replace(
+        plans[-1],
+        findings=plans[-1].findings + tuple(_environment(context)),
     )
     if args.json:
-        print(json.dumps(to_json(plan), indent=2))
+        print(json.dumps([to_json(plan) for plan in plans], indent=2))
     else:
-        _print(render(plan, context.style, changes=False))
-    due = plan.changed or plan.problems or snapshot.interrupted
-    if args.command == "check" and due:
+        _print_all(_status_lines(plan, context) for plan in plans)
+    due = any(plan.changed or plan.problems for plan in plans)
+    if args.command == "check" and (due or snapshots[0].interrupted):
         return ExitCode.ATTENTION
     return ExitCode.OK
+
+
+def _status_lines(plan: Plan, context: Context) -> list[str]:
+    """A status report, without the list of changes."""
+    return render(plan, context.style, changes=False)
 
 
 def _environment(context: Context) -> list[Finding]:
@@ -227,42 +273,59 @@ def _environment(context: Context) -> list[Finding]:
 def _change(
     args: argparse.Namespace, context: Context, planner: Planner
 ) -> ExitCode:
-    """``setup`` and ``remove``: report, then apply unless it is a dry run."""
+    """``setup`` and ``remove``: report, then apply unless it is a dry run.
+
+    The plans of all consumers are shown first and confirmed together; each
+    is then applied in a transaction of its own.
+    """
+    style = context.style
     if args.dry_run:
-        plan = planner(take_snapshot(context.host), None)
-        _print(render(plan, context.style, context="dry run"))
-        return ExitCode.ATTENTION if plan.changed else ExitCode.OK
+        plans = [planner(s, None) for s in _snapshots(args, context)]
+        _print_all(render(plan, style, context="dry run") for plan in plans)
+        changed = any(plan.changed for plan in plans)
+        return ExitCode.ATTENTION if changed else ExitCode.OK
     with locked(context.host.state_dir()):
-        _guard(context)
+        _guard(context, _editions(_snapshots(args, context)))
         _recover(context)
-        snapshot = take_snapshot(context.host)
-        plan = planner(snapshot, None)
-        _print(render(plan, context.style))
-        if not plan.changed:
+        snapshots = _snapshots(args, context)
+        plans = [planner(snapshot, None) for snapshot in snapshots]
+        _print_all(render(plan, style) for plan in plans)
+        due = [
+            (snapshot, plan)
+            for snapshot, plan in zip(snapshots, plans, strict=True)
+            if plan.changed
+        ]
+        if not due:
             return ExitCode.OK
-        if not args.yes and not _ask(context, f"Apply {_count(plan)}?"):
-            _print(notice(context.style, "muted", "Nothing was changed."))
+        size = sum(plan.size for _, plan in due)
+        question = f"Apply {size} change{'s' * (size != 1)}?"
+        if not args.yes and not _ask(context, question):
+            _print(notice(style, "muted", "Nothing was changed."))
             return ExitCode.OK
-        _backup(context, snapshot, plan.command)
-        return _apply(context, plan, planner)
+        _backup(context, [snapshot for snapshot, _ in due], args.command)
+        code = ExitCode.OK
+        for _, plan in due:
+            code = max(code, _apply(context, plan, planner))
+        return ExitCode(code)
 
 
 def _clean(args: argparse.Namespace, context: Context) -> ExitCode:
-    """``clean``: quarantine unused duplicates of one or both editions."""
-    editions = {
-        "stable": (Edition.STABLE,),
-        "insiders": (Edition.INSIDERS,),
-        "both": (Edition.STABLE, Edition.INSIDERS),
-    }[args.edition]
+    """``clean``: quarantine unused duplicates of the editions here."""
+    host = context.host
+    sides = {edition: read_side(host, edition) for edition in Edition}
+    if args.edition == "all":
+        editions = [e for e, side in sides.items() if side.root.is_dir()]
+    else:
+        editions = [Edition(args.edition)]
     if args.dry_run:
-        plan = plan_clean(take_snapshot(context.host), editions)
+        plan = plan_clean(sides, editions, interrupted_runs(host))
         _print(render(plan, context.style, context="dry run"))
         return ExitCode.ATTENTION if plan.changed else ExitCode.OK
-    with locked(context.host.state_dir()):
-        _guard(context)
+    with locked(host.state_dir()):
+        _guard(context, editions)
         _recover(context)
-        snapshot = take_snapshot(context.host)
-        plan = plan_clean(snapshot, editions)
+        sides = {edition: read_side(host, edition) for edition in Edition}
+        plan = plan_clean(sides, editions)
         _print(render(plan, context.style))
         if not plan.changed:
             return ExitCode.OK
@@ -276,77 +339,96 @@ def _update(args: argparse.Namespace, context: Context) -> ExitCode:
     """``update``: VS Code's updates, sharing after each, then cleaning."""
     host, style = context.host, context.style
     if args.dry_run:
-        snapshot = take_snapshot(host)
-        plan = dataclasses.replace(plan_setup(snapshot), command="update")
-        _print(render(plan, style, context="dry run"))
-        steps = _update_steps(context, snapshot, args.skip_clean)
+        snapshots = _snapshots(args, context)
+        plans = [
+            dataclasses.replace(plan_setup(snapshot), command="update")
+            for snapshot in snapshots
+        ]
+        _print_all(render(plan, style, context="dry run") for plan in plans)
+        steps = _update_steps(context, snapshots, args.skip_clean)
         _print(["", *notice(style, "muted", "An update runs:", steps)])
         return ExitCode.OK
     with locked(host.state_dir()):
-        _guard(context)
+        _guard(context, _editions(_snapshots(args, context)))
         _recover(context)
-        snapshot = take_snapshot(host)
+        snapshots = _snapshots(args, context)
         stable = find_command(host, Edition.STABLE)
         if stable is None:
             raise SyncError(f"{Edition.STABLE.command} is not on PATH")
-        insiders = _insiders_command(context, snapshot)
-        plan = dataclasses.replace(plan_setup(snapshot), command="update")
-        _print(render(plan, style, changes=False))
-        steps = _update_steps(context, snapshot, args.skip_clean)
+        plans = [
+            dataclasses.replace(plan_setup(snapshot), command="update")
+            for snapshot in snapshots
+        ]
+        _print_all(render(plan, style, changes=False) for plan in plans)
+        steps = _update_steps(context, snapshots, args.skip_clean)
         _print(["", *notice(style, "muted", "An update runs:", steps)])
         if not args.yes and not _ask(context, "Run the update?"):
             _print(notice(style, "muted", "Nothing was changed."))
             return ExitCode.OK
-        _backup(context, snapshot, "update")
-        sharing = snapshot.insiders_installed
-        code = _share(context) if sharing else ExitCode.OK
+        _backup(context, snapshots, "update")
+        sharing = [
+            s.consumer.edition for s in snapshots if unusable(s) is None
+        ]
+        code = ExitCode.OK
+        for edition in sharing:
+            code = max(code, _share(context, edition))
         _vscode_update(context, Edition.STABLE, stable)
-        if sharing:
-            code = max(code, _share(context))
-        if insiders is not None:
-            _vscode_update(context, Edition.INSIDERS, insiders)
-            code = max(code, _share(context))
+        for edition in sharing:
+            code = max(code, _share(context, edition))
+        for edition in sharing:
+            command = _own_command(context, edition)
+            if command is not None:
+                _vscode_update(context, edition, command)
+                code = max(code, _share(context, edition))
         if not args.skip_clean:
-            _guard(context)
-            plan = plan_clean(take_snapshot(host), tuple(Edition))
-            code = max(code, _quarantine(plan, context))
+            editions = [Edition.STABLE, *sharing]
+            _guard(context, editions)
+            sides = {edition: read_side(host, edition) for edition in Edition}
+            code = max(code, _quarantine(plan_clean(sides, editions), context))
     return ExitCode(code)
 
 
-def _insiders_command(context: Context, snapshot: Snapshot) -> Path | None:
-    """Insiders' command line, when Insiders has extensions to update."""
-    if not context.host.extensions_dir(Edition.INSIDERS).is_dir():
+def _own_command(context: Context, edition: Edition) -> Path | None:
+    """A consumer's command line, when it has extensions of its own."""
+    if not context.host.extensions_dir(edition).is_dir():
         return None
-    return find_command(context.host, Edition.INSIDERS)
+    return find_command(context.host, edition)
 
 
 def _update_steps(
-    context: Context, snapshot: Snapshot, skip_clean: bool
+    context: Context, snapshots: Sequence[Snapshot], skip_clean: bool
 ) -> list[str]:
     """What an update will run here, numbered.
 
-    Without Insiders only Stable is updated and cleaned; without its command
-    line, Insiders still follows Stable but its own extensions stay.
+    Without a consumer only Stable is updated and cleaned; a consumer
+    without its command line still follows Stable, but its own extensions
+    stay as they are.
     """
+    sharing = [s for s in snapshots if unusable(s) is None]
+    names = " and ".join(s.label for s in sharing)
     steps: list[str] = []
-    sharing = snapshot.insiders_installed
     if sharing:
         steps.append(
-            "share what is due, so Stable's update meets consistent lists"
+            f"share what is due with {names}, so Stable's update meets "
+            "consistent lists"
         )
     steps.append(f"run {Edition.STABLE.command} --update-extensions")
     if sharing:
-        steps.append("let Insiders follow Stable's builds")
-        if _insiders_command(context, snapshot) is not None:
-            steps.append(f"run {Edition.INSIDERS.command} --update-extensions")
-            steps.append("share again")
+        steps.append(f"let {names} follow Stable's builds")
+    for snapshot in sharing:
+        edition = snapshot.consumer.edition
+        if _own_command(context, edition) is not None:
+            steps.append(
+                f"run {edition.command} --update-extensions for "
+                f"{edition.label}, then share again"
+            )
         else:
             steps.append(
-                f"skip Insiders' own extensions: "
-                f"{Edition.INSIDERS.command} is not on PATH"
+                f"skip the update of {edition.label}'s own builds: "
+                f"{edition.command} is not available"
             )
     if not skip_clean:
-        which = "both editions" if sharing else "Stable"
+        which = ", ".join(["Stable", *(s.label for s in sharing)])
         steps.append(f"quarantine unused duplicates in {which}")
     return [f"{index}. {step}" for index, step in enumerate(steps, 1)]
 
@@ -354,7 +436,7 @@ def _update_steps(
 def _vscode_update(context: Context, edition: Edition, command: Path) -> None:
     """Run one edition's update, showing what it prints."""
     style = context.style
-    _guard(context)
+    _guard(context, [edition])
     _print(["", *ui.section(style, f"{edition.label} update")])
     updated = update_extensions(
         command,
@@ -367,12 +449,13 @@ def _vscode_update(context: Context, edition: Edition, command: Path) -> None:
     print(event(style, "ok", text), flush=True)
 
 
-def _share(context: Context) -> ExitCode:
-    """Apply what setup would do now, if anything."""
-    _guard(context)
-    plan = plan_setup(take_snapshot(context.host))
+def _share(context: Context, edition: Edition) -> ExitCode:
+    """Apply what setup would do now for one consumer, if anything."""
+    _guard(context, [Edition.STABLE, edition])
+    plan = plan_setup(take_snapshot(context.host, edition))
     if not plan.changed:
-        print(event(context.style, "ok", "Insiders already follows"))
+        text = f"{edition.label} already follows Stable"
+        print(event(context.style, "ok", text))
         return ExitCode.OK
     return _apply(context, plan, plan_setup)
 
@@ -384,14 +467,17 @@ def _apply(context: Context, plan: Plan, planner: Planner) -> ExitCode:
     end with an error, after everything else was applied.
     """
     state_dir = context.host.state_dir()
+    edition = plan.consumer or Edition.INSIDERS
     failed: list[str] = []
     stage: Path | None = None
     try:
         if plan.installs:
             stage = private_dir(state_dir / "downloads") / stamp("download")
-            downloads, failed = _download(context, plan.installs, stage)
-            _guard(context)
-            plan = planner(take_snapshot(context.host), downloads)
+            downloads, failed = _download(
+                context, edition, plan.installs, stage
+            )
+            _guard(context, [Edition.STABLE, edition])
+            plan = planner(take_snapshot(context.host, edition), downloads)
         if plan.operations:
             _done(context, plan, _execute(plan, context, planner))
     finally:
@@ -404,20 +490,25 @@ def _apply(context: Context, plan: Plan, planner: Planner) -> ExitCode:
 
 
 def _download(
-    context: Context, installs: Sequence[Install], stage: Path
+    context: Context,
+    edition: Edition,
+    installs: Sequence[Install],
+    stage: Path,
 ) -> tuple[Downloads, list[str]]:
-    """Download each build with Insiders' command line into ``stage``.
+    """Download each build with the consumer's command line into ``stage``.
 
-    The build an entry named is tried first, then the latest one.
+    The consumer's own command line downloads builds that run on it: for a
+    server, its newest build's. The build an entry named is tried first,
+    then the latest one.
 
     Returns:
         What was downloaded, and a reason for each build that was not.
     """
     host, style = context.host, context.style
     root = stage / "extensions"
-    command = find_command(host, Edition.INSIDERS)
+    command = find_command(host, edition)
     if command is None:
-        missing = f"{Edition.INSIDERS.command} is not on PATH"
+        missing = f"{edition.command} is not available for {edition.label}"
         return Downloads(root), [
             f"{item.extension_id}: {missing}" for item in installs
         ]
@@ -432,6 +523,7 @@ def _download(
             try:
                 install_extension(
                     command,
+                    edition,
                     stage,
                     spec,
                     host.env,
@@ -463,7 +555,8 @@ def _execute(plan: Plan, context: Context, planner: Planner) -> list[str]:
     try:
         for operation in plan.operations:
             transaction.apply(operation)
-        after = planner(take_snapshot(context.host), None)
+        consumer = plan.consumer or Edition.INSIDERS
+        after = planner(take_snapshot(context.host, consumer), None)
         if after.operations:
             raise SyncError(
                 f"{len(after.operations)} changes were still due afterwards"
@@ -509,17 +602,24 @@ def _recover(context: Context) -> None:
             _print(notice(context.style, "ok", title, list(undone.notes)))
 
 
-def _backup(context: Context, snapshot: Snapshot, label: str) -> None:
+def _backup(
+    context: Context, snapshots: Sequence[Snapshot], label: str
+) -> None:
     """Back up every file a run may change, before it changes any.
+
+    One backup covers every consumer of the run, so a run counts once
+    against the retention.
 
     Raises:
         SyncError: If a file cannot be copied; nothing has changed yet.
     """
     paths: list[Path] = []
-    for side in (snapshot.stable, snapshot.insiders):
-        paths += [manifest.path for manifest in side.manifests]
-        paths.append(side.obsolete.path)
-    paths += [item.target for item in snapshot.items]
+    for snapshot in snapshots:
+        for side in (snapshot.stable, snapshot.consumer):
+            paths += [manifest.path for manifest in side.manifests]
+            paths.append(side.obsolete.path)
+        paths += [item.target for item in snapshot.items]
+    paths = list(dict.fromkeys(paths))
     host = context.host
     directory, warnings = backup(host.state_dir(), host.home, label, paths)
     if directory is not None:
@@ -567,17 +667,19 @@ def _done(context: Context, plan: Plan, warnings: list[str]) -> None:
         print(f"{PROG}: warning: {warning}", file=sys.stderr)
 
 
-def _guard(context: Context) -> None:
-    """Refuse to go on while VS Code runs.
+def _guard(context: Context, editions: Sequence[Edition]) -> None:
+    """Refuse to go on while one of ``editions`` runs.
+
+    A server runs while a remote client is connected to it.
 
     Raises:
-        SyncError: If an edition is running.
+        SyncError: If one of them is running.
     """
     running = running_editions(context.host, context.processes)
-    if running:
-        names = " and ".join(
-            edition.label for edition in Edition if edition in running
-        )
+    busy = [edition for edition in Edition if edition in running]
+    busy = [edition for edition in busy if edition in editions]
+    if busy:
+        names = " and ".join(edition.label for edition in busy)
         raise SyncError(f"close VS Code {names} first")
 
 
@@ -594,6 +696,12 @@ def _ask(context: Context, question: str) -> bool:
 def _count(plan: Plan) -> str:
     """The number of changes, in words."""
     return f"{plan.size} change{'s' * (plan.size != 1)}"
+
+
+def _print_all(reports: Iterable[Sequence[str]]) -> None:
+    """Print reports one after the other, a blank line apart."""
+    for index, lines in enumerate(reports):
+        _print(["", *lines] if index else lines)
 
 
 def _print(lines: Sequence[str]) -> None:

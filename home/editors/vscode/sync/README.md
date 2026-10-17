@@ -1,9 +1,11 @@
 # VS Code Sync
 
-`vscode-sync` lets VS Code Insiders share VS Code Stable's extensions, settings,
-keybindings, snippets and MCP servers. Where both editions use the same build of an
-extension, Insiders' folder becomes a symlink to Stable's, so the extension is
-downloaded, updated and stored once. Insiders' user files become links to Stable's.
+`vscode-sync` lets the other VS Code installations of a host share the extensions of
+VS Code Stable: VS Code Insiders, and VS Code Server, which a remote client (Remote -
+SSH, Remote - Tunnels) installs on the host it connects to. Where a consumer uses the
+same build of an extension as Stable, its folder becomes a symlink to Stable's, so the
+extension is downloaded, updated and stored once. Insiders also shares Stable's
+settings, keybindings, snippets and MCP servers.
 
 It is a manual tool for macOS and Linux. Home Manager installs the command; no switch,
 hook or health check runs it.
@@ -14,21 +16,26 @@ hook or health check runs it.
 | --- | --- |
 | `vscode-sync status` | Show what is shared, what is due and what a change would meet. Touches no file. |
 | `vscode-sync check` | The same report; exit status 1 when anything is due or needs attention. |
-| `vscode-sync setup` | Link what Insiders can share, fix the extension lists and repair what is broken. |
-| `vscode-sync remove` | Give Insiders its own copy of every shared folder and user file. |
-| `vscode-sync update` | Share what is due, update Stable's extensions with `code`, let Insiders follow, update Insiders' own with `code-insiders`, share again and run `clean`. |
+| `vscode-sync setup` | Link what each consumer can share, fix the extension lists and repair what is broken. |
+| `vscode-sync remove` | Give each consumer its own copy of every shared folder and user file. |
+| `vscode-sync update` | Share what is due, update Stable's extensions with `code`, let the consumers follow, update each consumer's own with its command line, share again and run `clean`. |
 | `vscode-sync clean` | Move older builds that no profile lists into the quarantine. |
 
-`status` and `check` accept `--json`. Every changing command accepts `--dry-run`
-(report only, exit status 1 if the run would change something) and `--yes` (do not
-ask). `update` also accepts `--skip-clean`, and `clean` accepts
-`--edition stable|insiders|both` (default `both`). Exit status 0 is success, 1 means
-something is due, 2 is a usage error and 3 any other error, including a download
-that failed after everything else was applied.
+`status`, `check`, `setup`, `remove` and `update` work on every consumer installed on
+the host; `--target insiders|server|server-insiders`, repeatable, picks some. A
+changing command shows the plans of all of them, asks once, backs up once and applies
+each plan in a transaction of its own. `status` and `check` accept `--json`, which
+prints one report per consumer as a JSON array. Every changing command accepts
+`--dry-run` (report only, exit status 1 if the run would change something) and
+`--yes` (do not ask). `update` also accepts `--skip-clean`, and `clean` accepts
+`--edition all|stable|insiders|server|server-insiders` (default `all`, every
+extensions directory on the host). Exit status 0 is success, 1 means something is
+due, 2 is a usage error and 3 any other error, including a download that failed
+after everything else was applied.
 
-On a host without Insiders, `status` says so and `update` only updates and cleans
-Stable; without `code-insiders` on `PATH`, Insiders still follows Stable but its own
-extensions are not updated.
+On a host without any consumer, `status` says Insiders is not installed and `update`
+only updates and cleans Stable. A consumer without its command line still follows
+Stable, but its own extensions are not updated.
 
 Without Nix the entry script runs directly with Python 3.10 or newer from a repository
 checkout, which reads the terminal style from `home/shells/terminal-style`:
@@ -36,26 +43,50 @@ checkout, which reads the terminal style from `home/shells/terminal-style`:
 
 ## What Is Shared
 
-Sharing follows Insiders' own extension lists, one per profile: an extension is shared
-only where an Insiders profile already lists it, and nothing is installed into
-Insiders that it did not have. Each Insiders entry is matched with the build Stable
+Sharing follows each consumer's own extension lists, one per profile: an extension is
+shared only where one of its profiles already lists it, and nothing is installed into
+a consumer that it did not have. Each entry is matched with the build Stable
 uses, taken from the Stable profile of the same name and otherwise from the newest
 build any Stable profile lists. Stable must still list that folder, and the folder must
 not be marked for deletion in Stable's `.obsolete`.
 
-- The same build: Insiders' folder becomes a link to Stable's.
+- The same build: the consumer's folder becomes a link to Stable's.
 - A newer build in Stable: the entry follows it and the link is made.
-- A newer build in Insiders' own folder: Insiders keeps it; it is never downgraded.
+- A newer build in the consumer's own folder: it is kept; a consumer is never
+  downgraded.
 - `anthropic.claude-code` and `github.copilot`, with every extension of their families
   such as `github.copilot-chat`, are never shared: they follow each edition's own
   release train. A link to Stable's copy is replaced by a copy.
 
-Every Insiders entry names its folder inside Insiders' extensions directory, even when
-that folder is a link. An entry that named Stable's folder would let Insiders delete
+Every entry names its folder inside the consumer's extensions directory, even when
+that folder is a link. An entry that named Stable's folder would let the consumer delete
 it when uninstalling or updating the extension; `setup` rewrites such entries.
 
 `settings.json`, `keybindings.json`, `snippets` and `mcp.json` in Insiders' user
 directory become links to Stable's.
+
+## VS Code Server
+
+A client installs VS Code Server below `~/.vscode-server` (Stable clients) or
+`~/.vscode-server-insiders` (Insiders clients), on macOS and Linux alike: extensions in
+`extensions`, profiles in `data/User`, and one directory per server build in
+`cli/servers/<Quality>-<commit>/server` (Remote - Tunnels and recent Remote - SSH) or
+`bin/<commit>` (older Remote - SSH). Its extension lists follow the same model as a
+desktop edition's, so it shares Stable's builds the same way, with three differences:
+
+- **The server's version limits what is shared.** The server build follows the
+  version of the client, not of the host's Stable. A Stable build is shared only if its
+  `engines.vscode` allows the newest server build installed; otherwise the server keeps
+  its own. A requirement with a date suffix, such as `^1.106.0-20251020`, is only
+  taken as met from the next minor version on. A server without any build installed is
+  left alone: what runs on it is unknown until a client connects again.
+- **Its own command line does the rest.** Downloads for repairs and the update of the
+  server's own builds use `bin/code-server` of the newest server build, which picks
+  builds for the server's version and platform.
+- **Only extensions are shared.** A server's settings come from the client.
+
+A server runs while a client is connected, and nothing changes then. Its processes
+are the programs of a server build; the tunnel service next to them is not counted.
 
 ## Repairs
 
@@ -63,13 +94,14 @@ directory become links to Stable's.
 fixed by hand:
 
 - **A folder that is gone**, or a link to a Stable folder that is gone: the entry
-  moves to the newest build Insiders still has of that extension. `remove` first
+  moves to the newest build the consumer still has of that extension. `remove` first
   copies Stable's build when Stable may share it. Without one, the build is
-  downloaded again with `code-insiders`, the version the entry named first and the
-  latest one of the same channel next. VS Code's command line refuses to reinstall an
-  extension a profile still lists, so the download goes into a scratch directory with
-  its own user data and is then adopted; no profile is touched by the download itself.
-- **A link to a folder Stable no longer lists** becomes Insiders' own copy before
+  downloaded again with the consumer's command line, the version the entry named
+  first and the latest one of the same channel next. VS Code's command line refuses
+  to reinstall an extension a profile still lists, so the download goes into a
+  scratch directory with its own data directory and is then adopted; no profile is
+  touched by the download itself.
+- **A link to a folder Stable no longer lists** becomes the consumer's own copy before
   Stable deletes the folder.
 - **A user file link to a Stable file that is gone** is removed.
 - **An interrupted run** is undone by the next changing run, from its journal.
@@ -83,12 +115,13 @@ applied, and the run ends with exit status 3; the next run tries again.
   `clean`, which moves unused duplicates out of the extensions directory.
 - A link counts as the tool's when it points at a folder directly inside Stable's
   extensions directory. Only such links are replaced or removed; any other link is
-  reported and left alone. A link no Insiders profile lists any more is removed.
+  reported and left alone. A link no profile of the consumer lists any more is removed.
 - Every run plans its changes from a read-only snapshot first and prints them. A
   change needs a yes on a terminal (Gum when the output is styled) or `--yes`.
-- Nothing changes while either edition runs or while another run holds the lock.
-- Before the first change, every extension list and deletion list of both editions
-  and Insiders' own user files are backed up.
+- Nothing changes while Stable or a consumer the run works on runs, or while another
+  run holds the lock.
+- Before the first change, every extension list and deletion list of Stable and the
+  consumers, and Insiders' own user files, are backed up.
 - Changes are applied as a transaction. Before each step, a record that can undo it is
   flushed to the run's journal, and whatever the step replaces is moved into the run's
   workspace. A failure undoes every step, newest first; afterwards the plan is worked
@@ -126,9 +159,9 @@ it, one concern per module:
 
 | Module | Concern |
 | --- | --- |
-| `host` | Platform, editions and the locations derived from them. |
-| `versions` | Extension version precedence. |
-| `inventory` | Extension folders, read without following links. |
+| `host` | Platform, editions (desktop and server) and the locations derived from them. |
+| `versions` | Extension version precedence and `engines.vscode` requirements. |
+| `inventory` | Extension folders, read without following links, and installed server builds. |
 | `jsondata` | Narrowing of parsed JSON. |
 | `manifest` | Extension lists, profiles and `.obsolete`. |
 | `plan` | The changes and repairs of a run, worked out from a snapshot; writes nothing. |

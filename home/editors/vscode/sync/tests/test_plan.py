@@ -2,6 +2,7 @@
 
 import json
 import os
+import shutil
 import unittest
 
 from core.plan import (
@@ -21,7 +22,7 @@ from core.plan import (
     plan_setup,
     read_downloads,
 )
-from tests.support import INSIDERS, STABLE, Machine
+from tests.support import INSIDERS, SERVER, STABLE, Machine
 
 
 def actions(plan: Plan) -> dict[str, Action]:
@@ -367,6 +368,71 @@ class RepairTests(unittest.TestCase):
         self.assertFalse(plan_remove(self.machine.snapshot()).changed)
 
 
+class ServerTests(unittest.TestCase):
+    """VS Code Server shares Stable's builds that run on it."""
+
+    def setUp(self) -> None:
+        """Stable with two builds; a server of version 1.100.0."""
+        self.machine = Machine(self)
+        self.old = self.machine.extension(
+            STABLE, "pub.old", "1.0.0", engine="^1.90.0"
+        )
+        self.new = self.machine.extension(
+            STABLE, "pub.new", "1.0.0", engine="^1.105.0"
+        )
+        self.machine.manifest(STABLE, [self.old, self.new])
+        self.machine.server(SERVER, "1.100.0")
+
+    def test_a_build_that_runs_on_the_server_is_shared(self) -> None:
+        """Only extensions, no user files; the newer engine stays apart."""
+        self.machine.extension(SERVER, "pub.old", "1.0.0")
+        self.machine.extension(SERVER, "pub.new", "1.0.0")
+        self.machine.manifest(SERVER, [self.old, self.new])
+        plan = plan_setup(self.machine.snapshot(SERVER))
+        self.assertEqual(plan.items, ())
+        self.assertEqual(kinds(plan), [f"LinkFolder {self.old}"])
+        (blocked,) = [d for d in plan.decisions if d.folder == self.new]
+        self.assertEqual(blocked.action, Action.NATIVE)
+        self.assertIn("newer VS Code than 1.100.0", blocked.detail)
+        self.machine.apply(plan)
+        link = self.machine.root(SERVER) / self.old
+        self.assertEqual(link.readlink(), self.machine.root(STABLE) / self.old)
+        self.assertFalse(plan_setup(self.machine.snapshot(SERVER)).changed)
+
+    def test_the_newest_server_decides(self) -> None:
+        """A newer server build lifts the limit."""
+        self.machine.manifest(SERVER, [self.new])
+        self.machine.server(SERVER, "1.106.0")
+        plan = plan_setup(self.machine.snapshot(SERVER))
+        self.assertEqual(kinds(plan), [f"LinkFolder {self.new}"])
+
+    def test_profiles_of_the_server_are_followed(self) -> None:
+        """A server profile's list is shared like Insiders' profiles."""
+        self.machine.manifest(SERVER, [])
+        self.machine.manifest(SERVER, [self.old], profile="Work")
+        plan = plan_setup(self.machine.snapshot(SERVER))
+        self.assertEqual(
+            [(d.scope, d.action) for d in plan.decisions],
+            [("Work", Action.LINK)],
+        )
+
+    def test_a_server_without_builds_is_left_alone(self) -> None:
+        """Without a build its version, and so what runs, is unknown."""
+        shutil.rmtree(self.machine.home / ".vscode-server" / "cli")
+        self.machine.manifest(SERVER, [self.old])
+        plan = plan_setup(self.machine.snapshot(SERVER))
+        self.assertFalse(plan.changed)
+        self.assertIn("no server build", plan.findings[0].text)
+
+    def test_clean_keeps_what_a_server_links_to(self) -> None:
+        """Stable's folder stays while the server uses it."""
+        older = self.machine.extension(STABLE, "pub.old", "0.9.0")
+        self.machine.manifest(STABLE, [self.new])
+        self.machine.link(older, consumer=SERVER)
+        plan = plan_clean(self.machine.sides(), [STABLE])
+        self.assertEqual(kinds(plan), [])
+
+
 class RemoveTests(unittest.TestCase):
     """How remove gives Insiders its own copies."""
 
@@ -457,7 +523,7 @@ class CleanTests(unittest.TestCase):
         ]
         machine.manifest(STABLE, [names[1]])
         machine.manifest(STABLE, [names[0]], profile="Work")
-        plan = plan_clean(machine.snapshot(), [STABLE])
+        plan = plan_clean(machine.sides(), [STABLE])
         self.assertEqual(kinds(plan), [f"Quarantine {names[2]}"])
 
     def test_folders_insiders_links_to_stay(self) -> None:
@@ -468,7 +534,7 @@ class CleanTests(unittest.TestCase):
         machine.manifest(STABLE, [new])
         machine.link(old)
         machine.manifest(INSIDERS, [old])
-        plan = plan_clean(machine.snapshot(), [STABLE, INSIDERS])
+        plan = plan_clean(machine.sides(), [STABLE, INSIDERS])
         self.assertFalse(plan.changed, plan.operations)
 
     def test_platforms_and_unknown_folders_are_separate(self) -> None:
@@ -479,7 +545,7 @@ class CleanTests(unittest.TestCase):
         stranger = machine.root(STABLE) / "pub.tool-0.1.0"
         stranger.mkdir()
         (stranger / "package.json").write_text("{}")
-        plan = plan_clean(machine.snapshot(), [STABLE])
+        plan = plan_clean(machine.sides(), [STABLE])
         self.assertFalse(plan.changed, plan.operations)
 
     def test_only_the_named_edition_is_cleaned(self) -> None:
@@ -488,7 +554,7 @@ class CleanTests(unittest.TestCase):
         for edition in (STABLE, INSIDERS):
             machine.extension(edition, "pub.tool", "1.0.0")
             machine.extension(edition, "pub.tool", "2.0.0")
-        plan = plan_clean(machine.snapshot(), [INSIDERS])
+        plan = plan_clean(machine.sides(), [INSIDERS])
         editions = {
             op.edition for op in plan.operations if isinstance(op, Quarantine)
         }

@@ -228,7 +228,7 @@ class QuarantineTests(unittest.TestCase):
         old = machine.extension(STABLE, "pub.tool", "1.0.0")
         gone = machine.extension(STABLE, "pub.tool", "1.5.0")
         machine.extension(STABLE, "pub.tool", "2.0.0")
-        plan = plan_clean(machine.snapshot(), [STABLE])
+        plan = plan_clean(machine.sides(), [STABLE])
         os.rename(machine.root(STABLE) / gone, machine.home / "moved")
         (machine.root(STABLE) / gone).symlink_to(machine.home / "moved")
         roots = {

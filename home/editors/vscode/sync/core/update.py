@@ -19,6 +19,7 @@ from pathlib import Path
 
 from .errors import SyncError
 from .host import Edition, Host
+from .inventory import servers
 from .storage import reason
 
 UPDATE_TIMEOUT = 900
@@ -29,7 +30,14 @@ _DETACHED = ("VSCODE_IPC_HOOK_CLI", "ELECTRON_RUN_AS_NODE", "VSCODE_PID")
 
 
 def find_command(host: Host, edition: Edition) -> Path | None:
-    """The edition's command on the host's PATH."""
+    """The edition's command line.
+
+    A desktop edition's is looked up on the host's PATH; a server's is the
+    one inside its newest build, which matches the clients that use it.
+    """
+    if edition.is_server:
+        builds = servers(host.server_builds(edition))
+        return builds[0].command if builds else None
     found = shutil.which(edition.command, path=host.search_path())
     return Path(found) if found else None
 
@@ -71,6 +79,7 @@ def update_extensions(
 
 def install_extension(
     command: Path,
+    edition: Edition,
     stage: Path,
     spec: str,
     environ: Mapping[str, str],
@@ -83,8 +92,8 @@ def install_extension(
 
     VS Code's command line refuses to install an extension a profile lists
     even when its folder is gone, so the build is installed into a scratch
-    extensions directory with a scratch user data directory, and adopted
-    from there.
+    extensions directory with a scratch data directory, and adopted from
+    there. A server names its data directory with its own option.
 
     Returns:
         The scratch extensions directory, whose ``extensions.json`` lists
@@ -94,8 +103,9 @@ def install_extension(
         SyncError: If it cannot start, fails or runs out of time.
     """
     extensions = stage / "extensions"
+    data = "--server-data-dir" if edition.is_server else "--user-data-dir"
     arguments = [
-        "--user-data-dir",
+        data,
         str(stage / "user"),
         "--extensions-dir",
         str(extensions),

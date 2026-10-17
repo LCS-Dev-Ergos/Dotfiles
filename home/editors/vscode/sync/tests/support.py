@@ -1,4 +1,4 @@
-"""Throwaway homes with both VS Code editions in them."""
+"""Throwaway homes with VS Code's editions in them."""
 
 import contextlib
 import dataclasses
@@ -15,11 +15,19 @@ import terminal_style as ui
 
 from core.cli import Context, main
 from core.host import Edition, Host, Platform
-from core.plan import Plan, Snapshot, plan_setup, take_snapshot
+from core.plan import (
+    Plan,
+    Side,
+    Snapshot,
+    plan_setup,
+    read_side,
+    take_snapshot,
+)
 from core.transaction import Transaction
 
 STABLE = Edition.STABLE
 INSIDERS = Edition.INSIDERS
+SERVER = Edition.SERVER
 
 
 class Machine:
@@ -44,9 +52,27 @@ class Machine:
         }
         self.host = Host(platform, self.home, env)
         self.host.state_home().mkdir(parents=True)
-        for edition in Edition:
+        for edition in (STABLE, INSIDERS):
             self.root(edition).mkdir(parents=True)
             self.host.user_dir(edition).mkdir(parents=True)
+
+    def server(
+        self, edition: Edition = SERVER, version: str = "1.100.0"
+    ) -> Path:
+        """Install a server build of ``version``; its command line.
+
+        The command line logs its arguments next to itself and succeeds.
+        """
+        self.root(edition).mkdir(parents=True, exist_ok=True)
+        self.host.user_dir(edition).mkdir(parents=True, exist_ok=True)
+        servers = self.home / edition.dot_directory / "cli" / "servers"
+        build = servers / f"{edition.quality}-{version}" / "server"
+        (build / "bin").mkdir(parents=True)
+        (build / "product.json").write_text(json.dumps({"version": version}))
+        command = build / "bin" / "code-server"
+        command.write_text(f'#!/bin/sh\necho "$@" >> "{build}/calls"\n')
+        command.chmod(0o755)
+        return command
 
     def set_env(self, **values: str) -> None:
         """Replace the host with one whose environment has ``values``."""
@@ -63,25 +89,37 @@ class Machine:
         extension_id: str,
         version: str,
         platform: str | None = None,
+        *,
+        engine: str | None = None,
     ) -> str:
-        """Install a real extension folder; its name."""
+        """Install a real extension folder; its name.
+
+        ``engine`` is its ``engines.vscode``.
+        """
         suffix = f"-{platform}" if platform else ""
         name = f"{extension_id}-{version}{suffix}"
         folder = self.root(edition) / name
         folder.mkdir()
         publisher, package = extension_id.split(".", 1)
-        manifest = {
+        manifest: dict[str, object] = {
             "publisher": publisher,
             "name": package,
             "version": version,
         }
+        if engine is not None:
+            manifest["engines"] = {"vscode": engine}
         (folder / "package.json").write_text(json.dumps(manifest))
         (folder / "extension.js").write_text(f"// {name}\n")
         return name
 
-    def link(self, name: str, target: str | None = None) -> Path:
-        """Make Insiders' ``name`` a link to Stable's ``target`` folder."""
-        path = self.root(INSIDERS) / name
+    def link(
+        self,
+        name: str,
+        target: str | None = None,
+        consumer: Edition = INSIDERS,
+    ) -> Path:
+        """Make a consumer's ``name`` a link to Stable's ``target`` folder."""
+        path = self.root(consumer) / name
         path.symlink_to(self.root(STABLE) / (target or name))
         return path
 
@@ -156,9 +194,13 @@ class Machine:
         path.write_text(text)
         return path
 
-    def snapshot(self) -> Snapshot:
-        """Read the machine."""
-        return take_snapshot(self.host)
+    def snapshot(self, consumer: Edition = INSIDERS) -> Snapshot:
+        """Read the machine for one consumer."""
+        return take_snapshot(self.host, consumer)
+
+    def sides(self) -> dict[Edition, Side]:
+        """Read every edition, as clean does."""
+        return {edition: read_side(self.host, edition) for edition in Edition}
 
     def apply(self, plan: Plan) -> None:
         """Apply a plan's operations as a run would."""

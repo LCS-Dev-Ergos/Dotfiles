@@ -67,7 +67,7 @@ def running_editions(
     found: set[Edition] = set()
     for line in lines:
         for edition in Edition:
-            if _belongs_to(host.platform, edition, line):
+            if _belongs_to(host, edition, line):
                 found.add(edition)
     return found
 
@@ -132,14 +132,22 @@ def _process_list(host: Host) -> list[str]:
     return completed.stdout.splitlines()
 
 
-def _belongs_to(platform: Platform, edition: Edition, line: str) -> bool:
+def _belongs_to(host: Host, edition: Edition, line: str) -> bool:
     """Whether a command line is one of an edition's processes.
 
-    On macOS every process of an edition runs from inside its application
-    bundle. On Linux the editor and its helpers run its own binary, which
-    the packages install under the edition's command name.
+    A server runs the programs of one of its builds, below ``cli/servers``
+    or ``bin``; the tunnel service next to them only relays connections and
+    does not count. On macOS every process of a desktop edition runs from
+    inside its application bundle. On Linux the editor and its helpers run
+    its own binary, which the packages install under the command's name.
     """
-    if platform is Platform.DARWIN:
-        return f"/{edition.application}/Contents/" in line
     executable = line.split(" ", 1)[0]
+    if edition.is_server:
+        root = host.home / edition.dot_directory
+        return any(
+            executable.startswith(f"{root / part}/")
+            for part in ("cli/servers", "bin")
+        )
+    if host.platform is Platform.DARWIN:
+        return f"/{edition.application}/Contents/" in line
     return os.path.basename(executable) == edition.command

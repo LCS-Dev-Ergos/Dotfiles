@@ -51,12 +51,14 @@ class Package:
     """The extension a folder holds, from its ``package.json``.
 
     ``extension_id`` is ``publisher.name`` in lower case, as VS Code compares
-    it; ``platform`` is the folder name's platform suffix, if any.
+    it; ``platform`` is the folder name's platform suffix, if any, and
+    ``engine`` its ``engines.vscode``.
     """
 
     extension_id: str
     version: Version
     platform: str | None
+    engine: object = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -158,10 +160,41 @@ def _package(directory: Path) -> Package | None:
     if version is None:
         return None
     extension_id = f"{publisher}.{name}".lower()
+    engines = as_object(fields.get("engines")) or {}
+    engine = engines.get("vscode")
     base = folder_name(extension_id, version.text, None)
     if directory.name == base:
-        return Package(extension_id, version, None)
+        return Package(extension_id, version, None, engine)
     platform = directory.name.removeprefix(f"{base}-")
     if directory.name.startswith(f"{base}-") and platform in TARGET_PLATFORMS:
-        return Package(extension_id, version, platform)
+        return Package(extension_id, version, platform, engine)
     return None
+
+
+@dataclass(frozen=True, slots=True)
+class Server:
+    """An installed build of VS Code Server: its version and command line."""
+
+    version: Version
+    command: Path
+
+
+def servers(builds: list[Path]) -> list[Server]:
+    """The server builds that can be used, the newest first.
+
+    A build counts when its ``product.json`` names a version and its
+    command line is there.
+    """
+    found: list[Server] = []
+    for build in builds:
+        try:
+            data: object = json.loads((build / "product.json").read_bytes())
+        except (OSError, ValueError):
+            continue
+        fields = as_object(data) or {}
+        text = fields.get("version")
+        version = parse_version(text) if isinstance(text, str) else None
+        command = build / "bin" / "code-server"
+        if version is not None and command.is_file():
+            found.append(Server(version, command))
+    return sorted(found, key=lambda server: server.version, reverse=True)

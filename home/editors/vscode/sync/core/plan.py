@@ -1,10 +1,14 @@
 """What a run would change, worked out from a read-only snapshot.
 
-Sharing follows Insiders' own lists: an extension is shared only where an
-Insiders profile already has it. Each Insiders entry is matched with the
-build Stable uses for it, taken from the Stable profile of the same name and
-otherwise from the newest build any Stable profile uses. Stable must still
-list the folder and not have marked it for deletion.
+Stable's desktop edition provides the builds; a consumer shares them:
+Insiders, or VS Code Server for Stable or Insiders clients. Sharing follows
+the consumer's own lists: an extension is shared only where one of its
+profiles already has it. Each entry is matched with the build Stable uses
+for it, taken from the Stable profile of the same name and otherwise from
+the newest build any Stable profile uses. Stable must still list the folder
+and not have marked it for deletion, and for a server the build must run on
+the newest server installed (``Side.server``). Only Insiders shares user
+files.
 
 - The same build: Insiders' folder becomes a link to Stable's.
 - A newer build in Stable: the entry follows it, and the link is made.
@@ -31,7 +35,7 @@ from enum import Enum
 from pathlib import Path
 
 from .host import Edition, Host
-from .inventory import Folder, Kind, inspect, scan
+from .inventory import Folder, Kind, Server, inspect, scan, servers
 from .jsondata import as_object
 from .manifest import (
     DEFAULT_SCOPE,
@@ -44,7 +48,7 @@ from .manifest import (
     read_manifests,
     read_obsolete,
 )
-from .versions import Version, parse_version
+from .versions import Version, engine_allows, parse_version
 
 EXCLUDED = ("anthropic.claude-code", "github.copilot")
 """Extensions each edition keeps its own copy of, with their families.
@@ -76,7 +80,8 @@ _EXTENSION_FOLDER = re.compile(r"[^.]+\.[^.].*-\d+(\.\d+)*(-.+)?")
 class Side:
     """One edition as it was read: its folders, manifests and deletions.
 
-    ``roots`` is the extensions directory as written and as resolved.
+    ``roots`` is the extensions directory as written and as resolved;
+    ``server`` the newest installed build of a server edition.
     """
 
     edition: Edition
@@ -86,6 +91,12 @@ class Side:
     folders: Mapping[str, Folder]
     manifests: tuple[Manifest, ...]
     obsolete: Obsolete
+    server: Server | None = None
+
+    @property
+    def installed(self) -> bool:
+        """Whether the edition has run here: it has either directory."""
+        return self.root.is_dir() or self.user_dir.is_dir()
 
     def folder(self, name: str) -> Folder:
         """The folder ``name``, also when the scan left it out."""
@@ -129,42 +140,51 @@ class Snapshot:
     """
 
     stable: Side
-    insiders: Side
+    consumer: Side
     items: tuple[Item, ...]
     interrupted: tuple[Path, ...] = ()
 
-    def side(self, edition: Edition) -> Side:
-        """The side of an edition."""
-        return self.insiders if edition is Edition.INSIDERS else self.stable
-
     @property
-    def insiders_installed(self) -> bool:
-        """Whether Insiders has run here: it has either of its directories."""
-        return self.insiders.root.is_dir() or self.insiders.user_dir.is_dir()
+    def label(self) -> str:
+        """The consumer's name, for reports."""
+        return self.consumer.edition.label
 
 
-def take_snapshot(host: Host) -> Snapshot:
-    """Read both editions and the state directory.
+def take_snapshot(
+    host: Host, consumer: Edition = Edition.INSIDERS
+) -> Snapshot:
+    """Read Stable, one consumer and the state directory.
 
     Raises:
         SyncError: If a manifest, profile list or ``.obsolete`` file
             cannot be parsed.
     """
-    stable = _side(host, Edition.STABLE)
-    insiders = _side(host, Edition.INSIDERS)
-    items = tuple(_item(stable, insiders, name) for name in ITEMS)
-    runs = host.state_dir() / "runs"
+    stable = read_side(host, Edition.STABLE)
+    side = read_side(host, consumer)
+    items: tuple[Item, ...] = ()
+    if consumer is Edition.INSIDERS:
+        items = tuple(_item(stable, side, name) for name in ITEMS)
+    return Snapshot(stable, side, items, interrupted_runs(host))
+
+
+def interrupted_runs(host: Host) -> tuple[Path, ...]:
+    """The run workspaces an interruption left behind."""
     try:
-        interrupted = tuple(sorted(path for path in runs.iterdir()))
+        return tuple(sorted((host.state_dir() / "runs").iterdir()))
     except FileNotFoundError:
-        interrupted = ()
-    return Snapshot(stable, insiders, items, interrupted)
+        return ()
 
 
-def _side(host: Host, edition: Edition) -> Side:
-    """Read one edition."""
+def read_side(host: Host, edition: Edition) -> Side:
+    """Read one edition.
+
+    Raises:
+        SyncError: If a manifest, profile list or ``.obsolete`` file
+            cannot be parsed.
+    """
     root = host.extensions_dir(edition)
     resolved = Path(os.path.realpath(root))
+    builds = servers(host.server_builds(edition)) if edition.is_server else []
     return Side(
         edition,
         root,
@@ -173,13 +193,14 @@ def _side(host: Host, edition: Edition) -> Side:
         scan(root),
         read_manifests(host, edition),
         read_obsolete(root),
+        builds[0] if builds else None,
     )
 
 
-def _item(stable: Side, insiders: Side, name: str) -> Item:
+def _item(stable: Side, consumer: Side, name: str) -> Item:
     """Classify one user file."""
     source = stable.user_dir / name
-    target = insiders.user_dir / name
+    target = consumer.user_dir / name
     has_source = os.path.lexists(source)
     try:
         link = os.readlink(target)
@@ -379,6 +400,7 @@ class Plan:
     decisions: tuple[Decision, ...] = ()
     findings: tuple[Finding, ...] = ()
     items: tuple[Item, ...] = ()
+    consumer: Edition | None = None
 
     @property
     def changed(self) -> bool:
@@ -412,6 +434,7 @@ class _Build:
     folder: str
     version: Version | None
     reference: Reference
+    engine: object = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -455,6 +478,7 @@ class _Setup:
     local: Mapping[str, list[_Build]] = field(
         default_factory=dict[str, list[_Build]]
     )
+    blocked: set[str] = field(default_factory=set[str])
     decisions: list[Decision] = field(default_factory=list[Decision])
     findings: list[Finding] = field(default_factory=list[Finding])
     shared: set[str] = field(default_factory=set[str])
@@ -465,17 +489,17 @@ class _Setup:
 
     def operations(self, listed: set[str]) -> list[Operation]:
         """Copies, removed dangling links and adoptions, in that order."""
-        insiders = self.snapshot.insiders
+        consumer = self.snapshot.consumer
         operations: list[Operation] = [
-            RestoreFolder(name, insiders.root / name, source)
+            RestoreFolder(name, consumer.root / name, source)
             for name, source in sorted(self.restored.items())
         ]
         operations += [
-            UnlinkFolder(name, insiders.root / name)
+            UnlinkFolder(name, consumer.root / name)
             for name in sorted(self.dangling & listed)
         ]
         operations += [
-            AdoptFolder(name, insiders.root / name, source)
+            AdoptFolder(name, consumer.root / name, source)
             for name, source in sorted(self.adopted.items())
         ]
         return operations
@@ -486,18 +510,20 @@ class _Setup:
 
 
 def plan_setup(snapshot: Snapshot, downloads: Downloads | None = None) -> Plan:
-    """The operations that make Insiders share what it can with Stable."""
-    if not snapshot.insiders_installed:
-        absent = Finding(
-            "muted", "VS Code Insiders", "not installed here; nothing to share"
+    """The operations that make a consumer share what it can with Stable."""
+    absent = unusable(snapshot)
+    if absent is not None:
+        return Plan(
+            "setup",
+            findings=(absent, *_interrupted(snapshot)),
+            consumer=snapshot.consumer.edition,
         )
-        return Plan("setup", findings=(absent, *_interrupted(snapshot)))
-    stable, insiders = snapshot.stable, snapshot.insiders
-    state = _Setup(snapshot, downloads, _live_builds(insiders))
-    builds = _live_builds(stable)
+    stable, consumer = snapshot.stable, snapshot.consumer
+    state = _Setup(snapshot, downloads, _live_builds(consumer))
+    builds = _runnable(state, _live_builds(stable))
     operations: list[Operation] = []
     listed: set[str] = set()
-    for manifest in insiders.manifests:
+    for manifest in consumer.manifests:
         entries = list(manifest.entries)
         for reference in manifest.references:
             entry = _decide(state, builds, manifest.scope, reference)
@@ -510,13 +536,13 @@ def plan_setup(snapshot: Snapshot, downloads: Downloads | None = None) -> Plan:
         listed |= _unusable_folders(manifest, entries)
         operations += _rewrite(manifest, entries)
     for name in sorted(state.shared):
-        folder = insiders.folder(name)
+        folder = consumer.folder(name)
         if not _shares(folder, stable, name):
             operations.append(
                 LinkFolder(name, folder.path, stable.root / name)
             )
     operations += state.operations(listed)
-    for name, folder in insiders.folders.items():
+    for name, folder in consumer.folders.items():
         if not folder.links_into(*stable.roots) or name in listed:
             continue
         if _EXTENSION_FOLDER.fullmatch(name):
@@ -529,7 +555,7 @@ def plan_setup(snapshot: Snapshot, downloads: Downloads | None = None) -> Plan:
                     "a shared folder that is no extension; left as it is",
                 )
             )
-    operations += _unmark(insiders.obsolete, state.kept())
+    operations += _unmark(consumer.obsolete, state.kept())
     item_operations, item_findings = _setup_items(snapshot)
     return Plan(
         "setup",
@@ -538,7 +564,48 @@ def plan_setup(snapshot: Snapshot, downloads: Downloads | None = None) -> Plan:
         tuple(state.decisions),
         tuple(item_findings + state.findings + _interrupted(snapshot)),
         snapshot.items,
+        consumer.edition,
     )
+
+
+def unusable(snapshot: Snapshot) -> Finding | None:
+    """Why the consumer cannot share at all, if it cannot.
+
+    A server whose builds were all removed cannot tell which extensions
+    would run on it, nor download any, so nothing is decided for it.
+    """
+    side = snapshot.consumer
+    subject = f"VS Code {side.edition.label}"
+    if not side.installed:
+        return Finding(
+            "muted", subject, "not installed here; nothing to share"
+        )
+    if side.edition.is_server and side.server is None:
+        return Finding(
+            "muted",
+            subject,
+            "no server build is installed; a remote client installs one",
+        )
+    return None
+
+
+def _runnable(
+    state: _Setup, builds: dict[str, list[_Build]]
+) -> dict[str, list[_Build]]:
+    """The builds the consumer can run; the others are noted as blocked."""
+    server = state.snapshot.consumer.server
+    if server is None:
+        return builds
+    runnable: dict[str, list[_Build]] = {}
+    for ident, candidates in builds.items():
+        kept = [
+            b for b in candidates if engine_allows(b.engine, server.version)
+        ]
+        if kept:
+            runnable[ident] = kept
+        else:
+            state.blocked.add(ident)
+    return runnable
 
 
 def _live_builds(side: Side) -> dict[str, list[_Build]]:
@@ -563,7 +630,8 @@ def _live_builds(side: Side) -> dict[str, list[_Build]]:
                 if folder.package
                 else parse_version(reference.version)
             )
-            build = _Build(name, version, reference)
+            engine = folder.package.engine if folder.package else None
+            build = _Build(name, version, reference, engine)
             builds.setdefault(reference.extension_id, []).append(build)
     return builds
 
@@ -598,9 +666,9 @@ def _decide(
     reference: Reference,
 ) -> dict[str, object] | None:
     """Decide one Insiders entry; the entry it should become, if any."""
-    stable, insiders = state.snapshot.stable, state.snapshot.insiders
+    stable, consumer = state.snapshot.stable, state.snapshot.consumer
     name = reference.folder
-    folder = insiders.folder(name)
+    folder = consumer.folder(name)
     ours = folder.links_into(*stable.roots)
 
     def note(action: Action, target: str = name, detail: str = "") -> None:
@@ -617,37 +685,41 @@ def _decide(
             return _repair(state, scope, reference)
         if ours and folder.target is not None:
             state.restored[name] = folder.target
-            note(Action.RESTORE, detail="kept as Insiders' own copy")
+            note(Action.RESTORE, detail="kept as its own copy")
         else:
-            note(Action.NATIVE, detail="Insiders keeps its own copy")
-        return _relocated(reference, insiders)
+            note(Action.NATIVE, detail="keeps its own copy")
+        return _relocated(reference, consumer)
     build = _choose(stable, builds, scope, reference.extension_id)
     if build is None:
         if gone:
             return _repair(state, scope, reference)
+        server = state.snapshot.consumer.server
+        too_new = (
+            f"Stable's build needs a newer VS Code than {server.version}"
+            if server is not None and reference.extension_id in state.blocked
+            else None
+        )
         if ours and folder.target is not None:
             state.restored[name] = folder.target
-            note(
-                Action.RESTORE,
-                detail="Stable no longer lists it; Insiders keeps a copy",
-            )
+            why = too_new or "Stable no longer lists it"
+            note(Action.RESTORE, detail=f"{why}; a copy is kept")
         else:
-            note(Action.NATIVE, detail="Stable does not have it")
-        return _relocated(reference, insiders)
+            note(Action.NATIVE, detail=too_new or "Stable does not have it")
+        return _relocated(reference, consumer)
     if folder.kind is Kind.LINK and not ours:
         note(Action.FOREIGN, detail=f"links to {folder.link}")
-        return _relocated(reference, insiders)
+        return _relocated(reference, consumer)
     if name != build.folder and folder.kind is Kind.DIRECTORY:
         current = folder.package.version if folder.package else None
         if current is None or build.version is None:
             note(Action.NATIVE, detail="versions cannot be compared")
-            return _relocated(reference, insiders)
+            return _relocated(reference, consumer)
         if current > build.version:
             note(Action.NATIVE, detail=f"newer than Stable's {build.version}")
-            return _relocated(reference, insiders)
-    entry = _shared_entry(reference, build, insiders.root)
+            return _relocated(reference, consumer)
+    entry = _shared_entry(reference, build, consumer.root)
     state.shared.add(build.folder)
-    linked = _shares(insiders.folder(build.folder), stable, build.folder)
+    linked = _shares(consumer.folder(build.folder), stable, build.folder)
     if name != build.folder:
         note(Action.REBIND, build.folder, f"Stable uses {build.version}")
     elif not linked:
@@ -672,9 +744,9 @@ def _repair(
     the newest build Insiders has of its own, or a download. This tool's
     link whose Stable folder is gone is removed first.
     """
-    insiders = state.snapshot.insiders
+    consumer = state.snapshot.consumer
     name, ident = reference.folder, reference.extension_id
-    if insiders.folder(name).kind is Kind.LINK:
+    if consumer.folder(name).kind is Kind.LINK:
         state.dangling.add(name)
 
     def note(action: Action, target: str, detail: str) -> None:
@@ -689,21 +761,21 @@ def _repair(
             state.downloads.root / downloaded.folder
         )
         note(Action.INSTALL, downloaded.folder, "downloaded again")
-        return _shared_entry(reference, downloaded, insiders.root)
+        return _shared_entry(reference, downloaded, consumer.root)
     if stable_builds is not None and not is_excluded(ident):
         stable = state.snapshot.stable
         build = _newest(stable_builds.get(ident, []))
-        present = insiders.folder(build.folder) if build else None
+        present = consumer.folder(build.folder) if build else None
         if build is not None and present is not None:
             if present.kind is Kind.MISSING or present.links_into(
                 *stable.roots
             ):
                 state.restored[build.folder] = stable.root / build.folder
                 note(Action.RESTORE, build.folder, "copied from Stable")
-                return _shared_entry(reference, build, insiders.root)
+                return _shared_entry(reference, build, consumer.root)
             if present.kind is Kind.DIRECTORY:
-                note(Action.REBIND, build.folder, "Insiders has its folder")
-                return _shared_entry(reference, build, insiders.root)
+                note(Action.REBIND, build.folder, "its own folder is there")
+                return _shared_entry(reference, build, consumer.root)
     local = _newest(state.local.get(ident, []))
     if local is not None:
         note(
@@ -711,7 +783,7 @@ def _repair(
             local.folder,
             f"its folder is missing; uses {local.version}",
         )
-        return _shared_entry(reference, local, insiders.root)
+        return _shared_entry(reference, local, consumer.root)
     metadata = as_object(reference.entry.get("metadata")) or {}
     state.installs.setdefault(
         ident,
@@ -784,14 +856,14 @@ def _relocation(reference: Reference, stable: Side) -> str:
 
 
 def _relocated(
-    reference: Reference, insiders: Side
+    reference: Reference, consumer: Side
 ) -> dict[str, object] | None:
     """The entry with its location inside Insiders' directory, if it is not.
 
     Only an entry whose folder exists there is moved; other entries are
     left as they are.
     """
-    path = insiders.root / reference.folder
+    path = consumer.root / reference.folder
     if reference.location in (None, str(path)):
         return None
     if not os.path.lexists(path):
@@ -846,7 +918,9 @@ def _setup_items(snapshot: Snapshot) -> tuple[list[Operation], list[Finding]]:
     """Link the user files Insiders does not share yet."""
     operations: list[Operation] = []
     findings: list[Finding] = []
-    if not snapshot.insiders.user_dir.is_dir():
+    if not snapshot.items:
+        return operations, findings
+    if not snapshot.consumer.user_dir.is_dir():
         findings.append(
             Finding(
                 "muted",
@@ -869,14 +943,19 @@ def _setup_items(snapshot: Snapshot) -> tuple[list[Operation], list[Finding]]:
 
 def _interrupted(snapshot: Snapshot) -> list[Finding]:
     """A finding for each workspace an interrupted run left behind."""
-    return [
+    return list(_interrupted_in(snapshot.interrupted))
+
+
+def _interrupted_in(paths: Iterable[Path]) -> tuple[Finding, ...]:
+    """A finding for each of the workspaces ``paths``."""
+    return tuple(
         Finding(
             "pending",
             "interrupted run",
             f"the next change undoes it, from {path}",
         )
-        for path in snapshot.interrupted
-    ]
+        for path in paths
+    )
 
 
 # Remove -----------------------------------------------------------------------
@@ -890,19 +969,19 @@ def plan_remove(
     An entry whose folder is a link to a Stable folder that is gone is
     repaired like in setup, with a copy of Stable's build first.
     """
-    stable, insiders = snapshot.stable, snapshot.insiders
-    state = _Setup(snapshot, downloads, _live_builds(insiders))
-    builds = _live_builds(stable)
+    stable, consumer = snapshot.stable, snapshot.consumer
+    state = _Setup(snapshot, downloads, _live_builds(consumer))
+    builds = _runnable(state, _live_builds(stable))
     operations: list[Operation] = []
     listed: set[str] = set()
-    for manifest in insiders.manifests:
+    for manifest in consumer.manifests:
         entries = list(manifest.entries)
         for reference in manifest.references:
-            folder = insiders.folder(reference.folder)
+            folder = consumer.folder(reference.folder)
             if folder.links_into(*stable.roots) and not folder.target_exists():
                 entry = _repair(state, manifest.scope, reference, builds)
             else:
-                entry = _relocated(reference, insiders)
+                entry = _relocated(reference, consumer)
             target = reference.folder
             if entry is not None:
                 entries[reference.index] = entry
@@ -911,11 +990,11 @@ def plan_remove(
         listed |= _unusable_folders(manifest, entries)
         operations += _rewrite(manifest, entries)
     for name in sorted(listed - set(state.restored) - state.dangling):
-        folder = insiders.folder(name)
+        folder = consumer.folder(name)
         if folder.links_into(*stable.roots) and folder.target is not None:
             state.restored[name] = folder.target
     operations += state.operations(listed)
-    for name, folder in insiders.folders.items():
+    for name, folder in consumer.folders.items():
         if not folder.links_into(*stable.roots) or name in listed:
             continue
         if not _EXTENSION_FOLDER.fullmatch(name) and folder.target_exists():
@@ -923,7 +1002,7 @@ def plan_remove(
             operations.append(RestoreFolder(name, folder.path, folder.target))
         else:
             operations.append(UnlinkFolder(name, folder.path))
-    operations += _unmark(insiders.obsolete, state.kept())
+    operations += _unmark(consumer.obsolete, state.kept())
     for item in snapshot.items:
         if item.status is ItemStatus.LINKED:
             operations.append(RestoreItem(item.name, item.target, item.source))
@@ -936,27 +1015,33 @@ def plan_remove(
         tuple(state.decisions),
         tuple(_interrupted(snapshot)),
         snapshot.items,
+        consumer.edition,
     )
 
 
 # Clean ------------------------------------------------------------------------
 
 
-def plan_clean(snapshot: Snapshot, editions: Iterable[Edition]) -> Plan:
+def plan_clean(
+    sides: Mapping[Edition, Side],
+    editions: Iterable[Edition],
+    interrupted: tuple[Path, ...] = (),
+) -> Plan:
     """Quarantine duplicate builds no profile uses.
 
     In each group of folders holding builds of one extension for one
     platform, the newest build stays, and so does every folder a profile
-    lists. For Stable that includes the folders Insiders links to.
+    lists. For Stable that includes the folders any consumer links to.
     """
     operations: list[Operation] = []
     for edition in editions:
-        side = snapshot.side(edition)
+        side = sides[edition]
         protected = side.referenced()
         if edition is Edition.STABLE:
-            for folder in snapshot.insiders.folders.values():
-                if folder.links_into(*side.roots) and folder.target:
-                    protected.add(folder.target.name)
+            for other in sides.values():
+                for folder in other.folders.values():
+                    if folder.links_into(*side.roots) and folder.target:
+                        protected.add(folder.target.name)
         groups: dict[tuple[str, str | None], list[Folder]] = {}
         for folder in side.folders.values():
             if folder.kind is Kind.DIRECTORY and folder.package is not None:
@@ -973,12 +1058,7 @@ def plan_clean(snapshot: Snapshot, editions: Iterable[Edition]) -> Plan:
                     Quarantine(edition, folder.name, folder.path)
                 )
     return Plan(
-        "clean",
-        tuple(operations),
-        (),
-        (),
-        tuple(_interrupted(snapshot)),
-        snapshot.items,
+        "clean", tuple(operations), findings=_interrupted_in(interrupted)
     )
 
 

@@ -60,13 +60,14 @@ _PENDING = (
 _QUIET = (Action.SHARED, Action.NATIVE)
 
 TITLES = {
-    "status": "Stable → Insiders",
-    "check": "Stable → Insiders",
-    "setup": "Share with Insiders",
-    "update": "Update and share",
-    "remove": "Stop sharing",
+    "status": "Stable → {}",
+    "check": "Stable → {}",
+    "setup": "Share with {}",
+    "update": "Update and share with {}",
+    "remove": "Stop sharing with {}",
     "clean": "Clean duplicates",
 }
+"""Report titles; ``{}`` is the consumer's name."""
 
 HINTS = {
     "status": f"{PROG} setup applies them",
@@ -89,16 +90,16 @@ def render(
         context: Shown at the right of the masthead, such as "dry run".
         changes: Whether to list every change, not only count them.
     """
+    label = _label(plan)
     scopes = {decision.scope for decision in plan.decisions}
     subtitle = ""
     if plan.decisions:
         subtitle = (
-            f"{len(plan.decisions)} Insiders entries in "
+            f"{len(plan.decisions)} {label} entries in "
             f"{len(scopes)} profile{'s' * (len(scopes) != 1)}"
         )
-    lines = ui.header(
-        style, PROG, TITLES[plan.command], subtitle, context=context
-    )
+    title = TITLES[plan.command].format(label)
+    lines = ui.header(style, PROG, title, subtitle, context=context)
     if plan.command in ("status", "check", "setup", "update"):
         if plan.items:
             lines += ["", *_items(plan, style)]
@@ -118,7 +119,10 @@ def render_changes(plan: Plan, style: ui.Style) -> list[str]:
         Column("What", shrink=24),
         Column("Detail", priority=50, shrink=16),
     ]
-    rows = [Row(list(_install(item)), "pending") for item in plan.installs]
+    rows = [
+        Row(list(_install(item, _label(plan))), "pending")
+        for item in plan.installs
+    ]
     rows += [
         Row(list(_change(operation)), "pending")
         for operation in plan.operations
@@ -147,6 +151,7 @@ def to_json(plan: Plan) -> dict[str, object]:
     """The plan for programs: every decision, finding and change."""
     return {
         "command": plan.command,
+        "consumer": plan.consumer.value if plan.consumer else None,
         "changed": plan.changed,
         "problems": plan.problems,
         "items": [
@@ -212,7 +217,7 @@ def _items(plan: Plan, style: ui.Style) -> list[str]:
 
 
 def _profiles(plan: Plan, style: ui.Style) -> list[str]:
-    """One row per Insiders profile: what it shares, what is due."""
+    """One row per consumer profile: what it shares, what is due."""
     by_scope: dict[str, Counter[str]] = {}
     for decision in plan.decisions:
         counts = by_scope.setdefault(decision.scope, Counter())
@@ -247,7 +252,8 @@ def _profiles(plan: Plan, style: ui.Style) -> list[str]:
                 tone,
             )
         )
-    return ui.section(style, "Insiders profiles", str(len(rows))) + ui.table(
+    title = f"{_label(plan)} profiles"
+    return ui.section(style, title, str(len(rows))) + ui.table(
         style, columns, rows
     )
 
@@ -343,10 +349,15 @@ def _change(operation: Operation) -> tuple[str | Cell, ...]:
     return "quarantine", operation.name, operation.edition.label
 
 
-def _install(item: Install) -> tuple[str, str, str]:
+def _label(plan: Plan) -> str:
+    """The name of the plan's consumer."""
+    return plan.consumer.label if plan.consumer else "Insiders"
+
+
+def _install(item: Install, label: str) -> tuple[str, str, str]:
     """The cells of one download."""
     version = f"@{item.version}" if item.version else ""
-    return "download", f"{item.extension_id}{version}", "with Insiders"
+    return "download", f"{item.extension_id}{version}", f"with {label}"
 
 
 def _change_json(operation: Operation) -> dict[str, object]:

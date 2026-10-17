@@ -4,6 +4,11 @@ Marketplace versions are semantic versions, usually three numbers. They are
 ordered by precedence: numbers compare as numbers, a missing number counts
 as zero, and a pre-release sorts before its release. Anything else is not a
 version, and a decision that depends on it is not taken.
+
+An extension's ``engines.vscode`` names the oldest VS Code it runs on, as
+``^1.90.0``, ``>=1.90.0``, ``1.90.x`` or ``*``. ``engine_allows`` checks it
+against a VS Code version the way VS Code does for these forms; a form it
+does not know counts as not allowed.
 """
 
 import re
@@ -79,3 +84,33 @@ def parse_version(text: str | None) -> Version | None:
         else:
             identifiers.append((1, 0, part))
     return Version(text.strip(), release, tuple(identifiers))
+
+
+_ENGINE = re.compile(
+    r"(?:\^|>=)?\s*(?P<major>\d+)\.(?P<minor>\d+|x)\.(?P<patch>\d+|x)"
+    r"(?P<suffix>-[0-9A-Za-z.-]+)?"
+)
+
+
+def engine_allows(requirement: object, version: Version) -> bool:
+    """Whether an extension with ``engines.vscode`` runs on ``version``.
+
+    A requirement with a suffix such as ``-20251020`` asks for a build of
+    that date or later, which the version alone cannot show; it is allowed
+    only from the next minor release on.
+    """
+    if requirement is None or requirement == "*":
+        return True
+    if not isinstance(requirement, str):
+        return False
+    found = _ENGINE.fullmatch(requirement.strip())
+    if found is None:
+        return False
+    floor = tuple(
+        0 if found[part] == "x" else int(found[part])
+        for part in ("major", "minor", "patch")
+    )
+    current = (*version.release, 0, 0)[:3]
+    if found["suffix"]:
+        return current[:2] > floor[:2]
+    return current >= floor
