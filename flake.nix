@@ -201,7 +201,8 @@
 
       # Personal tools are first-class outputs as well as Home Manager inputs:
       # `nix build .#cpp-tools` runs their checks and builds the deployable CLI;
-      # `nix build .#markdownlint-config` does the same for the markdownlint rules.
+      # `nix build .#markdownlint-config` does the same for the markdownlint rules,
+      # and `nix build .#vscode-host-settings` for the VS Code settings tool.
       packages = forAllSystems (
         system:
         let
@@ -210,6 +211,7 @@
         {
           cpp-tools = pkgs.callPackage ./home/dev/languages/cpp/cpp-tools.nix { };
           markdownlint-config = pkgs.callPackage ./home/editors/markdown/markdownlint-config.nix { };
+          vscode-host-settings = pkgs.callPackage ./home/editors/vscode/host-settings/package.nix { };
           dev-bootstrap = pkgs.callPackage ./home/dev/bootstrap/package.nix { };
           development-recovery = self.packages.${system}.dev-bootstrap;
           default = self.packages.${system}.cpp-tools;
@@ -234,6 +236,7 @@
           darwin-configuration = self.darwinConfigurations."LCSMacBook-Pro".system;
           cpp-tools = self.packages.aarch64-darwin.cpp-tools;
           markdownlint-config = self.packages.aarch64-darwin.markdownlint-config;
+          vscode-host-settings = self.packages.aarch64-darwin.vscode-host-settings;
           dev-bootstrap = self.packages.aarch64-darwin.dev-bootstrap;
           development-recovery = self.checks.aarch64-darwin.dev-bootstrap;
           llvm-darwin-toolchain = self.packages.aarch64-darwin.llvm-darwin-toolchain.tests.default;
@@ -242,6 +245,7 @@
           home-configuration = self.homeConfigurations."lcs-dev@LCS.Dev-Legion-Cachy".activationPackage;
           cpp-tools = self.packages.x86_64-linux.cpp-tools;
           markdownlint-config = self.packages.x86_64-linux.markdownlint-config;
+          vscode-host-settings = self.packages.x86_64-linux.vscode-host-settings;
           dev-bootstrap = self.packages.x86_64-linux.dev-bootstrap;
           development-recovery = self.checks.x86_64-linux.dev-bootstrap;
         };

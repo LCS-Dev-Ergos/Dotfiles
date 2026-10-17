@@ -10,7 +10,6 @@ _: {
     ./dev/languages/pascal
     ./dev/languages/racket
     ./dev/languages/scheme
-    ./editors/vscode
     ./file-managers/ueberzugpp
   ];
 }

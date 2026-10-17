@@ -1,10 +1,11 @@
 _: {
-  # Text editors shared by every host. VS Code is Linux-only and is selected
-  # by home/linux.nix instead.
+  # Text editors shared by every host. The VS Code module gates its
+  # Linux-only startup flags internally.
   imports = [
     ./doom
     ./markdown
     ./neovim
+    ./vscode
     ./zed
   ];
 }
