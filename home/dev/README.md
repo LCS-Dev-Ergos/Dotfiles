@@ -161,7 +161,7 @@ with the locked nixpkgs: it builds that release's `nix` and CA bundle (or
 substitutes them, signatures checked), installs both into the default profile
 the daemon's unit links into, restarts the daemon and checks its release. It
 never downgrades, and refuses a Nix the official installer did not lay out,
-such as Arch's package, which `pacman -Syu` updates. `devdoctor` reports a
+such as Arch's package, which `pacman -Syu` updates. `dev-doctor` reports a
 daemon older than the lock, and a `nix` on PATH older than the daemon.
 
 Administrative authentication occurs in the foreground when needed; unattended

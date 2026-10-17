@@ -13,6 +13,11 @@
 #   - fnm_clean           Clean stale fnm multishell symlinks.
 #   - zsh_profile         Profile startup time, milestones, and zprof output.
 #   - zshdeps             Inspect and validate supported dependencies.
+#   - use_llvm            Select the LLVM/Clang compilers for this shell.
+#   - use_gnu             Select the GNU GCC compilers for this shell.
+#   - use_system          Restore CC and CXX from before the first switch.
+#   - get_toolchain_info  Show what each compiler name resolves to.
+#   - get_toolchain_sdk_support  Show which SDK headers CC reaches.
 #
 # ============================================================================ #
 
@@ -450,6 +455,74 @@ function zshdeps() {
     return 1
   fi
   "$checker" "$@"
+}
+
+# -----------------------------------------------------------------------------
+# _toolchain_use
+# @internal
+# @description Evaluates the shell code `toolchain env` prints for one
+# selection. The command reports on stderr and prints code only once the
+# selection is complete, so a failure changes nothing; what the next switch
+# needs stays in the unexported _TOOLCHAIN_STATE.
+# @arg $1 string llvm, gnu or system.
+# @exitcode 1 If no usable compiler pair was found.
+# -----------------------------------------------------------------------------
+function _toolchain_use() {
+  local code
+  code="$(command toolchain env "$1" --state "${_TOOLCHAIN_STATE-}")" || return
+  eval "$code"
+}
+
+# -----------------------------------------------------------------------------
+# use_llvm
+# @description Selects the LLVM/Clang pair for the current shell: CC and CXX
+# become absolute paths, and PATH gains their directory only if it lacks it.
+# @noargs
+# @exitcode 1 If no working Clang pair was found.
+# -----------------------------------------------------------------------------
+function use_llvm() {
+  _toolchain_use llvm
+}
+
+# -----------------------------------------------------------------------------
+# use_gnu
+# @description Selects the GNU GCC pair for the current shell, preferring
+# the highest versioned pair of a directory (gcc-16, g++-16).
+# @noargs
+# @exitcode 1 If no working GCC pair was found.
+# -----------------------------------------------------------------------------
+function use_gnu() {
+  _toolchain_use gnu
+}
+
+# -----------------------------------------------------------------------------
+# use_system
+# @description Restores CC and CXX from before the first switch and removes
+# the directory a switch added to PATH.
+# @noargs
+# -----------------------------------------------------------------------------
+function use_system() {
+  _toolchain_use system
+}
+
+# -----------------------------------------------------------------------------
+# get_toolchain_info
+# @description Shows what each C/C++ compiler name resolves to: vendor,
+# version, links and ccache. Kept for `toolchain info`.
+# @option --debug Also show what each wrapper reports.
+# -----------------------------------------------------------------------------
+function get_toolchain_info() {
+  command toolchain info "$@"
+}
+
+# -----------------------------------------------------------------------------
+# get_toolchain_sdk_support
+# @description Shows which SDK headers the active C compiler reaches next to
+# the system compiler. Kept for `toolchain sdk`.
+# @option -a | --all List every header, not only the divergent ones.
+# -----------------------------------------------------------------------------
+function get_toolchain_sdk_support() {
+  command toolchain sdk "$@"
 }
 
 # ============================================================================ #

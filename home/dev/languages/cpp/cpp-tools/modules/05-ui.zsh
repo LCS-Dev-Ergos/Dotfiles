@@ -355,7 +355,7 @@ _cp_report_row() {
 # -----------------------------------------------------------------------------
 # _cp_report
 # -----------------------------------------------------------------------------
-# Draw a report of checks like devdoctor's and return 1 when any failed:
+# Draw a report of checks like dev-doctor's and return 1 when any failed:
 # a framed header, one counted section per group, a marker per check and a
 # summary with the next step. Plain output is one aligned line per check,
 # led by its state, then the same summary sentence.

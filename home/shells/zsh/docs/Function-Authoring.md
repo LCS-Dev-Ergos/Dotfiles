@@ -53,7 +53,7 @@ The shared layer honors `ZSH_UI_STYLE=auto|plain|ansi|gum` and `NO_COLOR`;
 and every component.
 Use `_zsh_ui_log` for individual event lines, `_zsh_ui_heading` for a
 command's title, `_zsh_ui_app_header` for the masthead of a report such as
-devdoctor (the tool name as a badge, context on the right),
+dev-doctor (the tool name as a badge, context on the right),
 `_zsh_ui_section` for section titles (a note, such as a count, ends the
 rule), `_zsh_ui_card` for compact summaries (`key<TAB>value` lines become an
 aligned list), `_zsh_ui_table` for structured rows (`--align` for numeric

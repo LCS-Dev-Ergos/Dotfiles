@@ -522,7 +522,7 @@ function cppfull() {
 # cpphealth
 # -----------------------------------------------------------------------------
 # Check the workspace, the template system and the tools, then report them
-# like devdoctor: a framed header, one counted section per group, a marker per
+# like dev-doctor: a framed header, one counted section per group, a marker per
 # check and a summary. Fails when a required check fails; optional features
 # only warn.
 # -----------------------------------------------------------------------------

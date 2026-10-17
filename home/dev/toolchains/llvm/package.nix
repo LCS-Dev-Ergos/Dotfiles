@@ -797,7 +797,7 @@ let
       local -A verified=()
       local -a changes=()
       # A status line on standard output in every outcome, errors included:
-      # callers such as devdoctor show it as the explanation.
+      # callers such as dev-doctor show it as the explanation.
       if ! selected_sdk; then
         printf 'cannot tell which SDK the drivers select: %s\n' "$selection_error"
         return 2

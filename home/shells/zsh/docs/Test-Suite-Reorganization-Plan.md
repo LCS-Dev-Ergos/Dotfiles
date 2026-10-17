@@ -16,22 +16,19 @@ home/shells/zsh/config/tests/
 │   ├── test-prompt-initialization.zsh
 │   ├── test-reload.zsh
 │   └── test-startup-trace.zsh
-├── runtime/                         # PATH ordering, caching, Nix and toolchain selection
+├── runtime/                         # PATH ordering, caching and Nix
 │   ├── test-nix-path.zsh
-│   ├── test-runtime-path.zsh
-│   └── test-toolchain-selection.zsh
-├── languages/                       # FNM, opam, Python, Go runtime integrations
+│   └── test-runtime-path.zsh
+├── languages/                       # FNM, opam and Python runtime integrations
 │   ├── test-fnm-multishell.zsh
-│   ├── test-go-runtime.zsh
 │   └── test-language-integration.zsh
 ├── functions/                       # Public functions, security contracts, zfuncs and completions
 │   ├── test-custom-completions.zsh
 │   ├── test-function-safety.zsh
 │   └── test-zfuncs.zsh
-├── tools/                           # CLI scripts, devdoctor, dependencies, presentation
+├── tools/                           # CLI scripts, dependencies, presentation
 │   ├── test-brew-stats.zsh
 │   ├── test-dependency-contract.zsh
-│   ├── test-dev-doctor.zsh
 │   ├── test-fabric-tools.zsh
 │   └── test-script-presentation.zsh
 └── integration/                     # End-to-end PTY, tmux and Python-driven integration tests
@@ -54,8 +51,7 @@ home/shells/zsh/config/tests/
   session isolation, local switch precedence, and non-destructive compiler probes.
 - **functions**: public utility functions, fail-closed input validation, directory
   traversal prevention, `zfuncs` catalog indexing, and Shdoc completion generation.
-- **tools**: standalone CLI scripts, developer diagnostics (`devdoctor`),
-  dependency contract audits, AI tools (`fabric`), and presentation contracts. The
+- **tools**: standalone CLI scripts, dependency contract audits, AI tools (`fabric`), and presentation contracts. The
   shared UI primitives are tested with their module, `home/shells/terminal-style`.
 - **integration/core**: real Starship/ZLE prompt behavior, tmux pane resizing,
   vi-mode keymap dispatching, and repository context rendering through disposable PTY sessions.

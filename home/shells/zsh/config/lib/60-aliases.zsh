@@ -80,9 +80,6 @@ else
   _CC_INCLUDE_FLAG=""
 fi
 
-# Toolchain Information Alias.
-alias toolchain='ZSH_HIGHLIGHT_MAXLENGTH=0 get_toolchain_info 2> >(grep -v "^[a-z_]*=")'
-
 # Default C Compilation Alias.
 alias c-compile="clang -std=c23 -O3 -march=native -flto=thin -ffast-math $_CC_INCLUDE_FLAG"
 

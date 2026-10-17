@@ -25,43 +25,11 @@ trap 'exit 130' INT TERM HUP
 
 command mkdir -p "$fixture_root/bin" "$fixture_root/logs"
 
-# Keep the toolchain report deterministic and independent from host compilers.
-typeset compiler
-for compiler in cc c++ gcc g++ clang clang++; do
-  {
-    print -r -- '#!/bin/sh'
-    print -r -- "printf '%s\\n' 'Test compiler 1.0'"
-  } >| "$fixture_root/bin/$compiler"
-  command chmod 700 "$fixture_root/bin/$compiler"
-done
-
 export ZSH_CONFIG_DIR="$test_root"
 export ZSH_UI_STYLE=plain
 typeset original_path="$PATH"
 export PATH="$fixture_root/bin:/usr/bin:/bin"
 rehash
-
-source "$test_root/scripts/toolchain-information.zsh"
-_toolchain_info_platform() { print -r -- "TestOS"; }
-_toolchain_resolve_real_compiler() { print -r -- "$1"; }
-_toolchain_compiler_details() {
-  print -r -- "Clang|Test vendor|Test compiler 1.0"
-}
-unset CC CXX
-typeset toolchain_output
-toolchain_output="$(get_toolchain_info 2>&1)" || return 1
-[[ "$toolchain_output" == *"C/C++ toolchain"* &&
-   "$toolchain_output" == *"Compilers in PATH"* &&
-   ( "$toolchain_output" == *"[OK]"* ||
-     "$toolchain_output" == *"[WARN]"* ) ]] || {
-  print -u2 "FAIL: toolchain report did not use the shared presentation"
-  return 1
-}
-[[ "$toolchain_output" != *$'\e'* &&
-   "$toolchain_output" != *"real_cpath="* ]] || {
-  print -u2 "FAIL: toolchain report leaked ANSI or internal assignments"
-  return 1
-}
 
 # Exercise the lazy blog entry point, shared help/status tables, and logging.
 export BLOG_LOG_DIR="$fixture_root/logs"
@@ -196,66 +164,6 @@ typeset utm_output="$(<"$fixture_root/utm-output")"
    "$utm_output" == *"[OK]"*"Operation completed."* &&
    "$utm_output" != *$'\e'* ]] || {
   print -u2 "FAIL: UTM workflow did not use the shared presentation"
-  return 1
-}
-
-# The SDK reachability report must compare the active compiler against the
-# system one and name only the libraries where they diverge. Both compilers are
-# stubs, so the suite never depends on what this machine has installed.
-export PATH="$fixture_root/bin:/usr/bin:/bin"
-rehash
-{
-  print -r -- '#!/bin/sh'
-  print -r -- '# Fails only on the headers the reduced Nix SDK drops.'
-  print -r -- 'for argument do'
-  print -r -- '  case "$argument" in'
-  print -r -- '    *.c) grep -qE "zlib\.h|sqlite3\.h" "$argument" && exit 1 ;;'
-  print -r -- '  esac'
-  print -r -- 'done'
-  print -r -- 'exit 0'
-} >| "$fixture_root/bin/stub-nix-cc"
-{
-  print -r -- '#!/bin/sh'
-  print -r -- 'exit 0'
-} >| "$fixture_root/bin/stub-system-cc"
-command chmod 700 "$fixture_root/bin/stub-nix-cc" "$fixture_root/bin/stub-system-cc"
-
-source "$test_root/scripts/toolchain-information.zsh"
-typeset sdk_output
-CC="$fixture_root/bin/stub-nix-cc" \
-  TOOLCHAIN_SYSTEM_CC="$fixture_root/bin/stub-system-cc" \
-  sdk_output="$(get_toolchain_sdk_support 2>&1)" || return 1
-[[ "$sdk_output" == *"SDK reachability"* &&
-   "$sdk_output" == *"zlib.h"* && "$sdk_output" == *"sqlite3.h"* ]] || {
-  print -u2 "FAIL: SDK reachability did not report the diverging libraries"
-  return 1
-}
-[[ "$sdk_output" != *"iconv.h"* ]] || {
-  print -u2 "FAIL: a library both compilers reach must not be listed by default"
-  return 1
-}
-[[ "$sdk_output" == *"[WARN]"*"out of reach"* ]] || {
-  print -u2 "FAIL: SDK reachability did not summarise the divergence"
-  return 1
-}
-[[ "$sdk_output" != *$'\e'* ]] || {
-  print -u2 "FAIL: SDK reachability emitted ANSI escapes in plain style"
-  return 1
-}
-
-typeset sdk_all
-CC="$fixture_root/bin/stub-nix-cc" \
-  TOOLCHAIN_SYSTEM_CC="$fixture_root/bin/stub-system-cc" \
-  sdk_all="$(get_toolchain_sdk_support --all 2>&1)" || return 1
-[[ "$sdk_all" == *"iconv.h"* ]] || {
-  print -u2 "FAIL: --all did not report a library both compilers reach"
-  return 1
-}
-
-typeset -i sdk_status=0
-get_toolchain_sdk_support --nope >/dev/null 2>&1 || sdk_status=$?
-(( sdk_status == 2 )) || {
-  print -u2 "FAIL: an unknown option must fail with 2"
   return 1
 }
 

@@ -16,6 +16,7 @@
   imports = [
     ./toolchains
     ./languages
+    ./doctor
   ];
   # Provisioning is an explicit command, independent of shell startup and
   # activation. Mutable manager roots remain native application data.

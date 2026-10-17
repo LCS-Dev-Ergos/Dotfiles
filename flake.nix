@@ -203,8 +203,9 @@
       # `nix build .#cpp-tools` runs their checks and builds the deployable CLI;
       # `nix build .#markdownlint-config` does the same for the markdownlint rules,
       # `nix build .#vscode-host-settings` for the VS Code settings tool,
-      # `nix build .#vscode-sync` for the Stable-to-Insiders sharing tool, and
-      # `nix build .#terminal-style` for the style the shell tools share.
+      # `nix build .#vscode-sync` for the Stable-to-Insiders sharing tool,
+      # `nix build .#dev-doctor` for the environment health and compiler tools,
+      # and `nix build .#terminal-style` for the style the shell tools share.
       packages = forAllSystems (
         system:
         let
@@ -217,6 +218,7 @@
           vscode-host-settings = pkgs.callPackage ./home/editors/vscode/host-settings/package.nix { };
           vscode-sync = pkgs.callPackage ./home/editors/vscode/sync/package.nix { };
           dev-bootstrap = pkgs.callPackage ./home/dev/bootstrap/package.nix { };
+          dev-doctor = pkgs.callPackage ./home/dev/doctor/package.nix { };
           development-recovery = self.packages.${system}.dev-bootstrap;
           default = self.packages.${system}.cpp-tools;
         }
@@ -244,6 +246,7 @@
           vscode-host-settings = self.packages.aarch64-darwin.vscode-host-settings;
           vscode-sync = self.packages.aarch64-darwin.vscode-sync;
           dev-bootstrap = self.packages.aarch64-darwin.dev-bootstrap;
+          dev-doctor = self.packages.aarch64-darwin.dev-doctor;
           development-recovery = self.checks.aarch64-darwin.dev-bootstrap;
           llvm-darwin-toolchain = self.packages.aarch64-darwin.llvm-darwin-toolchain.tests.default;
         };
@@ -255,6 +258,7 @@
           vscode-host-settings = self.packages.x86_64-linux.vscode-host-settings;
           vscode-sync = self.packages.x86_64-linux.vscode-sync;
           dev-bootstrap = self.packages.x86_64-linux.dev-bootstrap;
+          dev-doctor = self.packages.x86_64-linux.dev-doctor;
           development-recovery = self.checks.x86_64-linux.dev-bootstrap;
         };
       };

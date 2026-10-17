@@ -76,56 +76,13 @@ module itself installs only what nothing else needs: gawk and shdoc.
 
 ### Development Environment Health
 
-`devdoctor` reports the configured runtime managers and development tools.
-The source is `scripts/dev-doctor.zsh`; `~/.cache/zsh/lazy-scripts.zsh` contains
-generated loader stubs and must not be edited. The registry lives in
-`packages/runtime-managers.tsv` beside the Home Manager module.
-
-```zsh
-devdoctor --only cc,cxx,clang,gcc,cmake,ccache,coursier,erlang
-devdoctor --all --json
-```
-
-The optional thirteenth registry column, `runtime_cmd`, declares a local
-startup probe. `version` reuses the existing version command; `-` leaves the
-check at manager level. Other values are commands split into arguments,
-without shell evaluation. Legacy twelve-column registries still load.
-
-The optional fourteenth column, `group`, places the row in a report section:
-`platform`, `systems`, `jvm`, `scripting`, `functional`, `science`, `apps` or
-`other` (the default), shown in that order with rows sorted by label. The
-styled report is a title bar plus one line per runtime with a colored state
-marker; plain output (`ZSH_UI_STYLE=plain`, or a pipe) stays a single
-untruncated table with a `GROUP` column, and `--json` adds a `group` field.
-Python, Ruby, Java and Scala are started separately from their managers;
-Scala reports its default Scala version using the offline version command.
-Erlang reports the OTP release from a running VM.
-
-The report includes selected `CC`/`CXX` commands (including launcher arguments),
-Clang, GCC, CMake, ccache, Perl, .NET SDK, Bun, Android adb and Flutter. Flutter
-reads cached version metadata and starts its bundled Dart VM: the Flutter
-launcher itself can download artifacts even for a version request. Android
-checks adb startup, not SDK platforms, licenses or emulator readiness.
-The Nix row compares the `nix` on PATH, the daemon it reaches and the release
-the configuration's locked nixpkgs carries, which Home Manager writes to
-`$XDG_CONFIG_HOME/devdoctor/nix-release`. A client older than the daemon, or a
-daemon older than that release, is `broken` and names the fix: removing the
-stale client from PATH, switching nix-darwin on macOS, or
-`scripts/bootstrap/dev-bootstrap.sh --update-nix` on Linux.
-
-A failed runtime startup is `broken` (exit 2). A timeout or missing version
-output is `unknown` (exit 1). Empty managers and unactivated session managers
-do not start their runtime shims. System fallbacks and package binaries behind
-a correctly selected manager are expected; displaced managers and competing
-unmanaged binaries still produce PATH warnings. `--updates` remains the
-explicit remote tier. Local probe timeout defaults to five seconds and can be
-adjusted with `DEVDOCTOR_TIMEOUT`.
-
-`OK` means the declared probes succeeded. It does not certify arbitrary
-projects, compilation, linking, every .NET global tool, Perl module, or
-optional runtime extension. C/C++ compile/link/runtime coverage belongs to
-the flake's `llvm-darwin-toolchain` check; `get_toolchain_info` and
-`get_toolchain_sdk_support` provide detailed compiler and header diagnostics.
+`dev-doctor` (formerly `devdoctor`, which remains as an alias) reports the
+runtime managers and development tools this configuration sets up, and
+`toolchain` explains and selects the C/C++ compilers. Both are a Python
+package in `home/dev/doctor`, whose README documents them; the shell only
+keeps the `use_llvm`, `use_gnu` and `use_system` functions, which evaluate
+what `toolchain env` prints, and the `get_toolchain_info` and
+`get_toolchain_sdk_support` names, in `functions/development-tools.zsh`.
 
 ### Loading Modules
 
@@ -219,8 +176,8 @@ take precedence over the generated baseline.
 
 | Command | Source | Purpose |
 | --- | --- | --- |
-| `toolchain`, `get_toolchain_info` | `scripts/toolchain-information.zsh` | Show active compiler resolution |
-| `use_llvm`, `use_gnu`, `use_system` | `scripts/toolchain-selection.zsh` | Reversible per-session toolchain selection |
+| `get_toolchain_info`, `get_toolchain_sdk_support` | `functions/development-tools.zsh` | `toolchain info` and `toolchain sdk` (home/dev/doctor) |
+| `use_llvm`, `use_gnu`, `use_system` | `functions/development-tools.zsh` | Reversible per-shell compiler selection through `toolchain env` |
 | `fnm_clean`, `zsh_profile`, `zshdeps` | `functions/development-tools.zsh` | Maintain fnm, profile startup, inspect dependencies |
 | `brew_stats` | `functions/package-management.zsh` | Report installed Homebrew package sizes |
 | `security_scan`, `secscan` | `scripts/security-scan.zsh` | Structural, YARA, and ClamAV file scanning |
@@ -277,7 +234,7 @@ and uses an atomic mkdir lock to prevent concurrent full runs.
 
 Startup never exports `CPATH`, `LDFLAGS`, `CPPFLAGS`, `LD`, or `AR` globally.
 Use `use_llvm` or `use_gnu` when a shell needs an explicit toolchain, and
-`use_system` to restore its original state. Project-specific flags belong in
+`use_system` to restore `CC` and `CXX`. Project-specific flags belong in
 the build system or `.envrc`. Terminal-launched Emacs receives the libgccjit
 library path only for that process.
 

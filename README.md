@@ -103,7 +103,7 @@ export CC="/etc/profiles/per-user/$USER/bin/clang"
 export CXX="/etc/profiles/per-user/$USER/bin/clang++"
 ```
 
-`get_toolchain_sdk_support --all` tests default header search paths only. A
+`toolchain sdk --all` tests default header search paths only. A
 `missing` result does not mean a library needs installing: Apple's `ffi.h`, for
 example, needs the SDK's `usr/include/ffi` include path, which CPython's
 configure supplies. Link and runtime checks are separate.

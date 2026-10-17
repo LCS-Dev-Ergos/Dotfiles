@@ -28,7 +28,7 @@ margins or Gum themes differ; `nix build .#terminal-style` runs them.
     ▲ shim priority  ~/.rbenv/shims  resolved after /opt/homebrew/bin
 
   ────────────────────────────────────────────────────────────────────
-  ● 3 ok   ◐ 1 dormant     devdoctor --updates checks for new releases
+  ● 3 ok   ◐ 1 dormant    dev-doctor --updates checks for new releases
 ```
 
 ## Principles

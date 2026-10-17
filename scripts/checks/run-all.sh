@@ -20,6 +20,7 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 
 python_sources=(
   home/dev/bootstrap
+  home/dev/doctor
   home/editors/vscode/host-settings
   home/editors/vscode/sync
   home/shells/terminal-style
