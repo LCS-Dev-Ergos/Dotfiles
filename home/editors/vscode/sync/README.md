@@ -132,6 +132,11 @@ applied, and the run ends with exit status 3; the next run tries again.
   into the quarantine; the report names both.
 - Extension lists and `.obsolete` are replaced atomically, and only if they did not
   change since they were read; a symlinked file stays a link.
+- An entry whose identifier is not `publisher.name`, or whose folder is not a plain
+  name inside the extensions directory, is kept but never acted on, so nothing read
+  from a list reaches a command line as an option or a path outside the directory.
+- A journal line that names a path the step could not have touched, such as a
+  relative path or a copy outside the workspace, is refused rather than undone.
 
 ## State Directory
 

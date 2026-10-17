@@ -132,6 +132,22 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual(manifest.skipped, 2)
         self.assertEqual(len(manifest.entries), 4)
 
+    def test_identifiers_must_be_publisher_and_name(self) -> None:
+        """Anything else could pass for an option on a command line."""
+        machine = Machine(self)
+        path = machine.root(STABLE) / "extensions.json"
+        entries = [
+            {"identifier": {"id": ident}, "relativeLocation": "x-1.0.0"}
+            for ident in ("--extensions-dir=x.y", "pub.tool;rm", "pub", "a.b")
+        ]
+        path.write_text(json.dumps(entries))
+        manifest = read_manifest(path, "Default")
+        assert manifest is not None
+        self.assertEqual(
+            [r.extension_id for r in manifest.references], ["a.b"]
+        )
+        self.assertEqual(manifest.skipped, 3)
+
     def test_unparsable_files_are_refused(self) -> None:
         """A manifest that is not a JSON array stops the run."""
         machine = Machine(self)

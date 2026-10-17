@@ -1,5 +1,6 @@
 """Applying plans: atomic writes, transactions, rollback and quarantine."""
 
+import json
 import os
 import stat
 import unittest
@@ -179,6 +180,36 @@ class TransactionTests(unittest.TestCase):
         self.assertFalse(os.path.lexists(target))
         recover(self.workspace)
         self.assertEqual(self.machine.tree(), before)
+
+    def test_a_damaged_journal_touches_nothing(self) -> None:
+        """Records that point elsewhere fail, and the workspace stays."""
+        victim = self.machine.home / "victim"
+        victim.mkdir()
+        (victim / "data").write_text("keep")
+        records = [
+            {"op": "adopt", "path": "relative/victim"},
+            {"op": "adopt", "path": f"{victim}/../victim"},
+            {
+                "op": "restore",
+                "path": str(victim),
+                "source": "/x",
+                "link": None,
+                "staging": str(self.machine.home / "elsewhere"),
+            },
+            {
+                "op": "link",
+                "path": str(self.machine.home / "free"),
+                "target": "/x",
+                "aside": str(victim),
+            },
+        ]
+        (self.workspace / JOURNAL).write_text(
+            "".join(json.dumps(record) + "\n" for record in records)
+        )
+        undone = recover(self.workspace)
+        self.assertEqual(len(undone.failures), 4)
+        self.assertEqual((victim / "data").read_text(), "keep")
+        self.assertTrue(self.workspace.exists())
 
     def test_recovery_keeps_what_changed_since(self) -> None:
         """A file rewritten after the run, or a place taken, is kept."""

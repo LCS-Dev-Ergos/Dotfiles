@@ -248,7 +248,13 @@ def _undo_all(records: Iterable[Record], workspace: Path) -> Undone:
 
 
 def _undo(record: Record, workspace: Path) -> str | None:
-    """Undo one step, whatever part of it was done; a note, if any."""
+    """Undo one step, whatever part of it was done; a note, if any.
+
+    Raises:
+        SyncError: If the record does not look like one this tool wrote;
+            nothing is touched for it then.
+    """
+    _vouch(record, workspace)
     kind = record["op"]
     path = Path(_text(record, "path"))
     if kind == "link":
@@ -283,6 +289,37 @@ def _undo(record: Record, workspace: Path) -> str | None:
         raise SyncError(f"unknown step {kind!r}")
     sync_directory(path.parent)
     return None
+
+
+def _vouch(record: Record, workspace: Path) -> None:
+    """Check that a journal record can only touch what its step touched.
+
+    The step's own path must be absolute and normalized, a staging copy
+    must sit next to it under the hidden name ``sibling`` gives it, and
+    whatever was moved aside or saved must be inside the workspace. A
+    damaged journal line then fails instead of removing something else.
+
+    Raises:
+        SyncError: If one of them does not hold.
+    """
+    path = _text(record, "path")
+    if not os.path.isabs(path) or os.path.normpath(path) != path:
+        raise SyncError(f"journal names an unexpected path {path!r}")
+    staging = record.get("staging")
+    if staging is not None:
+        name = Path(path).name
+        candidate = Path(staging)
+        if candidate.parent != Path(
+            path
+        ).parent or not candidate.name.startswith(f".{name}."):
+            raise SyncError(f"journal names an unexpected copy {staging!r}")
+    for key in ("aside", "before"):
+        value = record.get(key)
+        if value is None:
+            continue
+        inside = Path(os.path.normpath(value))
+        if workspace not in inside.parents:
+            raise SyncError(f"journal names an unexpected {key} {value!r}")
 
 
 def _undo_write(record: Record, path: Path) -> str | None:

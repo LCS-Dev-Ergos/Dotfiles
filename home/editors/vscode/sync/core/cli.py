@@ -50,6 +50,7 @@ from .storage import (
 )
 from .transaction import Transaction, quarantine, recover
 from .update import find_command, install_extension, update_extensions
+from .versions import parse_version
 
 Planner = Callable[[Snapshot, Downloads | None], Plan]
 
@@ -516,7 +517,7 @@ def _download(
     failed: list[str] = []
     for item in installs:
         specs = [item.extension_id]
-        if item.version:
+        if parse_version(item.version) is not None:
             specs.insert(0, f"{item.extension_id}@{item.version}")
         error: SyncError | None = None
         for spec in specs:

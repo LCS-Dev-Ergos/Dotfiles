@@ -15,6 +15,7 @@ compact form.
 """
 
 import json
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
@@ -22,6 +23,13 @@ from pathlib import Path, PurePosixPath
 from .errors import SyncError
 from .host import Edition, Host
 from .jsondata import as_array, as_object
+
+EXTENSION_ID = re.compile(r"[a-z0-9][a-z0-9-]*\.[a-z0-9][a-z0-9-]*")
+"""What VS Code accepts as ``publisher.name``, in lower case.
+
+An entry whose identifier does not match is kept but never acted on; its
+identifier never reaches a command line, where it could pass for an option.
+"""
 
 MAX_JSON_BYTES = 32 * 1024 * 1024
 """The largest manifest, storage or ``.obsolete`` file read."""
@@ -273,7 +281,9 @@ def _reference(index: int, entry: object) -> Reference | None:
         folder = relative.strip().strip("/")
     elif location_path:
         folder = PurePosixPath(location_path).name
-    if not extension_id or not folder or "/" in folder:
+    if not extension_id or not EXTENSION_ID.fullmatch(extension_id):
+        return None
+    if not folder or "/" in folder:
         return None
     if folder in (".", ".."):
         return None
