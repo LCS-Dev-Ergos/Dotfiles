@@ -9,12 +9,13 @@ import contextlib
 import copy
 import io
 import os
-import re
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from core import cli, ui
+import terminal_style as ui
+
+from core import cli
 from core.adapters import ADAPTERS
 from core.render import render
 
@@ -593,85 +594,6 @@ class GuaranteeTests(unittest.TestCase):
 
 def _plain_text(lines):
     return "\n".join(ui.strip(line) for line in lines)
-
-
-class StyleTests(unittest.TestCase):
-    class Terminal(io.StringIO):
-        def isatty(self):
-            return True
-
-    def test_only_a_color_terminal_is_styled(self):
-        terminal = self.Terminal()
-        cases = (
-            (terminal, {"TERM": "xterm-256color"}, True),
-            (terminal, {"TERM": "xterm-256color", "NO_COLOR": "1"}, False),
-            (terminal, {"TERM": "dumb"}, False),
-            (terminal, {}, False),
-            (io.StringIO(), {"TERM": "xterm-256color"}, False),
-        )
-        for stream, environ, styled in cases:
-            with self.subTest(environ=environ, tty=stream is terminal):
-                self.assertIs(ui.Style.detect(stream, environ).styled, styled)
-
-    def test_width_follows_columns_within_bounds(self):
-        for columns, width in (("30", 40), ("65", 65), ("300", 120)):
-            with (
-                self.subTest(columns=columns),
-                patch.dict(os.environ, {"COLUMNS": columns}),
-            ):
-                self.assertEqual(
-                    ui.Style.detect(io.StringIO(), {}).width, width
-                )
-
-    def test_text_width_counts_cells(self):
-        self.assertEqual(ui.text_width("\033[1;32m●\033[0m ok"), 4)
-        self.assertEqual(ui.text_width("界"), 2)
-        self.assertEqual(ui.truncate("界界界", 5), "界界…")
-
-    def test_paths_lose_whole_middle_components(self):
-        path = "/home/user/.pyenv/versions/3.14.8/bin/python"
-        self.assertEqual(ui.truncate(path, 20), "/home/…/bin/python")
-        self.assertEqual(ui.truncate(path, 28), "/home/…/3.14.8/bin/python")
-        self.assertEqual(ui.truncate("~/a/b/c/d/file", 10), "~/…/d/file")
-        self.assertEqual(
-            ui.truncate("no slashes here at all", 10), "no slashe…"
-        )
-
-
-def _shell_style():
-    """The Zsh style module, from the package's shell configuration or the
-    repository layout."""
-    configured = os.environ.get("DEV_BOOTSTRAP_SHELL_CONFIG")
-    candidates = [Path(configured)] if configured else []
-    candidates.append(
-        Path(__file__).resolve().parents[4] / "shells" / "zsh" / "config"
-    )
-    for config in candidates:
-        path = config / "scripts" / "_ui.zsh"
-        if path.is_file():
-            return path.read_text(encoding="utf-8")
-    return None
-
-
-def _shell_table(text, name):
-    block = re.search(rf"typeset -gA {name}=\(\n(.*?)\n\)", text, re.S)
-    return dict(re.findall(r"^\s+(\w+)\s+'([^']*)'\s*$", block[1], re.M))
-
-
-class SharedStyleTests(unittest.TestCase):
-    """One look across languages: these tokens are defined in _ui.zsh."""
-
-    def setUp(self):
-        self.shell = _shell_style()
-        if self.shell is None:
-            self.skipTest("the Zsh style module is not available here")
-
-    def test_tokens_match_the_shell_style_module(self):
-        self.assertEqual(_shell_table(self.shell, "_ZSH_UI_SGR"), ui.SGR)
-        self.assertEqual(_shell_table(self.shell, "_ZSH_UI_GLYPH"), ui.GLYPH)
-        for name, value in (("GUTTER", ui.GUTTER), ("INDENT", ui.INDENT)):
-            shell = re.search(rf"typeset -gi _ZSH_UI_{name}=(\d+)", self.shell)
-            self.assertEqual(int(shell[1]), value, name)
 
 
 class CommandLineTests(unittest.TestCase):

@@ -30,7 +30,7 @@ Before you begin, ensure you have the following installed on your system:
 5. **Optional: [Gum](https://github.com/charmbracelet/gum)** for interactions:
     build spinners, confirmations and template selection. Everything else is
     drawn by the shell in the
-    [terminal style](../../../../shells/zsh/docs/Terminal-Style.md) every shell
+    [terminal style](../../../../shells/terminal-style/Terminal-Style.md) every shell
     tool here shares, and every interaction has a native fallback, so Gum is
     never required.
     - **macOS**: `brew install gum`

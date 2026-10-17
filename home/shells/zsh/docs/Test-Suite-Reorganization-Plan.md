@@ -28,13 +28,12 @@ home/shells/zsh/config/tests/
 │   ├── test-custom-completions.zsh
 │   ├── test-function-safety.zsh
 │   └── test-zfuncs.zsh
-├── tools/                           # CLI scripts, devdoctor, dependencies, and shared UI
+├── tools/                           # CLI scripts, devdoctor, dependencies, presentation
 │   ├── test-brew-stats.zsh
 │   ├── test-dependency-contract.zsh
 │   ├── test-dev-doctor.zsh
 │   ├── test-fabric-tools.zsh
-│   ├── test-script-presentation.zsh
-│   └── test-shared-ui.zsh
+│   └── test-script-presentation.zsh
 └── integration/                     # End-to-end PTY, tmux and Python-driven integration tests
     ├── core/                        # Interactive prompt, ZLE, and terminal resize
     │   ├── test-prompt-context.py
@@ -56,8 +55,8 @@ home/shells/zsh/config/tests/
 - **functions**: public utility functions, fail-closed input validation, directory
   traversal prevention, `zfuncs` catalog indexing, and Shdoc completion generation.
 - **tools**: standalone CLI scripts, developer diagnostics (`devdoctor`),
-  dependency contract audits, AI tools (`fabric`), presentation contracts, and shared UI
-  primitives.
+  dependency contract audits, AI tools (`fabric`), and presentation contracts. The
+  shared UI primitives are tested with their module, `home/shells/terminal-style`.
 - **integration/core**: real Starship/ZLE prompt behavior, tmux pane resizing,
   vi-mode keymap dispatching, and repository context rendering through disposable PTY sessions.
 - **integration/tools**: Homebrew package mutations, provider refresh hooks, and

@@ -1,4 +1,5 @@
 {
+  callPackage,
   gum,
   lib,
   makeWrapper,
@@ -8,7 +9,7 @@
 }:
 let
   # The terminal style every shell tool shares; cpp-tools draws with it.
-  sharedStyle = ../../../shells/zsh/config/scripts/_ui.zsh;
+  terminalStyle = callPackage ../../../shells/terminal-style/package.nix { };
 in
 stdenvNoCC.mkDerivation {
   pname = "cpp-tools";
@@ -28,7 +29,8 @@ stdenvNoCC.mkDerivation {
   # The modules look for the shared style next to them first, so the tests
   # and the installed runtime both read this copy.
   postPatch = ''
-    install -Dm0644 ${sharedStyle} lib/_ui.zsh
+    install -Dm0644 ${terminalStyle}/share/terminal-style/terminal-style.zsh \
+      lib/terminal-style.zsh
   '';
 
   checkPhase = ''
@@ -48,7 +50,7 @@ stdenvNoCC.mkDerivation {
     mkdir -p "$runtime" "$out/bin"
     install -m 0755 competitive.sh cpptools "$runtime/"
     cp -R modules "$runtime/modules"
-    install -Dm0644 lib/_ui.zsh "$runtime/lib/_ui.zsh"
+    install -Dm0644 lib/terminal-style.zsh "$runtime/lib/terminal-style.zsh"
     install -m 0644 README.md "$runtime/README.md"
 
     # Use a pinned interpreter for the standalone command. The sourced Zsh

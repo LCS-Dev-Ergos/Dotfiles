@@ -11,20 +11,11 @@ import os
 import shutil
 import sys
 
-from . import process, ui
+import terminal_style as ui
+
+from . import process
 from .errors import BootstrapError
 
-# Gum's accents, as the shell's _zsh_ui_gum sets them: cyan prompts, cursors
-# and spinners, blue selections and headers, never Gum's default pink. Keep
-# them identical; tests/unit/test_prompt.py compares the two.
-GUM_THEME = {
-    "GUM_CONFIRM_PROMPT_FOREGROUND": "6",
-    "GUM_CONFIRM_SELECTED_BACKGROUND": "4",
-    "GUM_CHOOSE_CURSOR_FOREGROUND": "6",
-    "GUM_CHOOSE_HEADER_FOREGROUND": "4",
-    "GUM_CHOOSE_SELECTED_FOREGROUND": "6",
-    "GUM_SPIN_SPINNER_FOREGROUND": "6",
-}
 # Gum's exit statuses: a declined confirmation or Esc, and Ctrl-C.
 GUM_NO = 1
 GUM_ABORTED = 130
@@ -164,7 +155,7 @@ class GumPrompter(Prompter):
         self.stream.flush()
         try:
             return process.interact(
-                [self.gum, *arguments], env=dict(os.environ, **GUM_THEME)
+                [self.gum, *arguments], env=dict(os.environ, **ui.GUM_THEME)
             )
         except KeyboardInterrupt:
             # Gum saw the same Ctrl-C and has left the terminal as it was.

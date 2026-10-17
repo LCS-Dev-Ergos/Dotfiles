@@ -11,7 +11,7 @@ let
   # tooling intentionally navigate from config/ to sibling packages and root
   # files; separate path copies would sever those read-only relationships.
   # Retired desktop assets remain in Git but are never distributed to a home.
-  zshSource = lib.cleanSourceWith {
+  zshFiles = lib.cleanSourceWith {
     src = ./.;
     filter =
       path: _type:
@@ -21,6 +21,16 @@ let
         "config/prompt.zsh"
       ];
   };
+
+  # The shared terminal style lives outside this module; the deployed unit
+  # carries a copy next to _shared-helpers.zsh, which loads it from there.
+  terminalStyle = pkgs.callPackage ../terminal-style/package.nix { };
+  zshSource = pkgs.runCommandLocal "zsh-configuration" { } ''
+    cp -R ${zshFiles} "$out"
+    chmod -R u+w "$out"
+    install -m 0644 ${terminalStyle}/share/terminal-style/terminal-style.zsh \
+      "$out/config/scripts/_terminal-style.zsh"
+  '';
 
   shdoc = pkgs.callPackage ./shdoc.nix { };
 

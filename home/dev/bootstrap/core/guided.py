@@ -3,7 +3,7 @@
 The executor decides and this module displays. Each step reads the report
 `plan --preflight` prints, first for every ecosystem available here, then
 for the selection, and never re-derives what apply would do. Every screen is
-drawn like any report (core.ui); questions go through a core.prompt
+drawn like any report (terminal_style); questions go through a core.prompt
 prompter. Nothing changes before the person accepts the review: then the
 selection is saved, and apply runs in-process like `dev-bootstrap apply`.
 """
@@ -14,7 +14,10 @@ import sys
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from . import process, ui
+import terminal_style as ui
+from terminal_style import Cell, Column, Note, Row
+
+from . import process
 from .adapters import ADAPTERS
 from .engine import select
 from .errors import BootstrapError
@@ -30,7 +33,6 @@ from .render import (
     plural,
     render,
 )
-from .ui import Cell, Column, Note, Row
 
 # An ecosystem reads as its least settled runtime.
 STATES = ("conflict", "blocked", "missing", "present", "ok", "external")

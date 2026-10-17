@@ -5,7 +5,7 @@
 # ============================================================================ #
 # Common utility functions shared across zsh scripts.
 #
-# Provides the shared terminal style (_ui.zsh), color initialization,
+# Provides the shared terminal style, color initialization,
 # leveled logging, platform detection and interactive confirmation. Designed
 # to be sourced by other scripts in this directory to eliminate code
 # duplication.
@@ -34,16 +34,24 @@ else
 fi
 unset _shared_runtime_helpers
 
-# The shared look lives in _ui.zsh, which tools may also source on its own.
-_shared_ui="${${(%):-%N}:A:h}/_ui.zsh"
+# The shared look lives in home/shells/terminal-style. The deployed
+# configuration carries a copy next to this file; a repository checkout
+# reads the module itself.
+_shared_ui_dir="${${(%):-%N}:A:h}"
+for _shared_ui in \
+  "$_shared_ui_dir/_terminal-style.zsh" \
+  "${_shared_ui_dir:h:h:h}/terminal-style/terminal-style.zsh"; do
+  [[ -r "$_shared_ui" ]] && break
+done
 if [[ -r "$_shared_ui" ]]; then
   # shellcheck disable=SC1090
   source "$_shared_ui"
 else
-  printf "[ERROR] Shared UI not found: %s\n" "$_shared_ui" >&2
+  printf "[ERROR] Terminal style not found next to %s\n" "$_shared_ui_dir" >&2
+  unset _shared_ui _shared_ui_dir
   return 1 2>/dev/null || exit 1
 fi
-unset _shared_ui
+unset _shared_ui _shared_ui_dir
 
 # ++++++++++++++++++++++++++++++ COLOR HANDLING ++++++++++++++++++++++++++++++ #
 

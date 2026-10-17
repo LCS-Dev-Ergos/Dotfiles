@@ -6,15 +6,17 @@
 # The one look every shell tool shares: style tokens, static components and
 # the Gum-backed interactions. A header sits in a rounded frame; below it,
 # ruled section titles, type and space carry the structure, and tables stay
-# borderless. home/shells/zsh/docs/Terminal-Style.md describes the model and
+# borderless. Terminal-Style.md, next to this file, describes the model and
 # when to use what.
 #
 # Usage:
-#   source "${ZSH_CONFIG_DIR:-$HOME/.config/zsh}/scripts/_ui.zsh"
+#   source /path/to/terminal-style.zsh
 #
-# Self-contained: it needs zsh, and Gum only for prompts and spinners. Python
-# tools mirror the tokens (home/dev/bootstrap/core/ui.py), and a test there
-# fails when the two tables differ.
+# Self-contained: it needs zsh, and Gum only for prompts and spinners. Tools
+# bundle a copy at build time: the Zsh configuration as
+# scripts/_terminal-style.zsh, cpp-tools as lib/terminal-style.zsh. Python
+# tools use terminal_style.py, whose tokens tests/test_terminal_style.py
+# keeps identical to these.
 #
 # Author: LCS-Dev-Ergos
 # License: MIT
@@ -1542,4 +1544,4 @@ _zsh_ui_spinner_fn() {
 _ZSH_UI_LOADED=1
 
 # ============================================================================ #
-# End of _ui.zsh
+# End of terminal-style.zsh

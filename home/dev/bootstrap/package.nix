@@ -2,6 +2,7 @@
   lib,
   pkgs,
   bash,
+  callPackage,
   makeWrapper,
   python3,
   stdenvNoCC,
@@ -25,6 +26,8 @@ let
     backend = runtimeManagerBackend;
   };
   policy = import ./policy.nix;
+  # The report is drawn in the terminal style every shell tool shares.
+  terminalStyle = callPackage ../../shells/terminal-style/package.nix { };
   pythonRuntime = python314.withPackages (packages: [ packages.tkinter ]);
   nixRuntime = name: package: {
     inherit (package) version;
@@ -111,6 +114,11 @@ builtins.seq baseline (
         && !(lib.hasSuffix ".pyc" name);
     };
     nativeBuildInputs = [ makeWrapper ];
+    # core/__init__.py loads the style from next to the package, so the tests
+    # and the installed executor both read this copy.
+    postPatch = ''
+      install -m 0644 ${terminalStyle}/share/terminal-style/terminal_style.py .
+    '';
     dontBuild = true;
     doCheck = true;
     doInstallCheck = true;
@@ -138,7 +146,7 @@ builtins.seq baseline (
       runHook preInstall
       mkdir -p "$out/share/development-bootstrap" "$out/bin"
       # Only the entry and its package; tests never enter the import path.
-      cp bootstrap.py "$out/share/development-bootstrap/"
+      cp bootstrap.py terminal_style.py "$out/share/development-bootstrap/"
       cp -r core "$out/share/development-bootstrap/"
       cp ${manifestFile} \
         "$out/share/development-bootstrap/baseline.json"

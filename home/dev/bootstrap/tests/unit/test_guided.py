@@ -16,7 +16,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from core import guided, ui
+import terminal_style as ui
+
+from core import guided
 from core.adapters import ADAPTERS
 from core.guided import Guide, blockers, command_lines, review
 from core.prompt import Cancelled

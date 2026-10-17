@@ -9,7 +9,8 @@ duration; elsewhere the start and the end are separate lines.
 
 import sys
 
-from . import ui
+import terminal_style as ui
+
 from .render import duration, namer
 
 STAGES = {

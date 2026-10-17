@@ -1,12 +1,15 @@
 # Terminal Style
 
 Every command-line tool in this repository shares one look, defined once in
-[`config/scripts/_ui.zsh`](../config/scripts/_ui.zsh). Zsh tools source it,
-directly or through `_shared-helpers.zsh`; packaged tools such as cpp-tools
-install a copy at build time. Python tools mirror its tokens:
-the development bootstrap's
-[`core/ui.py`](../../../dev/bootstrap/core/ui.py) does, and its test suite
-fails when the token tables differ.
+this directory: [`terminal-style.zsh`](terminal-style.zsh) for Zsh, and
+[`terminal_style.py`](terminal_style.py), which mirrors its tokens, for
+Python. Tools bundle a copy at build time: the Zsh configuration carries it as
+`scripts/_terminal-style.zsh`, which `_shared-helpers.zsh` loads; cpp-tools as
+`lib/terminal-style.zsh`; Python tools such as the development bootstrap next
+to their package. A repository checkout reads the files here.
+
+The [tests](tests) cover both implementations and fail when their tokens,
+margins or Gum themes differ; `nix build .#terminal-style` runs them.
 
 ```text
 ╭──────────────────────────────────────────────────────────────────────╮
@@ -102,7 +105,7 @@ a few sharper markers (`?` unknown, `◐` dormant). The frame uses `╭╮╰╯
 
 ## Components
 
-| Zsh | Python (`core/ui.py`) | Use |
+| Zsh | Python (`terminal_style.py`) | Use |
 | --- | --- | --- |
 | `_zsh_ui_app_header` | `header` | Framed masthead: badge, title, context; subtitle and note beneath. |
 | `_zsh_ui_heading` | — | Framed title of a simple command: the title as the badge, the subtitle beside or under it. |

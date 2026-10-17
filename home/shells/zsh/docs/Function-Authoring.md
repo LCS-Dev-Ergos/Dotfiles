@@ -49,7 +49,8 @@ Choose the output class before choosing its presentation:
    does not own.
 
 The shared layer honors `ZSH_UI_STYLE=auto|plain|ansi|gum` and `NO_COLOR`;
-[Terminal Style](Terminal-Style.md) describes the look and every component.
+[Terminal Style](../../terminal-style/Terminal-Style.md) describes the look
+and every component.
 Use `_zsh_ui_log` for individual event lines, `_zsh_ui_heading` for a
 command's title, `_zsh_ui_app_header` for the masthead of a report such as
 devdoctor (the tool name as a badge, context on the right),

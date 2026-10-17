@@ -1,7 +1,9 @@
-"""Terminal drawing primitives: the Python twin of the shell's style module.
+"""Terminal drawing primitives: the Python twin of terminal-style.zsh.
 
-The look is defined once, in `_ui.zsh` of the Zsh configuration, and this
-module mirrors its tokens (a test compares the two). The masthead sits in a
+The look is defined once, in terminal-style.zsh next to this module, and this
+module mirrors its tokens (tests/test_terminal_style.py compares the two).
+Python tools bundle it at build time; Terminal-Style.md describes the model.
+The masthead sits in a
 rounded frame drawn in a two-column margin, so its inside lines up with the
 content below: section titles followed by a rule, borderless tables one
 indent in with quiet column labels, one marker and state word per row, and a
@@ -17,10 +19,12 @@ import re
 import shutil
 import sys
 import unicodedata
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
+from typing import TextIO
 
 # Style tokens. Keep them identical to _ZSH_UI_SGR and _ZSH_UI_GLYPH in
-# home/shells/zsh/config/scripts/_ui.zsh; tests/unit/test_render.py checks.
+# terminal-style.zsh; tests/test_terminal_style.py checks.
 SGR = {
     "strong": "1",
     "accent": "36",
@@ -56,9 +60,19 @@ GUTTER = 2
 INDENT = 2
 MIN_WIDTH = 40
 MAX_WIDTH = 120
+# Gum's accents, as _zsh_ui_gum sets them: cyan prompts, cursors and
+# spinners, blue selections and headers, never Gum's default pink.
+GUM_THEME = {
+    "GUM_CONFIRM_PROMPT_FOREGROUND": "6",
+    "GUM_CONFIRM_SELECTED_BACKGROUND": "4",
+    "GUM_CHOOSE_CURSOR_FOREGROUND": "6",
+    "GUM_CHOOSE_HEADER_FOREGROUND": "4",
+    "GUM_CHOOSE_SELECTED_FOREGROUND": "6",
+    "GUM_SPIN_SPINNER_FOREGROUND": "6",
+}
 
 
-def _sgr(*tokens):
+def _sgr(*tokens: str) -> str:
     return f"\033[{';'.join(SGR[token] for token in tokens)}m"
 
 
@@ -104,7 +118,11 @@ class Style:
     width: int = 80
 
     @classmethod
-    def detect(cls, stream=None, environ=None):
+    def detect(
+        cls,
+        stream: TextIO | None = None,
+        environ: Mapping[str, str] | None = None,
+    ) -> "Style":
         """Styled on a color terminal; plain for NO_COLOR, pipes and dumb."""
         stream = sys.stdout if stream is None else stream
         environ = os.environ if environ is None else environ
@@ -117,23 +135,24 @@ class Style:
         columns = shutil.get_terminal_size((80, 24)).columns
         return cls(styled, clamp_width(columns))
 
-    def paint(self, color, text):
+    def paint(self, color: str, text: str) -> str:
+        """The text in a color, when styled and both are given."""
         if self.styled and color and text:
             return f"{color}{text}{RESET}"
         return text
 
-    def marker(self, tone):
+    def marker(self, tone: str) -> str:
         """The bold one-cell marker of a tone."""
         return self.paint(_sgr("strong", TONE_TOKENS[tone]), GLYPH[tone])
 
 
-def clamp_width(columns, limit=MAX_WIDTH):
+def clamp_width(columns: int, limit: int = MAX_WIDTH) -> int:
     """A readable width: never under 40 columns, never over the limit."""
     columns = columns if columns > 0 else 80
     return max(MIN_WIDTH, min(columns, limit))
 
 
-def sanitize(text):
+def sanitize(text: object) -> str:
     """Escape control characters, so untrusted text cannot drive a terminal."""
     text = str(text)
     if not _CONTROL.search(text):
@@ -144,28 +163,28 @@ def sanitize(text):
     )
 
 
-def sanitize_lines(text):
+def sanitize_lines(text: object) -> str:
     """sanitize() for a message of several lines, which stay lines."""
     return "\n".join(sanitize(line) for line in str(text).split("\n"))
 
 
-def strip(text):
+def strip(text: str) -> str:
     """The text without its color sequences."""
     return _SGR.sub("", text)
 
 
-def _cell(character):
+def _cell(character: str) -> int:
     if unicodedata.combining(character):
         return 0
     return 2 if unicodedata.east_asian_width(character) in "WF" else 1
 
 
-def text_width(text):
+def text_width(text: str) -> int:
     """Display width: color sequences take none, wide characters two."""
     return sum(_cell(character) for character in strip(text))
 
 
-def _head(text, width):
+def _head(text: str, width: int) -> str:
     """The longest prefix that fits the display width."""
     used = 0
     for index, character in enumerate(text):
@@ -175,12 +194,12 @@ def _head(text, width):
     return text
 
 
-def _tail(text, width):
+def _tail(text: str, width: int) -> str:
     """The longest suffix that fits the display width."""
     return _head(text[::-1], width)[::-1]
 
 
-def _path_middle(text, width):
+def _path_middle(text: str, width: int) -> str | None:
     """Drop whole middle components of a path, keeping its end first.
 
     The file name and the versioned directories above it say the most, then
@@ -192,7 +211,7 @@ def _path_middle(text, width):
         return None
     head, tail = 1, 1
 
-    def joined(head, tail):
+    def joined(head: int, tail: int) -> str:
         return "/".join(parts[:head] + ["…"] + parts[len(parts) - tail :])
 
     if text_width(joined(head, tail)) > width:
@@ -211,7 +230,7 @@ def _path_middle(text, width):
     return joined(head, tail)
 
 
-def truncate(text, width):
+def truncate(text: str, width: int) -> str:
     """Shorten to a display width with an ellipsis.
 
     A path loses whole middle components, so its root and its file name stay
@@ -244,10 +263,11 @@ def truncate(text, width):
     return f"{_head(text, width - 1)}…"
 
 
-def wrap(text, width):
+def wrap(text: str, width: int) -> list[str]:
     """Word-wrap to a display width; a longer word is split, never lost."""
     width = max(width, 1)
-    lines, line = [], ""
+    lines: list[str] = []
+    line = ""
     for word in text.split():
         while text_width(word) > width:
             if line:
@@ -270,7 +290,7 @@ def wrap(text, width):
     return lines or [""]
 
 
-def short_path(text, style, home=None):
+def short_path(text: str, style: Style, home: str | None = None) -> str:
     """Write $HOME as ~ and cut store hashes, in styled output only.
 
     Plain output keeps every path intact, so a captured report can still be
@@ -284,16 +304,16 @@ def short_path(text, style, home=None):
     return _STORE_HASH.sub(r"/nix/store/\1…-", text)
 
 
-def pad(text, width):
+def pad(text: str, width: int) -> str:
     """Left-align text, which may carry color, in a display width."""
     return text + " " * max(width - text_width(text), 0)
 
 
-def _gutter(text=""):
+def _gutter(text: str = "") -> str:
     return f"{' ' * GUTTER}{text}"
 
 
-def frame(style, lines):
+def frame(style: Style, lines: Sequence[str]) -> list[str]:
     """A rounded frame around styled lines, drawn in the margin.
 
     The lines inside start and end where the content below does; each is
@@ -314,7 +334,14 @@ def frame(style, lines):
     )
 
 
-def header(style, tag, title, subtitle="", context="", note=""):
+def header(
+    style: Style,
+    tag: str,
+    title: str,
+    subtitle: str = "",
+    context: str = "",
+    note: str = "",
+) -> list[str]:
     """The masthead: the tool's badge and title, then a quieter line.
 
     Context sits at the right of the title and the note at the right of the
@@ -355,7 +382,7 @@ def header(style, tag, title, subtitle="", context="", note=""):
     return frame(style, lines)
 
 
-def section(style, title, note=""):
+def section(style: Style, title: str, note: str = "") -> list[str]:
     """A section title, then a rule to the right margin ending in a note.
 
     The note, muted, gives way before the rule grows too short to read as
@@ -392,11 +419,13 @@ class Column:
     priority: int = 100
     limit: int = 0
     shrink: int = 0
-    fold: tuple = ()
+    fold: tuple[str, ...] = ()
 
 
 @dataclass
 class Cell:
+    """A table cell or card value: its text, color and whether it is a path."""
+
     text: str
     color: str = ""
     path: bool = False
@@ -414,13 +443,15 @@ class Note:
 
 @dataclass
 class Row:
-    cells: list
+    """A table row: its cells, the tone of its marker and its notes."""
+
+    cells: Sequence[Cell | str]
     tone: str = ""
-    notes: list = field(default_factory=list)
+    notes: list[Note] = field(default_factory=list[Note])
 
 
-def _cells(row, style):
-    cells = []
+def _cells(row: Row, style: Style) -> list[Cell]:
+    cells: list[Cell] = []
     for cell in row.cells:
         cell = cell if isinstance(cell, Cell) else Cell(cell)
         text = sanitize(cell.text)
@@ -430,15 +461,17 @@ def _cells(row, style):
     return cells
 
 
-def _fit(columns, widths, available):
+def _fit(
+    columns: Sequence[Column], widths: Sequence[int], available: int
+) -> tuple[list[int], dict[int, int]]:
     """The columns that fit and their widths, after shrinking and dropping."""
     active = list(range(len(columns)))
 
-    def floor(index):
+    def floor(index: int) -> int:
         shrink = columns[index].shrink
         return min(widths[index], shrink) if shrink else widths[index]
 
-    def total(measure):
+    def total(measure: Callable[[int], int]) -> int:
         return sum(measure(index) for index in active) + 2 * (len(active) - 1)
 
     while total(floor) > available:
@@ -462,7 +495,9 @@ def _fit(columns, widths, available):
     return active, fitted
 
 
-def table(style, columns, rows):
+def table(
+    style: Style, columns: Sequence[Column], rows: Iterable[Row]
+) -> list[str]:
     """A borderless table one indent in: quiet labels, then one line a row.
 
     Rows with a tone lead with its marker. A row's notes continue it under
@@ -470,25 +505,26 @@ def table(style, columns, rows):
     instead. Plain output aligns every column at full length and keeps every
     note.
     """
-    rows = [Row(_cells(row, style), row.tone, row.notes) for row in rows]
+    prepared = list(rows)
+    cells = [_cells(row, style) for row in prepared]
     labels = [column.label.upper() for column in columns]
     if not style.styled:
-        return _plain_table(labels, rows)
+        return _plain_table(labels, prepared, cells)
 
-    marked = any(row.tone for row in rows)
+    marked = any(row.tone for row in prepared)
     offset = GUTTER + INDENT
     prefix = offset + (2 if marked else 0)
-    widths = []
+    widths: list[int] = []
     for index, column in enumerate(columns):
         width = max(
             [text_width(labels[index])]
-            + [text_width(row.cells[index].text) for row in rows]
+            + [text_width(line[index].text) for line in cells]
         )
         widths.append(min(width, column.limit) if column.limit else width)
     active, fitted = _fit(columns, widths, style.width - prefix - GUTTER)
     dropped = [i for i in range(len(columns)) if i not in active]
 
-    def joined(texts):
+    def joined(texts: Sequence[str]) -> str:
         last = active[-1]
         return "  ".join(
             texts[index] if index == last else pad(texts[index], fitted[index])
@@ -507,9 +543,9 @@ def table(style, columns, rows):
             ),
         ).rstrip()
     ]
-    for row in rows:
-        texts = []
-        for index, cell in enumerate(row.cells):
+    for row, line in zip(prepared, cells, strict=True):
+        texts: list[str] = []
+        for index, cell in enumerate(line):
             if index not in fitted:
                 texts.append("")
                 continue
@@ -519,7 +555,7 @@ def table(style, columns, rows):
         lines.append(f"{' ' * offset}{lead}{joined(texts)}".rstrip())
         folded = [
             Note(cell.text, cell.color, path=cell.path)
-            for index, cell in enumerate(row.cells)
+            for index, cell in enumerate(line)
             if index in dropped
             and row.tone in columns[index].fold
             and cell.text
@@ -541,8 +577,8 @@ def table(style, columns, rows):
     return lines
 
 
-def _notes(style, notes, indent):
-    lines = []
+def _notes(style: Style, notes: Sequence[Note], indent: int) -> list[str]:
+    lines: list[str] = []
     room = style.width - indent - GUTTER
     for note in notes:
         text = sanitize(note.text)
@@ -561,21 +597,23 @@ def _notes(style, notes, indent):
     return lines
 
 
-def _plain_table(labels, rows):
-    cells = [[cell.text or "-" for cell in row.cells] for row in rows]
+def _plain_table(
+    labels: Sequence[str], rows: Sequence[Row], cells: Sequence[list[Cell]]
+) -> list[str]:
+    texts = [[cell.text or "-" for cell in line] for line in cells]
     widths = [
-        max([text_width(label)] + [text_width(line[index]) for line in cells])
+        max([text_width(label)] + [text_width(line[index]) for line in texts])
         for index, label in enumerate(labels)
     ]
 
-    def joined(texts):
+    def joined(texts: Sequence[str]) -> str:
         return "  ".join(
             text if index == len(texts) - 1 else pad(text, widths[index])
             for index, text in enumerate(texts)
         )
 
     lines = [joined(labels)]
-    for row, line in zip(rows, cells, strict=True):
+    for row, line in zip(rows, texts, strict=True):
         lines.append(joined(line))
         for note in row.notes:
             label = f"{note.label}: " if note.label else ""
@@ -583,7 +621,12 @@ def _plain_table(labels, rows):
     return lines
 
 
-def card(style, title, fields, note=""):
+def card(
+    style: Style,
+    title: str,
+    fields: Sequence[tuple[str, Cell | str]],
+    note: str = "",
+) -> list[str]:
     """A section of `key  value` lines, one indent in.
 
     A value is text or a Cell; a path is shortened when styled and other
@@ -618,26 +661,33 @@ def card(style, title, fields, note=""):
     return lines
 
 
-def callout(style, tone, title, lines=()):
+def callout(
+    style: Style, tone: str, title: str, lines: Sequence[str] = ()
+) -> list[str]:
     """A notice set off by a bar in its tone's color: no frame around it."""
     title = sanitize(title)
-    lines = [sanitize(line) for line in lines]
+    texts = [sanitize(line) for line in lines]
     if not style.styled:
-        return [title] + [f"  {line}" for line in lines]
+        return [title] + [f"  {line}" for line in texts]
     bar = style.paint(TONES[tone], GLYPH["bar"])
     room = style.width - 2 * GUTTER - 2
     body = [style.paint(STRONG, truncate(title, room))]
-    for line in lines:
+    for line in texts:
         body += wrap(line, room)
     return [_gutter(f"{bar} {line}") for line in body]
 
 
-def worst(tones):
+def worst(tones: Iterable[str]) -> str:
     """The most severe tone, for a summary's label."""
     return max(tones, key=SEVERITY.index, default="ok")
 
 
-def summary(style, counts, hint="", tone="ok"):
+def summary(
+    style: Style,
+    counts: Iterable[tuple[str, int, str]],
+    hint: str = "",
+    tone: str = "ok",
+) -> list[str]:
     """Close a report: the count of each state and what to do next.
 
     counts holds (tone, count, word) in display order. Styled output draws a
@@ -645,16 +695,16 @@ def summary(style, counts, hint="", tone="ok"):
     the right margin; plain output is one leveled sentence, whose level
     `tone` raises when the outcome is worse than the counts say.
     """
-    counts = [entry for entry in counts if entry[1]]
+    shown = [entry for entry in counts if entry[1]]
     hint = sanitize(hint)
     if not style.styled:
-        words = ", ".join(f"{count} {word}" for _, count, word in counts)
+        words = ", ".join(f"{count} {word}" for _, count, word in shown)
         sentence = "; ".join(part for part in (words, hint) if part)
-        label = LABELS[worst([tone, *(entry[0] for entry in counts)])]
+        label = LABELS[worst([tone, *(entry[0] for entry in shown)])]
         return [f"{label} {sentence}." if sentence else label.rstrip()]
     room = style.width - 2 * GUTTER
     items = [
-        f"{style.marker(tone)} {count} {word}" for tone, count, word in counts
+        f"{style.marker(state)} {count} {word}" for state, count, word in shown
     ]
     # Counts wrap rather than overflow a narrow terminal; the hint only
     # restates them, so it gives way first.

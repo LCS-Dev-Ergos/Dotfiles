@@ -340,8 +340,9 @@ when no terminal is attached; interactive profiling uses the first ZLE
 
 ## Output Styling
 
-Shared presentation helpers (`scripts/_ui.zsh`, described in
-[Terminal Style](../docs/Terminal-Style.md)) use
+Shared presentation helpers (the
+[terminal style](../../terminal-style/Terminal-Style.md), which
+`scripts/_shared-helpers.zsh` loads) use
 `ZSH_UI_STYLE=auto|plain|ansi|gum` and honor `NO_COLOR`. Headings, sections,
 cards, tables, summaries and logs are drawn natively in every mode, with a
 rounded frame for headers only; Gum is reserved for confirmations, choices and

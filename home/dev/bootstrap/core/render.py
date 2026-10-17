@@ -2,16 +2,16 @@
 
 The JSON report stays the interface for programs; this module only renders
 it. Each row's state is the executor's; the renderer chooses how it reads
-(see `core.ui.TONES`): a missing runtime is work for apply in a plan, but a
-failure after apply or verify. Healthy rows stay quiet; a row that needs
-attention says why, where and how to fix it.
+(see `terminal_style.TONES`): a missing runtime is work for apply in a plan,
+but a failure after apply or verify. Healthy rows stay quiet; a row that
+needs attention says why, where and how to fix it.
 """
 
 import shlex
 from pathlib import Path
 
-from . import ui
-from .ui import Cell, Column, Note, Row
+import terminal_style as ui
+from terminal_style import Cell, Column, Note, Row
 
 TITLES = {
     "plan": "Runtime plan",

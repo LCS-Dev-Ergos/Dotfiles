@@ -1,25 +1,26 @@
 #!/usr/bin/env zsh
 # shellcheck shell=zsh
 # ============================================================================ #
-# ++++++++++++++++++++++++++++++ SHARED UI TEST ++++++++++++++++++++++++++++++ #
+# +++++++++++++++++++++++++++ TERMINAL STYLE TEST ++++++++++++++++++++++++++++ #
 # ============================================================================ #
-# Verifies the shared terminal style in scripts/_ui.zsh, loaded through
-# _shared-helpers.zsh: mode resolution (plain/ansi/gum, NO_COLOR override,
-# invalid mode rejection), the framed headers and the ruled section, card,
-# table, summary and callout renderers (no Gum process for static output,
-# margins and width fitting, status markers and colors, plain capture
-# layout), path display shortening, the function
-# spinner contract, and the safe non-interactive confirm and choose.
+# Verifies terminal-style.zsh, sourced on its own as every consumer may:
+# mode resolution (plain/ansi/gum, NO_COLOR override, invalid mode
+# rejection), the framed headers and the ruled section, card, table, summary
+# and callout renderers (no Gum process for static output, margins and width
+# fitting, status markers and colors, plain capture layout), path display
+# shortening, the function spinner contract, and the safe non-interactive
+# confirm and choose.
 # ============================================================================ #
 
 emulate -L zsh
 setopt err_return pipefail
 umask 077
 
-typeset test_root="${0:A:h:h:h}"
-source "$test_root/tests/helpers.zsh" || return 1
+typeset style_module="${0:A:h:h}/terminal-style.zsh"
 typeset fixture_root
-fixture_root="$(_zsh_test_temp_dir shared-ui)" || return 1
+fixture_root="$(mktemp -d "${TMPDIR:-/tmp}/terminal-style.XXXXXX")" || return 1
+fixture_root="${fixture_root:A}"
+mkdir -m 700 "$fixture_root/tmp" || return 1
 export TMPDIR="$fixture_root/tmp"
 export TMPPREFIX="$TMPDIR/zsh"
 trap '
@@ -44,7 +45,7 @@ export GUM_CALL_LOG="$fixture_root/gum-calls"
 export GUM_ARG_LOG="$fixture_root/gum-args"
 rehash
 
-source "$test_root/scripts/_shared-helpers.zsh"
+source "$style_module"
 unset NO_COLOR
 
 [[ "$(_zsh_ui_mode plain)" == plain ]] || {
@@ -141,7 +142,7 @@ ZSH_UI_STYLE=gum _zsh_ui_subsection Section 80 >/dev/null
 ZSH_UI_STYLE=gum _zsh_ui_card Card "" $'Field\tvalue' >/dev/null
 ZSH_UI_STYLE=gum _zsh_ui_table $'Name\tValue' $'alpha\t1' >/dev/null
 ZSH_UI_STYLE=gum _zsh_ui_definition_list $'term\tdescription' >/dev/null
-ZSH_UI_STYLE=gum _shared_banner Banner Subtitle >/dev/null
+ZSH_UI_STYLE=gum _zsh_ui_heading Banner Subtitle >/dev/null
 ZSH_UI_STYLE=gum _zsh_ui_app_header tool Title Subtitle >/dev/null
 ZSH_UI_STYLE=gum _zsh_ui_summary $'ok\t1\tok' >/dev/null
 ZSH_UI_STYLE=gum _zsh_ui_callout warn Title Body >/dev/null
@@ -503,7 +504,7 @@ spin_output="$(
 # It is where a deadlock or a lost exit status would hide.
 if zmodload zsh/zpty 2>/dev/null; then
   typeset spin_script
-  spin_script="source ${(q)test_root}/scripts/_shared-helpers.zsh"
+  spin_script="source ${(q)style_module}"
   spin_script+='; work() { /bin/sleep 0.3; print -r -- pty-payload; print -u2 -r -- pty-diagnostic; return 4 }'
   spin_script+='; out=$(ZSH_UI_STYLE=gum _zsh_ui_spinner_fn Working work)'
   spin_script+='; print -r -- "SPINRESULT=${out}=$?"'
@@ -534,7 +535,7 @@ if zmodload zsh/zpty 2>/dev/null; then
   }
 fi
 
-print -r -- "PASS: shared UI modes, native rendering, and safe fallback"
+print -r -- "PASS: terminal style modes, native rendering, and safe fallback"
 
 # ============================================================================ #
-# End of tests/tools/test-shared-ui.zsh
+# End of tests/test-terminal-style.zsh

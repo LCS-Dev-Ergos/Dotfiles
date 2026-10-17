@@ -7,23 +7,22 @@ files, so these tests need neither a terminal nor Gum.
 import io
 import json
 import os
-import re
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from core import prompt, ui
+import terminal_style as ui
+
+from core import prompt
 from core.errors import BootstrapError
 from core.prompt import (
-    GUM_THEME,
     Cancelled,
     GumPrompter,
     LinePrompter,
     Prompter,
 )
-from tests.unit.test_render import _shell_style
 
 OPTIONS = [("node", "Node"), ("python", "Python"), ("ocaml", "OCaml, 5.5")]
 
@@ -99,7 +98,7 @@ class GumTests(PromptTestCase):
         self.assertEqual(
             call["argv"], ["confirm", "--default=false", "--", "Apply?"]
         )
-        for name, value in GUM_THEME.items():
+        for name, value in ui.GUM_THEME.items():
             self.assertEqual(call["env"][name], value, name)
         self.gum.answer("", 130)
         with self.assertRaises(Cancelled):
@@ -263,15 +262,6 @@ class UnattendedTests(PromptTestCase):
         self.assertIsInstance(
             prompt.prompter({}, styled, attended=True), LinePrompter
         )
-
-
-class SharedThemeTests(unittest.TestCase):
-    def test_gum_theme_matches_the_shell_style_module(self):
-        shell = _shell_style()
-        if shell is None:
-            self.skipTest("the Zsh style module is not available here")
-        body = re.search(r"_zsh_ui_gum\(\) \{\n(.*?)\n\}", shell, re.S)[1]
-        self.assertEqual(dict(re.findall(r"(GUM_\w+)=(\S+)", body)), GUM_THEME)
 
 
 if __name__ == "__main__":

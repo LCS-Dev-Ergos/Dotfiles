@@ -4,7 +4,8 @@ import io
 import unittest
 from unittest.mock import patch
 
-from core import ui
+import terminal_style as ui
+
 from core.adapters import ADAPTERS
 from core.progress import Progress
 

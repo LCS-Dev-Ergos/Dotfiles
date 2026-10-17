@@ -26,8 +26,9 @@ trap 'exit 130' INT TERM HUP
 mkdir -p "$fixture_root/config/functions" "$fixture_root/config/lib" \
   "$fixture_root/config/scripts/blog" "$fixture_root/cache"
 cp "$test_root/scripts/zfuncs-index.awk" "$fixture_root/config/scripts/"
-cp "$test_root/scripts/_shared-helpers.zsh" "$test_root/scripts/_ui.zsh" \
-  "$fixture_root/config/scripts/"
+cp "$test_root/scripts/_shared-helpers.zsh" "$fixture_root/config/scripts/"
+cp "${test_root:h:h}/terminal-style/terminal-style.zsh" \
+  "$fixture_root/config/scripts/_terminal-style.zsh"
 cp "$test_root/runtime-helpers.zsh" "$fixture_root/config/"
 
 cat > "$fixture_root/config/functions/example.zsh" <<'EOF'

@@ -2,11 +2,12 @@
 # +++++++++++++++++++++++++++++ SHARED UI LAYER ++++++++++++++++++++++++++++++ #
 # ============================================================================ #
 # cpp-tools draws with the terminal style every shell tool shares, defined in
-# home/shells/zsh/config/scripts/_ui.zsh and described in Terminal-Style.md
-# next to it. The package installs a copy as lib/_ui.zsh; a source checkout
-# reads the original. The _cp_* functions keep the names the modules and the
-# tests use: they apply cpp-tools' own settings (CP_UI_STYLE, CP_NO_GUM and
-# CP_UI_WIDTH) and hand the drawing to the shared components.
+# home/shells/terminal-style/terminal-style.zsh and described in
+# Terminal-Style.md next to it. The package installs a copy as
+# lib/terminal-style.zsh; a source checkout reads the original. The _cp_*
+# functions keep the names the modules and the tests use: they apply
+# cpp-tools' own settings (CP_UI_STYLE, CP_NO_GUM and CP_UI_WIDTH) and hand
+# the drawing to the shared components.
 # ============================================================================ #
 
 : "${CP_UI_STYLE:=auto}"
@@ -15,12 +16,12 @@
 () {
   local root="${1:A:h:h}" candidate
   for candidate in \
-      "$root/lib/_ui.zsh" \
-      "$root/../../../../shells/zsh/config/scripts/_ui.zsh"; do
+      "$root/lib/terminal-style.zsh" \
+      "$root/../../../../shells/terminal-style/terminal-style.zsh"; do
     [[ -r "$candidate" ]] || continue
     source "$candidate" && return 0
   done
-  print -u2 -r -- "cpp-tools: the shared terminal style (_ui.zsh) is missing"
+  print -u2 -r -- "cpp-tools: the shared terminal style is missing"
   return 1
 } "${(%):-%x}" || return 2
 

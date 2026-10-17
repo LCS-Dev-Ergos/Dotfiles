@@ -8,6 +8,8 @@ import sys
 from contextlib import contextmanager
 from pathlib import Path
 
+from terminal_style import Style, sanitize_lines
+
 from . import process
 from .adapters import ADAPTERS
 from .engine import Bootstrap, select
@@ -21,7 +23,6 @@ from .render import render
 from .runs import Recorder, recorded_runs, runs_directory, stored_report
 from .selection import load_selection, save_selection, selection_path
 from .setup import BootstrapSetup
-from .ui import Style, sanitize_lines
 
 # The JSON report's schema; Interfaces.md says what changes it.
 REPORT_SCHEMA = 1

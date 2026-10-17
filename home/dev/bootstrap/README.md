@@ -57,7 +57,7 @@ flowchart TD
 | --- | --- |
 | `package.nix`, `policy.nix` | Compose the manifest and literal argv policy, package the executor and run fixture checks. |
 | `bootstrap.py`, `core/cli.py` | Stable executable entry, argument parsing, reporting and process exit status. |
-| `core/render.py`, `core/ui.py`, `core/progress.py` | The text report: how each state reads, drawn in the style every shell tool shares (`ui.py` mirrors the tokens of the Zsh style module); the run's live progress on stderr. |
+| `core/render.py`, `core/progress.py` | The text report: how each state reads, drawn with `terminal_style.py`, the Python half of the [terminal style](../../shells/terminal-style/Terminal-Style.md) every shell tool shares; the run's live progress on stderr. `core/__init__.py` loads the style from next to the package or from the repository. |
 | `core/guided.py`, `core/prompt.py` | `setup`: the guided flow over `plan --preflight` reports, and the prompters it asks through (Gum on a color terminal, line prompts otherwise, nothing without a terminal). |
 | `core/manifest.py` | Validate the generated manifest; each toolchain adapter validates its own declaration. |
 | `core/process.py`, `paths.py`, `errors.py` | The single process boundary with scoped child environments, copying output into the run's logs; writable roots and owned directories; operational errors. |
@@ -155,7 +155,7 @@ exit codes are 0 for success, 1 for unsuccessful verification, and 2 for invalid
 arguments or operational failures.
 
 The report is text by default, in the
-[terminal style](../../shells/zsh/docs/Terminal-Style.md) every shell tool
+[terminal style](../../shells/terminal-style/Terminal-Style.md) every shell tool
 shares: a framed masthead, a borderless table with one marker and state word
 per row, the reason, location and fix under any row that needs attention, and
 a summary with the next step. `NO_COLOR`, a pipe or a dumb terminal select plain text,
