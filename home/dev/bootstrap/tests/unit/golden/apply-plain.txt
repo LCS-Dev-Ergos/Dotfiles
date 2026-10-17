@@ -13,4 +13,4 @@ Python   —        pyenv    conflict  /nix/store/0123456789abcdefghijklmnopqrst
 Run · 7 min 6 s
 logs  /home/user/.local/state/dev-bootstrap/runs/20261011T101500Z
 
-[OK]    1 ok; a new shell picks up the defaults.
+[OK]    1 ok. A new shell picks up the defaults.

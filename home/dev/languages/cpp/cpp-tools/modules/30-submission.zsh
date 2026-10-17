@@ -610,9 +610,9 @@ function cpphealth() {
     _cp_report_row Tools warn "Python" "not found (required for new features)"
   fi
   local -a tones=("${(@)${(@)rows#*$tab}%%$tab*}")
-  local hint="all systems operational"
-  (( ${tones[(I)warn]} )) && hint="warnings never fail cpphealth"
-  (( ${tones[(I)error]} )) && hint="resolve the failing checks first"
+  local hint="All systems operational"
+  (( ${tones[(I)warn]} )) && hint="Warnings never fail cpphealth"
+  (( ${tones[(I)error]} )) && hint="Resolve the failing checks first"
   _cp_report "Health check" "$hint" "${rows[@]}"
 }
 

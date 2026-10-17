@@ -32,7 +32,7 @@ class CommandTests(unittest.TestCase):
         code, out, _ = self.machine.run("status")
         self.assertEqual(code, ExitCode.OK)
         self.assertIn("vscode-sync · Stable → Insiders", out)
-        self.assertIn("2 changes; vscode-sync setup applies them.", out)
+        self.assertIn("2 changes. vscode-sync setup applies them.", out)
         code, out, _ = self.machine.run("check", "--json")
         self.assertEqual(code, ExitCode.ATTENTION)
         (report,) = json.loads(out)

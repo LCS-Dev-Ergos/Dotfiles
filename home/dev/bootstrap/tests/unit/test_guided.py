@@ -486,8 +486,8 @@ class FlowTests(unittest.TestCase):
         self.assertEqual(printed[0], "dev-bootstrap · Guided setup")
         self.assertIn("Blockers · apply stops on these", printed)
         self.assertEqual(
-            printed[-1].split(";")[1],
-            " resolve the review's blockers before apply.",
+            printed[-1].split(". ", 1)[1],
+            "Resolve the review's blockers before apply.",
         )
 
     def test_partial_selection_is_saved_and_applied(self):
@@ -683,13 +683,13 @@ class FlowTests(unittest.TestCase):
         guide = Guide({}, None, None, ui.Style(False))
         self.assertEqual(
             guide.closing(settled()),
-            ["[OK]    8 present; nothing to install."],
+            ["[OK]    8 present. Nothing to install."],
         )
         work = settled()
         work["setup"]["initialDefaults"] = ["node"]
         self.assertEqual(
             guide.closing(work),
-            ["[INFO]  8 present; apply carries out this review."],
+            ["[INFO]  8 present. apply carries out this review."],
         )
 
 

@@ -54,6 +54,15 @@ GLYPH = {
     "bottom_left": "╰",
     "bottom_right": "╯",
 }
+# The state words whose marker is not their tone's, as in
+# _zsh_ui_status_glyph.
+STATUS_GLYPHS = {
+    "shadowed": "◆",
+    "unknown": "?",
+    "warn": "?",
+    "warning": "?",
+    "dormant": "◐",
+}
 # The margin on each side, where the masthead's frame lies, and the step in
 # for what a section holds.
 GUTTER = 2
@@ -141,9 +150,14 @@ class Style:
             return f"{color}{text}{RESET}"
         return text
 
-    def marker(self, tone: str) -> str:
-        """The bold one-cell marker of a tone."""
-        return self.paint(_sgr("strong", TONE_TOKENS[tone]), GLYPH[tone])
+    def marker(self, tone: str, word: str = "") -> str:
+        """The bold one-cell marker of a tone, or of a state word.
+
+        A few state words keep a sharper marker than their tone's, as
+        _zsh_ui_status_glyph draws them: ``?`` unknown, ``◐`` dormant.
+        """
+        glyph = STATUS_GLYPHS.get(word.lower(), GLYPH[tone])
+        return self.paint(_sgr("strong", TONE_TOKENS[tone]), glyph)
 
 
 def clamp_width(columns: int, limit: int = MAX_WIDTH) -> int:
@@ -692,19 +706,22 @@ def summary(
 
     counts holds (tone, count, word) in display order. Styled output draws a
     rule across the content, then the markers and counts with the hint on
-    the right margin; plain output is one leveled sentence, whose level
-    `tone` raises when the outcome is worse than the counts say.
+    the right margin; plain output is one leveled line, the counts and the
+    hint as two sentences, whose level `tone` raises when the outcome is
+    worse than the counts say. The hint is a sentence of its own, so it
+    starts with a capital unless it starts with a command.
     """
     shown = [entry for entry in counts if entry[1]]
     hint = sanitize(hint)
     if not style.styled:
         words = ", ".join(f"{count} {word}" for _, count, word in shown)
-        sentence = "; ".join(part for part in (words, hint) if part)
+        text = " ".join(f"{part}." for part in (words, hint) if part)
         label = LABELS[worst([tone, *(entry[0] for entry in shown)])]
-        return [f"{label} {sentence}." if sentence else label.rstrip()]
+        return [f"{label} {text}" if text else label.rstrip()]
     room = style.width - 2 * GUTTER
     items = [
-        f"{style.marker(state)} {count} {word}" for state, count, word in shown
+        f"{style.marker(state, word)} {count} {word}"
+        for state, count, word in shown
     ]
     # Counts wrap rather than overflow a narrow terminal; the hint only
     # restates them, so it gives way first.

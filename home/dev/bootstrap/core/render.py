@@ -317,7 +317,7 @@ def _runtimes(result, style):
         lines += ui.table(style, PREFLIGHT_COLUMNS, rows)
         packages = len(result["preflight"].get("missing", []))
         if blocked:
-            hint = "resolve the preflight before apply"
+            hint = "Resolve the preflight before apply"
         elif packages:
             # Work is due even when every runtime is installed.
             floor = "pending"
@@ -550,7 +550,7 @@ def _runtime_hint(action, health, counts):
             return "apply again after resolving these"
         return f"{plural(unhealthy, 'runtime')} to look at"
     if action == "apply":
-        return "a new shell picks up the defaults"
+        return "A new shell picks up the defaults"
     return "" if health else "verify --health checks the selections"
 
 

@@ -8,4 +8,4 @@ Python   3.14.8   pyenv    conflict  /home/user/.pyenv/versions/3.14.8/bin/pytho
   fix: pyenv install --force 3.14.8
 Ruby     4.0.7    rbenv    ok        /home/user/.rbenv/versions/4.0.7/bin/ruby
 
-[ERROR] 1 ok, 1 conflict; 1 runtime to look at.
+[ERROR] 1 ok, 1 conflict. 1 runtime to look at.

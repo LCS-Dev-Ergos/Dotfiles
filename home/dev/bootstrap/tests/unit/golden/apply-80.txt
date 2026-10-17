@@ -16,4 +16,4 @@
     \e[38;5;245mlogs\e[0m  \e[38;5;245m~/.local/state/dev-bootstrap/runs/20261011T101500Z\e[0m
 
   \e[2;34m────────────────────────────────────────────────────────────────────────────\e[0m
-  \e[1;32m●\e[0m 1 ok                                     \e[38;5;245ma new shell picks up the defaults\e[0m
+  \e[1;32m●\e[0m 1 ok                                     \e[38;5;245mA new shell picks up the defaults\e[0m

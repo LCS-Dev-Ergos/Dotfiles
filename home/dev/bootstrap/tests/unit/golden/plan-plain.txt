@@ -17,4 +17,4 @@ Managers · apply installs these
 ECOSYSTEM  STATE    LOCATION
 Haskell    missing  /home/user/.ghcup/bin/ghcup
 
-[ERROR] 2 present, 2 missing, 1 conflict; apply installs 2 runtimes.
+[ERROR] 2 present, 2 missing, 1 conflict. apply installs 2 runtimes.

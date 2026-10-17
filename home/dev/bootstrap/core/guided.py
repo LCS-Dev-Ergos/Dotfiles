@@ -454,11 +454,11 @@ class Guide:
             counts[row["state"]] = counts.get(row["state"], 0) + 1
         blocked = blockers(result)
         if blocked:
-            hint, tone = "resolve the review's blockers before apply", "error"
+            hint, tone = "Resolve the review's blockers before apply", "error"
         elif work(result):
             hint, tone = "apply carries out this review", "pending"
         else:
-            hint, tone = "nothing to install", "ok"
+            hint, tone = "Nothing to install", "ok"
         return ui.summary(
             self.style,
             [

@@ -16,4 +16,4 @@ Privilege        apply asks once for administrator rights
 Python 3.14.9    pyenv cannot build it
   fix: upgrade pyenv, then plan again
 
-[INFO]  1 present, 1 missing; resolve the preflight before apply.
+[INFO]  1 present, 1 missing. Resolve the preflight before apply.

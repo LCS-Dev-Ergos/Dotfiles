@@ -84,7 +84,8 @@ A terminal that cannot dim draws the rules in plain blue.
 
 Event lines use their own signs: `›` information, `✓` done, `▲` warning and
 `✖` error. `_zsh_ui_status_glyph` maps common status words to tones and keeps
-a few sharper markers (`?` unknown, `◐` dormant). The frame uses `╭╮╰╯`,
+a few sharper markers (`?` unknown, `◐` dormant); Python's
+`Style.marker(tone, word)` draws the same ones. The frame uses `╭╮╰╯`,
 `│` and `─`.
 
 ## Layout
@@ -115,7 +116,7 @@ a few sharper markers (`?` unknown, `◐` dormant). The frame uses `╭╮╰╯
 | `_zsh_ui_card` | — | A section title and `key<TAB>value` fields one indent in. |
 | `_zsh_ui_definition_list` | — | Help menus: accent terms, muted descriptions. |
 | `_zsh_ui_callout` | `callout` | A notice set off by a bar in its tone. |
-| `_zsh_ui_summary` | `summary` | Rule across the content, per-state counts, and the next step on the right. |
+| `_zsh_ui_summary` | `summary` | Rule across the content, per-state counts, and the next step on the right. Plain, one leveled line of two sentences: `[INFO]  2 changes. Apply installs them.` The hint is a sentence of its own, capitalized unless it starts with a command. |
 | `_zsh_ui_log` | — | One event line; warnings and errors go to stderr. |
 | `_zsh_ui_rule` | — | A rule across the content. |
 | `_zsh_ui_marker`, `_zsh_ui_status_glyph` | `Style.marker` | A tone's or a status word's marker. |

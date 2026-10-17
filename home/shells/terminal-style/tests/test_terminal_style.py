@@ -110,6 +110,21 @@ class ParityTests(unittest.TestCase):
                 assert found is not None, name
                 self.assertEqual(int(found[1]), value)
 
+    def test_state_markers_match(self) -> None:
+        """The words with a marker of their own are the shell's."""
+        body = re.search(
+            r"_zsh_ui_status_glyph\(\) \{\n(.*?)\n\}", SHELL, re.S
+        )
+        assert body is not None
+        found: dict[str, str] = {}
+        for words, glyph in re.findall(
+            r'([a-z|]+)\) REPLY="([^"$]+)" ;;', body[1]
+        ):
+            found.update(dict.fromkeys(words.split("|"), glyph))
+        for plain in ("x", "!", "-", "*"):
+            found = {k: v for k, v in found.items() if v != plain}
+        self.assertEqual(found, ui.STATUS_GLYPHS)
+
     def test_gum_theme_matches(self) -> None:
         """Gum is themed as _zsh_ui_gum themes it."""
         body = re.search(r"_zsh_ui_gum\(\) \{\n(.*?)\n\}", SHELL, re.S)

@@ -11,4 +11,4 @@ error  runtimes: pyenv exited 1: BUILD FAILED (Arch Linux using python-build 2.8
 log    /home/user/.local/state/dev-bootstrap/runs/20261011T101500Z/python.log
 logs   /home/user/.local/state/dev-bootstrap/runs/20261011T101500Z
 
-[ERROR] 1 present, 1 missing; apply again after resolving it.
+[ERROR] 1 present, 1 missing. apply again after resolving it.

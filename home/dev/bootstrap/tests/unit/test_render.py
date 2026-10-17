@@ -496,7 +496,7 @@ class GuaranteeTests(unittest.TestCase):
         lines = list(render(result, ui.Style(False)))
         self.assertEqual(
             lines[-1],
-            "[OK]    1 ok; 1 global selection stays on another release; "
+            "[OK]    1 ok. 1 global selection stays on another release; "
             "verify --health lists them.",
         )
 
@@ -511,7 +511,7 @@ class GuaranteeTests(unittest.TestCase):
         self.assertIn("apply cannot install native packages", text)
         self.assertNotIn("runs:", text)
         self.assertTrue(
-            text.endswith("; resolve the preflight before apply."), text
+            text.endswith(". Resolve the preflight before apply."), text
         )
         # Nothing missing and nothing stopping: the usual next step.
         result = copy.deepcopy(CASES["preflight"])
@@ -521,7 +521,7 @@ class GuaranteeTests(unittest.TestCase):
             entry.pop("unbuildable", None)
         text = "\n".join(render(result, ui.Style(False)))
         self.assertIn("Native packages  all 3 packages installed", text)
-        self.assertTrue(text.endswith("; apply installs 1 runtime."), text)
+        self.assertTrue(text.endswith(". apply installs 1 runtime."), text)
 
     def test_a_preflight_with_packages_to_install_says_so(self):
         result = copy.deepcopy(CASES["preflight"])
@@ -531,7 +531,7 @@ class GuaranteeTests(unittest.TestCase):
         lines = list(render(result, ui.Style(False)))
         self.assertTrue(
             lines[-1].endswith(
-                f"; apply installs {packages} native packages and 1 runtime."
+                f". apply installs {packages} native packages and 1 runtime."
             ),
             lines[-1],
         )
@@ -542,7 +542,7 @@ class GuaranteeTests(unittest.TestCase):
         self.assertTrue(lines[-1].startswith("[INFO]"), lines[-1])
         self.assertTrue(
             lines[-1].endswith(
-                f"; apply installs {packages} native packages."
+                f". apply installs {packages} native packages."
             ),
             lines[-1],
         )

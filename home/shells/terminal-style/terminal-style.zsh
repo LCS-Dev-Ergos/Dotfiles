@@ -1256,7 +1256,9 @@ _zsh_ui_callout() {
 # @description Closes a report: a rule across the content column, then the
 # count of each state with its marker and, on the right margin, what to do
 # next. Counts wrap rather than overflow, and the hint gives way first. Plain
-# output is one leveled sentence, labeled by the most severe tone.
+# output is one leveled line, labeled by the most severe tone: the counts and
+# the hint as two sentences, so a hint starts with a capital unless it starts
+# with a command.
 # @option --hint <text> What to do next.
 # @option --width <n> Width to fit instead of COLUMNS.
 # @arg $@ string Tab-separated rows: tone, count, word. Zero counts are left
@@ -1306,8 +1308,9 @@ _zsh_ui_summary() {
     local -A labels=(ok '[OK]    ' muted '[OK]    ' pending '[INFO]  '
       warn '[WARN]  ' error '[ERROR] ')
     local sentence="${(j:, :)words}"
-    [[ -n "$hint" ]] && sentence+="${sentence:+; }$hint"
-    print -r -- "${labels[$worst]}${sentence}${sentence:+.}"
+    sentence+="${sentence:+.}"
+    [[ -n "$hint" ]] && sentence+="${sentence:+ }$hint."
+    print -r -- "${labels[$worst]}${sentence}"
     return 0
   fi
 

@@ -367,15 +367,15 @@ styled_log="$(ZSH_UI_STYLE=ansi _zsh_ui_log ok complete)" || return 1
 
 typeset plain_summary styled_summary
 plain_summary="$(
-  ZSH_UI_STYLE=plain _zsh_ui_summary --hint "apply installs 2" \
+  ZSH_UI_STYLE=plain _zsh_ui_summary --hint "Apply installs 2" \
     $'ok\t3\tpresent' $'pending\t2\tmissing' $'error\t0\tconflict'
 )" || return 1
-[[ "$plain_summary" == "[INFO]  3 present, 2 missing; apply installs 2." ]] || {
+[[ "$plain_summary" == "[INFO]  3 present, 2 missing. Apply installs 2." ]] || {
   print -u2 "FAIL: plain summary changed: $plain_summary"
   return 1
 }
 styled_summary="$(
-  COLUMNS=60 ZSH_UI_STYLE=ansi _zsh_ui_summary --hint "apply installs 2" \
+  COLUMNS=60 ZSH_UI_STYLE=ansi _zsh_ui_summary --hint "Apply installs 2" \
     $'ok\t3\tpresent' $'pending\t2\tmissing'
 )" || return 1
 typeset -a summary_lines=("${(@f)styled_summary}")
@@ -385,7 +385,7 @@ _ui_strip "${summary_lines[1]}"
   return 1
 }
 _ui_strip "${summary_lines[2]}"
-[[ "$REPLY" == "  ● 3 present   ▲ 2 missing"*"apply installs 2" ]] &&
+[[ "$REPLY" == "  ● 3 present   ▲ 2 missing"*"Apply installs 2" ]] &&
   (( ${(m)#REPLY} == 58 )) || {
   print -u2 "FAIL: summary lost its markers or right-aligned hint"
   return 1

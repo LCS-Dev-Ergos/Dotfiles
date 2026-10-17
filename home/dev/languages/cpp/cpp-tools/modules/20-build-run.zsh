@@ -456,7 +456,7 @@ function cppjudge() {
     $'Case\tVerdict\tTime' "${result_rows[@]}"
   echo ""
   local hint=""
-  (( failed )) && hint="each failing case printed its output above"
+  (( failed )) && hint="Each failing case printed its output above"
   _cp_ui_width
   _cp_ui_call _zsh_ui_summary --width "$REPLY" --hint "$hint" \
     "ok"$'\t'"$passed"$'\t'"passed" \

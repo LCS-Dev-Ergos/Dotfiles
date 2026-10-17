@@ -297,11 +297,7 @@ def _sections(plan: Plan, style: ui.Style) -> list[str]:
 
 
 def _summary(plan: Plan, style: ui.Style) -> list[str]:
-    """The closing counts and the next step.
-
-    Plain output appends the hint to the counts as a clause, so "nothing to
-    do" starts with a capital only where it stands alone.
-    """
+    """The closing counts and the next step."""
     buckets = Counter(_bucket(decision.action) for decision in plan.decisions)
     tones = Counter(finding.tone for finding in plan.findings)
     counts = [
@@ -310,10 +306,7 @@ def _summary(plan: Plan, style: ui.Style) -> list[str]:
         ("warn", buckets["warn"] + tones["warn"], "warnings"),
         ("error", buckets["error"] + tones["error"], "problems"),
     ]
-    hint = HINTS[plan.command]
-    if not plan.changed:
-        alone = style.styled or not any(count for _, count, _ in counts)
-        hint = "Nothing to do" if alone else "nothing to do"
+    hint = HINTS[plan.command] if plan.changed else "Nothing to do"
     return ui.summary(style, counts, hint)
 
 
