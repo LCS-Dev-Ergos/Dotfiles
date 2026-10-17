@@ -337,6 +337,12 @@ ShellCheck. It runs inside the locked `ci` shell of
 
 `just ci` ends with `git diff --check`.
 
+Ruff leaves a `.ruff_cache` directory wherever it runs. `just clean` removes
+them (`scripts/maintenance/clean-ruff-caches.sh`; `--dry-run` only lists them).
+It deletes a directory only when it is a real directory, ignored by Git, holds
+no tracked file and carries Ruff's `CACHEDIR.TAG`; anything else of that name
+is reported and kept, and nested Git repositories are not entered.
+
 `nix flake check --no-build` proves that every output evaluates on both systems
 but runs none of the checks. CI builds the check derivations a runner can
 afford: `cpp-tools`, whose check phase is its Zsh test suite, on both systems,

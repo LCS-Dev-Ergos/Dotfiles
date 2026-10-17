@@ -34,6 +34,8 @@ if ! temp_root="$(
   exit 2
 fi
 cleanup() {
+  # A fixture may leave a read-only directory behind when a test fails.
+  chmod -R u+rwx -- "$temp_root" 2>/dev/null || true
   rm -rf -- "$temp_root"
 }
 trap cleanup EXIT
@@ -366,6 +368,110 @@ if ! grep -qx 'flake update --flake .* commit-pin git-pin gitlab-pin query-pin t
   cat "$nix_log" "$pin_fixture/flake.nix" >&2
   exit 1
 fi
+
+printf 'Ruff cache cleanup\n'
+# Real caches at the root, deep down and below an awkward name, next to
+# lookalikes that must survive: no tag, a foreign tag, a symlink to a cache
+# outside the tree, tracked content (also below names Git would read as
+# pathspec magic or a glob), a cache inside a nested repository, and one
+# whose contents cannot all be deleted. The run happens with GIT_DIR naming
+# a decoy repository, which must not change whose index is consulted.
+clean_fixture="$temp_root/clean-fixture"
+clean_outside="$temp_root/clean-outside"
+clean_decoy="$temp_root/clean-decoy"
+mkdir -p "$clean_fixture/scripts/maintenance"
+cp "$repo_root/scripts/maintenance/clean-ruff-caches.sh" \
+  "$clean_fixture/scripts/maintenance/"
+"$real_git" -C "$clean_fixture" init -q
+printf '.ruff_cache/\n' >"$clean_fixture/.gitignore"
+ruff_cache() {
+  mkdir -p "$1/0.16.10"
+  printf 'Signature: 8a477f597d28d172789f06886806bc55\n' >"$1/CACHEDIR.TAG"
+  printf 'cache\n' >"$1/0.16.10/entry"
+}
+clean_removable=(.ruff_cache pkg/sub/.ruff_cache $'odd name\n/.ruff_cache')
+for cache in "${clean_removable[@]}"; do
+  ruff_cache "$clean_fixture/$cache"
+done
+mkdir -p "$clean_fixture/untagged/.ruff_cache"
+ruff_cache "$clean_fixture/foreign/.ruff_cache"
+printf 'Signature: 0000\n' >"$clean_fixture/foreign/.ruff_cache/CACHEDIR.TAG"
+ruff_cache "$clean_outside"
+mkdir -p "$clean_fixture/linked"
+ln -s "$clean_outside" "$clean_fixture/linked/.ruff_cache"
+ruff_cache "$clean_fixture/tracked/.ruff_cache"
+"$real_git" -C "$clean_fixture" add -f tracked/.ruff_cache/0.16.10/entry
+for name in : '[x]'; do
+  ruff_cache "$clean_fixture/$name/.ruff_cache"
+  GIT_LITERAL_PATHSPECS=1 "$real_git" -C "$clean_fixture" \
+    add -f "$name/.ruff_cache/0.16.10/entry"
+done
+mkdir -p "$clean_fixture/nested"
+"$real_git" -C "$clean_fixture/nested" init -q
+ruff_cache "$clean_fixture/nested/.ruff_cache"
+clean_kept=(untagged foreign linked tracked : '[x]' nested)
+clean_left=6
+# Root may delete inside a read-only directory, so only others can test it.
+if ((EUID != 0)); then
+  ruff_cache "$clean_fixture/locked/.ruff_cache"
+  chmod 0500 "$clean_fixture/locked/.ruff_cache/0.16.10"
+  clean_kept+=(locked)
+  clean_left=7
+fi
+"$real_git" init -q "$clean_decoy"
+
+clean_run() {
+  GIT_DIR="$clean_decoy/.git" \
+    bash "$clean_fixture/scripts/maintenance/clean-ruff-caches.sh" "$@"
+}
+expect_status 'clean rejects an unknown option' 2 clean_run --force
+expect_status 'clean --dry-run reports the lookalikes' 1 clean_run --dry-run
+for cache in "${clean_removable[@]}"; do
+  if [[ ! -f "$clean_fixture/$cache/CACHEDIR.TAG" ]]; then
+    printf 'FAIL: clean --dry-run removed %q\n' "$cache" >&2
+    exit 1
+  fi
+done
+expect_status 'clean leaves the lookalikes alone' 1 clean_run
+expect_output 'clean counts what it removed' \
+  "Removed 3 Ruff cache(s); $clean_left left alone."
+expect_output 'clean keeps a tracked cache below pathspec magic' \
+  'kept :/.ruff_cache (' stderr
+expect_output 'clean keeps a tracked cache below a glob' \
+  'kept [x]/.ruff_cache (' stderr
+for cache in "${clean_removable[@]}"; do
+  if [[ -e "$clean_fixture/$cache" ]]; then
+    printf 'FAIL: clean kept the Ruff cache %q\n' "$cache" >&2
+    exit 1
+  fi
+done
+for kept in "${clean_kept[@]}"; do
+  if [[ ! -e "$clean_fixture/$kept/.ruff_cache" ]]; then
+    printf 'FAIL: clean removed %s/.ruff_cache\n' "$kept" >&2
+    exit 1
+  fi
+done
+if [[ ! -f "$clean_outside/0.16.10/entry" ]]; then
+  printf 'FAIL: clean followed a symlink out of the tree\n' >&2
+  exit 1
+fi
+clean_resumed=0
+if ((EUID != 0)); then
+  expect_output 'clean reports a cache it could not empty' \
+    'kept locked/.ruff_cache (could not remove all of it)' stderr
+  if [[ ! -f "$clean_fixture/locked/.ruff_cache/CACHEDIR.TAG" ]]; then
+    printf 'FAIL: clean deleted the tag of a cache it could not empty\n' >&2
+    exit 1
+  fi
+  chmod 0700 "$clean_fixture/locked/.ruff_cache/0.16.10"
+  clean_resumed=1
+fi
+rm -rf -- "$clean_fixture/untagged" "$clean_fixture/foreign" \
+  "$clean_fixture/linked" "$clean_fixture/tracked" "$clean_fixture/:" \
+  "$clean_fixture/[x]"
+expect_status 'clean succeeds once only caches remain' 0 clean_run
+expect_output 'clean finishes a cache an earlier run left behind' \
+  "Removed $clean_resumed Ruff cache(s); 0 left alone."
 
 printf 'Runtime baseline updater\n'
 # Recorded upstream data and temporary copies of the declarations; the real

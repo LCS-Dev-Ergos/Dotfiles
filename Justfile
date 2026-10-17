@@ -127,6 +127,13 @@ audit-ownership *args:
 audit-live:
     scripts/audits/audit-live-config.sh
 
+# Maintenance ------------------------------------------------------------------
+
+# Remove the Ruff caches below the repository; --dry-run only lists them
+[group('maintenance')]
+clean *args:
+    scripts/maintenance/clean-ruff-caches.sh "$@"
+
 # System -----------------------------------------------------------------------
 
 # Build the complete configuration without activating it
