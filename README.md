@@ -333,6 +333,7 @@ ShellCheck. It runs inside the locked `ci` shell of
 | `just flake-check` | `nix flake check --no-build --all-systems --show-trace` |
 | `just test-bootstrap`, `just test-bootstrap package` | `scripts/bootstrap/ci-development-bootstrap.sh source`, `package` |
 | `just test-zsh` | `home/shells/zsh/config/tests/run-all.zsh --full` |
+| `just test-security` | `scripts/tests/security_regressions.py` |
 
 `just ci` ends with `git diff --check`.
 

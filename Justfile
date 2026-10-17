@@ -112,7 +112,7 @@ test-security:
 
 # Every local check before pushing
 [group('checks')]
-ci: check flake-check (test-bootstrap 'source') (test-bootstrap 'package') test-zsh
+ci: check flake-check (test-bootstrap 'source') (test-bootstrap 'package') test-zsh test-security
     git diff --check
 
 # Audits -----------------------------------------------------------------------
