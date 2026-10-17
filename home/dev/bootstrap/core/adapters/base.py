@@ -143,7 +143,7 @@ class Adapter:
             directories.append(self.root / self.runtime_directory)
         return directories
 
-    # Manager -----------------------------------------------------------------
+    # Manager ------------------------------------------------------------------
 
     def manager_candidates(self):
         """Canonical manager locations; None falls back to PATH discovery."""
@@ -196,7 +196,7 @@ class Adapter:
                 f"Unsupported native manager: {output}; requires >= {minimum}"
             )
 
-    # Declared baseline -------------------------------------------------------
+    # Declared baseline --------------------------------------------------------
 
     def baseline(self):
         """One row per declared runtime identity, with its expected path."""
@@ -295,7 +295,7 @@ class Adapter:
     def install(self, row):
         raise NotImplementedError
 
-    # Verification ------------------------------------------------------------
+    # Verification -------------------------------------------------------------
 
     def check_runtime(self, path):
         """Reject a runtime path before executing it."""
@@ -337,7 +337,7 @@ class Adapter:
         self.canary(row, path, complete=exact)
         return identity
 
-    # Global selection --------------------------------------------------------
+    # Global selection ---------------------------------------------------------
 
     def selection(self):
         """The manager's global selection as recorded on disk, or None."""

@@ -164,7 +164,7 @@ class ToolchainAdapter(Adapter):
                 f"Unrecognized native {self.language} manager: {output}"
             )
 
-    # Declared baseline -------------------------------------------------------
+    # Declared baseline --------------------------------------------------------
 
     def binary(self, selection=None):
         """The runtime executable for a selection, or for the declaration."""
@@ -185,7 +185,7 @@ class ToolchainAdapter(Adapter):
             if installed.get("component") == row.get("component")
         )
 
-    # Verification ------------------------------------------------------------
+    # Verification -------------------------------------------------------------
 
     def check_runtime(self, path):
         if (
@@ -249,7 +249,7 @@ class ToolchainAdapter(Adapter):
                 f"{self.language} runtime canary failed: {output}"
             )
 
-    # Global selection --------------------------------------------------------
+    # Global selection ---------------------------------------------------------
 
     def read_selection(self):
         raise NotImplementedError

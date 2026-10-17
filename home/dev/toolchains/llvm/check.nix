@@ -161,7 +161,7 @@ in
     [[ -x "$bin/$program" ]] || fail "missing $program"
   done
 
-  # ----- Host ----- #
+  # Host -----------------------------------------------------------------------
   printf '%s\n' 'int main(void) { return 0; }' > smoke.c
   diagnostics="$($bin/cc -### -c smoke.c 2>&1)" || fail "cc -### fails: $diagnostics"
   sysroot_pattern='"-isysroot" "([^"]*)"'
@@ -193,7 +193,7 @@ in
   version_at_least "$macos_version" ${deploymentTarget} ||
     fail "macOS $macos_version is older than the deployment target ${deploymentTarget} in home/dev/toolchains/cc-toolchain.nix"
 
-  # ----- Compiler policy ----- #
+  # Compiler policy ------------------------------------------------------------
   grep -Fq -- '-apple-macosx${deploymentTarget}.0' <<<"$diagnostics" ||
     fail "the native triple does not target macOS ${deploymentTarget}"
 
@@ -211,7 +211,7 @@ in
   [[ "$(printf '%s\n' '#define VALUE 42' 'VALUE' | $bin/cpp -P | tr -d '[:space:]')" == 42 ]] ||
     fail "cpp does not read standard input"
 
-  # ----- Clang links ----- #
+  # Clang links ----------------------------------------------------------------
   quiet $bin/cc smoke.c -o smoke-c
   ./smoke-c
   check_build_version smoke-c
@@ -344,7 +344,7 @@ in
       fail "the sanitizer runtime is not referenced through the stable directory"
   ''}
 
-  # ----- LLD ----- #
+  # LLD ------------------------------------------------------------------------
   # Which linker a -fuse-ld=lld link gets depends on the SDK version, so both
   # outcomes are exercised on every host through views on either side of
   # home/dev/toolchains/cc-toolchain.nix's lld.newestSdkMajor. Until September 2026 only the
@@ -404,7 +404,7 @@ in
     }
   fi
 
-  # ----- GCC ----- #
+  # GCC ------------------------------------------------------------------------
   printf '%s\n' \
     '#include <bits/stdc++.h>' \
     '#include <ext/pb_ds/assoc_container.hpp>' \
@@ -502,7 +502,7 @@ in
   quiet $bin/gcc -flto -O2 lto-main.c -L. -lincrement -o gcc-lto
   ./gcc-lto
 
-  # ----- Tooling ----- #
+  # Tooling --------------------------------------------------------------------
   printf '[{"directory":"%s","file":"sdk.cc","command":"%s -std=c++23 -c sdk.cc"}]\n' \
     "$PWD" "$bin/c++" > compile_commands.json
   clangd_output="$($bin/clangd --check=sdk.cc 2>&1)" || {

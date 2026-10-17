@@ -220,7 +220,7 @@ class AdaAdapter(ToolchainAdapter):
         staged.chmod(0o755)
         os.replace(staged, target)
 
-    # Declared baseline -------------------------------------------------------
+    # Declared baseline --------------------------------------------------------
 
     def deployed(self, crate, release):
         """The directory alr deployed a release into, or None."""
@@ -296,7 +296,7 @@ class AdaAdapter(ToolchainAdapter):
             if (found := DEPLOYED.fullmatch(path.name))
         )
 
-    # Verification ------------------------------------------------------------
+    # Verification -------------------------------------------------------------
 
     def identity(self, row, path):
         """The release alr deployed: GNAT reports its GCC version instead."""
@@ -379,7 +379,7 @@ class AdaAdapter(ToolchainAdapter):
         if output != "bootstrap-ok":
             raise BootstrapError(f"ada runtime canary failed: {output}")
 
-    # Global selection --------------------------------------------------------
+    # Global selection ---------------------------------------------------------
 
     def choice(self, component):
         """The crate and release the global settings select, or None."""

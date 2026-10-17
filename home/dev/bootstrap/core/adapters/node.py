@@ -98,7 +98,7 @@ class NodeAdapter(Adapter):
             cwd=str(self.context.state),
         )
 
-    # Installation ------------------------------------------------------------
+    # Installation -------------------------------------------------------------
 
     def install(self, row):
         """Install into a staging root, verify there, then move into place.

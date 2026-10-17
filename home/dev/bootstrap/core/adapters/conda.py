@@ -36,7 +36,7 @@ class CondaAdapter(ToolchainAdapter):
     def manager_candidates(self):
         return [self.root / "bin/conda"]
 
-    # Declared baseline -------------------------------------------------------
+    # Declared baseline --------------------------------------------------------
 
     def binary(self, selection=None):
         """The base environment's interpreter."""
@@ -50,7 +50,7 @@ class CondaAdapter(ToolchainAdapter):
             f"installer; inspect {self.root}"
         )
 
-    # Verification ------------------------------------------------------------
+    # Verification -------------------------------------------------------------
 
     def identity(self, row, path):
         # The base interpreter reports the conda release installed into it,
@@ -79,7 +79,7 @@ class CondaAdapter(ToolchainAdapter):
             ]
         )
 
-    # Global selection --------------------------------------------------------
+    # Global selection ---------------------------------------------------------
 
     def read_selection(self):
         """The base environment is the only global environment."""

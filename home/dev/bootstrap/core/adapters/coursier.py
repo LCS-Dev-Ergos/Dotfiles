@@ -85,7 +85,7 @@ class ScalaAdapter(JdkTool, ToolchainAdapter):
         if not re.search(r"[0-9]+\.[0-9]+", output):
             raise BootstrapError(f"Unrecognized Coursier launcher: {output}")
 
-    # Declared baseline -------------------------------------------------------
+    # Declared baseline --------------------------------------------------------
 
     def distributions(self):
         return self.root / RELEASES
@@ -114,7 +114,7 @@ class ScalaAdapter(JdkTool, ToolchainAdapter):
             return []
         return sorted(path.name for path in releases.iterdir())
 
-    # Verification ------------------------------------------------------------
+    # Verification -------------------------------------------------------------
 
     def exercise(self, executable, work, call):
         classes = work / "classes"
@@ -134,7 +134,7 @@ class ScalaAdapter(JdkTool, ToolchainAdapter):
         java = self.java_home() / "bin/java"
         return call([java, "-cp", f"{classes}{os.pathsep}{library}", "canary"])
 
-    # Global selection --------------------------------------------------------
+    # Global selection ---------------------------------------------------------
 
     def read_selection(self):
         """The distribution the `scala` launcher runs, or the launcher itself."""

@@ -92,7 +92,7 @@ class PruneTests(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    # Fixtures ---------------------------------------------------------------
+    # Fixtures -----------------------------------------------------------------
 
     def select(self, *languages, retired):
         self.data["retired"] = retired
@@ -241,7 +241,7 @@ class PruneTests(unittest.TestCase):
             + "".join(f'{key} = "{value}"\n' for key, value in use.items())
         )
 
-    # Fixture managers -------------------------------------------------------
+    # Fixture managers ---------------------------------------------------------
 
     def run_process(self, arguments, **kwargs):
         args = [str(argument) for argument in arguments]
@@ -362,7 +362,7 @@ class PruneTests(unittest.TestCase):
     def apply(self):
         return [r.report() for r in Prune(self.context).apply()]
 
-    # Tests ------------------------------------------------------------------
+    # Tests --------------------------------------------------------------------
 
     def test_only_installed_retired_releases_are_planned_without_changes(self):
         self.select(

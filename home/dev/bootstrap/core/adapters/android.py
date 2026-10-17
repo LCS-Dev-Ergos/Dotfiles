@@ -204,7 +204,7 @@ class AndroidAdapter(JdkTool, ToolchainAdapter):
                 f"{self.tools} reports {revision or 'no release'}"
             )
 
-    # Declared baseline -------------------------------------------------------
+    # Declared baseline --------------------------------------------------------
 
     def declared_release(self, component):
         return self.spec[KEYS[component]]
@@ -330,7 +330,7 @@ class AndroidAdapter(JdkTool, ToolchainAdapter):
                 )
         return found
 
-    # Verification ------------------------------------------------------------
+    # Verification -------------------------------------------------------------
 
     def check_runtime(self, path):
         if not path.is_file() or not path.resolve().is_relative_to(
@@ -490,7 +490,7 @@ class AndroidAdapter(JdkTool, ToolchainAdapter):
         if not ok:
             raise BootstrapError(f"android canary failed: {output}")
 
-    # Global selection --------------------------------------------------------
+    # Global selection ---------------------------------------------------------
 
     def read_selection(self):
         """Projects choose build tools and platforms; nothing is global."""

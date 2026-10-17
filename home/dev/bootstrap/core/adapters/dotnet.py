@@ -83,7 +83,7 @@ class DotnetAdapter(ToolchainAdapter):
         with tempfile.TemporaryDirectory(prefix="native-dotnet-") as work:
             self.cli("--list-sdks", work=Path(work))
 
-    # Declared baseline -------------------------------------------------------
+    # Declared baseline --------------------------------------------------------
 
     def binary(self, selection=None):
         return (
@@ -102,7 +102,7 @@ class DotnetAdapter(ToolchainAdapter):
         self.run_installer()
         row["path"] = str(self.binary(row["version"]))
 
-    # Verification ------------------------------------------------------------
+    # Verification -------------------------------------------------------------
 
     def check_runtime(self, path):
         muxer = self.manager_candidates()[0]
@@ -164,7 +164,7 @@ class DotnetAdapter(ToolchainAdapter):
         if output != "bootstrap-ok":
             raise BootstrapError(f"dotnet runtime canary failed: {output}")
 
-    # Global selection --------------------------------------------------------
+    # Global selection ---------------------------------------------------------
 
     def read_selection(self):
         """The muxer picks the newest SDK; nothing records a selection."""

@@ -139,7 +139,7 @@ class PythonAdapter(Adapter):
             **options,
         )
 
-    # Source build ------------------------------------------------------------
+    # Source build -------------------------------------------------------------
 
     def definitions(self):
         """The CPython releases the native python-build knows how to build."""

@@ -135,7 +135,7 @@ class Bootstrap:
     def manager(self, language):
         return self.adapter(language).manager()
 
-    # Run record ----------------------------------------------------------------
+    # Run record ---------------------------------------------------------------
 
     def log(self, name):
         """Keep the block's child output in the run's log `name`."""
@@ -147,7 +147,7 @@ class Bootstrap:
             return nullcontext()
         return self.recorder.step(kind, **fields)
 
-    # Installation journal ----------------------------------------------------
+    # Installation journal -----------------------------------------------------
 
     @property
     def journal_path(self):
