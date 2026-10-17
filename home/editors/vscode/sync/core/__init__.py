@@ -62,7 +62,7 @@ def _load_terminal_style() -> None:
         raise ImportError(f"terminal_style.py is missing next to {root}")
     spec = importlib.util.spec_from_file_location("terminal_style", path)
     if spec is None or spec.loader is None:
-        raise ImportError(f"cannot load {path}")
+        raise ImportError(f"Cannot load {path}")
     module = importlib.util.module_from_spec(spec)
     sys.modules["terminal_style"] = module
     try:

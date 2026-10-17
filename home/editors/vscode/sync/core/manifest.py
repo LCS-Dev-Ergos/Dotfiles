@@ -137,7 +137,7 @@ def read_json(path: Path) -> tuple[bytes, object] | None:
     except FileNotFoundError:
         return None
     except OSError as error:
-        raise SyncError(f"cannot read {path}: {error.strerror}") from None
+        raise SyncError(f"Cannot read {path}: {error.strerror}") from None
     try:
         return raw, json.loads(raw.decode("utf-8-sig"))
     except (UnicodeDecodeError, ValueError) as error:

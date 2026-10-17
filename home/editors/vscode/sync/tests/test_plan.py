@@ -422,7 +422,7 @@ class ServerTests(unittest.TestCase):
         self.machine.manifest(SERVER, [self.old])
         plan = plan_setup(self.machine.snapshot(SERVER))
         self.assertFalse(plan.changed)
-        self.assertIn("no server build", plan.findings[0].text)
+        self.assertIn("No server build", plan.findings[0].text)
 
     def test_clean_keeps_what_a_server_links_to(self) -> None:
         """Stable's folder stays while the server uses it."""

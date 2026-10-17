@@ -44,9 +44,9 @@ ITEM_TONES = {
 ITEM_DETAILS = {
     ItemStatus.LINKED: "",
     ItemStatus.INDEPENDENT: "Insiders' own file; setup links it",
-    ItemStatus.MISSING: "setup links it",
+    ItemStatus.MISSING: "Missing; setup links it",
     ItemStatus.BROKEN: "Stable has none; setup removes the link",
-    ItemStatus.FOREIGN: "links elsewhere; left alone",
+    ItemStatus.FOREIGN: "Links elsewhere; left alone",
     ItemStatus.NO_SOURCE: "Stable has none",
 }
 
@@ -297,7 +297,11 @@ def _sections(plan: Plan, style: ui.Style) -> list[str]:
 
 
 def _summary(plan: Plan, style: ui.Style) -> list[str]:
-    """The closing counts and the next step."""
+    """The closing counts and the next step.
+
+    Plain output appends the hint to the counts as a clause, so "nothing to
+    do" starts with a capital only where it stands alone.
+    """
     buckets = Counter(_bucket(decision.action) for decision in plan.decisions)
     tones = Counter(finding.tone for finding in plan.findings)
     counts = [
@@ -306,7 +310,10 @@ def _summary(plan: Plan, style: ui.Style) -> list[str]:
         ("warn", buckets["warn"] + tones["warn"], "warnings"),
         ("error", buckets["error"] + tones["error"], "problems"),
     ]
-    hint = HINTS[plan.command] if plan.changed else "nothing to do"
+    hint = HINTS[plan.command]
+    if not plan.changed:
+        alone = style.styled or not any(count for _, count, _ in counts)
+        hint = "Nothing to do" if alone else "nothing to do"
     return ui.summary(style, counts, hint)
 
 
@@ -331,17 +338,17 @@ def _decision_order(decision: Decision) -> tuple[int, tuple[int, str], str]:
 def _change(operation: Operation) -> tuple[str | Cell, ...]:
     """The cells of one change."""
     if isinstance(operation, LinkFolder):
-        return "link", operation.name, "to Stable's folder"
+        return "link", operation.name, "To Stable's folder"
     if isinstance(operation, RestoreFolder):
-        return "copy", operation.name, "from Stable's folder"
+        return "copy", operation.name, "From Stable's folder"
     if isinstance(operation, UnlinkFolder):
-        return "unlink", operation.name, "no profile uses it"
+        return "unlink", operation.name, "No profile uses it"
     if isinstance(operation, AdoptFolder):
-        return "adopt", operation.name, "the downloaded build"
+        return "adopt", operation.name, "The downloaded build"
     if isinstance(operation, LinkItem):
-        return "link", operation.name, "to Stable's"
+        return "link", operation.name, "To Stable's"
     if isinstance(operation, RestoreItem):
-        return "copy", operation.name, "from Stable's"
+        return "copy", operation.name, "From Stable's"
     if isinstance(operation, UnlinkItem):
         return "unlink", operation.name, "Stable has none"
     if isinstance(operation, WriteFile):
@@ -357,7 +364,7 @@ def _label(plan: Plan) -> str:
 def _install(item: Install, label: str) -> tuple[str, str, str]:
     """The cells of one download."""
     version = f"@{item.version}" if item.version else ""
-    return "download", f"{item.extension_id}{version}", f"with {label}"
+    return "download", f"{item.extension_id}{version}", f"With {label}"
 
 
 def _change_json(operation: Operation) -> dict[str, object]:

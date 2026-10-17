@@ -209,7 +209,7 @@ def recover(workspace: Path) -> Undone:
     except FileNotFoundError:
         lines = []
     except OSError as error:
-        return Undone(0, (f"cannot read {workspace}: {reason(error)}",))
+        return Undone(0, (f"Cannot read {workspace}: {reason(error)}",))
     for line in lines:
         try:
             record = as_object(json.loads(line))
@@ -286,7 +286,7 @@ def _undo(record: Record, workspace: Path) -> str | None:
     elif kind == "write":
         return _undo_write(record, path)
     else:
-        raise SyncError(f"unknown step {kind!r}")
+        raise SyncError(f"Unknown step {kind!r}")
     sync_directory(path.parent)
     return None
 
@@ -304,7 +304,7 @@ def _vouch(record: Record, workspace: Path) -> None:
     """
     path = _text(record, "path")
     if not os.path.isabs(path) or os.path.normpath(path) != path:
-        raise SyncError(f"journal names an unexpected path {path!r}")
+        raise SyncError(f"Journal names an unexpected path {path!r}")
     staging = record.get("staging")
     if staging is not None:
         name = Path(path).name
@@ -312,14 +312,14 @@ def _vouch(record: Record, workspace: Path) -> None:
         if candidate.parent != Path(
             path
         ).parent or not candidate.name.startswith(f".{name}."):
-            raise SyncError(f"journal names an unexpected copy {staging!r}")
+            raise SyncError(f"Journal names an unexpected copy {staging!r}")
     for key in ("aside", "before"):
         value = record.get(key)
         if value is None:
             continue
         inside = Path(os.path.normpath(value))
         if workspace not in inside.parents:
-            raise SyncError(f"journal names an unexpected {key} {value!r}")
+            raise SyncError(f"Journal names an unexpected {key} {value!r}")
 
 
 def _undo_write(record: Record, path: Path) -> str | None:
@@ -375,7 +375,7 @@ def _discard(workspace: Path) -> list[str]:
     except FileNotFoundError:
         return []
     except OSError as error:
-        return [f"cannot remove {workspace}: {reason(error)}"]
+        return [f"Cannot remove {workspace}: {reason(error)}"]
     return []
 
 
@@ -432,19 +432,19 @@ def quarantine(
 def describe(operation: Operation) -> str:
     """A short description of an operation, for messages."""
     if isinstance(operation, LinkFolder):
-        return f"linking {operation.name} to Stable's folder"
+        return f"Linking {operation.name} to Stable's folder"
     if isinstance(operation, RestoreFolder):
-        return f"copying {operation.name} from Stable"
+        return f"Copying {operation.name} from Stable"
     if isinstance(operation, UnlinkFolder):
-        return f"removing the link {operation.name}"
+        return f"Removing the link {operation.name}"
     if isinstance(operation, AdoptFolder):
-        return f"adopting the downloaded {operation.name}"
+        return f"Adopting the downloaded {operation.name}"
     if isinstance(operation, LinkItem):
-        return f"linking {operation.name} to Stable's"
+        return f"Linking {operation.name} to Stable's"
     if isinstance(operation, RestoreItem):
-        return f"copying {operation.name} from Stable"
+        return f"Copying {operation.name} from Stable"
     if isinstance(operation, UnlinkItem):
-        return f"removing the link {operation.name}"
+        return f"Removing the link {operation.name}"
     if isinstance(operation, WriteFile):
-        return f"writing the {operation.label}"
-    return f"quarantining {operation.name}"
+        return f"Writing the {operation.label}"
+    return f"Quarantining {operation.name}"

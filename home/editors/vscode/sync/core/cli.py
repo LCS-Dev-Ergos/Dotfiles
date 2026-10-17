@@ -185,7 +185,7 @@ def main(
         print(f"{PROG}: {error}", file=sys.stderr)
         return ExitCode.ERROR
     except KeyboardInterrupt:
-        print(f"{PROG}: interrupted", file=sys.stderr)
+        print(f"{PROG}: Interrupted", file=sys.stderr)
         return ExitCode.ERROR
 
 
@@ -259,7 +259,7 @@ def _environment(context: Context) -> list[Finding]:
             Finding(
                 "muted",
                 f"VS Code {edition.label}",
-                "running; a change waits until it is closed",
+                "Running; a change waits until it is closed",
             )
             for edition in Edition
             if edition in running
@@ -282,7 +282,7 @@ def _change(
     style = context.style
     if args.dry_run:
         plans = [planner(s, None) for s in _snapshots(args, context)]
-        _print_all(render(plan, style, context="dry run") for plan in plans)
+        _print_all(render(plan, style, context="Dry run") for plan in plans)
         changed = any(plan.changed for plan in plans)
         return ExitCode.ATTENTION if changed else ExitCode.OK
     with locked(context.host.state_dir()):
@@ -320,7 +320,7 @@ def _clean(args: argparse.Namespace, context: Context) -> ExitCode:
         editions = [Edition(args.edition)]
     if args.dry_run:
         plan = plan_clean(sides, editions, interrupted_runs(host))
-        _print(render(plan, context.style, context="dry run"))
+        _print(render(plan, context.style, context="Dry run"))
         return ExitCode.ATTENTION if plan.changed else ExitCode.OK
     with locked(host.state_dir()):
         _guard(context, editions)
@@ -345,7 +345,7 @@ def _update(args: argparse.Namespace, context: Context) -> ExitCode:
             dataclasses.replace(plan_setup(snapshot), command="update")
             for snapshot in snapshots
         ]
-        _print_all(render(plan, style, context="dry run") for plan in plans)
+        _print_all(render(plan, style, context="Dry run") for plan in plans)
         steps = _update_steps(context, snapshots, args.skip_clean)
         _print(["", *notice(style, "muted", "An update runs:", steps)])
         return ExitCode.OK
@@ -410,27 +410,27 @@ def _update_steps(
     steps: list[str] = []
     if sharing:
         steps.append(
-            f"share what is due with {names}, so Stable's update meets "
+            f"Share what is due with {names}, so Stable's update meets "
             "consistent lists"
         )
-    steps.append(f"run {Edition.STABLE.command} --update-extensions")
+    steps.append(f"Run {Edition.STABLE.command} --update-extensions")
     if sharing:
-        steps.append(f"let {names} follow Stable's builds")
+        steps.append(f"Let {names} follow Stable's builds")
     for snapshot in sharing:
         edition = snapshot.consumer.edition
         if _own_command(context, edition) is not None:
             steps.append(
-                f"run {edition.command} --update-extensions for "
+                f"Run {edition.command} --update-extensions for "
                 f"{edition.label}, then share again"
             )
         else:
             steps.append(
-                f"skip the update of {edition.label}'s own builds: "
+                f"Skip the update of {edition.label}'s own builds: "
                 f"{edition.command} is not available"
             )
     if not skip_clean:
         which = ", ".join(["Stable", *(s.label for s in sharing)])
-        steps.append(f"quarantine unused duplicates in {which}")
+        steps.append(f"Quarantine unused duplicates in {which}")
     return [f"{index}. {step}" for index, step in enumerate(steps, 1)]
 
 
@@ -564,7 +564,7 @@ def _execute(plan: Plan, context: Context, planner: Planner) -> list[str]:
             )
     except BaseException as error:
         undone = transaction.rollback()
-        what = str(error) or "interrupted"
+        what = str(error) or "Interrupted"
         if undone.failures:
             raise SyncError(
                 f"{what}; undoing it failed ({'; '.join(undone.failures)}); "
@@ -595,7 +595,7 @@ def _recover(context: Context) -> None:
             undone = recover(entry)
             if undone.failures:
                 raise SyncError(
-                    f"cannot undo the interrupted run in {entry}: "
+                    f"Cannot undo the interrupted run in {entry}: "
                     + "; ".join(undone.failures)
                 )
             steps = f"{undone.steps} step{'s' * (undone.steps != 1)}"
@@ -646,7 +646,7 @@ def _quarantine(plan: Plan, context: Context) -> ExitCode:
             context.style,
             "ok",
             f"Quarantined {count} folder{'s' * (count != 1)}",
-            [f"in {result.directory}"],
+            [f"In {result.directory}"],
         )
     if result.failed:
         lines += notice(
@@ -681,7 +681,7 @@ def _guard(context: Context, editions: Sequence[Edition]) -> None:
     busy = [edition for edition in busy if edition in editions]
     if busy:
         names = " and ".join(edition.label for edition in busy)
-        raise SyncError(f"close VS Code {names} first")
+        raise SyncError(f"Close VS Code {names} first")
 
 
 def _ask(context: Context, question: str) -> bool:

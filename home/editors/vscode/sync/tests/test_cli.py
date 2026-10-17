@@ -57,11 +57,11 @@ class CommandTests(unittest.TestCase):
         self.assertIn("pass --yes", err)
         code, _, err = self.machine.run("setup", "--yes", processes=RUNNING)
         self.assertEqual(code, ExitCode.ERROR)
-        self.assertIn("close VS Code Stable first", err)
+        self.assertIn("Close VS Code Stable first", err)
         self.assertEqual(self.machine.tree(), before)
 
     def test_an_interrupted_run_is_undone_first(self) -> None:
-        """Status reports it; the next change undoes it and goes on."""
+        """Status reports it; The next change undoes it and goes on."""
         before = self.machine.tree()
         workspace = self.machine.host.state_dir() / "runs" / "old"
         workspace.mkdir(parents=True)
@@ -73,7 +73,7 @@ class CommandTests(unittest.TestCase):
         self.assertNotEqual(self.machine.tree(), before)
         code, out, _ = self.machine.run("check")
         self.assertEqual(code, ExitCode.ATTENTION)
-        self.assertIn("the next change undoes it", out)
+        self.assertIn("The next change undoes it", out)
         code, out, err = self.machine.run("remove", "--yes")
         self.assertEqual((code, err), (ExitCode.OK, ""))
         self.assertIn("Undid an interrupted run (1 step)", out)
@@ -83,7 +83,7 @@ class CommandTests(unittest.TestCase):
     def test_the_environment_is_reported(self) -> None:
         """Status names a running editor and the backups."""
         _, out, _ = self.machine.run("status", processes=RUNNING)
-        self.assertIn("running; a change waits until it is closed", out)
+        self.assertIn("Running; a change waits until it is closed", out)
         self.machine.run("setup", "--yes")
         _, out, _ = self.machine.run("status")
         self.assertIn("1 in ", out)
@@ -248,7 +248,7 @@ class ServerCommandTests(unittest.TestCase):
             "setup", "--yes", processes=[f"{server} out/server-main.js"]
         )
         self.assertEqual(code, ExitCode.ERROR)
-        self.assertIn("close VS Code Server first", err)
+        self.assertIn("Close VS Code Server first", err)
         _, _, err = self.machine.run(
             "setup",
             "--yes",
@@ -342,11 +342,11 @@ class UpdateCommandTests(unittest.TestCase):
         script(bin_dir, "code-insiders", "exit 7")
         machine.set_env(PATH=str(bin_dir))
         code, out, _ = machine.run("status")
-        self.assertIn("not installed here; nothing to share", out)
+        self.assertIn("Not installed here; nothing to share", out)
         self.assertNotIn("User files", out)
         code, out, err = machine.run("update", "--yes")
         self.assertEqual((code, err), (ExitCode.OK, ""), out)
-        self.assertIn("quarantine unused duplicates in Stable", out)
+        self.assertIn("Quarantine unused duplicates in Stable", out)
         self.assertNotIn("code-insiders", out)
         self.assertNotIn("Insiders already follows", out)
         self.assertFalse((machine.root(STABLE) / old).exists())

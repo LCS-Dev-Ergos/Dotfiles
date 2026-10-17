@@ -56,7 +56,7 @@ def private_dir(path: Path) -> Path:
         path.mkdir(parents=True, exist_ok=True)
         path.chmod(0o700)
     except OSError as error:
-        raise SyncError(f"cannot prepare {path}: {reason(error)}") from None
+        raise SyncError(f"Cannot prepare {path}: {reason(error)}") from None
     return path
 
 
@@ -72,7 +72,7 @@ def new_workspace(state_dir: Path, label: str) -> Path:
         workspace.mkdir(mode=0o700)
     except OSError as error:
         raise SyncError(
-            f"cannot create {workspace}: {reason(error)}"
+            f"Cannot create {workspace}: {reason(error)}"
         ) from None
     return workspace
 
@@ -114,7 +114,7 @@ def backup(
                 shutil.copy2(path, destination)
         except OSError as error:
             raise SyncError(
-                f"cannot back up {path}: {reason(error)}"
+                f"Cannot back up {path}: {reason(error)}"
             ) from None
         copied += 1
     if not copied:
@@ -179,7 +179,7 @@ def prune(directory: Path, keep: int) -> list[str]:
             remove_tree(directory / name)
         except OSError as error:
             warnings.append(
-                f"cannot remove {directory / name}: {reason(error)}"
+                f"Cannot remove {directory / name}: {reason(error)}"
             )
     return warnings
 
@@ -230,7 +230,7 @@ def sibling(path: Path, label: str) -> Path:
         )
         if not os.path.lexists(candidate):
             return candidate
-    raise SyncError(f"no free name next to {path}")
+    raise SyncError(f"No free name next to {path}")
 
 
 def write_atomically(path: Path, expected: bytes | None, data: bytes) -> None:
@@ -251,7 +251,7 @@ def write_atomically(path: Path, expected: bytes | None, data: bytes) -> None:
         )
     except OSError as error:
         raise SyncError(
-            f"cannot write next to {real}: {reason(error)}"
+            f"Cannot write next to {real}: {reason(error)}"
         ) from None
     temp = Path(name)
     try:
@@ -265,7 +265,7 @@ def write_atomically(path: Path, expected: bytes | None, data: bytes) -> None:
             shutil.copymode(real, temp)
         temp.replace(real)
     except OSError as error:
-        raise SyncError(f"cannot replace {real}: {reason(error)}") from None
+        raise SyncError(f"Cannot replace {real}: {reason(error)}") from None
     finally:
         temp.unlink(missing_ok=True)
     sync_directory(real.parent)
@@ -283,7 +283,7 @@ def ensure_unchanged(path: Path, expected: bytes | None) -> Path:
     except FileNotFoundError:
         current = None
     except OSError as error:
-        raise SyncError(f"cannot read {real}: {reason(error)}") from None
+        raise SyncError(f"Cannot read {real}: {reason(error)}") from None
     if current != expected:
         raise SyncError(f"{real} changed while it was being processed")
     return real

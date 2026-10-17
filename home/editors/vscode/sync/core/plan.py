@@ -552,7 +552,7 @@ def plan_setup(snapshot: Snapshot, downloads: Downloads | None = None) -> Plan:
                 Finding(
                     "muted",
                     name,
-                    "a shared folder that is no extension; left as it is",
+                    "A shared folder that is no extension; left as it is",
                 )
             )
     operations += _unmark(consumer.obsolete, state.kept())
@@ -578,13 +578,13 @@ def unusable(snapshot: Snapshot) -> Finding | None:
     subject = f"VS Code {side.edition.label}"
     if not side.installed:
         return Finding(
-            "muted", subject, "not installed here; nothing to share"
+            "muted", subject, "Not installed here; nothing to share"
         )
     if side.edition.is_server and side.server is None:
         return Finding(
             "muted",
             subject,
-            "no server build is installed; a remote client installs one",
+            "No server build is installed; a remote client installs one",
         )
     return None
 
@@ -685,9 +685,9 @@ def _decide(
             return _repair(state, scope, reference)
         if ours and folder.target is not None:
             state.restored[name] = folder.target
-            note(Action.RESTORE, detail="kept as its own copy")
+            note(Action.RESTORE, detail="Kept as its own copy")
         else:
-            note(Action.NATIVE, detail="keeps its own copy")
+            note(Action.NATIVE, detail="Keeps its own copy")
         return _relocated(reference, consumer)
     build = _choose(stable, builds, scope, reference.extension_id)
     if build is None:
@@ -707,15 +707,15 @@ def _decide(
             note(Action.NATIVE, detail=too_new or "Stable does not have it")
         return _relocated(reference, consumer)
     if folder.kind is Kind.LINK and not ours:
-        note(Action.FOREIGN, detail=f"links to {folder.link}")
+        note(Action.FOREIGN, detail=f"Links to {folder.link}")
         return _relocated(reference, consumer)
     if name != build.folder and folder.kind is Kind.DIRECTORY:
         current = folder.package.version if folder.package else None
         if current is None or build.version is None:
-            note(Action.NATIVE, detail="versions cannot be compared")
+            note(Action.NATIVE, detail="Versions cannot be compared")
             return _relocated(reference, consumer)
         if current > build.version:
-            note(Action.NATIVE, detail=f"newer than Stable's {build.version}")
+            note(Action.NATIVE, detail=f"Newer than Stable's {build.version}")
             return _relocated(reference, consumer)
     entry = _shared_entry(reference, build, consumer.root)
     state.shared.add(build.folder)
@@ -723,7 +723,7 @@ def _decide(
     if name != build.folder:
         note(Action.REBIND, build.folder, f"Stable uses {build.version}")
     elif not linked:
-        note(Action.LINK, detail="shares Stable's folder")
+        note(Action.LINK, detail="Shares Stable's folder")
     elif entry != reference.entry:
         note(Action.RELOCATE, detail=_relocation(reference, stable))
     else:
@@ -760,7 +760,7 @@ def _repair(
         state.adopted[downloaded.folder] = (
             state.downloads.root / downloaded.folder
         )
-        note(Action.INSTALL, downloaded.folder, "downloaded again")
+        note(Action.INSTALL, downloaded.folder, "Downloaded again")
         return _shared_entry(reference, downloaded, consumer.root)
     if stable_builds is not None and not is_excluded(ident):
         stable = state.snapshot.stable
@@ -771,17 +771,17 @@ def _repair(
                 *stable.roots
             ):
                 state.restored[build.folder] = stable.root / build.folder
-                note(Action.RESTORE, build.folder, "copied from Stable")
+                note(Action.RESTORE, build.folder, "Copied from Stable")
                 return _shared_entry(reference, build, consumer.root)
             if present.kind is Kind.DIRECTORY:
-                note(Action.REBIND, build.folder, "its own folder is there")
+                note(Action.REBIND, build.folder, "Its own folder is there")
                 return _shared_entry(reference, build, consumer.root)
     local = _newest(state.local.get(ident, []))
     if local is not None:
         note(
             Action.REBIND,
             local.folder,
-            f"its folder is missing; uses {local.version}",
+            f"Its folder is missing; uses {local.version}",
         )
         return _shared_entry(reference, local, consumer.root)
     metadata = as_object(reference.entry.get("metadata")) or {}
@@ -793,7 +793,7 @@ def _repair(
             metadata.get("isPreReleaseVersion") is True,
         ),
     )
-    note(Action.INSTALL, name, "its folder is missing; downloads it again")
+    note(Action.INSTALL, name, "Its folder is missing; downloads it again")
     return None
 
 
@@ -851,8 +851,8 @@ def _relocation(reference: Reference, stable: Side) -> str:
     """Why an entry's location is rewritten."""
     location = Path(reference.location or "")
     if location.parent in stable.roots:
-        return "entry points into Stable's directory"
-    return "entry names another location"
+        return "Entry points into Stable's directory"
+    return "Entry names another location"
 
 
 def _relocated(
@@ -936,7 +936,7 @@ def _setup_items(snapshot: Snapshot) -> tuple[list[Operation], list[Finding]]:
             operations.append(UnlinkItem(item.name, item.target))
         elif item.status is ItemStatus.FOREIGN:
             findings.append(
-                Finding("warn", item.name, f"links to {item.link}; left alone")
+                Finding("warn", item.name, f"Links to {item.link}; left alone")
             )
     return operations, findings
 
@@ -952,7 +952,7 @@ def _interrupted_in(paths: Iterable[Path]) -> tuple[Finding, ...]:
         Finding(
             "pending",
             "interrupted run",
-            f"the next change undoes it, from {path}",
+            f"The next change undoes it, from {path}",
         )
         for path in paths
     )

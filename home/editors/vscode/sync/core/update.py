@@ -27,6 +27,15 @@ UPDATE_TIMEOUT = 900
 
 _UPDATED = re.compile(r"Extension '([^']+)'.* was successfully updated")
 _DETACHED = ("VSCODE_IPC_HOOK_CLI", "ELECTRON_RUN_AS_NODE", "VSCODE_PID")
+_NODE_DEPRECATION = re.compile(
+    r"\(node:\d+\) \[DEP\d+\] DeprecationWarning: "
+    r"|\(Use `.+ --trace-deprecation \.\.\.` to show where the warning was"
+)
+"""Node's warning about VS Code's own code, and the hint that follows it.
+
+Electron ignores ``NODE_OPTIONS`` when another program starts it, so the
+lines are dropped instead of silenced with ``--no-deprecation``.
+"""
 
 
 def find_command(host: Host, edition: Edition) -> Path | None:
@@ -153,12 +162,12 @@ def _run(
             env=env,
         )
     except OSError as error:
-        raise SyncError(f"cannot run {command}: {reason(error)}") from None
+        raise SyncError(f"Cannot run {command}: {reason(error)}") from None
 
     def line(text: str) -> None:
-        """Pass on one printed line, if it has any text."""
+        """Pass on one printed line, unless it is empty or Node's noise."""
         text = text.strip()
-        if text:
+        if text and not _NODE_DEPRECATION.match(text):
             on_line(text)
 
     try:
@@ -195,7 +204,7 @@ def _pump(
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise SyncError(
-                    f"the update took longer than {timeout:.0f} seconds"
+                    f"The update took longer than {timeout:.0f} seconds"
                 )
             if not selector.select(timeout=min(remaining, 1.0)):
                 continue
@@ -212,5 +221,5 @@ def _pump(
         process.wait(timeout=max(deadline - time.monotonic(), 1.0))
     except subprocess.TimeoutExpired:
         raise SyncError(
-            f"the update took longer than {timeout:.0f} seconds"
+            f"The update took longer than {timeout:.0f} seconds"
         ) from None

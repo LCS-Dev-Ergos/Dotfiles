@@ -37,14 +37,14 @@ def locked(state_dir: Path) -> Generator[None, None, None]:
     try:
         descriptor = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
     except OSError as error:
-        raise SyncError(f"cannot open {path}: {reason(error)}") from None
+        raise SyncError(f"Cannot open {path}: {reason(error)}") from None
     try:
         try:
             fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            raise SyncError(f"another {PROG} run is in progress") from None
+            raise SyncError(f"Another {PROG} run is in progress") from None
         except OSError as error:
-            raise SyncError(f"cannot lock {path}: {reason(error)}") from None
+            raise SyncError(f"Cannot lock {path}: {reason(error)}") from None
         yield
     finally:
         os.close(descriptor)
@@ -91,7 +91,7 @@ def confirm(
         stdin_is_terminal = sys.stdin.isatty()
     if not stdin_is_terminal:
         raise SyncError(
-            "nothing is changed without a terminal to confirm on; "
+            "Nothing is changed without a terminal to confirm on; "
             "pass --yes to go ahead"
         )
     gum = shutil.which("gum", path=environ.get("PATH", os.defpath))
@@ -102,7 +102,7 @@ def confirm(
         ).returncode
         if status in (0, GUM_DECLINED, GUM_INTERRUPTED):
             return status == 0
-        raise SyncError(f"gum confirm exited {status}")
+        raise SyncError(f"Confirmation failed: gum confirm exited {status}")
     try:
         answer = input(f"{question} [y/N] ")
     except EOFError:
@@ -127,7 +127,7 @@ def _process_list(host: Host) -> list[str]:
         )
     except (OSError, subprocess.SubprocessError) as error:
         raise SyncError(
-            f"cannot tell whether VS Code is running: {reason(error)}"
+            f"Cannot tell whether VS Code is running: {reason(error)}"
         ) from None
     return completed.stdout.splitlines()
 

@@ -126,7 +126,7 @@ class Host:
 
     def __post_init__(self) -> None:
         if not self.home.is_absolute():
-            raise ValueError(f"home must be absolute: {self.home}")
+            raise ValueError(f"Home must be absolute: {self.home}")
 
     @classmethod
     def detect(cls) -> "Host":

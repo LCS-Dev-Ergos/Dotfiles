@@ -185,16 +185,20 @@ class UpdateTests(unittest.TestCase):
         return script(self.bin, "code", body)
 
     def test_lines_are_passed_on_and_updates_noted(self) -> None:
-        """Every line reaches the caller; updated extensions are listed."""
+        """Lines reach the caller, without Node's deprecation warnings."""
         command = self.code(
             'echo "Updating extensions: a.b, c.d"\n'
             "echo \"Extension 'a.b' v2.0.0 was successfully updated.\"\n"
+            "echo '(node:42) [DEP0169] DeprecationWarning: `url.parse()`'\n"
+            "echo '(Use `Code --trace-deprecation ...` to show where the "
+            "warning was created)'\n"
             'printf "no newline"'
         )
         updated = update_extensions(
             command, self.machine.root(Edition.STABLE), {}, self.lines.append
         )
         self.assertEqual(updated, ("a.b",))
+        self.assertEqual(len(self.lines), 3)
         self.assertEqual(self.lines[-1], "no newline")
 
     def test_arguments_and_environment(self) -> None:
