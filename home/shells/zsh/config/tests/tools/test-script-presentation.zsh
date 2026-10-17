@@ -199,27 +199,6 @@ typeset utm_output="$(<"$fixture_root/utm-output")"
   return 1
 }
 
-# The VS Code shell layer should format its environment and final health state.
-export PATH="$original_path"
-rehash
-source "$test_root/scripts/vscode/sync/commands.zsh"
-_vscode_sync_check_platform() { return 0; }
-_vscode_sync_extensions_require_python() { return 0; }
-_vscode_sync_check_vscode_running() { return 0; }
-_vscode_sync_run_python_command() {
-  print -rl -- "Extension state: healthy" "ISSUES=0" "WARNINGS=0"
-}
-_VSCODE_SYNC_BACKUP_DIR="$fixture_root/backups"
-typeset vscode_output
-vscode_output="$(vscode_sync_check)" || return 1
-[[ "$vscode_output" == *"VS Code Sync Health Check"* &&
-   "$vscode_output" == *"Environment"* &&
-   "$vscode_output" == *"VS Code processes"* &&
-   "$vscode_output" == *"[OK]"*"Health: HEALTHY"* ]] || {
-  print -u2 "FAIL: VS Code health check did not use shared presentation"
-  return 1
-}
-
 # The SDK reachability report must compare the active compiler against the
 # system one and name only the libraries where they diverge. Both compilers are
 # stubs, so the suite never depends on what this machine has installed.

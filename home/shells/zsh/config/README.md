@@ -224,8 +224,6 @@ take precedence over the generated baseline.
 | `fnm_clean`, `zsh_profile`, `zshdeps` | `functions/development-tools.zsh` | Maintain fnm, profile startup, inspect dependencies |
 | `brew_stats` | `functions/package-management.zsh` | Report installed Homebrew package sizes |
 | `security_scan`, `secscan` | `scripts/security-scan.zsh` | Structural, YARA, and ClamAV file scanning |
-| `vscode_sync_*` | `scripts/vscode-sync.zsh` | Setup, update, check, status, and remove VS Code sync |
-| `vscode_clean_extensions` | `scripts/vscode-extension-cleaner.zsh` | Quarantine duplicate extensions |
 | `utm_ubuntu_start`, `utm_ubuntu_login` | `scripts/utm-ubuntu.zsh` | Start/login to the UTM Ubuntu VM |
 
 ### Blog Workflow

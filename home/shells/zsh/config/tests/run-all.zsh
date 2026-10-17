@@ -247,7 +247,6 @@ _verify_python_tests() {
     local -a suites=(
       "$verify_config_dir/scripts/security/python/tests"
       "$verify_config_dir/scripts/python/tests"
-      "$verify_config_dir/scripts/vscode/python/tests"
     )
     local suite
     for suite in "${suites[@]}"; do

@@ -21,6 +21,7 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 python_sources=(
   home/dev/bootstrap
   home/editors/vscode/host-settings
+  home/editors/vscode/sync
   home/shells/terminal-style
   scripts/updates
   scripts/tests/test_update_runtime_baseline.py

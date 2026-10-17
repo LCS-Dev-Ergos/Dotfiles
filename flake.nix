@@ -202,7 +202,8 @@
       # Personal tools are first-class outputs as well as Home Manager inputs:
       # `nix build .#cpp-tools` runs their checks and builds the deployable CLI;
       # `nix build .#markdownlint-config` does the same for the markdownlint rules,
-      # `nix build .#vscode-host-settings` for the VS Code settings tool, and
+      # `nix build .#vscode-host-settings` for the VS Code settings tool,
+      # `nix build .#vscode-sync` for the Stable-to-Insiders sharing tool, and
       # `nix build .#terminal-style` for the style the shell tools share.
       packages = forAllSystems (
         system:
@@ -214,6 +215,7 @@
           markdownlint-config = pkgs.callPackage ./home/editors/markdown/markdownlint-config.nix { };
           terminal-style = pkgs.callPackage ./home/shells/terminal-style/package.nix { };
           vscode-host-settings = pkgs.callPackage ./home/editors/vscode/host-settings/package.nix { };
+          vscode-sync = pkgs.callPackage ./home/editors/vscode/sync/package.nix { };
           dev-bootstrap = pkgs.callPackage ./home/dev/bootstrap/package.nix { };
           development-recovery = self.packages.${system}.dev-bootstrap;
           default = self.packages.${system}.cpp-tools;
@@ -240,6 +242,7 @@
           markdownlint-config = self.packages.aarch64-darwin.markdownlint-config;
           terminal-style = self.packages.aarch64-darwin.terminal-style;
           vscode-host-settings = self.packages.aarch64-darwin.vscode-host-settings;
+          vscode-sync = self.packages.aarch64-darwin.vscode-sync;
           dev-bootstrap = self.packages.aarch64-darwin.dev-bootstrap;
           development-recovery = self.checks.aarch64-darwin.dev-bootstrap;
           llvm-darwin-toolchain = self.packages.aarch64-darwin.llvm-darwin-toolchain.tests.default;
@@ -250,6 +253,7 @@
           markdownlint-config = self.packages.x86_64-linux.markdownlint-config;
           terminal-style = self.packages.x86_64-linux.terminal-style;
           vscode-host-settings = self.packages.x86_64-linux.vscode-host-settings;
+          vscode-sync = self.packages.x86_64-linux.vscode-sync;
           dev-bootstrap = self.packages.x86_64-linux.dev-bootstrap;
           development-recovery = self.checks.x86_64-linux.dev-bootstrap;
         };
