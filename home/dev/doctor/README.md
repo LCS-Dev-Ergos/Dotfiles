@@ -56,10 +56,12 @@ needs attention, 2 when something is broken or the command line is wrong.
 A manager whose runtime is a proxy (rustup's `rustc`, elan's `lean`) is not
 started when it keeps no version or is dormant, since the proxy could
 install one. Every probe also runs with `RUSTUP_AUTO_INSTALL=0` and .NET's
-first-run banner and telemetry turned off. Flutter's launcher, which can
-download artifacts even for `--version`, never runs: its cached version is
-read and its bundled Dart VM started. SDKMAN's Java and Gradle versions come
-from their `current` links, so no JVM starts.
+first-run banner and telemetry turned off. Lean's version is read from the
+home directory, since elan installs the toolchain a `lean-toolchain` file
+below the current directory names as soon as `lean` runs there. Flutter's
+launcher, which can download artifacts even for `--version`, never runs: its
+cached version is read and its bundled Dart VM started. SDKMAN's Java and
+Gradle versions come from their `current` links, so no JVM starts.
 
 The C and C++ rows follow `CC` and `CXX`, launcher arguments and quoted
 paths included, without evaluating them. The Nix row compares the `nix` on

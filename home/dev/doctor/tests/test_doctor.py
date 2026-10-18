@@ -403,6 +403,17 @@ class RegistryTests(unittest.TestCase):
         check(registered("rustup"), machine.host, 5)
         self.assertEqual(log.read_text().strip(), "0")
 
+    def test_lean_runs_outside_any_project(self) -> None:
+        """A lean-toolchain file below the caller cannot make elan install."""
+        machine = Machine(self)
+        (machine.home / ".elan").mkdir()
+        machine.tool("elan", 'echo "leanprover/lean4:v4.34.1 (default)"')
+        log = machine.root / "cwd"
+        machine.tool("lean", f'pwd > "{log}"; echo "Lean (version 4.34.1)"')
+        record = check(registered("elan"), machine.host, 5)
+        self.assertEqual(record.active, "4.34.1")
+        self.assertEqual(log.read_text().strip(), str(machine.home))
+
 
 class ConflictTests(unittest.TestCase):
     """What PATH itself gets wrong."""

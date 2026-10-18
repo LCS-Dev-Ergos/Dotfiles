@@ -66,9 +66,13 @@ class Probe:
     root: Path | None
     timeout: float
 
-    def run(self, *argv: str, errors: bool = False) -> Outcome:
+    def run(
+        self, *argv: str, errors: bool = False, cwd: Path | None = None
+    ) -> Outcome:
         """Run a command with the check's environment and time limit."""
-        return process.run(argv, self.host.env, self.timeout, errors=errors)
+        return process.run(
+            argv, self.host.env, self.timeout, errors=errors, cwd=cwd
+        )
 
 
 @dataclass(frozen=True)
@@ -399,6 +403,22 @@ def _conda_managed(probe: Probe) -> list[str] | None:
 def _conda_activated(host: Host) -> bool:
     """Whether a conda environment is active in this shell."""
     return bool(host.get("CONDA_PREFIX") or host.get("CONDA_DEFAULT_ENV"))
+
+
+# Science ----------------------------------------------------------------------
+
+
+def _lean_version(probe: Probe) -> Outcome:
+    """The Lean release elan selects outside any project.
+
+    elan installs the toolchain a ``lean-toolchain`` file names the moment
+    ``lean`` runs below it, so the probe runs from the home directory: a
+    report must never download.
+    """
+    lean = probe.host.which("lean")
+    if lean is None:
+        return Outcome(process.NOT_RUNNABLE, "")
+    return probe.run(str(lean), "--version", cwd=probe.host.home)
 
 
 # Apps -------------------------------------------------------------------------
@@ -867,7 +887,7 @@ RUNTIMES: tuple[Runtime, ...] = (
         "Lean",
         Group.SCIENCE,
         OnPath("elan"),
-        _command("lean", "--version"),
+        _lean_version,
         binary="lean",
         root_var="ELAN_HOME",
         roots=("~/.elan",),
