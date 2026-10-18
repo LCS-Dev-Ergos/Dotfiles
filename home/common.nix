@@ -6,6 +6,7 @@ _: {
   # darwin.nix or linux.nix. desktop/ holds nothing but those, so it has no
   # default.nix of its own.
   imports = [
+    ./apps
     ./cli
     ./dev
     ./editors

@@ -23,56 +23,13 @@ trap '
 ' EXIT
 trap 'exit 130' INT TERM HUP
 
-command mkdir -p "$fixture_root/bin" "$fixture_root/logs"
+command mkdir -p "$fixture_root/bin"
 
 export ZSH_CONFIG_DIR="$test_root"
 export ZSH_UI_STYLE=plain
 typeset original_path="$PATH"
 export PATH="$fixture_root/bin:/usr/bin:/bin"
 rehash
-
-# Exercise the lazy blog entry point, shared help/status tables, and logging.
-export BLOG_LOG_DIR="$fixture_root/logs"
-source "$test_root/scripts/blog-auto-updates.zsh"
-blog_help >| "$fixture_root/blog-help" || return 1
-typeset blog_help_output="$(<"$fixture_root/blog-help")"
-[[ "$blog_help_output" == "BLOG AUTOMATION"* &&
-   "$blog_help_output" == *$'\nUSAGE\n'* &&
-   "$blog_help_output" == *$'\nCOMMANDS\n'* &&
-   "$blog_help_output" == *$'\nENVIRONMENT\n'* &&
-   "$blog_help_output" == *$'blog_run_all             Run the complete'* &&
-   "$blog_help_output" == *"  ------------------------"* &&
-   "$blog_help_output" != *$'\e'* ]] || {
-  print -u2 "FAIL: blog help does not match the zfuncs catalog layout"
-  return 1
-}
-
-ALLOWED_BLOG_ROOT="$fixture_root/missing-blog"
-BLOG_CONFIG_FILE="$ALLOWED_BLOG_ROOT/blog_config.conf"
-unset BLOG_DIR BLOG_SOURCE_PATH BLOG_IMAGES_PATH BLOG_DEST_PATH
-unset BLOG_SCRIPTS_DIR BLOG_IMAGES_SCRIPT BLOG_HASH_GENERATOR
-unset BLOG_FRONTMATTER_SCRIPT BLOG_BACKUP_DIR
-typeset blog_status_output
-blog_status_output="$(blog_status 2>&1)" || return 1
-[[ "$blog_status_output" == *"Blog automation status"* &&
-   "$blog_status_output" == *"Dependencies"* &&
-   "$blog_status_output" == *"Workflow files"* &&
-   "$blog_status_output" == *"Missing"* ]] || {
-  print -u2 "FAIL: blog status did not use the shared report layout"
-  return 1
-}
-
-BLOG_LOG_FILE=""
-blog_success "presentation test" 2>| "$fixture_root/blog-stderr"
-typeset blog_terminal_output="$(<"$fixture_root/blog-stderr")"
-[[ "$blog_terminal_output" == *"[OK]"*"presentation test"* ]] || {
-  print -u2 "FAIL: blog logging did not use the shared log renderer"
-  return 1
-}
-command grep -Fq "[INFO] presentation test" "$BLOG_LOG_FILE" || {
-  print -u2 "FAIL: shared blog presentation changed the persistent log format"
-  return 1
-}
 
 # Help remains machine-capturable; validation failures use the shared log.
 typeset shdoc_help

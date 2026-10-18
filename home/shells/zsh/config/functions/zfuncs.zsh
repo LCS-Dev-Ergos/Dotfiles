@@ -26,11 +26,9 @@ _zfuncs_resolve_status() {
   local function_name="$1"
   local function_source="$2"
   if typeset -f "$function_name" >/dev/null 2>&1; then
-    # Stubs from lib/94-lazy-loader-core.zsh call _lazy_<id>_stub; the blog
-    # module's compatibility loader uses its own *_lazy_dispatch.
+    # Stubs from lib/94-lazy-loader-core.zsh call _lazy_<id>_stub.
     local body="${functions[$function_name]-}"
-    if [[ "$body" == *'_lazy_'*'_stub '* ||
-          "$body" == *'_lazy_dispatch'* ]]; then
+    if [[ "$body" == *'_lazy_'*'_stub '* ]]; then
       REPLY="lazy"
     else
       REPLY="loaded"

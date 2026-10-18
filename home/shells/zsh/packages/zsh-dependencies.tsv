@@ -44,8 +44,8 @@ optional	documents	exiftool	exiftool	perl-image-exiftool	Image-ExifTool	Document
 optional	documents	pdftotext	poppler	poppler	-	PDF text extraction and validation.
 optional	documents	ddjvu	djvulibre	djvulibre	-	DjVu to PDF conversion in pdf-tools (home/cli/pdf-tools).
 optional	security	nmap	nmap	nmap	-	Advanced network diagnostics.
-optional	blog	hugo	hugo	hugo	-	Static-site builds for the blog workflow.
-optional	blog	rsync	rsync	rsync	-	Guarded Obsidian-to-Hugo synchronization.
+optional	blog	hugo	hugo	hugo	-	Check builds in blog (home/apps/blog); the hosting builds on push.
+optional	files	rsync	rsync	rsync	-	Resumable copies with progress, as in nnn's rsynccp plugin.
 optional	containers	docker	-	docker	-	Container shell and development workflows.
 optional	toolchain	clang	llvm	clang	clang-wrapper|host-toolchain-llvm	LLVM compiler selection.
 optional	toolchain	gcc	gcc	gcc	gcc-wrapper|host-toolchain-llvm	GNU compiler selection.

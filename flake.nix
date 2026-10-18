@@ -97,6 +97,8 @@
         username = "lcs-dev";
         homeDirectory = "/Users/${username}";
         dotfilesRoot = "${homeDirectory}/Dotfiles";
+        # Where the external data volume (the blog's site among it) mounts.
+        dataRoot = "/Volumes/LCS.Data";
       };
       linuxHost = rec {
         system = "x86_64-linux";
@@ -107,6 +109,7 @@
         username = "lcs-dev";
         homeDirectory = "/home/${username}";
         dotfilesRoot = "${homeDirectory}/Dotfiles";
+        dataRoot = "/LCS.Data";
       };
       externalSources = {
         alacrittyTheme = inputs.alacritty-theme;
@@ -138,6 +141,7 @@
       homeArgs = host: {
         inherit externalSources;
         inherit (host)
+          dataRoot
           dotfilesRoot
           homeDirectory
           username
@@ -207,7 +211,8 @@
       # `nix build .#dev-doctor` for the environment health and compiler tools,
       # `nix build .#brew-stats` for the Homebrew disk report,
       # `nix build .#security-scan` for the file and folder threat scanner,
-      # `nix build .#pdf-tools` for the PDF toolkit, and
+      # `nix build .#pdf-tools` for the PDF toolkit,
+      # `nix build .#blog` for the blog's publishing command, and
       # `nix build .#terminal-style` for the style the shell tools share.
       packages = forAllSystems (
         system:
@@ -225,6 +230,7 @@
           brew-stats = pkgs.callPackage ./home/cli/brew-stats/package.nix { };
           security-scan = pkgs.callPackage ./home/cli/security-scan/package.nix { };
           pdf-tools = pkgs.callPackage ./home/cli/pdf-tools/package.nix { };
+          blog = pkgs.callPackage ./home/apps/blog/package.nix { };
           development-recovery = self.packages.${system}.dev-bootstrap;
           default = self.packages.${system}.cpp-tools;
         }
@@ -256,6 +262,7 @@
           brew-stats = self.packages.aarch64-darwin.brew-stats;
           security-scan = self.packages.aarch64-darwin.security-scan;
           pdf-tools = self.packages.aarch64-darwin.pdf-tools;
+          blog = self.packages.aarch64-darwin.blog;
           development-recovery = self.checks.aarch64-darwin.dev-bootstrap;
           llvm-darwin-toolchain = self.packages.aarch64-darwin.llvm-darwin-toolchain.tests.default;
         };
@@ -270,6 +277,7 @@
           dev-doctor = self.packages.x86_64-linux.dev-doctor;
           security-scan = self.packages.x86_64-linux.security-scan;
           pdf-tools = self.packages.x86_64-linux.pdf-tools;
+          blog = self.packages.x86_64-linux.blog;
           development-recovery = self.checks.x86_64-linux.dev-bootstrap;
         };
       };

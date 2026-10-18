@@ -19,6 +19,7 @@ set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 
 python_sources=(
+  home/apps/blog
   home/cli/brew-stats
   home/cli/pdf-tools
   home/cli/security-scan

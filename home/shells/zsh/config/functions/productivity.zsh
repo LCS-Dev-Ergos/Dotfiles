@@ -16,6 +16,7 @@
 #   - fkill     Interactive process killer.
 #   - dshell    Docker container shell access.
 #   - preview   Interactive file preview with fzf.
+#   - blog      Publish the Hugo blog from the Obsidian vault.
 #
 # ============================================================================ #
 
@@ -589,6 +590,24 @@ function preview() {
     else
       command -v bat >/dev/null 2>&1 && bat --color=always --style=numbers --line-range=:200 {} || head -200 {}
     fi'
+}
+
+# -----------------------------------------------------------------------------
+# blog
+# @description Publishes the Hugo blog written in the Obsidian vault: copies
+# posts and their images into the site, builds it, commits and pushes;
+# `blog` from home/apps/blog.
+# @arg $1 string Command: status, sync, build or publish.
+# @option -n | --dry-run Show what sync or publish would change.
+# @option --no-build Publish without the check build.
+# @option -m | --message <text> The commit message for publish.
+# @option --config <file> Read other settings.
+# @option -h | --help Show usage information.
+# @exitcode 1 If a step fails.
+# @exitcode 2 If the arguments or the settings are invalid.
+# -----------------------------------------------------------------------------
+blog() {
+  command blog "$@"
 }
 
 # ============================================================================ #

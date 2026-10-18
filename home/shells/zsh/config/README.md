@@ -181,25 +181,11 @@ take precedence over the generated baseline.
 | `security-scan`, `secscan` | home/cli/security-scan | Structural, YARA, and ClamAV file scanning |
 | `utm_ubuntu_start`, `utm_ubuntu_login` | `scripts/utm-ubuntu.zsh` | Start/login to the UTM Ubuntu VM |
 
-### Blog Workflow
+### Blog
 
-`scripts/blog-auto-updates.zsh` is a compatibility loader. Shared primitives
-live in `scripts/blog/_common.zsh`, commands in `scripts/blog/commands.zsh`,
-and canonical Python backends in `scripts/blog/python/`.
-
-| Command | Purpose |
-| --- | --- |
-| `blog_sync_posts` | Guarded backup plus Obsidian→Hugo mirror |
-| `blog_detect_changes` | Git or hash-based change detection |
-| `blog_update_frontmatter`, `blog_process_images` | Invoke canonical Python transforms |
-| `blog_build_hugo`, `blog_commit_changes`, `blog_push_main` | Build and publish the main branch |
-| `blog_deploy_hostinger` | Subtree deployment with `--force-with-lease` |
-| `blog_run_all` | Locked end-to-end workflow |
-| `blog_status`, `blog_help` | Diagnostics and usage |
-
-The sync refuses an empty Markdown source, creates a pre-sync backup before
-`rsync --delete`, sends logs to stderr so command substitutions remain clean,
-and uses an atomic mkdir lock to prevent concurrent full runs.
+| Command | Source | Purpose |
+| --- | --- | --- |
+| `blog` | `functions/productivity.zsh` | `blog` (home/apps/blog): copy posts and images from the Obsidian vault into the Hugo site, build, commit and push; GitHub Pages deploys on push |
 
 ## Security Decisions
 

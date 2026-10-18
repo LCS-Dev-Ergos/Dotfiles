@@ -283,6 +283,7 @@ Dotfiles/
     ├── linux.nix              # Linux application imports shared by KDE and Hyprland
     ├── out-of-store-allowlist.tsv
     ├── package-ownership-allowlist.tsv
+    ├── apps/                  # blog
     ├── cli/                   # bat, btop, cli-tools, git, lazygit, tealdeer
     ├── desktop/               # Window managers and bars (platform-only modules)
     ├── dev/                   # Toolchains and per-language tooling

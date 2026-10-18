@@ -20,7 +20,7 @@
 #   - Clang-Format.
 #   - OpenSSL.
 #   - Go Language.
-#   - Project Directories (LCS.Data, Blog).
+#   - Project Directories (LCS.Data).
 #   - Platform-specific exports.
 #
 # ============================================================================ #
@@ -177,15 +177,6 @@ if [[ -n "${LCS_Data:-}" && ! -d "$LCS_Data" && -t 2 &&
   print -u2 "${C_YELLOW}Warning: the LCS.Data volume is not mounted at $LCS_Data${C_RESET}"
   export LCS_DATA_WARNED=1
 fi
-
-# --------------- Blog --------------- #
-# Blog directories and scripts.
-if [[ -n "${LCS_Data:-}" ]]; then
-  export BLOG_POSTS_DIR="$LCS_Data/Blog/CS-Topics/content/posts/"
-  export BLOG_STATIC_IMAGES_DIR="$LCS_Data/Blog/CS-Topics/static/images"
-  export IMAGES_SCRIPT_PATH="${ZSH_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zsh}/scripts/blog/python/images.py"
-fi
-export OBSIDIAN_ATTACHMENTS_DIR="$HOME/Documents/Obsidian-Vault/XSPC-Vault/Blog/images"
 
 # ============================================================================ #
 # End of lib/75-variables.zsh
