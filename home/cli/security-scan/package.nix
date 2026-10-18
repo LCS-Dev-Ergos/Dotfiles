@@ -1,5 +1,6 @@
 {
   callPackage,
+  clamav,
   lib,
   makeWrapper,
   python3,
@@ -8,8 +9,8 @@
 let
   sources = lib.fileset.fileFilter (file: file.hasExt "py");
   # pikepdf reads PDFs for the structural layer and yara-python runs the
-  # YARA layer in-process; ClamAV comes from the caller's PATH, where its
-  # signature database lives.
+  # YARA layer in-process; ClamAV's clamscan runs the third layer, against
+  # the signatures the Home Manager module keeps current.
   python = python3.withPackages (ps: [
     ps.pikepdf
     ps.yara-python
@@ -70,9 +71,10 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     # The store is read-only at run time, so the bytecode is compiled here.
     ${lib.getExe python} -I -m compileall -q "$share/core" "$share/terminal_style.py"
     # -I: the caller's PYTHONPATH and user site-packages never reach the
-    # tool's imports. clamscan comes from the caller's PATH.
+    # tool's imports. The bundled clamscan comes first on its PATH.
     makeWrapper ${lib.getExe python} "$out/bin/security-scan" \
-      --add-flags "-I $share/security_scan.py"
+      --add-flags "-I $share/security_scan.py" \
+      --prefix PATH : ${lib.makeBinPath [ clamav ]}
     # The short name the Zsh implementation had.
     ln -s security-scan "$out/bin/secscan"
 
@@ -83,7 +85,8 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     runHook preInstallCheck
 
     # The package version and core.__version__ must agree, and the bundled
-    # rules must load from the installed layout.
+    # rules and clamscan must work from the installed layout; with no
+    # signatures in the sandbox, ClamAV only reports itself unavailable.
     "$out/bin/security-scan" --version | grep -Fx "security-scan ${finalAttrs.version}"
     echo clean > "$TMPDIR/sample.txt"
     PATH= "$out/bin/security-scan" --quiet "$TMPDIR/sample.txt"

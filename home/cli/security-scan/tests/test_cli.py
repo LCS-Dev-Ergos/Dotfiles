@@ -118,6 +118,15 @@ class CommandTests(unittest.TestCase):
                 self.assertEqual((status, out), (2, ""))
                 self.assertIn("--report", err)
 
+    def test_the_report_never_replaces_a_scanned_file(self) -> None:
+        """Naming a scanned file as the report is refused."""
+        status, _, err = self.run_cli(
+            str(self.folder.root / "docs"), "--report", str(self.clean)
+        )
+        self.assertEqual(status, 2)
+        self.assertIn("would replace a scanned file", err)
+        self.assertEqual(self.clean.read_bytes(), b"hello")
+
     def test_a_failed_write_is_reported(self) -> None:
         """The report is printed; the status says the run failed."""
         report = self.folder.root / "report.json"

@@ -29,9 +29,9 @@ _DESCRIPTION = (
     "claim: a program under a document's name, a program hidden inside a "
     "file, a PDF that starts something when opened, an archive bundling "
     "scripts. Three layers look at every file: built-in structural checks, "
-    "the bundled YARA rules and, when it is installed with a signature "
-    "database, ClamAV. Files are only read, never changed or opened by "
-    "another program."
+    "the bundled YARA rules and ClamAV, once freshclam has fetched its "
+    "signatures. Files are only read, never changed or opened by another "
+    "program."
 )
 
 _EPILOG = f"""\
@@ -158,14 +158,20 @@ def _run(
     layers = _layers(args, patterns, clamav, absent, started)
 
     selection = select(args.paths, recursive=args.recursive)
+    if args.report is not None:
+        _check_overwrite(args.report, selection.files)
     progress = _Progress(style, not args.quiet)
     results = []
-    for done, path in enumerate(selection.files, 1):
-        progress.show("Scanning", done, len(selection.files), path)
-        results.append(_scan_file(path, args.structural, patterns, args.hash))
-    if clamav is not None and results:
-        layers[-1] = _clamav(clamav, results, env, progress, layers[-1])
-    progress.clear()
+    try:
+        for done, path in enumerate(selection.files, 1):
+            progress.show("Scanning", done, len(selection.files), path)
+            results.append(
+                _scan_file(path, args.structural, patterns, args.hash)
+            )
+        if clamav is not None and results:
+            layers[-1] = _clamav(clamav, results, env, progress, layers[-1])
+    finally:
+        progress.clear()
 
     scan = Scan(args.paths, selection, results, layers, started)
     print(
@@ -301,6 +307,26 @@ def _check_destination(report: Path) -> None:
         raise ScanError(f"--report names a folder: {report}")
     if not report.absolute().parent.is_dir():
         raise ScanError(f"--report's folder does not exist: {report.parent}")
+
+
+def _check_overwrite(report: Path, files: Sequence[Path]) -> None:
+    """Refuse a report path that is one of the files to scan.
+
+    Raises:
+        ScanError: If writing the report would replace a scanned file.
+    """
+    try:
+        target = report.stat()
+    except OSError:
+        return
+    for path in files:
+        try:
+            if os.path.samestat(target, path.stat()):
+                raise ScanError(
+                    f"--report would replace a scanned file: {path}"
+                )
+        except OSError:
+            continue
 
 
 def _write_json(report: Path, payload: dict[str, object]) -> None:

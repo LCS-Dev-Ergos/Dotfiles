@@ -37,9 +37,12 @@ EICAR = (
 """The antivirus test string, harmless by design."""
 
 CLAMSCAN = """\
-case "$1" in --version) echo "$CLAM_VERSION"; exit "${CLAM_STATUS:-0}";; esac
+[ -z "${CLAM_ARGS:-}" ] || echo "$*" >> "$CLAM_ARGS"
 for argument; do
-  case "$argument" in --file-list=*) list="${argument#--file-list=}";; esac
+  case "$argument" in
+    --version) echo "$CLAM_VERSION"; exit "${CLAM_STATUS:-0}";;
+    --file-list=*) list="${argument#--file-list=}";;
+  esac
 done
 case "${CLAM_MODE:-}" in
   fail) echo "LibClamAV Error: No supported database files found" >&2; exit 2;;
@@ -49,6 +52,7 @@ status=0
 while IFS= read -r file; do
   case "$file" in
     *infected*) echo "$file: Win.Test.Sig FOUND"; status=1;;
+    *eicar*) echo "$file: Eicar-Test-Signature FOUND"; status=1;;
     *heuristic*) echo "$file: Heuristics.Broken.Executable FOUND"; status=1;;
     *huge*)
       echo "$file: Heuristics.Limits.Exceeded.MaxFileSize FOUND"
@@ -153,7 +157,11 @@ class Folder:
         """Install the fake clamscan; the environment that finds it."""
         bin_dir = self.root / "bin"
         script(bin_dir, "clamscan", CLAMSCAN)
-        return {"PATH": str(bin_dir), "CLAM_VERSION": version}
+        return {
+            "PATH": str(bin_dir),
+            "HOME": str(self.root / "home"),
+            "CLAM_VERSION": version,
+        }
 
 
 def _link(action: Dictionary) -> Dictionary:

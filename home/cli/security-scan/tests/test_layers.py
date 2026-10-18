@@ -113,6 +113,33 @@ class FindTests(unittest.TestCase):
         assert clamav.updated is not None
         self.assertEqual(clamav.updated.isoformat(), "2026-10-18T08:12:00")
 
+    def test_the_users_database_is_passed_when_it_exists(self) -> None:
+        """XDG_DATA_HOME/clamav, else ~/.local/share/clamav, else none."""
+        env = self.folder.clamscan()
+        env["CLAM_ARGS"] = str(self.folder.root / "args")
+        home = self.folder.root / "home"
+        self.assertIsNone(antivirus.find(env)[0].directory)
+        default = home / ".local" / "share" / "clamav"
+        default.mkdir(parents=True)
+        clamav, _ = antivirus.find(env)
+        self.assertEqual(clamav.directory, default)
+        data = self.folder.root / "data"
+        (data / "clamav").mkdir(parents=True)
+        env["XDG_DATA_HOME"] = str(data)
+        clamav, _ = antivirus.find(env)
+        self.assertEqual(clamav.directory, data / "clamav")
+        antivirus.scan(clamav, [self.folder.file("a.txt", b"x")], env)
+        calls = (self.folder.root / "args").read_text().splitlines()
+        self.assertEqual(
+            [line.split()[0] for line in calls],
+            [
+                "--version",
+                f"--database={default}",
+                f"--database={data / 'clamav'}",
+                f"--database={data / 'clamav'}",
+            ],
+        )
+
     def test_missing_clamscan_or_database(self) -> None:
         """Each says why ClamAV cannot scan."""
         self.assertEqual(antivirus.find({"PATH": ""}), (None, "Not installed"))
@@ -141,6 +168,7 @@ class ScanTests(unittest.TestCase):
             "clean.pdf",
             "empty.txt",
             "infected.exe",
+            "eicar.com",
             "huge.iso",
             "heuristic.bin",
             "denied.txt",
@@ -160,6 +188,7 @@ class ScanTests(unittest.TestCase):
             severities,
             {
                 "infected.exe": [Severity.CRITICAL],
+                "eicar.com": [Severity.WARNING],
                 "huge.iso": [Severity.INFO],
                 "heuristic.bin": [Severity.WARNING],
             },
@@ -172,7 +201,7 @@ class ScanTests(unittest.TestCase):
                 "ignored.txt": "ClamAV did not report on this file",
             },
         )
-        self.assertEqual(done, list(range(1, 8)))
+        self.assertEqual(done, list(range(1, 9)))
 
     def test_a_name_with_a_line_break_is_not_sent(self) -> None:
         """It could not be told apart from two names in the list."""

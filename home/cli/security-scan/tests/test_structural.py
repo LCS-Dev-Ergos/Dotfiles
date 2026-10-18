@@ -215,6 +215,8 @@ class ArchiveTests(unittest.TestCase):
         self.assertEqual(summary(check(path)), [("archive", Severity.WARNING)])
         path = self.folder.zip("files.zip", {"xl/vbaProject.bin": b"x"})
         self.assertEqual(check(path), [])
+        path = self.folder.zip("files.zip", {"notes/a:b.txt": b"x"})
+        self.assertEqual(check(path), [])
 
     def test_a_broken_archive_is_a_warning(self) -> None:
         """The header matches, the directory does not exist."""

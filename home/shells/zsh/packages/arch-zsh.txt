@@ -7,7 +7,6 @@ atuin
 bat
 cabextract
 ccache
-clamav
 clang
 cmake
 curl

@@ -471,7 +471,7 @@ def _escapes(name: str) -> bool:
     path = name.replace("\\", "/")
     return (
         path.startswith("/")
-        or re.match(r"[A-Za-z]:", path) is not None
+        or re.match(r"[A-Za-z]:/", path) is not None
         or ".." in path.split("/")
     )
 

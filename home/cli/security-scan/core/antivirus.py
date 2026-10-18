@@ -1,8 +1,11 @@
 """The ClamAV layer: the antivirus's signatures, over the whole batch.
 
-``clamscan`` comes from the caller's PATH, since its signature database
-belongs to that installation; ``freshclam`` keeps the database current. One
-run covers every file, because loading the database takes most of
+``clamscan`` is the first on PATH: the package puts its own ClamAV there.
+Its signatures are the user's, in ``$XDG_DATA_HOME/clamav``, where the Home
+Manager module's ``freshclam`` keeps them current; without that folder,
+clamscan uses its installation's own database.
+
+One run covers every file, because loading the database takes most of
 ClamAV's time. The files go in a private list rather than on the command
 line, the output is read line by line for progress, and a watchdog stops
 the whole process group when the time runs out or the scan is
@@ -34,12 +37,23 @@ _AFTER_FOUND = "Virus(es) detected ERROR"
 
 @dataclass(frozen=True)
 class ClamAV:
-    """An installed ``clamscan`` with a signature database."""
+    """An installed ``clamscan`` with a signature database.
+
+    ``directory`` is the user's database folder, passed to every run, or
+    None for the installation's own.
+    """
 
     command: Path
     version: str
     database: str
     updated: datetime | None
+    directory: Path | None = None
+
+    def arguments(self) -> list[str]:
+        """The command and the database it reads."""
+        if self.directory is None:
+            return [str(self.command)]
+        return [str(self.command), f"--database={self.directory}"]
 
     def stale(self, now: datetime) -> bool:
         """Whether the database is older than STALE_DAYS."""
@@ -69,9 +83,10 @@ def find(environ: Mapping[str, str]) -> tuple[ClamAV | None, str]:
     command = shutil.which("clamscan", path=environ.get("PATH", ""))
     if command is None:
         return None, "Not installed"
+    probe = ClamAV(Path(command), "", "", None, database_directory(environ))
     try:
         result = subprocess.run(
-            [command, "--version"],
+            [*probe.arguments(), "--version"],
             stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
@@ -92,7 +107,25 @@ def find(environ: Mapping[str, str]) -> tuple[ClamAV | None, str]:
         updated = datetime.strptime(stamp.strip(), "%a %b %d %H:%M:%S %Y")
     except ValueError:
         updated = None
-    return ClamAV(Path(command), engine, database, updated), ""
+    return ClamAV(
+        probe.command, engine, database, updated, probe.directory
+    ), ""
+
+
+def database_directory(environ: Mapping[str, str]) -> Path | None:
+    """The user's signature folder, when it exists.
+
+    It is ``$XDG_DATA_HOME/clamav``, or ``~/.local/share/clamav``, as the
+    Home Manager module configures freshclam.
+    """
+    base = environ.get("XDG_DATA_HOME", "")
+    if not os.path.isabs(base):
+        home = environ.get("HOME", "")
+        if not os.path.isabs(home):
+            return None
+        base = os.path.join(home, ".local", "share")
+    directory = Path(base, "clamav")
+    return directory if directory.is_dir() else None
 
 
 def scan(
@@ -159,7 +192,7 @@ def _run(
     of its size limits, say so instead of passing as clean.
     """
     command = [
-        str(clamav.command),
+        *clamav.arguments(),
         "--no-summary",
         "--alert-exceeds-max=yes",
         f"--file-list={listing}",
@@ -242,7 +275,8 @@ def _finding(signature: str) -> Finding:
 
     ClamAV reports its size limits as a match too; that only says part of
     the file went unchecked. Heuristic matches are likelier to be false
-    alarms than signatures.
+    alarms than signatures, and the EICAR test string is harmless by
+    design.
     """
     detail: dict[str, object] = {"signature": signature}
     if signature.startswith("Heuristics.Limits.Exceeded"):
@@ -250,6 +284,13 @@ def _finding(signature: str) -> Finding:
             "clamav",
             Severity.INFO,
             "Was only partly scanned by ClamAV: it exceeds a size limit",
+            detail,
+        )
+    if signature.startswith("Eicar-"):
+        return Finding(
+            "clamav",
+            Severity.WARNING,
+            "Holds the EICAR antivirus test string, which is harmless",
             detail,
         )
     if signature.startswith("Heuristics."):
