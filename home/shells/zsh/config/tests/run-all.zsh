@@ -245,7 +245,6 @@ _verify_python_tests() {
 
   if [[ -z "$category" || "$category" == "tools" || "$category" == "integration" ]]; then
     local -a suites=(
-      "$verify_config_dir/scripts/security/python/tests"
       "$verify_config_dir/scripts/python/tests"
     )
     local suite

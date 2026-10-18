@@ -54,7 +54,6 @@ unarchiver
 wget
 wl-clipboard
 xclip
-yara
 yazi
 zoxide
 zsh

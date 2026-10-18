@@ -43,8 +43,7 @@ optional	documents	gs	ghostscript	ghostscript	-	PDF recompression through Ghosts
 optional	documents	exiftool	exiftool	perl-image-exiftool	Image-ExifTool	Document and image metadata inspection.
 optional	documents	pdftotext	poppler	poppler	-	PDF text extraction and validation.
 optional	documents	ddjvu	djvulibre	djvulibre	-	DjVu document conversion.
-optional	security	clamscan|clamdscan	clamav	clamav	-	Malware scanning backend.
-optional	security	yara	yara	yara	-	Rule-based file scanning backend.
+optional	security	clamscan	clamav	clamav	-	ClamAV layer of security-scan (home/cli/security-scan).
 optional	security	nmap	nmap	nmap	-	Advanced network diagnostics.
 optional	blog	hugo	hugo	hugo	-	Static-site builds for the blog workflow.
 optional	blog	rsync	rsync	rsync	-	Guarded Obsidian-to-Hugo synchronization.

@@ -205,7 +205,8 @@
       # `nix build .#vscode-host-settings` for the VS Code settings tool,
       # `nix build .#vscode-sync` for the Stable-to-Insiders sharing tool,
       # `nix build .#dev-doctor` for the environment health and compiler tools,
-      # `nix build .#brew-stats` for the Homebrew disk report, and
+      # `nix build .#brew-stats` for the Homebrew disk report,
+      # `nix build .#security-scan` for the file and folder threat scanner, and
       # `nix build .#terminal-style` for the style the shell tools share.
       packages = forAllSystems (
         system:
@@ -221,6 +222,7 @@
           dev-bootstrap = pkgs.callPackage ./home/dev/bootstrap/package.nix { };
           dev-doctor = pkgs.callPackage ./home/dev/doctor/package.nix { };
           brew-stats = pkgs.callPackage ./home/cli/brew-stats/package.nix { };
+          security-scan = pkgs.callPackage ./home/cli/security-scan/package.nix { };
           development-recovery = self.packages.${system}.dev-bootstrap;
           default = self.packages.${system}.cpp-tools;
         }
@@ -250,6 +252,7 @@
           dev-bootstrap = self.packages.aarch64-darwin.dev-bootstrap;
           dev-doctor = self.packages.aarch64-darwin.dev-doctor;
           brew-stats = self.packages.aarch64-darwin.brew-stats;
+          security-scan = self.packages.aarch64-darwin.security-scan;
           development-recovery = self.checks.aarch64-darwin.dev-bootstrap;
           llvm-darwin-toolchain = self.packages.aarch64-darwin.llvm-darwin-toolchain.tests.default;
         };
@@ -262,6 +265,7 @@
           vscode-sync = self.packages.x86_64-linux.vscode-sync;
           dev-bootstrap = self.packages.x86_64-linux.dev-bootstrap;
           dev-doctor = self.packages.x86_64-linux.dev-doctor;
+          security-scan = self.packages.x86_64-linux.security-scan;
           development-recovery = self.checks.x86_64-linux.dev-bootstrap;
         };
       };
