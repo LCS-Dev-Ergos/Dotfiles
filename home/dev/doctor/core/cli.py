@@ -23,6 +23,7 @@ from .doctor import (
     Conflict,
     Record,
     State,
+    Updates,
     apply_updates,
     binary_of,
     check_all,
@@ -69,52 +70,75 @@ class Context:
 
 # Health Report ----------------------------------------------------------------
 
-_STATES = (
-    "States: ok, outdated, dormant (a per-shell manager not activated here), "
-    "unused, shadowed, broken, absent, unknown. Runtime startup is checked "
-    "where declared; ok is not a full build test. CC and CXX overrides are "
-    f"honoured; '{TOOLCHAIN} info' details the C/C++ compilers."
-)
+_DOCTOR_EPILOG = f"""\
+States:
+  ok        Installed, versioned and, where declared, started (not a build test)
+  outdated  Healthy, and its manager reports an update (with --updates)
+  dormant   A per-shell manager (fnm, conda) this shell has not activated
+  unused    The manager keeps no versions; the binary comes from elsewhere
+  shadowed  The manager keeps versions, but PATH resolves another binary
+  unknown   A probe timed out or printed no version
+  broken    Missing, or it fails to start
+  absent    Not installed (listed with --all)
+
+Examples:
+  {DOCTOR}                      Every installed runtime
+  {DOCTOR} --only cc,cxx,gcc    Some, by id (the id column)
+  {DOCTOR} -u                   Also ask Homebrew and rustup for updates
+  {DOCTOR} --deep               Also run dev-bootstrap verify --health
+
+Exit status: 0 healthy, 1 inconclusive or PATH needs attention, 2 broken or
+usage error. CC and CXX are honoured; '{TOOLCHAIN} info' details the C/C++
+compilers.
+"""
 
 
 def doctor_parser() -> argparse.ArgumentParser:
     """The ``dev-doctor`` options."""
-    parser = argparse.ArgumentParser(
+    parser = ui.ArgumentParser(
         prog=DOCTOR,
-        description="Report the health of the development environment.",
-        epilog=_STATES,
+        description=(
+            "Report the health of the development environment: for each "
+            "runtime this configuration sets up, whether it is installed, "
+            "which version is active, whether it starts and where PATH "
+            "finds it. Read-only; only --updates reaches the network."
+        ),
+        epilog=_DOCTOR_EPILOG,
+        version=f"{DOCTOR} {__version__}",
     )
-    parser.add_argument(
+    checks = parser.add_argument_group("Checks")
+    checks.add_argument(
+        "--only",
+        metavar="IDS",
+        help="Check only these comma-separated runtime ids",
+    )
+    checks.add_argument(
+        "--all",
+        action="store_true",
+        help="Include runtimes that are not installed",
+    )
+    checks.add_argument(
+        "--deep",
+        action="store_true",
+        help="Also run dev-bootstrap verify --health (slow)",
+    )
+    found = parser.add_argument_group("Updates")
+    found.add_argument(
         "-u",
         "--updates",
         action="store_true",
-        help="query the managers that have a native update check",
+        help=(
+            "Ask the managers with a native update check (Homebrew, rustup) "
+            "and report what each answered; cached for six hours"
+        ),
     )
-    parser.add_argument(
+    found.add_argument(
         "--refresh",
         action="store_true",
-        help="ignore the cached update signals (implies --updates)",
+        help="Ask again instead of reading the cache (implies --updates)",
     )
     parser.add_argument(
-        "--only",
-        metavar="IDS",
-        help="check only these comma-separated runtime ids",
-    )
-    parser.add_argument(
-        "--all",
-        action="store_true",
-        help="include runtimes that are not installed",
-    )
-    parser.add_argument(
-        "--deep",
-        action="store_true",
-        help="also run dev-bootstrap verify --health",
-    )
-    parser.add_argument(
-        "--json", action="store_true", help="print the report as JSON"
-    )
-    parser.add_argument(
-        "--version", action="version", version=f"{DOCTOR} {__version__}"
+        "--json", action="store_true", help="Print the report as JSON"
     )
     return parser
 
@@ -155,6 +179,7 @@ def _doctor(
         runtimes = [known[part] for part in dict.fromkeys(wanted)]
 
     records = check_all(runtimes, host, timeout, jobs)
+    found: Updates | None = None
     if args.updates or args.refresh:
         print(
             log(context.errors, "info", "Querying update sources"),
@@ -178,7 +203,8 @@ def _doctor(
         r for r in records if args.all or r.state is not State.ABSENT
     )
     if args.json:
-        print(json.dumps(doctor_json(shown, conflicts, health), indent=2))
+        report = doctor_json(shown, conflicts, health, found)
+        print(json.dumps(report, indent=2))
     else:
         lines = doctor_report(
             context.style,
@@ -186,7 +212,7 @@ def _doctor(
             shown,
             conflicts,
             health,
-            updates=args.updates or args.refresh,
+            updates=found,
             now=context.now(),
         )
         print("\n".join(lines))
@@ -238,40 +264,69 @@ def _number(
 
 def toolchain_parser() -> argparse.ArgumentParser:
     """The ``toolchain`` subcommands."""
-    parser = argparse.ArgumentParser(
+    parser = ui.ArgumentParser(
         prog=TOOLCHAIN,
-        description="Explain and select the C/C++ compilers of this shell.",
-    )
-    parser.add_argument(
-        "--version", action="version", version=f"{TOOLCHAIN} {__version__}"
+        version=f"{TOOLCHAIN} {__version__}",
+        description=(
+            "Explain and select the C/C++ compilers of this shell. Without a "
+            "command, it runs info."
+        ),
+        epilog=(
+            "The Zsh functions use_llvm, use_gnu and use_system evaluate "
+            f"'{TOOLCHAIN} env'; run those rather than env itself."
+        ),
     )
     commands = parser.add_subparsers(dest="command", metavar="COMMAND")
+    text = "Show what each compiler name resolves to (default)"
     info = commands.add_parser(
-        "info", help="show what each compiler name resolves to (default)"
+        "info",
+        help=text,
+        description=(
+            "List cc, c++, gcc, g++, clang, clang++ and every versioned "
+            "name on PATH, each with the compiler it really is behind links "
+            "and ccache."
+        ),
     )
     info.add_argument(
         "--debug",
         action="store_true",
-        help="also show what each wrapper reports",
+        help="Also show what each wrapper reports",
     )
+    text = "Show which SDK headers the active compiler reaches"
     sdk = commands.add_parser(
-        "sdk", help="show which SDK headers the active compiler reaches"
+        "sdk",
+        help=text,
+        description=(
+            "Check whether the active compiler (CC, else cc) and "
+            "/usr/bin/cc can include the headers runtimes built from source "
+            "need, and list those they disagree on."
+        ),
     )
     sdk.add_argument(
         "-a",
         "--all",
         action="store_true",
-        help="list every header, not only the divergent ones",
+        help="List every header, not only the divergent ones",
     )
+    text = "Print shell code that selects a toolchain (use_llvm, use_gnu)"
     env = commands.add_parser(
         "env",
-        help="print shell code that selects a toolchain (use_llvm, use_gnu)",
+        help=text,
+        description=(
+            "Print the shell code that sets CC, CXX and TOOLCHAIN_ACTIVE "
+            "for one shell. Nothing is printed unless the selection is "
+            "complete."
+        ),
     )
-    env.add_argument("toolchain", choices=[t.value for t in Toolchain])
+    env.add_argument(
+        "toolchain",
+        choices=[t.value for t in Toolchain],
+        help="One of llvm (Clang), gnu (GCC) or system (restore CC and CXX)",
+    )
     env.add_argument(
         "--state",
         default="",
-        help="what the previous switch left in $_TOOLCHAIN_STATE",
+        help="What the previous switch left in $_TOOLCHAIN_STATE",
     )
     return parser
 

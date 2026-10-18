@@ -489,6 +489,42 @@ class UpdateTests(unittest.TestCase):
         found = updates(self.machine.host, refresh=False, ttl=60, timeout=5)
         self.assertEqual(found.formulas, {"gcc"})
 
+    def test_a_failed_source_is_reported_and_not_cached(self) -> None:
+        """A source that does not answer is named, and asked again."""
+        self.machine.tool("rustup", f'echo x >> "{self.calls}"; exit 1')
+        found = updates(self.machine.host, refresh=False, ttl=60, timeout=5)
+        self.assertEqual(found.checked, ("brew",))
+        self.assertEqual(found.failed, (("rustup", "Exited with status 1"),))
+        updates(self.machine.host, refresh=False, ttl=60, timeout=5)
+        self.assertEqual(len(self.calls.read_text().split()), 4)
+
+    def test_rustup_reports_an_update_by_its_status(self) -> None:
+        """rustup check exits 100 when an update is available."""
+        self.machine.tool(
+            "rustup", "echo 'stable: Update available'; exit 100"
+        )
+        found = updates(self.machine.host, refresh=True, ttl=60, timeout=5)
+        self.assertEqual(found.managers, {"rustup"})
+        self.assertEqual(found.checked, ("brew", "rustup"))
+
+    def test_the_report_says_what_each_source_answered(self) -> None:
+        """An empty answer reads as one; untracked formulas are counted."""
+        self.machine.tool("go", 'echo "go version go1.27.1"')
+        _, out, _ = self.machine.doctor("--only", "go", "--updates")
+        self.assertIn("Updates · asked", out)
+        self.assertIn(
+            "Homebrew: Nothing outdated among the runtimes above; "
+            "1 other package (gcc)",
+            out,
+        )
+        self.assertNotIn("--refresh asks again", out)
+        _, out, _ = self.machine.doctor("--only", "go", "--updates")
+        self.assertIn("Updates · cached", out)
+        self.assertIn("dev-doctor --refresh asks again.", out)
+        _, out, _ = self.machine.doctor("--updates", styled=True, width=60)
+        for line in out.splitlines():
+            self.assertLessEqual(ui.text_width(ui.strip(line)), 60)
+
     def test_an_outdated_formula_marks_its_runtime(self) -> None:
         """The runtime whose formula is outdated carries the update hint."""
         self.machine.tool("gfortran", 'echo "GNU Fortran (GCC) 16.2.0"')

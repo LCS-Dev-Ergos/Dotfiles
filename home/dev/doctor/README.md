@@ -30,12 +30,12 @@ dev-doctor --deep                   # Also run dev-bootstrap verify --health
 
 | Option | Effect |
 | --- | --- |
-| `-u`, `--updates` | Ask the managers with a native, machine-readable update check (Homebrew, once for every formula, and `rustup check`). Cached. |
+| `-u`, `--updates` | Ask the managers with a native, machine-readable update check (Homebrew, once for every formula, and `rustup check`) and add an Updates section with each one's answer: what is outdated among the rows, how many other Homebrew packages are, or that it failed. A complete answer is cached; one with a failed source is asked again next time. |
 | `--refresh` | Ignore the cache; implies `--updates`. |
 | `--only IDS` | Check only these comma-separated ids; an unknown id is a usage error. |
 | `--all` | Include runtimes that are not installed. |
 | `--deep` | Run `dev-bootstrap verify --health` and add its rows. |
-| `--json` | Print `managers`, `conflicts` and, with `--deep`, `deep` as JSON. |
+| `--json` | Print `managers`, `conflicts` and, with `--updates` and `--deep`, `updates` and `deep` as JSON. |
 
 Exit status: 0 when every check passed, 1 when one is inconclusive or PATH
 needs attention, 2 when something is broken or the command line is wrong.

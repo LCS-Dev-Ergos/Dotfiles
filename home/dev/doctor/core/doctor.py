@@ -464,10 +464,22 @@ class Updates:
     Attributes:
         formulas: Homebrew formulas with a newer release.
         managers: Registry ids whose manager has an update.
+        checked: The sources that answered, in the order they were asked.
+        failed: The sources that did not answer, each with the reason.
+        time: When the sources were asked, in seconds since the epoch.
+        cached: Whether this answer was read from the cache.
     """
 
     formulas: frozenset[str] = field(default_factory=frozenset[str])
     managers: frozenset[str] = field(default_factory=frozenset[str])
+    checked: tuple[str, ...] = ()
+    failed: tuple[tuple[str, str], ...] = ()
+    time: float = 0.0
+    cached: bool = False
+
+
+UPDATE_SOURCES = ("brew", "rustup")
+"""The managers asked for updates, as ``Updates.checked`` names them."""
 
 
 def updates(
@@ -481,8 +493,10 @@ def updates(
     """Ask the managers with a machine-readable check, or read the cache.
 
     Homebrew is asked once for every formula; rustup through ``rustup
-    check``. Managers without such a check are left out deliberately. The
-    answer is cached for ``ttl`` seconds in a file only the user can read.
+    check``, which from 1.28 on exits 100 when an update is available.
+    Managers without such a check are left out deliberately. A complete
+    answer is cached for ``ttl`` seconds in a file only the user can read;
+    one with a failed source is not, so the next run asks again.
     """
     cache = host.cache_home() / DOCTOR / "updates.json"
     if not refresh:
@@ -491,25 +505,50 @@ def updates(
             return cached
     formulas: set[str] = set()
     managers: set[str] = set()
+    checked: list[str] = []
+    failed: list[tuple[str, str]] = []
     brew = host.which("brew")
     if brew is not None:
         outdated = process.run(
             (str(brew), "outdated", "--quiet"), host.env, timeout * 2
         )
         if outdated.ok:
+            checked.append("brew")
             formulas = {
                 line.strip().rsplit("/", 1)[-1]
                 for line in outdated.output.splitlines()
                 if line.strip()
             }
+        else:
+            failed.append(("brew", _failure(outdated, timeout * 2)))
     rustup = host.which("rustup")
     if rustup is not None:
-        checked = process.run((str(rustup), "check"), host.env, timeout)
-        if checked.ok and "Update available" in checked.output:
-            managers.add("rustup")
-    found = Updates(frozenset(formulas), frozenset(managers))
-    _write_cache(cache, found, now())
+        asked = process.run((str(rustup), "check"), host.env, timeout)
+        if asked.ok or asked.status == 100:
+            checked.append("rustup")
+            if asked.status == 100 or "Update available" in asked.output:
+                managers.add("rustup")
+        else:
+            failed.append(("rustup", _failure(asked, timeout)))
+    found = Updates(
+        frozenset(formulas),
+        frozenset(managers),
+        tuple(checked),
+        tuple(failed),
+        now(),
+    )
+    if not failed:
+        _write_cache(cache, found)
     return found
+
+
+def _failure(outcome: process.Outcome, timeout: float) -> str:
+    """Why a source did not answer."""
+    if outcome.timed_out:
+        return f"No answer within {timeout:g} s"
+    if outcome.status == process.NOT_RUNNABLE:
+        return "Could not be started"
+    return f"Exited with status {outcome.status}"
 
 
 def _read_cache(path: Path, ttl: float, now: float) -> Updates | None:
@@ -524,31 +563,36 @@ def _read_cache(path: Path, ttl: float, now: float) -> Updates | None:
     if not isinstance(stamp, int | float) or not 0 <= now - stamp < ttl:
         return None
     lists: list[frozenset[str]] = []
-    for key in ("formulas", "managers"):
+    for key in ("formulas", "managers", "checked"):
         items = as_array(data.get(key))
         if items is None or not all(isinstance(i, str) for i in items):
             return None
         lists.append(frozenset(str(item) for item in items))
-    return Updates(lists[0], lists[1])
+    checked = tuple(s for s in UPDATE_SOURCES if s in lists[2])
+    return Updates(lists[0], lists[1], checked, (), float(stamp), True)
 
 
-def _write_cache(path: Path, found: Updates, now: float) -> None:
+def _write_cache(path: Path, found: Updates) -> None:
     """Replace the cache atomically; skip a cache that cannot be written."""
     data = {
-        "time": now,
+        "time": found.time,
         "formulas": sorted(found.formulas),
         "managers": sorted(found.managers),
+        "checked": list(found.checked),
     }
     try:
         path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         descriptor, name = tempfile.mkstemp(
             dir=path.parent, prefix=".updates."
         )
+    except OSError:
+        return
+    try:
         with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
             json.dump(data, stream)
         os.replace(name, path)
     except OSError:
-        return
+        Path(name).unlink(missing_ok=True)
 
 
 def apply_updates(records: Iterable[Record], found: Updates) -> list[Record]:

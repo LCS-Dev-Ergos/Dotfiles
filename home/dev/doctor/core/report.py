@@ -15,7 +15,7 @@ from terminal_style import Cell, Column, Row
 from . import DOCTOR, TOOLCHAIN
 from .compilers import Entry
 from .deep import Deep
-from .doctor import Conflict, Record, State
+from .doctor import Conflict, Record, State, Updates
 from .host import Host, Platform
 from .registry import Group
 from .sdk import Survey
@@ -59,10 +59,11 @@ def doctor_report(
     conflicts: Sequence[Conflict],
     deep: Deep | None,
     *,
-    updates: bool,
+    updates: Updates | None,
     now: datetime,
 ) -> list[str]:
-    """The health report: masthead, runtimes, conflicts, deep health, tally."""
+    """The health report: masthead, runtimes, conflicts, updates, deep health
+    and tally; ``updates`` is what ``--updates`` found, if it ran."""
     groups = {record.runtime.group for record in records}
     runtimes = _plural(len(records), "runtime")
     subtitle = f"{runtimes} in {_plural(len(groups), 'group')}"
@@ -83,6 +84,8 @@ def doctor_report(
         lines += _runtimes_plain(records)
     if conflicts:
         lines += ["", *_conflicts(style, conflicts)]
+    if updates is not None:
+        lines += ["", *_updates(style, records, updates)]
     if deep is not None:
         lines += ["", *_deep(style, deep)]
     lines += ["", *_tally(style, records, conflicts, deep, updates)]
@@ -273,15 +276,15 @@ def _tally(
     records: Sequence[Record],
     conflicts: Sequence[Conflict],
     deep: Deep | None,
-    updates: bool,
+    updates: Updates | None,
 ) -> list[str]:
     """The count of each state and what to do next."""
     counts = Counter(record.state for record in records)
     shown = [(state, counts[state]) for state in State if counts[state]]
     worst = doctor_status(records, conflicts, deep)
     if style.styled:
-        hint = "Update sources checked"
-        if not updates:
+        hint = ""
+        if updates is None:
             hint = f"{DOCTOR} --updates checks for new releases"
         entries = [(state.tone, count, state.value) for state, count in shown]
         return ui.summary(style, entries, hint)
@@ -291,10 +294,78 @@ def _tally(
         level = ("ok", "warn", "error")[worst]
         ending = "." if worst == 0 else "; review the flagged entries."
         lines.append(log(style, level, f"{words}{ending}"))
-    if not updates:
+    if updates is None:
         message = f"Run '{DOCTOR} --updates' for native update checks."
         lines.append(log(style, "info", message))
     return lines
+
+
+_SOURCES = {"brew": "Homebrew", "rustup": "rustup"}
+
+
+def _updates(
+    style: ui.Style, records: Sequence[Record], found: Updates
+) -> list[str]:
+    """What each update source answered, so an empty answer reads as one.
+
+    Homebrew's outdated packages, formulae and casks alike, split into
+    those a row tracks, which the table marks ``outdated``, and the rest,
+    which only ``brew upgrade`` concerns.
+    """
+    when = datetime.fromtimestamp(found.time).strftime("%H:%M")
+    note = f"cached {when}" if found.cached else f"asked {when}"
+    lines = ui.section(style, "Updates", note)
+    if not found.checked and not found.failed:
+        message = "No manager here has a native update check."
+        return [*lines, log(style, "info", message)]
+    tracked = {r.runtime.formula for r in records if r.runtime.formula}
+    for source in found.checked:
+        if source == "brew":
+            here = sorted(found.formulas & tracked)
+            other = sorted(found.formulas - tracked)
+            parts = [
+                f"Outdated here: {', '.join(here)}"
+                if here
+                else "Nothing outdated among the runtimes above"
+            ]
+            if other:
+                parts.append(
+                    f"{_plural(len(other), 'other package')}"
+                    f" ({_names(other)}); brew upgrade updates them"
+                )
+            level = "warn" if here else "ok"
+            text = "; ".join(parts)
+        else:
+            due = source in found.managers
+            level = "warn" if due else "ok"
+            text = "Update available" if due else "Up to date"
+        lines += _paragraph(style, level, f"{_SOURCES[source]}: {text}.")
+    for source, reason in found.failed:
+        message = f"{_SOURCES[source]}: No answer. {reason}."
+        lines += _paragraph(style, "warn", message)
+    message = (
+        "Other managers have no machine-readable check and are not asked."
+    )
+    if found.cached:
+        message += f" {DOCTOR} --refresh asks again."
+    return [*lines, *_paragraph(style, "info", message)]
+
+
+def _paragraph(style: ui.Style, level: str, text: str) -> list[str]:
+    """A leveled line, wrapped to the terminal when styled."""
+    if not style.styled:
+        return [log(style, level, text)]
+    room = style.width - 2 * ui.GUTTER - 2
+    first, *rest = ui.wrap(ui.sanitize(text), room)
+    lead = " " * (ui.GUTTER + 2)
+    return [log(style, level, first), *(f"{lead}{line}" for line in rest)]
+
+
+def _names(items: Sequence[str], limit: int = 5) -> str:
+    """The first ``limit`` names, then how many more."""
+    shown = ", ".join(items[:limit])
+    rest = len(items) - limit
+    return f"{shown} and {rest} more" if rest > 0 else shown
 
 
 def doctor_status(
@@ -314,6 +385,7 @@ def doctor_json(
     records: Sequence[Record],
     conflicts: Sequence[Conflict],
     deep: Deep | None,
+    updates: Updates | None = None,
 ) -> dict[str, object]:
     """The health report for programs."""
     report: dict[str, object] = {
@@ -334,6 +406,18 @@ def doctor_json(
             for c in conflicts
         ],
     }
+    if updates is not None:
+        report["updates"] = {
+            "checked": list(updates.checked),
+            "failed": [
+                {"source": source, "reason": reason}
+                for source, reason in updates.failed
+            ],
+            "time": updates.time,
+            "cached": updates.cached,
+            "formulas": sorted(updates.formulas),
+            "managers": sorted(updates.managers),
+        }
     if deep is not None:
         report["deep"] = {
             "error": deep.error or None,
