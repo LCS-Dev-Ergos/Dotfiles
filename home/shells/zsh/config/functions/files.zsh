@@ -8,15 +8,17 @@
 # Provides tools for creating, extracting, and analyzing files.
 #
 # Functions:
-#   - extract     Universal archive extraction.
-#   - mktar       Create .tar archive.
-#   - mkgz        Create .tar.gz archive.
-#   - mktbz       Create .tar.bz2 archive.
-#   - mkzip       Create .zip archive.
-#   - findlarge   Find files larger than specified size.
-#   - tre         Directory tree respecting .gitignore.
-#   - count       Count files and directories.
-#   - dirsize     Directory size analysis.
+#   - extract        Universal archive extraction.
+#   - mktar          Create .tar archive.
+#   - mkgz           Create .tar.gz archive.
+#   - mktbz          Create .tar.bz2 archive.
+#   - mkzip          Create .zip archive.
+#   - findlarge      Find files larger than specified size.
+#   - tre            Directory tree respecting .gitignore.
+#   - count          Count files and directories.
+#   - dirsize        Directory size analysis.
+#   - pdf-tools      PDF pages, compression, passwords and metadata.
+#   - security-scan  Structural, YARA and ClamAV file scanning.
 #
 # ============================================================================ #
 
@@ -556,6 +558,38 @@ function dirsize() {
 
 # Create alias for dirsize.
 alias ds='dirsize'
+
+# -----------------------------------------------------------------------------
+# pdf-tools
+# @description Inspects and edits PDF documents: pages, compression,
+# passwords, metadata, bookmarks, watermarks and DjVu conversion;
+# `pdf-tools` from home/cli/pdf-tools.
+# @arg $1 string Command: info, extract, delete, rotate, merge, split,
+# compress, protect, unlock, metadata, bookmarks, watermarks or from-djvu.
+# @arg $@ string Optional files and options for the command; see --help.
+# @option -h | --help Show usage information.
+# @option --version Show the version.
+# @exitcode 1 If the task fails; nothing is left half written.
+# @exitcode 2 If command-line arguments or page selections are invalid.
+# -----------------------------------------------------------------------------
+pdf-tools() {
+  command pdf-tools "$@"
+}
+
+# -----------------------------------------------------------------------------
+# security-scan
+# @description Scans files and folders for document threats with structural
+# checks, YARA and ClamAV; `security-scan` (alias `secscan`) from
+# home/cli/security-scan.
+# @arg $@ string Files or folders to scan, and options; see --help.
+# @option -h | --help Show usage information.
+# @option --version Show the version.
+# @exitcode 1 If a file is flagged with a warning or worse.
+# @exitcode 2 If the scan is incomplete or cannot run, or arguments are invalid.
+# -----------------------------------------------------------------------------
+security-scan() {
+  command security-scan "$@"
+}
 
 # ============================================================================ #
 # End of files.zsh

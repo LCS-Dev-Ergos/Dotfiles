@@ -168,7 +168,7 @@ take precedence over the generated baseline.
 | `portscan`, `serve` | `functions/network.zsh` | Port probe and guarded local HTTP server |
 | `shorten`, `cheat` | `functions/network.zsh` | is.gd and cheat.sh clients with shared URL encoding |
 | `qr` | `functions/network.zsh` | Local QR via `qrencode`, explicit remote fallback |
-| `pdf-tools` | home/cli/pdf-tools | PDF pages, compression, passwords, metadata, bookmarks, watermarks, DjVu |
+| `pdf-tools` | `functions/files.zsh` | `pdf-tools` (home/cli/pdf-tools): PDF pages, compression, passwords, metadata, bookmarks, watermarks, DjVu |
 
 ### Development and Operations
 
@@ -178,7 +178,7 @@ take precedence over the generated baseline.
 | `use_llvm`, `use_gnu`, `use_system` | `functions/development-tools.zsh` | Reversible per-shell compiler selection through `toolchain env` |
 | `fnm_clean`, `zsh_profile`, `zshdeps` | `functions/development-tools.zsh` | Maintain fnm, profile startup, inspect dependencies |
 | `brew_stats` | `functions/package-management.zsh` | `brew-stats` (home/cli/brew-stats): installed Homebrew package sizes |
-| `security-scan`, `secscan` | home/cli/security-scan | Structural, YARA, and ClamAV file scanning |
+| `security-scan`, `secscan` | `functions/files.zsh` | `security-scan` (home/cli/security-scan): structural, YARA, and ClamAV file scanning |
 | `utm_ubuntu_start`, `utm_ubuntu_login` | `scripts/utm-ubuntu.zsh` | Start/login to the UTM Ubuntu VM |
 
 ### Blog
