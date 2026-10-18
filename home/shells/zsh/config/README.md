@@ -168,9 +168,7 @@ take precedence over the generated baseline.
 | `portscan`, `serve` | `functions/network.zsh` | Port probe and guarded local HTTP server |
 | `shorten`, `cheat` | `functions/network.zsh` | is.gd and cheat.sh clients with shared URL encoding |
 | `qr` | `functions/network.zsh` | Local QR via `qrencode`, explicit remote fallback |
-| `pdfcompress`, `pdfrotate` | `functions/pdf.zsh` | PDF compression and rotation |
-| `remove_pdf_watermarks` | `functions/pdf.zsh` | Structural watermark analysis/removal |
-| `remove_pdf_metadata*` | `functions/pdf.zsh` | qpdf/exiftool metadata cleanup |
+| `pdf-tools` | home/cli/pdf-tools | PDF pages, compression, passwords, metadata, bookmarks, watermarks, DjVu |
 
 ### Development and Operations
 

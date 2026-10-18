@@ -8,6 +8,7 @@ _: {
     ./cli-tools
     ./git
     ./lazygit
+    ./pdf-tools
     ./security-scan
     ./statwell
     ./tealdeer

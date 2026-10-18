@@ -20,6 +20,7 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.."
 
 python_sources=(
   home/cli/brew-stats
+  home/cli/pdf-tools
   home/cli/security-scan
   home/dev/bootstrap
   home/dev/doctor

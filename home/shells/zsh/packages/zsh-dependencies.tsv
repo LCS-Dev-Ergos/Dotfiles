@@ -38,11 +38,11 @@ optional	network	nc	-	openbsd-netcat	-	Portable TCP port probing.
 optional	network	qrencode	qrencode	qrencode	-	Local QR-code generation.
 optional	clipboard	xclip	-	xclip	-	X11 clipboard integration.
 optional	clipboard	wl-copy	-	wl-clipboard	-	Wayland clipboard integration.
-optional	documents	qpdf	qpdf	qpdf	qpdf	PDF structure checks, rotation, and metadata cleanup.
-optional	documents	gs	ghostscript	ghostscript	-	PDF recompression through Ghostscript.
+optional	documents	qpdf	qpdf	qpdf	qpdf	PDF structure checks and repair from the shell.
+optional	documents	gs	ghostscript	ghostscript	-	Lossy PDF compression in pdf-tools (home/cli/pdf-tools).
 optional	documents	exiftool	exiftool	perl-image-exiftool	Image-ExifTool	Document and image metadata inspection.
 optional	documents	pdftotext	poppler	poppler	-	PDF text extraction and validation.
-optional	documents	ddjvu	djvulibre	djvulibre	-	DjVu document conversion.
+optional	documents	ddjvu	djvulibre	djvulibre	-	DjVu to PDF conversion in pdf-tools (home/cli/pdf-tools).
 optional	security	nmap	nmap	nmap	-	Advanced network diagnostics.
 optional	blog	hugo	hugo	hugo	-	Static-site builds for the blog workflow.
 optional	blog	rsync	rsync	rsync	-	Guarded Obsidian-to-Hugo synchronization.
