@@ -120,6 +120,7 @@ a few sharper markers (`?` unknown, `◐` dormant); Python's
 | `_zsh_ui_log` | — | One event line; warnings and errors go to stderr. |
 | `_zsh_ui_rule` | — | A rule across the content. |
 | `_zsh_ui_marker`, `_zsh_ui_status_glyph` | `Style.marker` | A tone's or a status word's marker. |
+| — | `ArgumentParser` | A command's `--help` and usage errors in capitalized sentences: `Usage:`, `Options:`, `Show this help and exit`. Prose in the description and epilog is refilled; a paragraph with an indented line or a line ending in a colon (`Examples:`) keeps its layout. Subcommands inherit it. |
 
 Untrusted text is escaped centrally: logs, headings, sections, cells and
 notes pass through `_zsh_ui_sanitize_text` or `sanitize`.

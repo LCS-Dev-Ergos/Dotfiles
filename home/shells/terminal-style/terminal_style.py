@@ -14,6 +14,7 @@ or truncated: a captured report stays complete. Nothing here runs a process;
 interactions (Gum) belong to the frontend, not to drawing.
 """
 
+import argparse
 import os
 import re
 import shutil
@@ -21,7 +22,7 @@ import sys
 import unicodedata
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import TextIO
+from typing import NoReturn, TextIO
 
 # Style tokens. Keep them identical to _ZSH_UI_SGR and _ZSH_UI_GLYPH in
 # terminal-style.zsh; tests/test_terminal_style.py checks.
@@ -158,6 +159,63 @@ class Style:
         """
         glyph = STATUS_GLYPHS.get(word.lower(), GLYPH[tone])
         return self.paint(_sgr("strong", TONE_TOKENS[tone]), glyph)
+
+
+class HelpFormatter(argparse.HelpFormatter):
+    """Help whose description and epilog may hold lists and examples.
+
+    A paragraph is refilled to the terminal unless it is laid out by hand:
+    a line that is indented or ends in a colon keeps the whole paragraph as
+    written. The usage line starts with a capital, like every sentence a
+    tool prints.
+    """
+
+    def _fill_text(self, text: str, width: int, indent: str) -> str:
+        paragraphs = []
+        for paragraph in text.strip("\n").split("\n\n"):
+            lines = paragraph.splitlines()
+            if any(line[:1].isspace() or line.endswith(":") for line in lines):
+                paragraphs.append("\n".join(indent + line for line in lines))
+            else:
+                paragraphs.append(super()._fill_text(paragraph, width, indent))
+        return "\n\n".join(paragraphs)
+
+    def add_usage(self, usage, actions, groups, prefix=None) -> None:
+        if prefix is None:
+            prefix = "Usage: "
+        super().add_usage(usage, actions, groups, prefix)
+
+
+class ArgumentParser(argparse.ArgumentParser):
+    """An argument parser whose help reads in capitalized sentences.
+
+    argparse's own headings and its ``--help`` line are lowercase; these
+    replace them. Subcommands inherit the class, so their help matches.
+    Pass ``version`` to add ``--version``.
+    """
+
+    def __init__(self, *args, version: str = "", **kwargs) -> None:
+        kwargs.setdefault("formatter_class", HelpFormatter)
+        add_help = kwargs.pop("add_help", True)
+        super().__init__(*args, add_help=False, **kwargs)
+        self._positionals.title = "Arguments"
+        self._optionals.title = "Options"
+        if add_help:
+            self.add_argument(
+                "-h", "--help", action="help", help="Show this help and exit"
+            )
+        if version:
+            self.add_argument(
+                "--version",
+                action="version",
+                version=version,
+                help="Show the version and exit",
+            )
+
+    def error(self, message: str) -> NoReturn:
+        """Print the usage and the message as a sentence; exit with 2."""
+        self.print_usage(sys.stderr)
+        self.exit(2, f"{self.prog}: {message[:1].upper()}{message[1:]}\n")
 
 
 def clamp_width(columns: int, limit: int = MAX_WIDTH) -> int:

@@ -134,5 +134,44 @@ class ParityTests(unittest.TestCase):
         )
 
 
+class ParserTests(unittest.TestCase):
+    """Help and errors read as capitalized sentences."""
+
+    def parser(self) -> ui.ArgumentParser:
+        """A parser with a hand-laid epilog and one subcommand."""
+        parser = ui.ArgumentParser(
+            prog="tool",
+            description="Do a thing. " * 12,
+            epilog="Examples:\n  tool run   runs it",
+            version="tool 1",
+        )
+        parser.add_subparsers(dest="command").add_parser("run", help="Run")
+        return parser
+
+    def output(self, *argv: str) -> tuple[int, str, str]:
+        """The status, standard output and error of parsing ``argv``."""
+        out, err = io.StringIO(), io.StringIO()
+        with patch("sys.stdout", out), patch("sys.stderr", err):
+            with self.assertRaises(SystemExit) as stop:
+                self.parser().parse_args(list(argv))
+        return int(stop.exception.code or 0), out.getvalue(), err.getvalue()
+
+    def test_help(self) -> None:
+        """Capital headings, refilled prose, examples kept as written."""
+        _, out, _ = self.output("--help")
+        self.assertTrue(out.startswith("Usage: tool "))
+        for line in ("Options:", "Arguments:", "  tool run   runs it"):
+            self.assertIn(line, out.splitlines())
+        self.assertIn("Show this help and exit", out)
+        self.assertIn("Show the version and exit", out)
+        self.assertNotIn("Usage: Usage:", self.output("run", "-h")[1])
+
+    def test_error(self) -> None:
+        """A usage error is a sentence and exits 2."""
+        code, _, err = self.output("--nope")
+        self.assertEqual(code, 2)
+        self.assertIn("tool: Unrecognized arguments: --nope", err)
+
+
 if __name__ == "__main__":
     unittest.main()
