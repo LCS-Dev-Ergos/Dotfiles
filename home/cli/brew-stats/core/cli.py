@@ -28,36 +28,46 @@ _DESCRIPTION = (
 )
 
 
+_EPILOG = f"""\
+Examples:
+  {PROG}                 Every package, largest first
+  {PROG} -c --top 10     The ten largest casks
+  {PROG} --sort name -q  Only the table, by name
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     """The options."""
-    parser = argparse.ArgumentParser(prog=PROG, description=_DESCRIPTION)
+    parser = ui.ArgumentParser(
+        prog=PROG,
+        description=_DESCRIPTION,
+        epilog=_EPILOG,
+        version=f"{PROG} {__version__}",
+    )
     scope = parser.add_mutually_exclusive_group()
     scope.add_argument(
-        "-f", "--formula", action="store_true", help="show only formulae"
+        "-f", "--formula", action="store_true", help="Show only formulae"
     )
     scope.add_argument(
-        "-c", "--cask", action="store_true", help="show only casks"
+        "-c", "--cask", action="store_true", help="Show only casks"
     )
     parser.add_argument(
         "--top",
         type=_positive,
         metavar="N",
-        help="list only the N largest (or first) packages",
+        help="List only the N largest (or first, with --sort name) packages",
     )
     parser.add_argument(
         "--sort",
         choices=("size", "name"),
         default="size",
-        help="order by size, largest first (default), or by name",
+        help="Order by size, largest first (default), or by name",
     )
     parser.add_argument(
         "-q",
         "--quiet",
         action="store_true",
-        help="print only the table, without the summary",
-    )
-    parser.add_argument(
-        "--version", action="version", version=f"{PROG} {__version__}"
+        help="Print only the table, without the summary",
     )
     return parser
 
@@ -65,7 +75,7 @@ def build_parser() -> argparse.ArgumentParser:
 def _positive(text: str) -> int:
     """A positive integer option value."""
     if not text.isdigit() or int(text) < 1:
-        raise argparse.ArgumentTypeError("must be a positive integer")
+        raise argparse.ArgumentTypeError("Must be a positive integer")
     return int(text)
 
 
