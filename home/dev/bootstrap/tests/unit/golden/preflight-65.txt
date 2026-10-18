@@ -3,7 +3,7 @@
 \e[34m│\e[0m                  \e[38;5;245m2 runtimes in 2 ecosystems\e[0m                   \e[34m│\e[0m
 \e[34m╰───────────────────────────────────────────────────────────────╯\e[0m
 
-  \e[1;34mRuntimes\e[0m \e[2;34m────────────────────────────────────────────────────\e[0m
+  \e[1;34mDeclared releases\e[0m \e[2;34m────────────────────────────\e[0m \e[38;5;245mread from disk\e[0m
       \e[38;5;245mRUNTIME  VERSION  MANAGER  STATE    LOCATION\e[0m
     \e[1;32m●\e[0m Node     24.21.0  \e[38;5;245mfnm\e[0m      \e[38;5;245mpresent\e[0m  \e[38;5;245m~/.local/…/bin/node\e[0m
     \e[1;33m▲\e[0m Python   3.14.9   \e[38;5;245mpyenv\e[0m    \e[33mmissing\e[0m  \e[38;5;240m~/…/3.14.9/bin/python\e[0m

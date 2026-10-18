@@ -3,7 +3,7 @@
 \e[34m│\e[0m                  \e[38;5;245m3 selections in 3 ecosystems\e[0m                \e[38;5;245msaved selection\e[0m \e[34m│\e[0m
 \e[34m╰──────────────────────────────────────────────────────────────────────────────╯\e[0m
 
-  \e[1;34mGlobal selections\e[0m \e[2;34m──────────────────────────────────────────────────────────\e[0m
+  \e[1;34mGlobal selections\e[0m \e[2;34m──────────────────────────────────────\e[0m \e[38;5;245mwhat new shells run\e[0m
       \e[38;5;245mRUNTIME      VERSION  MANAGER  STATE     LOCATION\e[0m
     \e[1;32m●\e[0m Python       3.14.8   \e[38;5;245mpyenv\e[0m    \e[38;5;245mok\e[0m        \e[38;5;245m~/…/versions/3.14.8/bin/python\e[0m
     \e[1;32m●\e[0m Haskell GHC  9.12.2   \e[38;5;245mghcup\e[0m    \e[38;5;245mok\e[0m        \e[38;5;245m~/…/ghc/9.12.2/bin/ghc-9.12.2\e[0m
@@ -12,4 +12,4 @@
       \e[38;5;245mGlobal selection delegates to the host system runtime\e[0m
 
   \e[2;34m────────────────────────────────────────────────────────────────────────────\e[0m
-  \e[1;32m●\e[0m 2 ok   \e[1;38;5;245m○\e[0m 1 external
+  \e[1;32m●\e[0m 2 ok   \e[1;38;5;245m○\e[0m 1 external                         \e[38;5;245mEvery managed selection starts\e[0m

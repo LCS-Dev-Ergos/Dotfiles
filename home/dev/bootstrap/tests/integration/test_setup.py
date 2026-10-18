@@ -1,6 +1,5 @@
 """Behavioral setup cases; native managers are mocked, child env probes are real."""
 
-import argparse
 import contextlib
 import copy
 import fcntl
@@ -493,7 +492,7 @@ class SetupTests(unittest.TestCase):
         self.assertEqual(output, "")
         (directory,) = self.runs()
         log = directory / "prerequisites.log"
-        self.assertIn(f"the full output is in {log}", errors)
+        self.assertIn(f"The full output is in {log}", errors)
         # Progress went to stderr as the run worked, ahead of the error.
         progress = errors.splitlines()
         self.assertEqual(progress[0], f"logs {directory}")
@@ -548,7 +547,7 @@ class SetupTests(unittest.TestCase):
             with (
                 self.subTest(arguments=arguments),
                 patch.object(
-                    argparse.ArgumentParser, "error", side_effect=SystemExit
+                    cli.ArgumentParser, "error", side_effect=SystemExit
                 ) as error,
                 self.assertRaises(SystemExit),
             ):
@@ -580,7 +579,7 @@ class SetupTests(unittest.TestCase):
                     {row["language"] for row in result["runtimes"]}, fixture
                 )
         _, _, errors = self.cli_output("plan")
-        self.assertIn(f"selection saved in {saved}", errors)
+        self.assertIn(f"Selection saved in {saved}", errors)
         # --only replaces it for one run, --all ignores it.
         self.scope(["python"])
         _, result = self.cli("plan")
@@ -791,7 +790,7 @@ class SetupTests(unittest.TestCase):
             with self.subTest(answers=answers):
                 code, _, errors, _ = self.guided(*self.SCOPE, answers=answers)
                 self.assertEqual(code, 130)
-                self.assertIn("setup cancelled; nothing changed", errors)
+                self.assertIn("Setup cancelled; nothing changed", errors)
         self.assertEqual(self.mutations(), [])
         self.assertFalse((self.root / "state").exists())
 
@@ -812,7 +811,7 @@ class SetupTests(unittest.TestCase):
             *self.SCOPE, answers=[("confirm", True)]
         )
         self.assertEqual(code, 130)
-        self.assertIn("interrupted during runtimes", errors)
+        self.assertIn("Interrupted during runtimes", errors)
         self.assertIn("dev-bootstrap · Apply interrupted", output)
         with (self.root / "state/dev-bootstrap/apply.lock").open("a") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -834,7 +833,7 @@ class SetupTests(unittest.TestCase):
             with (
                 self.subTest(arguments=arguments),
                 patch.object(
-                    argparse.ArgumentParser, "error", side_effect=SystemExit
+                    cli.ArgumentParser, "error", side_effect=SystemExit
                 ) as error,
                 self.assertRaises(SystemExit),
             ):
@@ -1863,7 +1862,7 @@ class SetupTests(unittest.TestCase):
                 command.send_signal(signum)
                 _, stderr = command.communicate(timeout=60)
                 self.assertEqual(command.returncode, 128 + signum, stderr)
-                self.assertIn("interrupted during prerequisites", stderr)
+                self.assertIn("Interrupted during prerequisites", stderr)
                 self.assertNotIn("Traceback", stderr)
                 self.assertTrue(gone(worker))
                 with lock.open("a") as file:

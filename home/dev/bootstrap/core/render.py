@@ -22,6 +22,16 @@ TITLES = {
     "prune --yes": "Prune result",
     "report": "Run history",
 }
+# What each report's table shows, since plan and verify list the same rows:
+# plan only reads the disk, verify starts each release, health starts what a
+# new shell selects.
+SECTIONS = {
+    "plan": ("Declared releases", "read from disk"),
+    "stopped": ("Declared releases", "read from disk"),
+    "apply": ("Declared releases", "installed or kept"),
+    "verify": ("Declared releases", "each one started"),
+    "health": ("Global selections", "what new shells run"),
+}
 # How a run that stopped before its report reads, by command and outcome.
 STOPPED = {
     ("apply", "failed"): "Apply failed",
@@ -249,7 +259,7 @@ def _runtimes(result, style):
         _title(run, title),
         f"{plural(len(runtimes), noun)} in {plural(ecosystems, 'ecosystem')}",
     )
-    lines += ui.section(style, "Global selections" if health else "Runtimes")
+    lines += ui.section(style, *SECTIONS["health" if health else action])
     costs = {
         entry["language"]: entry["cost"]
         for entry in result.get("catalog", [])
@@ -544,14 +554,18 @@ def _runtime_hint(action, health, counts):
     if action == "plan":
         if counts["missing"]:
             return f"apply installs {plural(counts['missing'], 'runtime')}"
-        return "" if unhealthy else "verify runs each one"
+        return (
+            "" if unhealthy else "Nothing to install; verify starts each one"
+        )
     if unhealthy:
         if action == "apply":
             return "apply again after resolving these"
         return f"{plural(unhealthy, 'runtime')} to look at"
     if action == "apply":
         return "A new shell picks up the defaults"
-    return "" if health else "verify --health checks the selections"
+    if health:
+        return "Every managed selection starts"
+    return "Every release starts; verify --health checks the selections"
 
 
 def _prune(result, style, applied):

@@ -3,7 +3,7 @@
 \e[34m│\e[0m                  \e[38;5;245m1 runtime in 1 ecosystem\e[0m                     \e[38;5;245mall ecosystems\e[0m \e[34m│\e[0m
 \e[34m╰──────────────────────────────────────────────────────────────────────────────╯\e[0m
 
-  \e[1;34mRuntimes\e[0m \e[2;34m───────────────────────────────────────────────────────────────────\e[0m
+  \e[1;34mDeclared releases\e[0m \e[2;34m────────────────────────────────────────\e[0m \e[38;5;245minstalled or kept\e[0m
       \e[38;5;245mRUNTIME  VERSION  MANAGER  STATE  LOCATION\e[0m
     \e[1;32m●\e[0m Python   3.14.8   \e[38;5;245mpyenv\e[0m    \e[38;5;245mok\e[0m     \e[38;5;245m~/.pyenv/versions/3.14.8/bin/python\e[0m
 

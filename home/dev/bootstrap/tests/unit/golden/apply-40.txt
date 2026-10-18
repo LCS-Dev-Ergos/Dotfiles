@@ -3,7 +3,7 @@
 \e[34m│\e[0m                  \e[38;5;245m1 runtime in 1 eco…\e[0m \e[34m│\e[0m
 \e[34m╰──────────────────────────────────────╯\e[0m
 
-  \e[1;34mRuntimes\e[0m \e[2;34m───────────────────────────\e[0m
+  \e[1;34mDeclared releases\e[0m \e[2;34m──────────────────\e[0m
       \e[38;5;245mRUNTIME  VERSION  MANAGER  STATE\e[0m
     \e[1;32m●\e[0m Python   3.14.8   \e[38;5;245mpyenv\e[0m    \e[38;5;245mok\e[0m
 

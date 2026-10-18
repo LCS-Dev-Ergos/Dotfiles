@@ -1,7 +1,7 @@
 dev-bootstrap · Apply result
 1 runtime in 1 ecosystem · aarch64-darwin · native · all ecosystems
 
-Runtimes
+Declared releases · installed or kept
 RUNTIME  VERSION  MANAGER  STATE  LOCATION
 Python   3.14.8   pyenv    ok     /home/user/.pyenv/versions/3.14.8/bin/python
 

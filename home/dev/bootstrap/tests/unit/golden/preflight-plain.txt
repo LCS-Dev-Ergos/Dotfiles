@@ -1,7 +1,7 @@
 dev-bootstrap · Runtime plan
 2 runtimes in 2 ecosystems · x86_64-linux · native · default selection
 
-Runtimes
+Declared releases · read from disk
 RUNTIME  VERSION  MANAGER  STATE    LOCATION
 Node     24.21.0  fnm      present  /home/user/.local/share/fnm/node-versions/v24.21.0/installation/bin/node
 Python   3.14.9   pyenv    missing  /home/user/.pyenv/versions/3.14.9/bin/python

@@ -3,7 +3,7 @@
 \e[34m│\e[0m                  \e[38;5;245m2 runtimes in 2 ec…\e[0m \e[34m│\e[0m
 \e[34m╰──────────────────────────────────────╯\e[0m
 
-  \e[1;34mRuntimes\e[0m \e[2;34m───────────────────────────\e[0m
+  \e[1;34mDeclared releases\e[0m \e[2;34m──────────────────\e[0m
       \e[38;5;245mRUNTIME  VERSION  STATE\e[0m
     \e[1;31m✖\e[0m Python   3.14.8   \e[31mconflict\e[0m
       The canary could not import ssl:

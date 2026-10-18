@@ -8,7 +8,7 @@ import sys
 from contextlib import contextmanager
 from pathlib import Path
 
-from terminal_style import Style, sanitize_lines
+from terminal_style import ArgumentParser, Style, sanitize_lines
 
 from . import process
 from .adapters import ADAPTERS
@@ -30,37 +30,73 @@ REPORT_SCHEMA = 1
 PREFLIGHT = argparse.Namespace(action="plan", health=False, preflight=True)
 
 
+ACTIONS_HELP = """\
+Actions:
+  plan     What is installed and what apply would install (default; read-only)
+  apply    Install what plan lists as missing, then set absent defaults
+  verify   Start each declared release and confirm its exact version
+           (--health: start what new shells select instead, extensions too)
+  prune    List installed releases the baseline retired (--yes removes them)
+  report   List the recorded runs (--last or --run ID shows one again)
+  setup    Guided native setup: review plan --preflight, then apply
+
+Examples:
+  dev-bootstrap                          The plan for the saved selection
+  dev-bootstrap plan --preflight         Also native packages and privileges
+  dev-bootstrap apply --only rust        Install one ecosystem
+  dev-bootstrap verify --health          Check what new shells run
+  dev-bootstrap prune --yes              Remove retired releases
+
+Exit status: 0 success, 1 a runtime is not healthy, 2 usage error or failure;
+128 + the signal when interrupted, 130 when setup is cancelled.
+"""
+
+
 def command_line():
     """The argument parser; main() checks how options combine."""
-    parser = argparse.ArgumentParser(
+    parser = ArgumentParser(
         prog="dev-bootstrap",
-        description="Plan, bootstrap and verify the declared runtime baseline.",
+        description=(
+            "Plan, install and verify the declared runtime baseline: one "
+            "release set per ecosystem, installed through its own manager "
+            "(fnm, pyenv, rustup, ...). Managers own later upgrades; a "
+            "rerun only repairs what is missing."
+        ),
+        epilog=ACTIONS_HELP,
     )
-    parser.add_argument("--manifest", type=Path, required=True)
+    # Supplied by the installed wrapper, so it stays out of the help.
+    parser.add_argument(
+        "--manifest", type=Path, required=True, help=argparse.SUPPRESS
+    )
     parser.add_argument(
         "action",
         nargs="?",
         default="plan",
         choices=("plan", "apply", "verify", "prune", "report", "setup"),
+        help="What to do (default: plan); see the actions below",
     )
-    chosen = parser.add_mutually_exclusive_group()
+    selection = parser.add_argument_group("Selection")
+    chosen = selection.add_mutually_exclusive_group()
     chosen.add_argument(
         "--only",
         choices=tuple(ADAPTERS),
         action="append",
-        help="Select an ecosystem instead of the saved selection; repeatable",
+        metavar="ECOSYSTEM",
+        help="Select an ecosystem instead of the saved selection; "
+        f"repeatable ({', '.join(ADAPTERS)})",
     )
     chosen.add_argument(
         "--all",
         action="store_true",
         help="Select every default ecosystem, ignoring the saved selection",
     )
-    parser.add_argument(
+    selection.add_argument(
         "--save-selection",
         action="store_true",
-        help="Save the --only selection for later runs, or forget it with --all",
+        help="Save the --only selection for later runs, or forget it with "
+        "--all",
     )
-    parser.add_argument(
+    selection.add_argument(
         "--accept",
         choices=sorted(
             {
@@ -73,7 +109,50 @@ def command_line():
         default=[],
         help="Accept terms a selected ecosystem requires before installation",
     )
-    output = parser.add_mutually_exclusive_group()
+    modes = parser.add_argument_group("Action options")
+    modes.add_argument(
+        "--preflight",
+        action="store_true",
+        help="Plan: also report, read-only, the native packages, privilege "
+        "and releases apply would need",
+    )
+    modes.add_argument(
+        "--health",
+        action="store_true",
+        help="Verify: check the global selections new shells run, not the "
+        "exact baseline releases",
+    )
+    modes.add_argument(
+        "--runtimes-only",
+        action="store_true",
+        help="Skip native provisioning, initial defaults and shell "
+        "qualification",
+    )
+    modes.add_argument(
+        "--yes",
+        action="store_true",
+        help="Prune: remove what it lists; setup: accept the review without "
+        "asking",
+    )
+    modes.add_argument(
+        "--events",
+        type=Path,
+        metavar="PATH",
+        help="Write the progress of apply, setup or prune --yes to PATH as "
+        "JSON Lines",
+    )
+    shown = modes.add_mutually_exclusive_group()
+    shown.add_argument(
+        "--last",
+        action="store_true",
+        help="Report: show the newest recorded run again",
+    )
+    shown.add_argument(
+        "--run",
+        metavar="ID",
+        help="Report: show that recorded run again",
+    )
+    output = parser.add_argument_group("Output").add_mutually_exclusive_group()
     output.add_argument(
         "--format",
         choices=("text", "json"),
@@ -86,46 +165,6 @@ def command_line():
         action="store_const",
         const="json",
         help="Alias of --format json",
-    )
-    parser.add_argument(
-        "--runtimes-only",
-        action="store_true",
-        help="Skip native provisioning, initial defaults and shell qualification",
-    )
-    parser.add_argument(
-        "--health",
-        action="store_true",
-        help="Verify selected evolved runtimes instead of exact baseline identities",
-    )
-    parser.add_argument(
-        "--preflight",
-        action="store_true",
-        help="Also report, read-only, the native packages, privilege and "
-        "releases apply would need",
-    )
-    parser.add_argument(
-        "--yes",
-        action="store_true",
-        help="Remove the retired releases prune lists, instead of listing "
-        "them; accept setup's review without asking",
-    )
-    parser.add_argument(
-        "--events",
-        type=Path,
-        metavar="PATH",
-        help="Write the progress of apply, setup or prune --yes to PATH as "
-        "JSON Lines",
-    )
-    shown = parser.add_mutually_exclusive_group()
-    shown.add_argument(
-        "--last",
-        action="store_true",
-        help="Show the newest recorded run's report again",
-    )
-    shown.add_argument(
-        "--run",
-        metavar="ID",
-        help="Show that recorded run's report again",
     )
     return parser
 
@@ -168,14 +207,14 @@ def main():
             return run(args, setups)
     except Cancelled:
         print(
-            "dev-bootstrap: setup cancelled; nothing changed", file=sys.stderr
+            "dev-bootstrap: Setup cancelled; nothing changed", file=sys.stderr
         )
         return 130
     except (KeyboardInterrupt, Interrupted) as error:
         signum = getattr(error, "signum", signal.SIGINT)
         if args.action == "setup" and not setups:
             print(
-                "dev-bootstrap: setup interrupted before any change",
+                "dev-bootstrap: Setup interrupted before any change",
                 file=sys.stderr,
             )
             return 128 + signum
@@ -183,7 +222,7 @@ def main():
         if setups:
             stage = f" during {setups[0].stage}"
         print(
-            f"dev-bootstrap: interrupted{stage}; the lock is released. Apply "
+            f"dev-bootstrap: Interrupted{stage}; the lock is released. Apply "
             "again to finish: it replaces what the interrupted installation "
             "left.",
             file=sys.stderr,
@@ -243,7 +282,7 @@ def run(args, setups):
             context.recorder = recorder
         if origin["source"] == "file" and args.format == "text":
             print(
-                f"dev-bootstrap: selection saved in {origin['path']}; "
+                f"dev-bootstrap: Selection saved in {origin['path']}; "
                 "--all ignores it",
                 file=sys.stderr,
             )
@@ -304,7 +343,7 @@ def run(args, setups):
             stopped(recorder, context, args, origin, setups, 2, str(error))
             if recorder.failed_log:
                 print(
-                    f"dev-bootstrap: the full output is in {recorder.failed_log}",
+                    f"dev-bootstrap: The full output is in {recorder.failed_log}",
                     file=sys.stderr,
                 )
         return 2
