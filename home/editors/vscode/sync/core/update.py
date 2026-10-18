@@ -11,6 +11,7 @@ what they print.
 import os
 import re
 import selectors
+import signal
 import shutil
 import subprocess
 import time
@@ -145,7 +146,10 @@ def _run(
     """Run VS Code's command line detached from any running editor.
 
     Every non-empty line it prints reaches ``on_line``, stripped; ``what``
-    names the run in an error.
+    names the run in an error. The command runs in a session of its own and
+    the whole session is killed when it fails, times out or is interrupted:
+    ``code`` is a launcher whose Electron child would otherwise go on
+    changing the extensions directory after the lock is released.
 
     Raises:
         SyncError: If it cannot start, fails or runs out of time.
@@ -160,6 +164,7 @@ def _run(
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             env=env,
+            start_new_session=True,
         )
     except OSError as error:
         raise SyncError(f"Cannot run {command}: {reason(error)}") from None
@@ -171,11 +176,13 @@ def _run(
             on_line(text)
 
     try:
-        _pump(process, line, timeout)
+        _pump(process, line, timeout, f"{command.name} {what}")
     finally:
-        if process.poll() is None:
-            process.kill()
-            process.wait()
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
+        process.wait()
         if process.stdout is not None:
             process.stdout.close()
     if process.returncode != 0:
@@ -186,6 +193,7 @@ def _pump(
     process: subprocess.Popen[bytes],
     line: Callable[[str], None],
     timeout: float,
+    what: str,
 ) -> None:
     """Read the process's output into lines until it ends or time runs out.
 
@@ -204,7 +212,7 @@ def _pump(
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise SyncError(
-                    f"The update took longer than {timeout:.0f} seconds"
+                    f"{what} took longer than {timeout:.0f} seconds"
                 )
             if not selector.select(timeout=min(remaining, 1.0)):
                 continue
@@ -221,5 +229,5 @@ def _pump(
         process.wait(timeout=max(deadline - time.monotonic(), 1.0))
     except subprocess.TimeoutExpired:
         raise SyncError(
-            f"The update took longer than {timeout:.0f} seconds"
+            f"{what} took longer than {timeout:.0f} seconds"
         ) from None

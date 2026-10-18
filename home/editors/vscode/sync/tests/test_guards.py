@@ -2,6 +2,7 @@
 
 import os
 import shutil
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -253,6 +254,18 @@ class UpdateTests(unittest.TestCase):
             update_extensions(
                 self.code("sleep 5"), root, {}, self.lines.append, timeout=0.5
             )
+
+    def test_a_timeout_stops_what_the_launcher_started(self) -> None:
+        """No child of ``code`` outlives the run, as Electron would."""
+        root = self.machine.root(Edition.STABLE)
+        mark = self.machine.home / "mark"
+        command = self.code(f'(sleep 1; mkdir "{mark}") & sleep 5')
+        with self.assertRaisesRegex(SyncError, "code --update-extensions"):
+            update_extensions(
+                command, root, {}, self.lines.append, timeout=0.3
+            )
+        time.sleep(1.5)
+        self.assertFalse(mark.exists())
 
     def test_the_command_is_found_on_path(self) -> None:
         """Only the host's PATH is searched."""
