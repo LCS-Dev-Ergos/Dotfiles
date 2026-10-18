@@ -1,8 +1,10 @@
 """What a person reads, in the terminal style every shell tool shares.
 
-A report opens with the masthead, shows the user files and each Insiders
-profile, then whatever needs attention, the changes a run would make, and a
-summary. ``to_json`` is the same content for programs.
+A report opens with the masthead, shows the user files and each profile,
+then whatever needs attention, the changes a run would make, and a summary.
+``check`` keeps only what is due or needs attention, and the notes only when
+they are all there is to say, such as a consumer that is not installed.
+``to_json`` is the same content for programs.
 """
 
 from collections import Counter
@@ -95,17 +97,18 @@ def render(
     subtitle = ""
     if plan.decisions:
         subtitle = (
-            f"{len(plan.decisions)} {label} entries in "
+            f"{len(plan.decisions)} extension entries in "
             f"{len(scopes)} profile{'s' * (len(scopes) != 1)}"
         )
     title = TITLES[plan.command].format(label)
     lines = ui.header(style, PROG, title, subtitle, context=context)
-    if plan.command in ("status", "check", "setup", "update"):
+    brief = plan.command == "check"
+    if plan.command in ("status", "setup", "update"):
         if plan.items:
             lines += ["", *_items(plan, style)]
         if plan.decisions:
             lines += ["", *_profiles(plan, style)]
-    lines += _sections(plan, style)
+    lines += _sections(plan, style, notes=not brief or not plan.decisions)
     if changes and plan.changed:
         lines += ["", *render_changes(plan, style)]
     lines += ["", *_summary(plan, style)]
@@ -252,17 +255,16 @@ def _profiles(plan: Plan, style: ui.Style) -> list[str]:
                 tone,
             )
         )
-    title = f"{_label(plan)} profiles"
-    return ui.section(style, title, str(len(rows))) + ui.table(
+    return ui.section(style, "Profiles", str(len(rows))) + ui.table(
         style, columns, rows
     )
 
 
-def _sections(plan: Plan, style: ui.Style) -> list[str]:
-    """Entries with work due, then problems, then notes."""
+def _sections(plan: Plan, style: ui.Style, *, notes: bool) -> list[str]:
+    """Entries with work due, then problems, then, if asked, notes."""
     due: list[Row] = []
     attention: list[Row] = []
-    notes: list[Row] = []
+    remarks: list[Row] = []
     for decision in sorted(plan.decisions, key=_decision_order):
         if decision.action in _QUIET:
             continue
@@ -276,8 +278,11 @@ def _sections(plan: Plan, style: ui.Style) -> list[str]:
         )
         (due if tone == "pending" else attention).append(row)
     for finding in plan.findings:
+        if finding.tone == "muted":
+            remarks.append(Row([finding.subject, finding.text], "muted"))
+            continue
         row = Row([finding.subject, "", "", finding.text], finding.tone)
-        (notes if finding.tone == "muted" else attention).append(row)
+        attention.append(row)
     columns = [
         Column("Extension", shrink=24),
         Column("Profile", priority=60, shrink=10),
@@ -285,14 +290,17 @@ def _sections(plan: Plan, style: ui.Style) -> list[str]:
         Column("Detail", priority=50, shrink=16, fold=("error", "warn")),
     ]
     lines: list[str] = []
-    for title, rows in (
-        ("Due", due),
-        ("Needs attention", attention),
-        ("Notes", notes),
-    ):
+    for title, rows in (("Due", due), ("Needs attention", attention)):
         if rows:
             lines += ["", *ui.section(style, title, str(len(rows)))]
             lines += ui.table(style, columns, rows)
+    if notes and remarks:
+        columns = [
+            Column("About", shrink=24),
+            Column("Note", priority=50, shrink=16),
+        ]
+        lines += ["", *ui.section(style, "Notes", str(len(remarks)))]
+        lines += ui.table(style, columns, remarks)
     return lines
 
 

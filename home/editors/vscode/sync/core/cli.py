@@ -78,39 +78,66 @@ class Context:
     terminal: bool | None = None
 
 
+_EPILOG = f"""\
+Examples:
+  {PROG} status                   What is shared, profile by profile
+  {PROG} check                    Only what needs doing; exit 1 if anything
+  {PROG} setup --dry-run          The changes setup would make
+  {PROG} update                   Update every edition's extensions
+  {PROG} status --target server   One consumer only
+
+Exit status: 0 nothing due, 1 something due (check, --dry-run), 2 usage error,
+3 failure. Changing commands ask first and refuse while VS Code runs.
+"""
+
+
 def build_parser() -> argparse.ArgumentParser:
     """The argument parser of the command."""
-    parser = argparse.ArgumentParser(
+    parser = ui.ArgumentParser(
         prog=PROG,
         description=(
-            "Share VS Code Stable's extensions with VS Code Insiders and "
-            "VS Code Server through links, and Stable's settings, "
-            "keybindings, snippets and MCP servers with Insiders."
+            "Share VS Code Stable's extensions with VS Code Insiders and VS "
+            "Code Server through links, and Stable's settings, keybindings, "
+            "snippets and MCP servers with Insiders. Each profile follows "
+            "the Stable profile of the same name."
         ),
+        epilog=_EPILOG,
+        version=f"{PROG} {__version__}",
     )
-    parser.add_argument(
-        "--version", action="version", version=f"%(prog)s {__version__}"
+    commands = parser.add_subparsers(
+        dest="command", required=True, metavar="COMMAND"
     )
-    commands = parser.add_subparsers(dest="command", required=True)
-    for name, text in (
-        ("status", "show what is shared and what is due"),
-        ("check", "like status; exit 1 when anything is due or broken"),
+    for name, text, more in (
+        (
+            "status",
+            "The full report: user files, profiles, what is due",
+            "Show what is shared with Stable, file by file and profile by "
+            "profile, what is due and what a change would meet. Touches no "
+            "file; always exits 0.",
+        ),
+        (
+            "check",
+            "Only what is due or broken; exit 1 if anything is",
+            "Show only what is due or needs attention, then the verdict. "
+            "Touches no file; exits 1 when setup has work or something needs "
+            "attention, so scripts can test it.",
+        ),
     ):
-        command = commands.add_parser(name, help=text, description=text)
+        command = commands.add_parser(name, help=text, description=more)
         command.add_argument(
-            "--json", action="store_true", help="print the report as JSON"
+            "--json", action="store_true", help="Print the report as JSON"
         )
         _targets(command)
     for name, text in (
-        ("setup", "make each consumer share what it can with Stable"),
-        ("remove", "give each consumer its own copy of everything shared"),
+        ("setup", "Make each consumer share what it can with Stable"),
+        ("remove", "Give each consumer its own copy of everything shared"),
     ):
         command = commands.add_parser(name, help=text, description=text)
         _targets(command)
         _changing(command)
     update = commands.add_parser(
         "update",
-        help="update every edition's extensions, then share again",
+        help="Update every edition's extensions, then share again",
         description=(
             "Run VS Code's own extension update for Stable, let each "
             "consumer follow, update each consumer's own extensions, share "
@@ -118,13 +145,13 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     update.add_argument(
-        "--skip-clean", action="store_true", help="leave duplicates in place"
+        "--skip-clean", action="store_true", help="Leave duplicates in place"
     )
     _targets(update)
     _changing(update)
     clean = commands.add_parser(
         "clean",
-        help="quarantine duplicate builds no profile uses",
+        help="Quarantine duplicate builds no profile uses",
         description=(
             "Move older builds of an extension that no profile lists into "
             "the state directory's quarantine."
@@ -134,7 +161,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--edition",
         choices=["all", *(edition.value for edition in Edition)],
         default="all",
-        help="which extensions directory to clean (default: every one here)",
+        help="Which extensions directory to clean (default: every one here)",
     )
     _changing(clean)
     return parser
@@ -147,7 +174,7 @@ def _targets(command: argparse.ArgumentParser) -> None:
         action="append",
         choices=[edition.value for edition in TARGETS],
         help=(
-            "the consumer to work on, repeatable "
+            "The consumer to work on, repeatable "
             "(default: every one installed here)"
         ),
     )
@@ -158,10 +185,10 @@ def _changing(command: argparse.ArgumentParser) -> None:
     command.add_argument(
         "--dry-run",
         action="store_true",
-        help="only report; exit 1 when the run would change something",
+        help="Only report; exit 1 when the run would change something",
     )
     command.add_argument(
-        "--yes", action="store_true", help="do not ask before changing"
+        "--yes", action="store_true", help="Do not ask before changing"
     )
 
 

@@ -14,8 +14,8 @@ hook or health check runs it.
 
 | Command | Effect |
 | --- | --- |
-| `vscode-sync status` | Show what is shared, what is due and what a change would meet. Touches no file. |
-| `vscode-sync check` | The same report; exit status 1 when anything is due or needs attention. |
+| `vscode-sync status` | The full report: the user files, each profile, what is due and what a change would meet. Touches no file; exit status 0. |
+| `vscode-sync check` | Only what is due or needs attention, then the verdict; exit status 1 when anything is. For scripts and a quick look. |
 | `vscode-sync setup` | Link what each consumer can share, fix the extension lists and repair what is broken. |
 | `vscode-sync remove` | Give each consumer its own copy of every shared folder and user file. |
 | `vscode-sync update` | Share what is due, update Stable's extensions with `code`, let the consumers follow, update each consumer's own with its command line, share again and run `clean`. |
