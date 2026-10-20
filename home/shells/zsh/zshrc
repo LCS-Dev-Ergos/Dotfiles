@@ -216,6 +216,12 @@ unset _zsh_rc_file _zsh_rc_modules _zsh_rc_functions
     _zsh_startup_trace_mark "startup:configured"
 (( $+functions[_zsh_startup_trace_arm] )) && _zsh_startup_trace_arm
 
+# Added for Hermes Agent installation.
+case ":$PATH:" in
+    *":$HOME/.local/bin:"*) ;;
+    *) export PATH="$HOME/.local/bin:$PATH" ;;
+esac
+
 return 0
 
 # Module inventory and architecture live in README.md to avoid duplicated docs.
