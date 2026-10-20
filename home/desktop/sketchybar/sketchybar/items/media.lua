@@ -7,7 +7,7 @@ local popup = require("helpers.popup")
 local runtime = require("helpers.runtime")
 local function quote(value) return "'" .. tostring(value):gsub("'", "'\\''") .. "'" end
 local config_dir = os.getenv("CONFIG_DIR") or os.getenv("HOME") .. "/.config/sketchybar"
-local refresh_media
+local refresh_media, set_poll
 local pending = false
 local generation = 0
 
@@ -157,29 +157,50 @@ local function apply_media(info)
   if track_changed then show_details_briefly() else layout() end
 end
 
+-- Supported players by process name; media.py maps their bundle identifiers.
+local players = { TIDAL = true, Spotify = true, Music = true }
+
 -- One snapshot at a time. A reply that never arrives must not stop polling,
 -- so a request older than ten seconds is abandoned and its late reply ignored.
+-- A snapshot starts python3, nowplaying-cli and its perl adapter, and without
+-- a running player nowplaying-cli hangs until media.py's timeout; pgrep, which
+-- never connects to WindowServer, skips all three in that case.
 local request, requested_at = 0, 0
 refresh_media = function()
   if pending and os.time() - requested_at < 10 then return end
   pending, requested_at = true, os.time()
   request = request + 1
   local current, token = generation, request
-  sbar.exec(quote(runtime.python) .. " " .. quote(config_dir .. "/helpers/media.py")
-    .. " " .. quote(runtime.nowplaying) .. " " .. artwork_pixels, function(info, code)
+  sbar.exec("/usr/bin/pgrep -qx 'TIDAL|Spotify|Music' && exec " .. quote(runtime.python) .. " "
+    .. quote(config_dir .. "/helpers/media.py") .. " " .. quote(runtime.nowplaying) .. " " .. artwork_pixels,
+    function(info, code)
       if token ~= request then return end
       pending = false
       if current ~= generation then return end
-      apply_media(code == 0 and info or nil)
+      local ok = code == 0 and type(info) == "table"
+      apply_media(ok and info or nil)
+      set_poll(ok and info.state == "playing")
     end)
 end
 
 -- An invisible observer keeps polling even when playback is paused. Do not
--- subscribe to the obsolete native MediaRemote event/artwork path.
-local observer = sbar.add("item", "media.observer", { drawing = false, updates = true, update_freq = 3 })
+-- subscribe to the obsolete native MediaRemote event/artwork path. Every
+-- short-lived WindowServer client can leave a dead Mach name in WindowServer,
+-- so only playback polls quickly; switching to a player refreshes at once.
+local poll_fast, poll_slow = 3, 15
+local observer = sbar.add("item", "media.observer", { drawing = false, updates = true, update_freq = poll_slow })
+local polling_fast = false
+set_poll = function(fast)
+  if fast == polling_fast then return end
+  polling_fast = fast
+  observer:set({ update_freq = fast and poll_fast or poll_slow })
+end
 local sleeping = false
 observer:subscribe({ "routine", "forced" }, function()
   if not sleeping then refresh_media() end
+end)
+observer:subscribe("front_app_switched", function(env)
+  if not sleeping and not polling_fast and players[env.INFO] then refresh_media() end
 end)
 observer:subscribe("system_will_sleep", function()
   sleeping = true

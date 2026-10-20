@@ -104,6 +104,9 @@ require("items.media")
 local cover, observer = items["media.cover"], items["media.observer"]
 assert(not cover.handlers.media_change, "must not enable the obsolete native media backend")
 local first = commands[#commands]
+assert(first[1]:find("^/usr/bin/pgrep %-qx 'TIDAL|Spotify|Music' && exec "),
+  "no player must start no python3, nowplaying-cli or perl")
+assert(observer.props.update_freq == 15, "polling starts slow until playback is seen")
 observer.handlers.routine({})
 assert(commands[#commands] == first, "at most one snapshot in flight")
 first[2]({
@@ -114,6 +117,7 @@ first[2]({
   artwork = "/fixture/cover.img",
 }, 0)
 assert(cover.props.drawing == true and cover.props.background.image.string == "/fixture/cover.img")
+assert(observer.props.update_freq == 3, "playback polls quickly")
 
 observer.handlers.routine({})
 reply({
@@ -124,6 +128,7 @@ reply({
   artwork = "/fixture/cover.img",
 }, 0)
 assert(cover.props.drawing == true, "paused media must retain accessible playback controls")
+assert(observer.props.update_freq == 15, "paused playback polls slowly")
 
 observer.handlers.routine({})
 reply({ state = "stopped" }, 0)
@@ -132,6 +137,13 @@ local hidden_sets = cover.sets
 observer.handlers.routine({})
 reply({ state = "stopped" }, 0)
 assert(cover.sets == hidden_sets, "unchanged stopped playback needs no redraw")
+
+local queued = #commands
+observer.handlers.front_app_switched({ INFO = "Finder" })
+assert(#commands == queued, "other applications must not start a snapshot")
+observer.handlers.front_app_switched({ INFO = "TIDAL" })
+assert(#commands == queued + 1, "switching to a player refreshes at once")
+reply({ state = "stopped" }, 0)
 
 observer.handlers.routine({})
 reply({ state = "playing", app = "Music", title = "Track", artwork = "" }, 0)
@@ -213,6 +225,15 @@ local volume_sets = volume.sets
 volume.handlers.volume_change({ INFO = "25" })
 volume.handlers.volume_change({ INFO = "invalid" })
 assert(volume.sets == volume_sets, "unchanged or invalid volume events must not redraw")
+local before_scroll = #commands
+volume.handlers["mouse.scrolled"]({ SCROLL_DELTA = "2" })
+volume.handlers["mouse.scrolled"]({ SCROLL_DELTA = "3" })
+assert(#commands == before_scroll, "scrolling waits for the gesture to end")
+timers[#timers - 1]()
+assert(#commands == before_scroll, "a superseded scroll timer does nothing")
+timers[#timers]()
+assert(#commands == before_scroll + 1 and commands[#commands][1]:find("+ 5)", 1, true),
+  "one osascript per scroll gesture")
 
 -- CPU: a fresh event updates the graph; stale readings remain unknown.
 require("items.widgets.cpu")

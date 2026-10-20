@@ -175,11 +175,21 @@ local function volume_click(env)
   end
 end
 
+-- Every osascript is a short-lived WindowServer client and can leave a dead
+-- Mach name there, so a scroll gesture is summed and applied once.
+local scroll_delta, scroll_generation = 0, 0
 local function volume_scroll(env)
   local delta = tonumber(env.SCROLL_DELTA)
   if not delta or delta ~= delta or math.abs(delta) == math.huge then return end
-  delta = math.max(-100, math.min(100, delta))
-  sbar.exec('osascript -e "set volume output volume (output volume of (get volume settings) + ' .. delta .. ')"')
+  scroll_delta = math.max(-100, math.min(100, scroll_delta + delta))
+  scroll_generation = scroll_generation + 1
+  local generation = scroll_generation
+  sbar.delay(0.2, function()
+    if generation ~= scroll_generation or scroll_delta == 0 then return end
+    local total = scroll_delta
+    scroll_delta = 0
+    sbar.exec('osascript -e "set volume output volume (output volume of (get volume settings) + ' .. total .. ')"')
+  end)
 end
 
 volume_icon:subscribe("mouse.clicked", volume_click)
