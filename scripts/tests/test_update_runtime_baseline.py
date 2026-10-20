@@ -1070,12 +1070,15 @@ class Retirement(unittest.TestCase):
         # rendering, applied last, puts the retired value back.
         rust = self.declared["nativeToolchains"]["rust"]["version"]
         text = self.baseline.read_text()
-        (node,) = self.declared["retired"]["node"]["versions"]
+        match = declarations.RETIRED.search(text)
+        assert match
+        self.declared["retired"]["node"]["versions"] = [rust]
+        indent = match["indent"]
+        rendered = declarations.render(self.declared["retired"], indent)
         self.baseline.write_text(
-            text.replace(
-                f'node.versions = [ "{node}" ];',
-                f'node.versions = [ "{rust}" ];',
-            )
+            text[: match.start()]
+            + f"{indent}retired = {rendered};\n"
+            + text[match.end() :]
         )
         self.declared = declarations.evaluate(self.baseline)
         after = self.apply(
