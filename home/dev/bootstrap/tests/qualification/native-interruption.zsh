@@ -44,15 +44,34 @@ typeset -A installing=(
   'juliaup add' dotnet dotnet-install conda Miniforge3
   ada 'alr .*toolchain --select --local' android 'sdkmanager.* --install'
 )
-typeset bootstrap="${executable:A:h:h}/share/development-bootstrap/bootstrap.py"
 # A non-interactive shell starts background jobs with SIGINT ignored, and
 # Python keeps an inherited ignore; a terminal's foreground apply has the
 # default, so restore it before the executor starts.
 typeset interruptible='import os, signal, sys
 signal.signal(signal.SIGINT, signal.SIG_DFL)
-os.execv(sys.argv[1], sys.argv[1:])'
+with open(sys.argv[1], "w") as record:
+    record.write(str(os.getpid()))
+os.execv(sys.argv[2], sys.argv[2:])'
 typeset -i failed=0 proxy=0 proxy_pid job
+typeset -i executor_pid
 typeset scenario language kind budget name lock_state lingering
+
+_installation_pid() {
+  # Match only descendants of this scenario's executor.
+  local pid parent
+  for pid in $(command pgrep -f -- "${installing[$language]}" || true); do
+    parent=$pid
+    while [[ "$parent" == <-> ]] && (( parent > 1 )); do
+      if (( parent == executor_pid )); then
+        print -r -- "$pid"
+        return 0
+      fi
+      parent="$(command ps -p "$parent" -o ppid= 2>/dev/null)" || break
+      parent="${parent//[[:space:]]/}"
+    done
+  done
+  return 1
+}
 
 _lingering() {
   # How many processes still work inside the scenario root.
@@ -100,19 +119,26 @@ for scenario in "$@"; do
   print -r -- "== $scenario"
   case "$kind" in
     SIGINT|SIGTERM)
-      _isolated "$analysis" -I -c "$interruptible" "$executable" apply \
+      _isolated "$analysis" -I -c "$interruptible" "$root/executor.pid" \
+        "$executable" apply \
         "${reply[@]}" --json \
         > "$log/$name-1-apply.json" 2> "$log/$name-1-apply.err" &
       job=$!
+      until [[ -s "$root/executor.pid" ]]; do
+        kill -0 $job 2>/dev/null || break
+        sleep 0.1
+      done
+      [[ -s "$root/executor.pid" ]] || { wait $job; return 1; }
+      executor_pid="$(< "$root/executor.pid")"
       # Wait for the manager's install, then let it get going.
-      until command pgrep -f -- "${installing[$language]}" > /dev/null; do
+      until _installation_pid > /dev/null; do
         kill -0 $job 2>/dev/null || break
         sleep 0.5
       done
       sleep 5
-      print -r -- "install running: $(command pgrep -f -- "${installing[$language]}" | head -1); sending $kind"
-      command pkill -"${kind#SIG}" -f -- "$bootstrap" ||
-        print -u2 "No executor to signal: $bootstrap"
+      print -r -- "install running: $(_installation_pid || true); sending $kind to $executor_pid"
+      kill -"${kind#SIG}" "$executor_pid" ||
+        print -u2 "No executor to signal: $executor_pid"
       ;;
     network)
       coproc "$analysis" -I "${0:A:h}/cut-proxy.py" "$budget"
