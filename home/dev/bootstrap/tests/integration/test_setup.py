@@ -537,6 +537,18 @@ class SetupTests(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertIn("No run is recorded", errors)
 
+    def test_malformed_run_metadata_reports_a_controlled_error(self):
+        directory = self.recovery.state / "runs/20261020T120000Z"
+        directory.mkdir(parents=True)
+        report = directory / "report.json"
+        for value in (None, [], "invalid"):
+            with self.subTest(value=value):
+                report.write_text(json.dumps({"run": value}))
+                code, _, errors = self.cli_output("report")
+                self.assertEqual(code, 2)
+                self.assertIn(str(report), errors)
+                self.assertNotIn("Traceback", errors)
+
     def test_run_options_need_their_actions(self):
         for arguments, message in (
             (("plan", "--events", "x"), "--events requires apply"),

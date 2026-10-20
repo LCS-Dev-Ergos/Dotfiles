@@ -63,7 +63,8 @@ class NodeRetirer(Retirer):
         linked = [name for name, version in packages.items() if not version]
         if linked:
             retirement.blockers.append(
-                f"globally linked packages need relinking: {described(linked)}"
+                "Global packages need manual migration (linked or unreadable): "
+                f"{described(linked)}"
             )
         target = self.prefix(retirement.successor, None) / "installation"
         present = node_globals(target)

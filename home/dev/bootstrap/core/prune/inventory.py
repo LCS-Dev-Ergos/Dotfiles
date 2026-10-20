@@ -5,6 +5,8 @@ import os
 import re
 from pathlib import Path
 
+from ..errors import BootstrapError
+
 # Packages a runtime ships itself; the successor has its own copy.
 NODE_BUNDLED = frozenset({"npm", "corepack"})
 PYTHON_BUNDLED = frozenset({"pip"})
@@ -29,7 +31,7 @@ VENV_HOMES = (
 
 
 def node_globals(installation):
-    """Global npm packages by name; linked ones map to None."""
+    """Global npm packages; linked or unreadable versions map to None."""
     modules = installation / "lib/node_modules"
     if not modules.is_dir():
         return {}
@@ -51,6 +53,7 @@ def node_globals(installation):
                     "version"
                 ]
             except (OSError, ValueError, KeyError, TypeError):
+                packages[name] = None
                 continue
             packages[name] = version if isinstance(version, str) else None
     return packages
@@ -100,8 +103,10 @@ def rust_components(toolchain):
     record = toolchain / "lib/rustlib/components"
     try:
         lines = record.read_text().splitlines()
-    except OSError:
-        return set()
+    except OSError as error:
+        raise BootstrapError(
+            f"Cannot read Rust components: {record}: {error}"
+        ) from error
     return {line.strip() for line in lines if line.strip()}
 
 

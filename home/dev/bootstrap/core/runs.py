@@ -236,6 +236,10 @@ def recorded_runs(runs=None):
         report = entry / "report.json"
         if report.is_file():
             run = read_json_object(report).get("run", {})
+            if not isinstance(run, dict):
+                raise BootstrapError(
+                    f"Run metadata must be an object: {report}"
+                )
             row.update(
                 {
                     key: run[key]

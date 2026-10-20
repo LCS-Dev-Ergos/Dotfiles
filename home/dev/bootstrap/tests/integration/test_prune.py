@@ -429,6 +429,21 @@ class PruneTests(unittest.TestCase):
         self.assertEqual(row["state"], "blocked")
         self.assertIn("fnm alias lts", row["reason"])
 
+    def test_unreadable_node_package_metadata_keeps_the_release(self):
+        self.select("node", retired={"node": {"versions": ["26.1.0"]}})
+        prefix = self.node("26.1.0", ("internal-tool", "1.0.0"))
+        self.node("26.2.0")
+        self.node_default("26.2.0")
+        metadata = prefix / "lib/node_modules/internal-tool/package.json"
+        for contents in ("{", "{}", '{"version": null}'):
+            with self.subTest(contents=contents):
+                metadata.write_text(contents)
+                (row,) = self.apply()
+                self.assertEqual(row["state"], "blocked")
+                self.assertIn("internal-tool", row["reason"])
+                self.assertTrue(prefix.exists())
+                self.assertEqual(self.events, [])
+
     def test_virtual_environments_follow_a_patch_release(self):
         self.select("python", retired={"python": {"version": ["3.14.1"]}})
         old = self.python("3.14.1", ("cocotb", "2.0"))
@@ -543,6 +558,21 @@ class PruneTests(unittest.TestCase):
             ),
             self.events,
         )
+
+    def test_unreadable_rust_components_keep_the_release(self):
+        self.select(
+            "rust",
+            retired={"nativeToolchains": {"rust": {"version": ["1.89.0"]}}},
+        )
+        old = self.rust("1.89.0", "rust-src")
+        self.rust("1.90.0")
+        self.rust_settings("1.90.0")
+        (old / "lib/rustlib/components").unlink()
+        (row,) = self.apply()
+        self.assertEqual(row["state"], "blocked")
+        self.assertIn("components", row["reason"])
+        self.assertTrue(old.is_dir())
+        self.assertEqual(self.events, [])
 
     def test_rust_directory_overrides_block(self):
         self.select(

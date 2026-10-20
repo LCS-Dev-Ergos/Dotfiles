@@ -1176,6 +1176,7 @@ class NativeTransitions(unittest.TestCase):
             # CLI and NuGet state stay in scratch, not the real home.
             self.assertEqual(call["env"]["HOME"], str(call["work"]))
             self.assertEqual(call["env"]["DOTNET_CLI_HOME"], str(call["work"]))
+            self.assertEqual(call["env"]["TMPDIR"], str(call["work"]))
         files = calls[2]["files"]
         self.assertIn(
             "<TargetFramework>net10.0</TargetFramework>",

@@ -70,6 +70,7 @@ class DotnetAdapter(ToolchainAdapter):
             | {
                 "HOME": str(work),
                 "DOTNET_CLI_HOME": str(work),
+                "TMPDIR": str(work),
                 "NUGET_PACKAGES": str(work / "packages"),
             },
             source_build=True,

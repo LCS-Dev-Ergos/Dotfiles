@@ -82,7 +82,13 @@ class RustRetirer(SettingsRetirer):
         super().inspect(retirement)
         successor = retirement.successor
         target = self.prefix(successor, None)
-        missing = rust_components(retirement.prefix) - rust_components(target)
+        try:
+            missing = rust_components(retirement.prefix) - rust_components(
+                target
+            )
+        except BootstrapError as error:
+            retirement.blockers.append(str(error))
+            return
         if not missing or retirement.blockers:
             return
         if not target.is_dir():
