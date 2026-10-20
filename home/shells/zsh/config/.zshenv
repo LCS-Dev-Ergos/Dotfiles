@@ -16,6 +16,9 @@
 #
 # ============================================================================ #
 
+# Some launchers omit USER; Zsh's account identity keeps Nix profile selection valid.
+export USER="${USER:-$USERNAME}"
+
 # Profiling is opt-in so regular non-interactive shells pay only two checks.
 [[ "${ZSH_PROFILE:-0}" == "1" ]] && zmodload -i zsh/zprof 2>/dev/null
 if [[ "${ZSH_STARTUP_TRACE:-0}" == "1" ]] &&

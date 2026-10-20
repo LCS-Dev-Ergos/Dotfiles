@@ -25,7 +25,6 @@ fi
 typeset probe
 probe="$(command env -i \
   HOME="$HOME" \
-  USER="$test_user" \
   TERM="${TERM:-dumb}" \
   PATH="/usr/bin:/bin" \
   ZSH_CONFIG_DIR="$test_root" \
@@ -37,12 +36,24 @@ probe="$(command env -i \
     print -r -- "nix=$(whence -p nix)"
     print -r -- "count=${#system_entries[@]}"
     print -r -- "hm=${__HM_SESS_VARS_SOURCED:-0}"
+    print -r -- "user=${USER:-}"
+    print -r -- "cc=$(whence -p cc)"
   '
 )" || {
   print -u2 "FAIL: non-interactive .zshenv probe failed"
   return 1
 }
 
+[[ "$probe" == *"user=$test_user"* ]] || {
+  print -u2 "FAIL: an environment without USER loses the account identity"
+  return 1
+}
+if [[ -x "/etc/profiles/per-user/$test_user/bin/cc" ]]; then
+  [[ "$probe" == *"cc=/etc/profiles/per-user/$test_user/bin/cc"* ]] || {
+    print -u2 "FAIL: an environment without USER loses the Nix compiler"
+    return 1
+  }
+fi
 [[ "$probe" == *"darwin=$darwin_rebuild"* ]] || {
   print -u2 "FAIL: darwin-rebuild is unavailable after sourcing .zshenv"
   return 1
