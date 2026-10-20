@@ -30,6 +30,7 @@ python_sources=(
   home/shells/terminal-style
   scripts/updates
   scripts/tests/test_update_runtime_baseline.py
+  scripts/tests/test_update_font_codepoint_maps.py
 )
 
 mapfile -t nix_files < <(find flake.nix darwin home hosts -type f -name '*.nix' | sort)

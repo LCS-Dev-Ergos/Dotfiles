@@ -54,6 +54,7 @@ sync_to_monitor yes     # Prevents screen tearing
 
 - **Font Family**: CaskaydiaCove Nerd Font Mono
 - **Font Size**: 14.5pt
+- **Math And Unicode Coverage**: `fonts/juliamono.conf` routes to JuliaMono the math-notation blocks (super/subscripts, letterlike symbols, arrows, operators, mathematical alphanumerics such as `𝐓 𝛉 𝒞`) and every other glyph CaskaydiaCove lacks, excluding Nerd Font icons and emoji. Kitty does not check that a `symbol_map` font has the glyph, so the file lists exact code points. It is declared, together with Ghostty's copy, in `scripts/updates/font-codepoint-maps.toml`; regenerate both with `just font-maps --apply` after a font or nixpkgs update (`just font-maps` reports drift).
 - **Nerd Fonts Support**: Mappings are per-platform (`platform/macos.conf` | `platform/linux.conf`), so Linux can keep them disabled when the fonts aren’t installed.
 
 #### Color Scheme

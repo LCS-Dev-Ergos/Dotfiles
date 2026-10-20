@@ -4,7 +4,8 @@
 # +++++++++++++++++++++++++ SCRIPT REGRESSION TESTS ++++++++++++++++++++++++++ #
 # ============================================================================ #
 # Focused regression tests for the repository-level Bash policy checks, the
-# pinned-input updater and the runtime baseline updater. Nothing here touches
+# pinned-input updater, the runtime baseline updater and the font code point
+# map updater. Nothing here touches
 # the network or the Nix store.
 #
 # Usage:
@@ -478,6 +479,11 @@ printf 'Runtime baseline updater\n'
 # nix only evaluates them.
 expect_status 'runtime baseline updater' 0 \
   python3 -B "$repo_root/scripts/tests/test_update_runtime_baseline.py"
+
+printf 'Font code point map updater\n'
+# Temporary manifests, Unicode tables and targets; no nix or fc-query.
+expect_status 'font code point map updater' 0 \
+  python3 -B "$repo_root/scripts/tests/test_update_font_codepoint_maps.py"
 
 printf 'Script regression tests passed.\n'
 

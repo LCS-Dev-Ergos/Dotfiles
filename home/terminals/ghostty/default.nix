@@ -21,10 +21,18 @@
     systemd.enable = lib.mkIf nativeGraphics false;
   };
 
-  xdg.configFile."ghostty/config".source = ./config;
+  xdg.configFile = {
+    "ghostty/config".source = ./config;
 
-  xdg.configFile."ghostty/shaders" = {
-    source = ./shaders;
-    recursive = true;
+    # Generated code point maps the config includes (config-file).
+    "ghostty/fonts" = {
+      source = ./fonts;
+      recursive = true;
+    };
+
+    "ghostty/shaders" = {
+      source = ./shaders;
+      recursive = true;
+    };
   };
 }

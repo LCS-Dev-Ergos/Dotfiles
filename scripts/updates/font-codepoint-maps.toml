@@ -1,0 +1,50 @@
+# ============================================================================ #
+# +++++++++++++++++++++++++++ FONT CODEPOINT MAPS ++++++++++++++++++++++++++++ #
+# ============================================================================ #
+# Declarations read by scripts/updates/update-font-codepoint-maps.py. Each
+# [[map]] routes code points from a terminal's primary font to an overlay
+# font, and lists the generated files that carry the result.
+#
+# A code point goes to the overlay when the overlay has it in every matched
+# file and it is assigned, not a control, surrogate, private-use or
+# Emoji_Presentation code point, and either
+#   - the primary font lacks it in one of its matched files, or
+#   - it lies in one of the `prefer` ranges.
+#
+# Packages are nixpkgs attributes resolved through this flake's lock; `files`
+# is a glob relative to the package output.
+#
+# Formats: "kitty" (symbol_map) and "ghostty" (font-codepoint-map).
+# ============================================================================ #
+
+[[map]]
+name = "juliamono"
+family = "JuliaMono"
+overlay = { package = "julia-mono", files = "share/fonts/truetype/JuliaMono-*.ttf" }
+# Ghostty's "CaskaydiaCove Nerd Font" has the same character set as the Mono
+# variant Kitty uses, so one map serves both.
+primary = { package = "nerd-fonts.caskaydia-cove", files = "share/fonts/truetype/NerdFonts/CaskaydiaCove/CaskaydiaCoveNerdFontMono-Regular.ttf" }
+# Math notation: taken from JuliaMono even where CaskaydiaCove has a glyph,
+# so a formula is drawn in one design.
+prefer = [
+  "U+00B2-U+00B3",   # ² ³, to match the other superscript digits
+  "U+00B9",          # ¹
+  "U+02B0-U+02B8",   # Superscript modifier letters ʰ … ʸ
+  "U+02E0-U+02E4",   # Superscript modifier letters ˠ … ˤ
+  "U+1D2C-U+1D6A",   # Modifier letters and subscripts ᴬ … ᵪ
+  "U+1D9B-U+1DBF",   # Modifier letters ᶛ … ᶿ
+  "U+2070-U+209F",   # Superscripts and Subscripts
+  "U+2100-U+214F",   # Letterlike Symbols
+  "U+2190-U+21FF",   # Arrows
+  "U+2200-U+22FF",   # Mathematical Operators
+  "U+27C0-U+27EF",   # Miscellaneous Mathematical Symbols-A
+  "U+27F0-U+27FF",   # Supplemental Arrows-A
+  "U+2900-U+297F",   # Supplemental Arrows-B
+  "U+2980-U+29FF",   # Miscellaneous Mathematical Symbols-B
+  "U+2A00-U+2AFF",   # Supplemental Mathematical Operators
+  "U+1D400-U+1D7FF", # Mathematical Alphanumeric Symbols
+]
+outputs = [
+  { path = "home/terminals/kitty/kitty/fonts/juliamono.conf", format = "kitty" },
+  { path = "home/terminals/ghostty/fonts/juliamono.conf", format = "ghostty" },
+]

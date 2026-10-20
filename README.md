@@ -285,7 +285,7 @@ Dotfiles/
     ├── package-ownership-allowlist.tsv
     ├── apps/                  # blog
     ├── cli/                   # bat, btop, cli-tools, git, lazygit, tealdeer
-    ├── desktop/               # Window managers and bars (platform-only modules)
+    ├── desktop/               # Window managers, bars, Linux fonts (platform-only modules)
     ├── dev/                   # Toolchains and per-language tooling
     ├── editors/               # neovim, doom, zed, vscode, markdown
     ├── file-managers/         # yazi, ranger, nnn, ueberzugpp

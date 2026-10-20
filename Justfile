@@ -63,6 +63,11 @@ report *args:
 baseline *args='--check':
     scripts/updates/update-runtime-baseline.py "$@"
 
+# Compare the generated terminal font code point maps; --apply regenerates them
+[group('updates')]
+font-maps *args='--check':
+    scripts/updates/update-font-codepoint-maps.py "$@"
+
 # Compare the tag and commit pins in flake.nix with upstream; --apply moves them
 [group('updates')]
 inputs *args='--check':
