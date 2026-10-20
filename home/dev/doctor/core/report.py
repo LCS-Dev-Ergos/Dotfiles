@@ -136,7 +136,9 @@ def _runtimes_styled(style: ui.Style, records: Sequence[Record]) -> list[str]:
     widths = {
         "label": max(ui.text_width(r.runtime.label) for r in records),
         "id": max(ui.text_width(r.runtime.id) for r in records),
-        "active": min(max(ui.text_width(r.active) for r in records), 18),
+        "active": min(
+            max(ui.text_width(ui.sanitize(r.active)) for r in records), 18
+        ),
         "origin": max(ui.text_width(r.origin) for r in records),
     }
     least = 8
@@ -161,7 +163,7 @@ def _runtimes_styled(style: ui.Style, records: Sequence[Record]) -> list[str]:
 
     def cell(text: str, width: int) -> str:
         """A padded cell; ``-`` reads as a muted dash."""
-        shown = ui.truncate(text, width)
+        shown = ui.truncate(ui.sanitize(text), width)
         padding = " " * (width - ui.text_width(shown))
         if text == "-":
             return f"{style.paint(ui.MUTED, '—')}{padding}"
@@ -221,7 +223,7 @@ def _conflicts(style: ui.Style, conflicts: Sequence[Conflict]) -> list[str]:
     indent = " " * (ui.GUTTER + ui.INDENT)
     lead = len(indent) + 2
     w_kind = max(ui.text_width(c.kind) for c in conflicts)
-    w_subject = max(ui.text_width(c.subject) for c in conflicts)
+    w_subject = max(ui.text_width(ui.sanitize(c.subject)) for c in conflicts)
     w_subject = min(w_subject, style.width // 2)
     room = style.width - lead - w_kind - 2 - ui.GUTTER
     w_subject = min(w_subject, room)
@@ -230,9 +232,9 @@ def _conflicts(style: ui.Style, conflicts: Sequence[Conflict]) -> list[str]:
     for conflict in conflicts:
         tone = "warn" if conflict.rank == 0 else "pending"
         subject = ui.truncate(
-            ui.short_path(conflict.subject, style), w_subject
+            ui.short_path(ui.sanitize(conflict.subject), style), w_subject
         )
-        detail = ui.short_path(conflict.detail, style)
+        detail = ui.short_path(ui.sanitize(conflict.detail), style)
         text = f"{indent}{style.marker(tone)} {ui.pad(conflict.kind, w_kind)}"
         text += f"  {subject}"
         if detail and ui.text_width(detail) <= room:
@@ -281,7 +283,7 @@ def _tally(
     """The count of each state and what to do next."""
     counts = Counter(record.state for record in records)
     shown = [(state, counts[state]) for state in State if counts[state]]
-    worst = doctor_status(records, conflicts, deep)
+    worst = doctor_status(records, conflicts, deep, updates)
     if style.styled:
         hint = ""
         if updates is None:
@@ -372,12 +374,15 @@ def doctor_status(
     records: Sequence[Record],
     conflicts: Sequence[Conflict],
     deep: Deep | None,
+    updates: Updates | None = None,
 ) -> int:
     """The exit status: 2 if anything is broken, 1 if anything is doubtful."""
     ranks = [record.state.rank for record in records]
     ranks += [conflict.rank for conflict in conflicts]
     if deep is not None:
         ranks.append(deep.rank)
+    if updates is not None and updates.failed:
+        ranks.append(1)
     return max(ranks, default=0)
 
 

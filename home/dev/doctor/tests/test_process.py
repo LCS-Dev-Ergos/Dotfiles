@@ -1,5 +1,6 @@
 """Child processes: output, missing programs and timeouts."""
 
+import contextlib
 import os
 import time
 import unittest
@@ -34,6 +35,32 @@ class RunTests(unittest.TestCase):
         tool = self.machine.tool("t", "cat; echo done")
         outcome = process.run([str(tool)], self.machine.env, 5)
         self.assertEqual(outcome.output, "done\n")
+
+    def test_relative_path_entries_cannot_select_a_program(self) -> None:
+        """Direct and nested lookups use only absolute PATH directories."""
+        project = self.machine.root / "project"
+        project.mkdir()
+        marker = project / "executed"
+        self.machine.tool("cc", "echo trusted")
+        launcher = self.machine.tool("launcher", "exec cc --version")
+        self.machine.tool("cc", f'touch "{marker}"; echo project', project)
+        self.machine.tool("cc", f'touch "{marker}"', project / "tools")
+        with contextlib.chdir(project):
+            for entry in ("", ".", "tools"):
+                env = {**self.machine.env}
+                env["PATH"] = f"{entry}:{self.machine.bin}"
+                for argv in (("cc", "--version"), (str(launcher),)):
+                    with self.subTest(entry=entry, argv=argv):
+                        result = process.run(argv, env, 5)
+                        self.assertEqual(result.output, "trusted\n")
+                        self.assertFalse(marker.exists())
+            for path in ("", ".", "tools"):
+                env = {**self.machine.env, "PATH": path}
+                self.assertEqual(
+                    process.run(("cc",), env, 5).status,
+                    process.NOT_RUNNABLE,
+                )
+                self.assertFalse(marker.exists())
 
     def test_a_timeout_ends_the_whole_group(self) -> None:
         """A grandchild that ignores TERM is killed with its parent."""

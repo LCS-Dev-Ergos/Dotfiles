@@ -1,5 +1,6 @@
 """dev-doctor's checks, conflicts, updates and command line."""
 
+import contextlib
 import json
 import os
 import time
@@ -414,6 +415,27 @@ class RegistryTests(unittest.TestCase):
         self.assertEqual(record.active, "4.34.1")
         self.assertEqual(log.read_text().strip(), str(machine.home))
 
+    def test_maven_ignores_project_jvm_configuration(self) -> None:
+        """Maven version discovery cannot load project JVM options."""
+        machine = Machine(self)
+        (machine.home / ".sdkman").mkdir()
+        project = machine.root / "project"
+        (project / ".mvn").mkdir(parents=True)
+        (project / ".mvn/jvm.config").write_text("-javaagent:project.jar")
+        marker = project / "executed"
+        machine.tool(
+            "mvn",
+            'base="${MAVEN_BASEDIR:-$PWD}"\n'
+            f'if [ -f "$base/.mvn/jvm.config" ]; then touch "{marker}"; fi\n'
+            'echo "Apache Maven 3.10.0"',
+        )
+        with contextlib.chdir(project):
+            for base in ("", str(project)):
+                machine.env["MAVEN_BASEDIR"] = base
+                record = check(registered("maven"), machine.host, 5)
+                self.assertEqual(record.active, "3.10.0")
+                self.assertFalse(marker.exists())
+
 
 class ConflictTests(unittest.TestCase):
     """What PATH itself gets wrong."""
@@ -518,6 +540,16 @@ class UpdateTests(unittest.TestCase):
         self.assertEqual(found.managers, {"rustup"})
         self.assertEqual(found.checked, ("brew", "rustup"))
 
+    def test_a_failed_update_check_cannot_exit_healthy(self) -> None:
+        """A healthy runtime does not conceal an unanswered update source."""
+        self.machine.tool("go", 'echo "go version go1.27.1"')
+        self.machine.tool("brew", "exit 4")
+        code, out, _ = self.machine.doctor(
+            "--only", "go", "--updates", "--json"
+        )
+        self.assertTrue(json.loads(out)["updates"]["failed"])
+        self.assertEqual(code, 1)
+
     def test_the_report_says_what_each_source_answered(self) -> None:
         """An empty answer reads as one; untracked formulas are counted."""
         self.machine.tool("go", 'echo "go version go1.27.1"')
@@ -591,6 +623,31 @@ class CommandTests(unittest.TestCase):
         code, _, err = self.machine.doctor()
         self.assertEqual(code, 2)
         self.assertIn("DEVDOCTOR_TIMEOUT", err)
+
+    def test_nonfinite_settings_are_usage_errors(self) -> None:
+        """Timeouts and cache lifetimes must be finite positive numbers."""
+        for name in (
+            "DEVDOCTOR_TIMEOUT",
+            "DEVDOCTOR_NET_TIMEOUT",
+            "DEVDOCTOR_UPDATE_TTL",
+        ):
+            for value in ("nan", "inf", "-inf", "1e999"):
+                with self.subTest(name=name, value=value):
+                    self.machine.env[name] = value
+                    code, _, err = self.machine.doctor("--updates")
+                    self.assertEqual(code, 2)
+                    self.assertIn(name, err)
+                    del self.machine.env[name]
+
+    def test_styled_report_filters_runtime_and_path_controls(self) -> None:
+        """External versions and directory names cannot control a terminal."""
+        payload = "\033]52;c;YXVkaXQ=\007"
+        self.machine.tool("go", f"printf 'go1.0{payload}\\n'")
+        self.machine.env["PATH"] += f":/missing/{payload}"
+        _, out, _ = self.machine.doctor(styled=True)
+        self.assertNotIn(payload, out)
+        self.assertNotIn("\033]52", out)
+        self.assertNotIn("\007", out)
 
     def test_plain_report(self) -> None:
         """Masthead, one table, the tally and the hint; no escapes."""

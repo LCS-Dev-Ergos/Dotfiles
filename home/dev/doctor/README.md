@@ -115,8 +115,10 @@ the binary PATH should resolve to it, its roots and the variable that moves
 them, how to list the versions its manager keeps, the Homebrew formula and
 command for updates, whether a shell activates it, and its startup check.
 Rows that need more than one command name a function of the same module. The
-registry is code in the store, not a file read at run time, so nothing a
-check executes can come from a file another program could rewrite.
+registry and its argument templates are immutable code in the store.
+Executables still come from the caller's absolute PATH entries and explicit
+compiler selections; those programs and their user configuration are trusted.
+Child processes ignore empty and relative PATH entries, matching discovery.
 
 ## toolchain
 
@@ -168,8 +170,11 @@ selection is complete, so a failure leaves the shell as it was.
 
 ## Guarantees
 
-- Nothing installs, downloads or writes outside a private temporary
-  directory, except the update cache.
+- The owned probes request local inspection, use private scratch data when
+  needed, and persist only the update cache. Selected executables retain the
+  account's filesystem and network permissions; this is not an OS sandbox.
+- Maven's version probe uses a private project base so project JVM options
+  cannot load code during inspection. Deliberate user JVM settings remain.
 - Every child process gets literal arguments, an empty standard input, a
   session of its own and a timeout that ends its whole process group,
   including what a shim or launcher started; none goes through a shell.

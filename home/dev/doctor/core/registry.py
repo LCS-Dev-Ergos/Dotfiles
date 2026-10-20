@@ -14,6 +14,7 @@ home directory, and nothing else is expanded.
 
 import json
 import os
+import tempfile
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -305,6 +306,28 @@ def _sdkman_candidate(name: str) -> Callable[[Probe], Outcome]:
         return Outcome(0, Path(os.path.realpath(current)).name)
 
     return version
+
+
+def _maven_version(probe: Probe) -> Outcome:
+    """Start Maven outside projects, with a private project base.
+
+    Even --version loads .mvn/jvm.config before Java starts, so neither
+    the caller's directory nor inherited base selectors may choose it.
+    """
+    program = probe.host.which("mvn")
+    if program is None:
+        return Outcome(process.NOT_RUNNABLE, "")
+    with tempfile.TemporaryDirectory(prefix="doctor-maven-") as directory:
+        return process.run(
+            (str(program), "--version"),
+            {
+                **probe.host.env,
+                "MAVEN_BASEDIR": directory,
+                "MAVEN_PROJECTBASEDIR": directory,
+            },
+            probe.timeout,
+            cwd=Path(directory),
+        )
 
 
 def _sdkman_managed(probe: Probe) -> list[str] | None:
@@ -645,7 +668,7 @@ RUNTIMES: tuple[Runtime, ...] = (
         "Maven",
         Group.JVM,
         OnPath("mvn"),
-        _command("mvn", "--version"),
+        _maven_version,
         binary="mvn",
         root_var="SDKMAN_DIR",
         roots=_SDKMAN,

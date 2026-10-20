@@ -8,6 +8,7 @@ and 2 for a usage error.
 
 import argparse
 import json
+import math
 import sys
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -216,7 +217,7 @@ def _doctor(
             now=context.now(),
         )
         print("\n".join(lines))
-    return doctor_status(shown, conflicts, health)
+    return doctor_status(shown, conflicts, health, found)
 
 
 def _conflicts(
@@ -253,7 +254,7 @@ def _number(
         value = int(text) if integer else float(text)
     except ValueError:
         value = -1
-    if value <= 0:
+    if (not integer and not math.isfinite(value)) or value <= 0:
         kind = "a positive integer" if integer else "a positive number"
         raise DoctorError(f"{name} must be {kind}, not {text!r}")
     return value

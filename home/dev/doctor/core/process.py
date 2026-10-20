@@ -28,11 +28,12 @@ QUIET = {
     "DOTNET_NOLOGO": "1",
     "DOTNET_SKIP_FIRST_TIME_EXPERIENCE": "1",
 }
-"""Variables every child gets, so that a probe cannot download or phone home.
+"""Variables that disable known automatic installs and .NET telemetry.
 
 rustup otherwise installs a missing toolchain the moment a proxy such as
 ``rustc`` runs; the .NET muxer otherwise prints a banner and sends
 telemetry on its first start.
+Selected programs still retain the caller's filesystem and network authority.
 """
 
 
@@ -73,7 +74,7 @@ def run(
 
     Args:
         argv: The program and its arguments, used as they are.
-        env: The environment, to which ``QUIET`` is added.
+        env: The environment; only absolute PATH entries reach children.
         timeout: Seconds before the child's group is stopped.
         errors: Whether standard error joins the output instead of being
             discarded.
@@ -81,13 +82,21 @@ def run(
     """
     if not argv:
         return Outcome(NOT_RUNNABLE, "")
+    path = (
+        os.pathsep.join(
+            entry
+            for entry in env.get("PATH", "").split(os.pathsep)
+            if os.path.isabs(entry)
+        )
+        or os.devnull
+    )
     try:
         child = subprocess.Popen(
             list(argv),
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT if errors else subprocess.DEVNULL,
-            env={**env, **QUIET},
+            env={**env, **QUIET, "PATH": path},
             cwd=cwd,
             start_new_session=True,
         )
