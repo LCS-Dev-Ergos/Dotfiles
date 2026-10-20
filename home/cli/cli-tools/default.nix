@@ -66,6 +66,19 @@ let
       LANG = "C";
     };
   });
+
+  # Bear's preload library is libexec.dylib on macOS, but nixpkgs' postInstall
+  # moves libexec.so unconditionally, so the Darwin build fails at that mv.
+  # Bear locates the library by its platform name (intercept-supervisor's
+  # build.rs), so only the file name in the move needs to change. Drop this
+  # once nixpkgs' bear handles Darwin itself.
+  bear =
+    if pkgs.stdenv.hostPlatform.isDarwin then
+      pkgs.bear.overrideAttrs (previous: {
+        postInstall = builtins.replaceStrings [ "libexec.so" ] [ "libexec.dylib" ] previous.postInstall;
+      })
+    else
+      pkgs.bear;
 in
 {
   # Portable, version-independent command-line tools used across projects.
@@ -78,7 +91,7 @@ in
     pkgs.atac
     pkgs.bandwhich
     pkgs.bc
-    pkgs.bear
+    bear
     pkgs.beautysh
     bottom
     pkgs.bun

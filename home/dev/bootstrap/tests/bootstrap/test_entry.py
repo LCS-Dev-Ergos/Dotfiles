@@ -46,6 +46,12 @@ def nix_eval(*arguments):
 class BootstrapEntryTests(unittest.TestCase):
     """Exercise entry behavior and acquisition integrity, not upstream installers."""
 
+    @classmethod
+    def setUpClass(cls):
+        cls.nix_version = json.loads(nix_eval("--json", "--file", str(PINS)))[
+            "nixVersion"
+        ]
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix="bootstrap entry ")
         self.addCleanup(self.temporary.cleanup)
@@ -300,7 +306,9 @@ bootstrap_install darwin
                 self.assertEqual(len(fetches), 2 - len(present))
                 if len(fetches) == 2:
                     self.assertIn("Homebrew/install/", fetches[0])
-                    self.assertIn("nix-2.34.8/install", fetches[1])
+                    self.assertIn(
+                        f"nix-{self.nix_version}/install", fetches[1]
+                    )
                 self.assertFalse(list(self.root.glob("dev-bootstrap.*")))
 
     def test_arch_installs_build_tools_and_nix_only_when_missing(self):
@@ -346,7 +354,8 @@ bootstrap_install arch
                     []
                     if "nix" in present
                     else [
-                        "fetch https://releases.nixos.org/nix/nix-2.34.8/install"
+                        "fetch https://releases.nixos.org/nix/"
+                        f"nix-{self.nix_version}/install"
                     ],
                 )
                 self.assertNotIn("Homebrew", result.stderr)
@@ -355,7 +364,8 @@ bootstrap_install arch
                     "base-devel" in result.stderr, "tools" not in present
                 )
                 self.assertEqual(
-                    "Nix 2.34.8" in result.stderr, "nix" not in present
+                    f"Nix {self.nix_version}" in result.stderr,
+                    "nix" not in present,
                 )
 
     def test_attended_install_asks_before_authentication(self):
@@ -508,7 +518,8 @@ bootstrap_install darwin
         )
         self.assertNotEqual(result.returncode, 0)
         self.assertLess(
-            result.stderr.index("Nix 2.34.8"), result.stderr.index("sudo -n")
+            result.stderr.index(f"Nix {self.nix_version}"),
+            result.stderr.index("sudo -n"),
         )
         self.assertNotIn("Homebrew ", result.stderr)
 

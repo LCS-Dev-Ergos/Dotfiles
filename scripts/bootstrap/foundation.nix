@@ -7,6 +7,6 @@
   homebrewSha256 = "5f333bbe53bc490e51e7ccb1df8779b3dd6ee73a1a7379efda216edb08ccb148";
   # The official Nix installer for the release the locked nixpkgs carries;
   # the script holds each platform's tarball SHA-256.
-  nixVersion = "2.34.8";
-  nixSha256 = "96c10e102c88809dd9ec0bee89200c4a51eae4c9f6d8698c26b16788d131e078";
+  nixVersion = "2.34.9";
+  nixSha256 = "a03ce2e9eaf4ea1560260b9a93e311dbaf589d28fb5c9318f8d9e768ee6339d8";
 }

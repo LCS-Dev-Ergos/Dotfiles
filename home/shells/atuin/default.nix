@@ -1,4 +1,5 @@
 {
+  atuinPackage,
   config,
   lib,
   pkgs,
@@ -8,8 +9,11 @@ let
   atuinDatabase = "${config.xdg.dataHome}/atuin/history.db";
 in
 {
+  # Built from the pinned nixpkgs-atuin input (see flake.nix), not from the
+  # main package set.
   programs.atuin = {
     enable = true;
+    package = atuinPackage;
   };
 
   # Reject a generation whose Atuin binary cannot read the existing history

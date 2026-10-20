@@ -3,6 +3,9 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    # Atuin 18.23.0 fails its tests in the Darwin build sandbox; stay on the
+    # last nixpkgs that built it until a newer atuin does.
+    nixpkgs-atuin.url = "github:NixOS/nixpkgs/8edc0c72e3a38faf5434e40d1f19431125fe4b30";
     nix-darwin.url = "github:LnL7/nix-darwin";
     nix-darwin.inputs.nixpkgs.follows = "nixpkgs";
     home-manager.url = "github:nix-community/home-manager";
@@ -149,6 +152,7 @@
           nativeFnmReady
           ;
         nativeGraphics = host.nativeGraphics or false;
+        atuinPackage = inputs.nixpkgs-atuin.legacyPackages.${host.system}.atuin;
         herdr = inputs.herdr.packages.${host.system}.default;
         statwellModule = inputs.statwell.homeManagerModules.default;
         statwellPackage = inputs.statwell.packages.${host.system}.default;
