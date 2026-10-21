@@ -91,10 +91,11 @@ yabai -m config navigation_effect on \
 # metacharacters in app names (the "+" of Logi Options+).
 EXCLUDED_APPS="1Password|Activity Monitor|Alfred|App Store|Archive Utility|Audio MIDI Setup"
 EXCLUDED_APPS="$EXCLUDED_APPS|BetterDisplay|Calculator|CleanMyMac|Company Portal|DDPM|Dictionary"
-EXCLUDED_APPS="$EXCLUDED_APPS|Digital Color Meter|Finder|Google Drive|Installer|LocalSend|Logi Options\+"
-EXCLUDED_APPS="$EXCLUDED_APPS|Microsoft OneDrive|Photo Booth|Preview|Python|Screen Sharing|Screenshot"
-EXCLUDED_APPS="$EXCLUDED_APPS|Software Update|Steam|Stickies|Sudoku|Superwhisper|System Settings"
-EXCLUDED_APPS="$EXCLUDED_APPS|Tailscale|TextEdit|The Unarchiver|Transmission|VLC"
+EXCLUDED_APPS="$EXCLUDED_APPS|Digital Color Meter|Finder|Ghidra|Google Drive|Installer|LocalSend"
+EXCLUDED_APPS="$EXCLUDED_APPS|Logi Options\+|Microsoft OneDrive|Photo Booth|Preview|Python"
+EXCLUDED_APPS="$EXCLUDED_APPS|Screen Sharing|Screenshot|Software Update|Steam|Stickies|Sudoku"
+EXCLUDED_APPS="$EXCLUDED_APPS|Superwhisper|System Settings|Tailscale|TextEdit|The Unarchiver"
+EXCLUDED_APPS="$EXCLUDED_APPS|Transmission|VLC"
 
 yabai -m rule --add label="Excluded apps" app="^($EXCLUDED_APPS)$" manage=off
 
