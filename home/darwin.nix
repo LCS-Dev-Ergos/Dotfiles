@@ -5,10 +5,10 @@ _: {
   # if it is ever imported from somewhere other than this file.
   imports = [
     ./cli/brew-stats
-    ./desktop/aerospace
-    ./desktop/borders
-    ./desktop/sketchybar
-    ./desktop/skhd
-    ./desktop/yabai
+    ./desktop/macos/aerospace
+    ./desktop/macos/borders
+    ./desktop/macos/sketchybar
+    ./desktop/macos/skhd
+    ./desktop/macos/yabai
   ];
 }

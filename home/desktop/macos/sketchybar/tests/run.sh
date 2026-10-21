@@ -1,7 +1,7 @@
 #!/bin/bash
 # Regression checks for the SketchyBar helpers and Lua widgets.
 #
-# Usage: bash home/desktop/sketchybar/tests/run.sh
+# Usage: bash home/desktop/macos/sketchybar/tests/run.sh
 # Honours LUA and PYTHON. SketchyBar itself is tested in the CI of the
 # LCS-Dev-Ergos fork; its window order check needs the running GUI session and
 # is run by hand (see helpers/README.md).

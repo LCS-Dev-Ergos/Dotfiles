@@ -38,7 +38,7 @@ after-startup-command = [
 ]
 
 # Trigger Sketchybar updates on workspace change. @sketchybar@ is replaced with
-# the Nix-installed binary by home/desktop/aerospace/default.nix.
+# the Nix-installed binary by home/desktop/macos/aerospace/default.nix.
 exec-on-workspace-change = [
     '/bin/bash', '-c',
     '@sketchybar@ --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE'

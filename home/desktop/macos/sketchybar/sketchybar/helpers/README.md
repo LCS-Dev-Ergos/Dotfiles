@@ -37,7 +37,7 @@ AppKit's file-opening handler and cause execution prompts and extra windows.
 The dedicated instance disables window restoration and exits when its last
 window closes; the user's normal Ghostty configuration is unchanged.
 
-Regression checks: `bash home/desktop/sketchybar/tests/run.sh` from the repository root
+Regression checks: `bash home/desktop/macos/sketchybar/tests/run.sh` from the repository root
 (widget callbacks, menu lifecycle, StatWell races and the visual-language
 checks in `tests/style.lua`).
 
@@ -60,7 +60,7 @@ The temporary
 nowplaying-cli 2.1 override can be retired once nixpkgs supplies that adapter.
 
 SketchyBar is the signed release of the LCS-Dev-Ergos fork, pinned in
-`home/desktop/sketchybar/package.nix`; `scripts/updates/update-sketchybar.sh
+`home/desktop/macos/sketchybar/package.nix`; `scripts/updates/update-sketchybar.sh
 --check` reports a newer release and `--apply` rewrites the version and hash.
 The fork's CI builds, tests under ASan, UBSan and TSan, fuzzes and signs every
 release with the `sketchybar-lcs-dev` certificate, and its `docs/` describe the
@@ -165,7 +165,7 @@ SSID in `ipconfig` without Location Services access, so the network widget
 reads it from `system_profiler` in the background after each network change.
 
 The widget tests exercise these transitions without launching system commands.
-`SKETCHYBAR_LIVE_TESTS=1 bash home/desktop/sketchybar/tests/run.sh` also checks
+`SKETCHYBAR_LIVE_TESTS=1 bash home/desktop/macos/sketchybar/tests/run.sh` also checks
 rate, percentage, speaker-symbol and CPU text geometry plus the complete Brew,
 Wi-Fi, battery and audio popup rows on the running renderer, including the
 slider knob at 0% and 100%, with temporary items. After deployment, verify pointer travel into the audio slider/device

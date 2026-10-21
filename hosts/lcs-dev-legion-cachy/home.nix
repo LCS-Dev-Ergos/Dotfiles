@@ -26,6 +26,6 @@
   imports = [
     ../../home
     ../../home/linux.nix
-    ../../home/desktop/hyprland
+    ../../home/desktop/linux/hyprland
   ];
 }

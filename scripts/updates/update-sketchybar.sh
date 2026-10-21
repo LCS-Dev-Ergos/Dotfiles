@@ -4,7 +4,7 @@
 # ++++++++++++++++++++++++++++ SKETCHYBAR UPDATER ++++++++++++++++++++++++++++ #
 # ============================================================================ #
 # Reports or applies the newest signed release of the SketchyBar fork
-# (LCS-Dev-Ergos/SketchyBar) in home/desktop/sketchybar/package.nix.
+# (LCS-Dev-Ergos/SketchyBar) in home/desktop/macos/sketchybar/package.nix.
 #
 # Usage:
 #   scripts/updates/update-sketchybar.sh --check
@@ -56,7 +56,7 @@ for required_command in git grep nix sed sort; do
 done
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
-package_file="$repo_root/home/desktop/sketchybar/package.nix"
+package_file="$repo_root/home/desktop/macos/sketchybar/package.nix"
 [[ -f "$package_file" ]] || die "missing $package_file"
 
 current="$(sed -nE 's/^  version = "([^"]+)";$/\1/p' "$package_file")"
@@ -84,8 +84,8 @@ printf 'sketchybar %s -> %s\n  %s/releases/tag/v%s\n' "$current" "$latest" "$rep
 
 # ++++++++++++++++++++++++++++++++++ APPLY +++++++++++++++++++++++++++++++++++ #
 
-if ! git -C "$repo_root" diff --quiet HEAD -- home/desktop/sketchybar/package.nix; then
-  die 'home/desktop/sketchybar/package.nix has uncommitted changes; commit or stash them first'
+if ! git -C "$repo_root" diff --quiet HEAD -- home/desktop/macos/sketchybar/package.nix; then
+  die 'home/desktop/macos/sketchybar/package.nix has uncommitted changes; commit or stash them first'
 fi
 
 url="$repository/releases/download/v$latest/sketchybar-v$latest.tar.gz"
@@ -102,7 +102,7 @@ sed -i.orig -E \
 rm -f "$package_file.orig"
 
 if ! grep -qF "version = \"$latest\";" "$package_file" || ! grep -qF "hash = \"$hash\";" "$package_file"; then
-  git -C "$repo_root" checkout -- home/desktop/sketchybar/package.nix
+  git -C "$repo_root" checkout -- home/desktop/macos/sketchybar/package.nix
   die "could not rewrite $package_file; left it unchanged"
 fi
 

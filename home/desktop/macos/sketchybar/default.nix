@@ -7,7 +7,7 @@
 }:
 let
   sketchybar = pkgs.callPackage ./package.nix { };
-  nowplaying = pkgs.callPackage ../../cli/cli-tools/nowplaying-cli.nix { };
+  nowplaying = pkgs.callPackage ../../../cli/cli-tools/nowplaying-cli.nix { };
   statwell = config.services.statwell.package;
   sbarLua = pkgs.stdenv.mkDerivation {
     pname = "sbarlua";

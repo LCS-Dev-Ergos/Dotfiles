@@ -71,7 +71,7 @@ after a Home Manager switch.
 ## Rollback
 
 `sudo darwin-rebuild switch --rollback` returns to the previous macOS
-generation. To roll back only SketchyBar, restore `home/desktop/sketchybar/`
+generation. To roll back only SketchyBar, restore `home/desktop/macos/sketchybar/`
 from the pre-migration commit `4f76c39`, including its native provider sources,
 build rules and Brew action, then build and switch. To roll back only Kitty, set
 `USE_STATWELL = False` in `home/terminals/kitty/kitty/tab_bar.py`, then build
