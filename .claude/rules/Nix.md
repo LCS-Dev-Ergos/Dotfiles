@@ -30,6 +30,10 @@ differences inside the shared `home/<category>/<app>/` module with
 `lib.mkIf pkgs.stdenv.hostPlatform.isDarwin` / `hostPlatform.isLinux`.
 A category's `default.nix` imports only cross-platform modules;
 platform-only ones go in `home/darwin.nix` or `home/linux.nix`.
+Desktop modules live under `home/desktop/linux` or `home/desktop/macos`;
+hosts select alternative Linux desktops explicitly. Font declarations live
+under `home/desktop/shared/fonts`, with distinct Home Manager and nix-darwin
+entry points backed by one catalog.
 
 **Never derive `dotfilesRoot` from the flake path.** The flake is
 store-copied; deriving it there makes writable configs read-only. Host

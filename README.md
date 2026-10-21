@@ -146,8 +146,9 @@ them.
 
 On Linux the distribution owns the operating system and graphical runtimes,
 and Home Manager runs standalone, so NixOS is not required. The retired Arch
-entry point and the HyDE assets remain in the repository without a flake
-output or desktop deployment.
+entry point has no flake output. The optional [HyDE overlay](home/desktop/linux/hyde/README.md)
+retains personal settings for a separately installed native HyDE runtime;
+the selected CachyOS profile continues to use standalone Hyprland.
 
 ## Prerequisites
 
@@ -274,7 +275,7 @@ Dotfiles/
 │   └── lcs-legion-arch/
 │       └── home.nix           # Retired Arch entry point, without a flake output
 ├── darwin/
-│   ├── default.nix            # Nix GC and store optimisation, fonts, /etc, unfree policy
+│   ├── default.nix            # Nix GC, store optimisation and system policy
 │   └── homebrew.nix           # Declared taps, formulae and casks
 └── home/
     ├── default.nix            # Shared Home Manager policy and stateVersion
@@ -285,7 +286,10 @@ Dotfiles/
     ├── package-ownership-allowlist.tsv
     ├── apps/                  # blog
     ├── cli/                   # bat, btop, cli-tools, git, lazygit, tealdeer
-    ├── desktop/               # Window managers, bars, Linux fonts (platform-only modules)
+    ├── desktop/
+    │   ├── linux/             # Standalone Hyprland and optional HyDE overlay
+    │   ├── macos/             # Window managers, borders and SketchyBar
+    │   └── shared/fonts/      # Font catalog and platform installation modules
     ├── dev/                   # Toolchains and per-language tooling
     ├── editors/               # neovim, doom, zed, vscode, markdown
     ├── file-managers/         # yazi, ranger, nnn, ueberzugpp
@@ -301,9 +305,11 @@ Module conventions:
   `default.nix`. Nix glue and the application's configuration files live
   together instead of mirroring the layout of `$HOME`.
 - A category's `default.nix` imports only cross-platform modules and is
-  imported by `home/common.nix`. Platform-only modules are imported one by one
-  from `home/darwin.nix` or `home/linux.nix`, so `desktop/` has no
-  `default.nix`.
+  imported by `home/common.nix`. Platform-only applications are selected from
+  `home/darwin.nix` or `home/linux.nix`; a host selects its Linux desktop
+  explicitly. `desktop/` has no aggregate import: alternative desktops must
+  not be enabled together. Its shared font module is imported directly by
+  `home/common.nix`; nix-darwin imports the matching system font module.
 - Platform differences are gated inside the shared module with
   `lib.mkIf pkgs.stdenv.hostPlatform.isDarwin` or
   `pkgs.stdenv.hostPlatform.isLinux`, never duplicated per configuration.
