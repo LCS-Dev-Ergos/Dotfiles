@@ -1,3 +1,10 @@
+# =====--------------------------------------------------------------------=====
+# AEROSPACE WINDOW MANAGEMENT
+#
+# Define tiling behavior, workspace assignments and keyboard shortcuts,
+# with callbacks that synchronize workspace state with SketchyBar.
+# =====--------------------------------------------------------------------=====
+
 # AeroSpace Configuration - Equivalent to Yabai + Skhd Setup.
 start-at-login = true
 

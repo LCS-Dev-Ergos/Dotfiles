@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- BATTERY STATUS WIDGET
+--
+-- Display StatWell charge and power state, and load battery time estimates
+-- into the shared details popup.
+-- =====-------------------------------------------------------------------=====
+
 local icons = require("icons")
 local colors = require("colors")
 local settings = require("settings")

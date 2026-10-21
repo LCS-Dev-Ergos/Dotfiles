@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- CPU LOAD WIDGET
+--
+-- Plot StatWell CPU load, color the current percentage by utilization and
+-- open Activity Monitor on click.
+-- =====-------------------------------------------------------------------=====
+
 local icons = require("icons")
 local colors = require("colors")
 local settings = require("settings")

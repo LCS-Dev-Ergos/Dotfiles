@@ -1,9 +1,9 @@
-# =====-----------------------------------------------------------------=====
+# =====--------------------------------------------------------------------=====
 # HYDE HISTORICAL THEME SELECTIONS
 #
 # Retain wallpaper and editor-theme associations from the former runtime.
 # Use current upstream selectors to restore choices; do not deploy this file.
-# =====-----------------------------------------------------------------=====
+# =====--------------------------------------------------------------------=====
 
 0|Catppuccin-Mocha|Catppuccin.catppuccin-vsc~Catppuccin Mocha|~/.config/swww/Catppuccin-Mocha/forest_dark_winter.jpg
 0|Catppuccin-Latte|Catppuccin.catppuccin-vsc~Catppuccin Latte|~/.config/swww/Catppuccin-Latte/jormungandr.jpg

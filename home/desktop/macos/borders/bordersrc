@@ -1,5 +1,11 @@
 #!/bin/bash
- 
+# =====--------------------------------------------------------------------=====
+# WINDOW BORDER APPEARANCE
+#
+# Set border geometry, colors and visual effects before starting the macOS
+# window-border helper.
+# =====--------------------------------------------------------------------=====
+
 options=(
 	style=round
 	width=5.0
@@ -9,9 +15,9 @@ options=(
 	active_color=0xfffe8019
 	active_color="gradient(top_left=0xfffe8019,bottom_right=0xffcc241d,top_right=0xfffb4934,bottom_left=0xfffabd2f)"
 	inactive_color=0xff928374
-	
+
 	#Blacklisting some apps:
 	blacklist="JetBrains Toolbox,C Lion,CLion Nova,IntelliJ IDEA Ultimate,PyCharm Professional Edition,GoLand,WebStorm,DataGrip,PhpStorm,Rider,RustRover-EAP"
 )
-	
+
 borders "${options[@]}"

@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- PACKAGE REFRESH REGRESSIONS
+--
+-- Exercise legacy Homebrew notifications, sleep handling and popup refresh
+-- throttling with a fake clock and recorded commands.
+-- =====-------------------------------------------------------------------=====
+
 -- Check legacy Brew notifications, sleep handling and popup refresh throttling.
 -- Exercises the real widget with a fake clock, without invoking Homebrew.
 -- Usage: lua package_refresh.lua <sketchybar-config-dir>

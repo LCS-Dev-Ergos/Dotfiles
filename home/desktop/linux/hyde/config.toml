@@ -1,9 +1,9 @@
-# =====-----------------------------------------------------------------=====
+# =====--------------------------------------------------------------------=====
 # HYDE CONFIGURATION
 #
 # Personal settings for the native HyDE configuration loader. Upstream owns
 # the remaining defaults and all generated theme and runtime state.
-# =====-----------------------------------------------------------------=====
+# =====--------------------------------------------------------------------=====
 
 # Personal HyDE settings; upstream owns defaults and generated state.
 "$schema" = "https://raw.githubusercontent.com/HyDE-Project/HyDE/fa2fd57afc7203b1b5653d3271f3a57ea3873f97/Configs/.local/share/hyde/schema/config.toml.json"

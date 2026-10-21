@@ -1,4 +1,11 @@
 #!/bin/bash
+# =====--------------------------------------------------------------------=====
+# HOMEBREW TERMINAL ACTIONS
+#
+# Open requested package actions in a terminal, preserve command arguments
+# and exit status, and refresh StatWell after completion.
+# =====--------------------------------------------------------------------=====
+
 # Click controller. The --run branch executes inside the terminal.
 set -u
 

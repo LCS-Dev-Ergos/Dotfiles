@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- HYPRLAND DISPLAY AND INPUT PROFILE
+--
+-- Declare monitor modes, scaling, keyboard layouts and cursor workarounds
+-- for the standalone Hyprland profile.
+-- =====-------------------------------------------------------------------=====
+
 -- Input and display preferences for the Lenovo Legion laptop.
 -- External outputs keep the preferred mode until checked physically. The
 -- internal panel is matched by EDID description, which survives a connector

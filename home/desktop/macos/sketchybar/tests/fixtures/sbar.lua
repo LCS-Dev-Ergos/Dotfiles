@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- IN-MEMORY SKETCHYBAR API
+--
+-- Provide isolated item state and recorded callbacks for widget tests,
+-- copying serialized properties to prevent table aliasing.
+-- =====-------------------------------------------------------------------=====
+
 -- In-memory SketchyBar API shared by widget and lifecycle regressions.
 -- SketchyBar receives serialized properties, so the fixture copies every
 -- table it is given: a widget can never alias another item's properties.

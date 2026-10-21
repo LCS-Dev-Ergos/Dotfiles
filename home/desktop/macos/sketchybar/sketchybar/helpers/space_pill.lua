@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- SHARED DESKTOP PILL
+--
+-- Render desktop numbers, application icons and focus rings using the same
+-- presentation for Yabai and AeroSpace.
+-- =====-------------------------------------------------------------------=====
+
 -- One Desktop pill: its number and the icons of its applications, and a
 -- ring around it while it is focused. Shared by the yabai and AeroSpace
 -- variants.

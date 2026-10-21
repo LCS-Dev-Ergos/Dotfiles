@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- FRONT APPLICATION CONTROLS
+--
+-- Show the active application and provide the switch between desktop pills
+-- and the application menu-title view.
+-- =====-------------------------------------------------------------------=====
+
 -- The switch between Desktops and menu titles, and the front application,
 -- each in its own pill. The front app is drawn only on the active display.
 local colors = require("colors")

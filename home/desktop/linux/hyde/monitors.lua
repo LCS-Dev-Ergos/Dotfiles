@@ -1,9 +1,9 @@
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 -- HYDE MONITOR LAYOUT
 --
 -- Preserve the historical dock and internal-panel configuration. This layout
 -- belongs to the optional HyDE profile, independently of standalone Hyprland.
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 
 -- Historical dock layout, independent of the currently selected standalone profile.
 hl.monitor({ output = "", mode = "preferred", position = "auto", scale = 1 })

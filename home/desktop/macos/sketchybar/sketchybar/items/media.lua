@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- MEDIA PLAYBACK ITEM
+--
+-- Present playback metadata, artwork and player controls, adjusting
+-- snapshot polling to the current playback state.
+-- =====-------------------------------------------------------------------=====
+
 local icons = require("icons")
 local colors = require("colors")
 local settings = require("settings")

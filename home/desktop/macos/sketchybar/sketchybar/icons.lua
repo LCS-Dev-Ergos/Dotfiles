@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- SKETCHYBAR ICON CATALOG
+--
+-- Select the icon family and expose symbols used by desktop items, media
+-- controls and status widgets.
+-- =====-------------------------------------------------------------------=====
+
 local settings = require("settings")
 
 local icons = {

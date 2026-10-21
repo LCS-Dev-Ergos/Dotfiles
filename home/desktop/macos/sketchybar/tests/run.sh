@@ -1,10 +1,20 @@
 #!/bin/bash
+# =====--------------------------------------------------------------------=====
+# SKETCHYBAR REGRESSION RUNNER
+#
+# Run offline Lua and Python checks for helpers and widgets, with live
+# geometry verification available only by explicit opt-in.
+# =====--------------------------------------------------------------------=====
+#
 # Regression checks for the SketchyBar helpers and Lua widgets.
 #
 # Usage: bash home/desktop/macos/sketchybar/tests/run.sh
 # Honours LUA and PYTHON. SketchyBar itself is tested in the CI of the
 # LCS-Dev-Ergos fork; its window order check needs the running GUI session and
 # is run by hand (see helpers/README.md).
+#
+# =====--------------------------------------------------------------------=====
+
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)

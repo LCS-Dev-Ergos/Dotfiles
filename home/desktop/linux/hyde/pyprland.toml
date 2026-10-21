@@ -1,9 +1,9 @@
-# =====-----------------------------------------------------------------=====
+# =====--------------------------------------------------------------------=====
 # HYDE DROPDOWN TERMINAL
 #
 # Kitty scratchpad preferences for the optional HyDE desktop. Home Manager
 # deploys this configuration at the current Pyprland configuration path.
-# =====-----------------------------------------------------------------=====
+# =====--------------------------------------------------------------------=====
 
 [pyprland]
 plugins = ["scratchpads"]

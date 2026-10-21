@@ -1,9 +1,9 @@
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 -- HYDE WINDOW RULES
 --
 -- Preserve per-application opacity and additional floating-window preferences.
 -- Generic window-management rules remain owned by the native HyDE runtime.
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 
 -- Personal opacity overrides; generic floating/PiP rules remain upstream-owned.
 hl.window_rule({ name = "personal-opacity-1", match = { class = "^(firefox)$" }, opacity = "0.95 override 0.90 override 1" })

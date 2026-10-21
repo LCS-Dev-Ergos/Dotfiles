@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- YABAI SPACE ITEMS
+--
+-- Present Yabai desktops and their application icons, track the focused
+-- space and dispatch navigation through the shared helper.
+-- =====-------------------------------------------------------------------=====
+
 local colors = require("colors")
 local runtime = require("helpers.runtime")
 local space_pill = require("helpers.space_pill")

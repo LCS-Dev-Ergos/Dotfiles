@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- NETWORK STATUS WIDGET
+--
+-- Display StatWell transfer rates, track the active connection and provide
+-- cached network details with clipboard actions.
+-- =====-------------------------------------------------------------------=====
+
 local icons = require("icons")
 local colors = require("colors")
 local settings = require("settings")

@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- AUDIO VOLUME WIDGET
+--
+-- Display output volume and provide a shared popup with volume adjustment
+-- and audio-device selection.
+-- =====-------------------------------------------------------------------=====
+
 local colors = require("colors")
 local icons = require("icons")
 local settings = require("settings")

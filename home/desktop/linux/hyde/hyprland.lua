@@ -1,9 +1,9 @@
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 -- HYDE ENTRY POINT
 --
 -- Load native HyDE defaults before the personal override layer. Resolve managed
 -- configuration through XDG paths and reapply overrides on compositor reload.
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 
 -- Search the live config directory even when Home Manager links into the store.
 local home = assert(os.getenv("HOME"), "HOME is required to load the HyDE overlay")

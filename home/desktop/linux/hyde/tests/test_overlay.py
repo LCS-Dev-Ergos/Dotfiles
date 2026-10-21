@@ -1,9 +1,9 @@
-# =====-----------------------------------------------------------------=====
+# =====--------------------------------------------------------------------=====
 # HYDE OVERLAY REGRESSIONS
 #
 # Exercise bootstrap, personal preferences and isolation without starting
 # Hyprland or executing desktop commands. Native acceptance remains separate.
-# =====-----------------------------------------------------------------=====
+# =====--------------------------------------------------------------------=====
 
 """Exercise the optional overlay without a compositor or desktop side effects."""
 

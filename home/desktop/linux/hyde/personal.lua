@@ -1,9 +1,9 @@
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 -- HYDE PERSONAL PREFERENCES
 --
 -- Input, cursor, gestures and session startup overrides for the optional desktop.
 -- Keep the battery notifier disabled until suspend/resume is qualified.
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 
 local home = assert(os.getenv("HOME"))
 hyde.config({ ui = { cursor_theme = "Bibata-Modern-Ice", cursor_size = 20 } })

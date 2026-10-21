@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- HOMEBREW UPDATE WIDGET
+--
+-- Display available updates from StatWell and expose package refresh and
+-- terminal actions through a shared popup.
+-- =====-------------------------------------------------------------------=====
+
 local icons = require("icons")
 local colors = require("colors")
 local settings = require("settings")

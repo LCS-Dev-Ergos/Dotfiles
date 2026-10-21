@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- APPLE MENU ITEM
+--
+-- Display the Apple menu icon in a shared pill and dispatch clicks through
+-- the native menu helper.
+-- =====-------------------------------------------------------------------=====
+
 local icons = require("icons")
 local settings = require("settings")
 local style = require("helpers.style")

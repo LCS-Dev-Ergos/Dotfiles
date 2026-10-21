@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- SHARED BAR PRESENTATION
+--
+-- Provide common fonts, geometry, pill backgrounds and popup rows while
+-- preserving the window boundaries used for interaction.
+-- =====-------------------------------------------------------------------=====
+
 -- The bar's visual language: pills, the gaps between them, and the fonts.
 --
 -- Every item is its own window, sized to its icon and label but not to its

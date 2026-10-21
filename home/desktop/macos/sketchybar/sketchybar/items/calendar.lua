@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- DATE AND TIME ITEM
+--
+-- Display the current date and minute, refreshing after wake while avoiding
+-- redraws when the displayed value has not changed.
+-- =====-------------------------------------------------------------------=====
+
 local settings = require("settings")
 local style = require("helpers.style")
 

@@ -1,3 +1,10 @@
+# =====--------------------------------------------------------------------=====
+# NATIVE MENU HELPER BUILD
+#
+# Compile the menu interaction utility against macOS frameworks and manage
+# its generated binary directory.
+# =====--------------------------------------------------------------------=====
+
 # If CC is not defined, use clang
 CC ?= clang
 

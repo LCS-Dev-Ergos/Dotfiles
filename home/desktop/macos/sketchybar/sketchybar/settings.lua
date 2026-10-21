@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- SKETCHYBAR VISUAL SETTINGS
+--
+-- Centralize geometry, spacing, typography and popup dimensions so items
+-- share one consistent visual scale.
+-- =====-------------------------------------------------------------------=====
+
 -- Geometry and type scale for the whole bar. Widgets take every margin, gap
 -- and font size from here (through helpers/style.lua) instead of local
 -- numbers, so one change here moves the whole bar consistently.

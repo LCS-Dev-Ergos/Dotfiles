@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- WIDGET CALLBACK REGRESSIONS
+--
+-- Drive the real widget callbacks against recorded commands and timers,
+-- checking resulting item properties without desktop side effects.
+-- =====-------------------------------------------------------------------=====
+
 -- Regression checks for the SketchyBar Lua widgets.
 --
 -- Loads the real item modules against an in-memory `sbar` stub. Commands and

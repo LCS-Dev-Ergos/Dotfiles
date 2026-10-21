@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- STATWELL LIFECYCLE REGRESSIONS
+--
+-- Verify watcher recovery, event ordering, freshness and stable rate cells
+-- using a fake clock and recorded callbacks.
+-- =====-------------------------------------------------------------------=====
+
 -- Check watcher recovery, event ordering, freshness and fixed rate cells.
 -- Exercises real helpers and widgets with a fake clock and recorded callbacks.
 -- Usage: lua statwell.lua <sketchybar-config-dir>

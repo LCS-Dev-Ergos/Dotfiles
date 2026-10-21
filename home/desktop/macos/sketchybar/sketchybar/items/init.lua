@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- DESKTOP ITEM COMPOSITION
+--
+-- Select the Yabai or AeroSpace workspace integration, then load
+-- application controls, the clock, status widgets and media items.
+-- =====-------------------------------------------------------------------=====
+
 require("items.apple")
 
 local handle = io.popen("pgrep -ix aerospace >/dev/null 2>&1")

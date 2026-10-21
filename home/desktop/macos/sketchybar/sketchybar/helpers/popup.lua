@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- SHARED POPUP LIFECYCLE
+--
+-- Coordinate hover transitions, delayed closing and row presentation while
+-- allowing only one widget menu to remain open.
+-- =====-------------------------------------------------------------------=====
+
 -- One hover lifecycle and one row style for every widget menu.
 --
 -- Hovering a trigger opens its menu, and only one menu is open at a time.

@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- BAR PRESENTATION REGRESSIONS
+--
+-- Load all bar modules against the in-memory API and check pill ownership,
+-- spacing, fonts and consistent visual structure.
+-- =====-------------------------------------------------------------------=====
+
 -- Consistency checks for the bar's visual language (helpers/style.lua).
 --
 -- Loads every bar module against the in-memory `sbar` stub, rebuilds the

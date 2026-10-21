@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- SKETCHYBAR BAR GEOMETRY
+--
+-- Configure bar placement, window level, dimensions, padding and display
+-- behavior from the shared visual settings.
+-- =====-------------------------------------------------------------------=====
+
 local colors = require("colors")
 local settings = require("settings")
 

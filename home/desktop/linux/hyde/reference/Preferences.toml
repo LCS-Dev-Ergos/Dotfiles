@@ -1,9 +1,9 @@
-# =====-----------------------------------------------------------------=====
+# =====--------------------------------------------------------------------=====
 # HYDE HISTORICAL PREFERENCES
 #
 # Retain previous appearance, monitor, battery and startup choices for future
 # reactivation review. This reference is never sourced or deployed.
-# =====-----------------------------------------------------------------=====
+# =====--------------------------------------------------------------------=====
 
 # Historical preferences; this file is never sourced or deployed.
 [display]

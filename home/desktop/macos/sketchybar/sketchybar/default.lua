@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- SKETCHYBAR ITEM DEFAULTS
+--
+-- Set shared item fonts, colors, backgrounds and spacing before individual
+-- items apply their own presentation.
+-- =====-------------------------------------------------------------------=====
+
 local settings = require("settings")
 local colors = require("colors")
 local style = require("helpers.style")

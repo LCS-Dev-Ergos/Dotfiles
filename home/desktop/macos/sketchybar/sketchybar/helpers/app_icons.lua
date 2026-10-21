@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- APPLICATION ICON MAPPING
+--
+-- Extend the application-to-ligature map shipped with the pinned SketchyBar
+-- icon font and provide a fallback for unknown applications.
+-- =====-------------------------------------------------------------------=====
+
 -- Application name to sketchybar-app-font ligature. Nix installs the map that
 -- ships with the pinned font release as helpers/app_icon_map.lua (see
 -- default.nix), so every ligature it names exists in the installed font and

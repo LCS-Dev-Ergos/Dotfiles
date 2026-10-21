@@ -1,8 +1,16 @@
 #!/bin/bash
+# =====--------------------------------------------------------------------=====
+# YABAI SPACE NAVIGATION
+#
+# Dispatch desktop focus and window moves through the pinned Yabai client,
+# using the navigation effect configured in the daemon.
+# =====--------------------------------------------------------------------=====
+
 # Space navigation for skhd and SketchyBar. The daemon owns the whole
 # operation, so key repeats cannot interleave global opacity configuration.
 # Requires yabai 8.0.0 or later, whose `space --navigate` may name no effect.
 yabai_msg="@yabai_msg@"
+
 # The request names no effect, so the daemon's settings choose it: yabairc
 # sets them at yabai's start and navfx.sh changes them while it runs, so this
 # script stays the same. A request can still name its own, as in

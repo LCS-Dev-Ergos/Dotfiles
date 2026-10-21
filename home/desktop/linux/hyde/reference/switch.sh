@@ -1,10 +1,10 @@
 #!/usr/bin/env zsh
-# =====-----------------------------------------------------------------=====
+# =====--------------------------------------------------------------------=====
 # HYDE HISTORICAL DOCK SWITCH
 #
 # Retain the former dock/lid display helper as reference material. Connector
 # names and monitor syntax require review before any future reuse.
-# =====-----------------------------------------------------------------=====
+# =====--------------------------------------------------------------------=====
 
 if [[ "$(hyprctl monitors)" =~ "\sDP-[0-9]+" ]]; then
   if [[ $1 == "open" ]]; then

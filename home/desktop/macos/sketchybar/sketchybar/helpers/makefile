@@ -1,3 +1,10 @@
+# =====--------------------------------------------------------------------=====
+# SKETCHYBAR HELPER BUILD
+#
+# Forward compiler settings and build or clean the native menu helper from
+# the shared helper directory.
+# =====--------------------------------------------------------------------=====
+
 # If CC is not defined, use clang
 CC ?= clang
 

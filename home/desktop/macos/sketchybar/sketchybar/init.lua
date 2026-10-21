@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- SKETCHYBAR INITIALIZATION
+--
+-- Load the bar, item defaults and desktop items in one configuration batch,
+-- then start StatWell watchers and the SbarLua event loop.
+-- =====-------------------------------------------------------------------=====
+
 -- Require the sketchybar module
 sbar = require("sketchybar")
 

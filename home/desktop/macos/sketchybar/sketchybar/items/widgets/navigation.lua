@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- DESKTOP NAVIGATION EFFECT WIDGET
+--
+-- Show the current Yabai navigation effect and dispatch effect toggles
+-- through the shared navigation-control helper.
+-- =====-------------------------------------------------------------------=====
+
 -- The Desktop navigation effect yabai's settings choose for space.sh, in
 -- short: "XF·S" and "XF·E" for the crossfade with the smooth or ease-out
 -- curve, "Veil" for the veil, dimmed while the effects are off. navfx.sh

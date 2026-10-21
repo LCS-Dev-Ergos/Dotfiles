@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- APPLICATION MENU TITLES
+--
+-- Show the front application menu titles in place of desktop items and
+-- route selections through the native menu helper.
+-- =====-------------------------------------------------------------------=====
+
 -- The front application's menu titles, shown in place of the Desktops while
 -- the switch beside the front app is off (items/front_app.lua).
 local settings = require("settings")

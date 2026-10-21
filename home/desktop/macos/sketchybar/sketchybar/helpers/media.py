@@ -1,4 +1,12 @@
+# =====--------------------------------------------------------------------=====
+# NOW PLAYING SNAPSHOT
+#
+# Read bounded playback metadata for supported media players and cache
+# artwork outside the immutable configuration.
+# =====--------------------------------------------------------------------=====
+
 """Bounded Now Playing snapshot; only artwork is cached, outside the Nix store."""
+
 import base64
 import hashlib
 import json

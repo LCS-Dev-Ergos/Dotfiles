@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- AEROSPACE WORKSPACE ITEMS
+--
+-- Display AeroSpace workspaces and their application icons, update focus
+-- state and dispatch workspace selection.
+-- =====-------------------------------------------------------------------=====
+
 local space_pill = require("helpers.space_pill")
 
 local function shell_quote(value)

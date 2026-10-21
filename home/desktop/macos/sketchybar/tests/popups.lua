@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- POPUP BEHAVIOR REGRESSIONS
+--
+-- Verify loading, cache invalidation, asynchronous replies and row geometry
+-- without contacting system audio or network tools.
+-- =====-------------------------------------------------------------------=====
+
 -- Check popup loading, cache invalidation, async replies and row geometry.
 -- Uses recorded requests and timers, without contacting audio or network tools.
 -- Usage: lua popups.lua <sketchybar-config-dir>

@@ -1,4 +1,10 @@
 #!/usr/bin/env lua
+-- =====-------------------------------------------------------------------=====
+-- SKETCHYBAR ENTRY POINT
+--
+-- Load the configured SbarLua binding and launch the bar configuration
+-- through its initialization module.
+-- =====-------------------------------------------------------------------=====
 
 -- Load the sketchybar-package and prepare the helper binaries.
 require("helpers")

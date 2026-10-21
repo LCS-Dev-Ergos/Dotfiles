@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- SKETCHYBAR COLOR PALETTE
+--
+-- Define Tokyo Night colors and semantic roles for content, inactive
+-- elements, outlines and widget state.
+-- =====-------------------------------------------------------------------=====
+
 -- Tokyo Night. Roles, not just hues: text is primary content, muted is
 -- secondary content, grey marks inactive content and outlines. The accent
 -- hues only ever signal a state (load, charge, pending updates, focus).

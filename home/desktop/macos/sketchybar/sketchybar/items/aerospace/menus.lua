@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- AEROSPACE MENU SYNCHRONIZATION
+--
+-- Connect the shared application-menu view to AeroSpace workspace refreshes
+-- when desktop items become visible again.
+-- =====-------------------------------------------------------------------=====
+
 -- AeroSpace shares the menu titles; showing the workspaces again re-reads
 -- the focused one, because AeroSpace sends no event while they are hidden.
 require("items.menus").on_spaces_shown(function()

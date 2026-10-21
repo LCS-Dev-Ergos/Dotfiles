@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- STATWELL WATCHER INTEGRATION
+--
+-- Manage shared watcher startup, cache reconciliation, event freshness and
+-- presentation helpers for status widgets.
+-- =====-------------------------------------------------------------------=====
+
 -- Shared watcher lifecycle, cache reconciliation and presentation utilities.
 local runtime = require("helpers.runtime")
 -- Rates have at most four digits and one decimal below 100, so every value

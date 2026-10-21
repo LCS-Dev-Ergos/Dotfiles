@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- POPUP SNAPSHOT CACHE
+--
+-- Prefetch complete snapshots with bounded requests and reject stale
+-- replies before rendering widget details.
+-- =====-------------------------------------------------------------------=====
+
 -- Fetch complete snapshots ahead of hover; one bounded request at a time.
 local M = {}
 function M.new(load, render, visible, unavailable)

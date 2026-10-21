@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- SKETCHYBAR RUNTIME DEPENDENCIES
+--
+-- Expose executable paths and runtime options substituted by Home Manager
+-- for commands launched outside an interactive shell.
+-- =====-------------------------------------------------------------------=====
+
 -- Exact dependencies substituted by Home Manager; launchd does not inherit Nix's PATH.
 return {
   nowplaying  = "@nowplaying@",

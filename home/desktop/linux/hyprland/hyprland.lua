@@ -1,3 +1,10 @@
+-- =====-------------------------------------------------------------------=====
+-- STANDALONE HYPRLAND CONFIGURATION
+--
+-- Configure the native compositor, UWSM startup, application shortcuts and
+-- window navigation. Load the display profile and optional GUI overrides.
+-- =====-------------------------------------------------------------------=====
+
 -- Native Hyprland 0.56.2. The legacy HyDE tree is intentionally not sourced.
 -- Hyprland resolves the managed link before it sets package.path, which
 -- points require at the store. Search the real config directory first: it

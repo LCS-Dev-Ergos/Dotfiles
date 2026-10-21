@@ -1,4 +1,11 @@
 #!/bin/bash
+# =====--------------------------------------------------------------------=====
+# YABAI NAVIGATION EFFECT CONTROLS
+#
+# Inspect and change the desktop navigation effect selected by Yabai, and
+# announce its current state to SketchyBar.
+# =====--------------------------------------------------------------------=====
+#
 # Desktop navigation effect controls for skhd and SketchyBar. space.sh sends
 # no effect, so the daemon's settings choose it; this script changes them
 # while yabai runs:
@@ -11,6 +18,8 @@
 # yabai keeps them until it exits; yabairc sets them again at its start. Every
 # change is announced to SketchyBar's navigation_effect_changed event with
 # EFFECT, TYPE and CURVE, or shown as a notification when no bar runs.
+#
+# =====--------------------------------------------------------------------=====
 yabai_msg="@yabai_msg@"
 
 usage() {
