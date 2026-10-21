@@ -65,33 +65,13 @@ expect_status() {
 }
 
 printf 'Repository policy checks\n'
-expect_status 'current package ownership policy' 0 \
-  bash "$repo_root/scripts/checks/check-package-ownership-policy.sh"
 expect_status 'current out-of-store allowlist' 0 \
   bash "$repo_root/scripts/checks/check-out-of-store-allowlist.sh"
 expect_status 'current declared-secret scan' 0 \
   bash "$repo_root/scripts/checks/check-declared-secrets.sh"
 
-policy_fixture="$temp_root/package-policy.tsv"
-printf '%s\n' \
-  '  # leading-whitespace comments are valid' \
-  $'ripgrep\trg\tnix\tNix owns the interactive command.' \
-  >"$policy_fixture"
-expect_status 'valid package policy fixture' 0 \
-  env PACKAGE_OWNERSHIP_POLICY_FILE="$policy_fixture" \
-  bash "$repo_root/scripts/checks/check-package-ownership-policy.sh"
-
-printf '%s\n' \
-  $'ripgrep\trg\tnix\tFirst declaration.' \
-  $'ripgrep\trg\tnix\tDuplicate declaration.' \
-  >"$policy_fixture"
-expect_status 'duplicate package policy fixture' 1 \
-  env PACKAGE_OWNERSHIP_POLICY_FILE="$policy_fixture" \
-  bash "$repo_root/scripts/checks/check-package-ownership-policy.sh"
-
-expect_status 'missing package policy is an environment error' 2 \
-  env PACKAGE_OWNERSHIP_POLICY_FILE="$temp_root/no-such-policy.tsv" \
-  bash "$repo_root/scripts/checks/check-package-ownership-policy.sh"
+expect_status 'Nix/Homebrew command precedence audit' 0 \
+  python3 -B "$repo_root/scripts/tests/test_package_ownership_audit.py"
 
 fixture_repo="$temp_root/secret-fixture"
 mkdir -p "$fixture_repo/scripts/checks"

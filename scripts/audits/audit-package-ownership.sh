@@ -12,9 +12,6 @@
 #  - commands supplied by both Nix and Homebrew
 #  - unexpected cases where Homebrew precedes Nix in PATH
 #
-# Intentional command-overlap policy lives in:
-#   home/package-ownership-allowlist.tsv
-#
 # Usage:
 #   scripts/audits/audit-package-ownership.sh [--verbose]
 #
@@ -30,13 +27,12 @@ umask 077
 export LC_ALL=C
 
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
-policy_file="$repo_root/home/package-ownership-allowlist.tsv"
 darwin_configuration="${NIX_DARWIN_CONFIGURATION:-LCSMacBook-Pro}"
 home_dir="${HOME:-}"
 issues=0
 inventory_drift=0
 path_conflicts=0
-policy_issues=0
+unsafe_path_entries=0
 overlaps=0
 other_winners=0
 verbose=0
@@ -55,9 +51,6 @@ installation. Reports:
   - reverse dependencies that may prevent removing undeclared formulae;
   - commands supplied by both Nix and Homebrew;
   - unexpected cases where Homebrew precedes Nix in PATH.
-
-Intentional command overlap policy lives in:
-  home/package-ownership-allowlist.tsv
 
 Set NIX_DARWIN_CONFIGURATION to audit a differently named Darwin output.
 Use --verbose to print every benign case where Nix already wins.
@@ -100,15 +93,6 @@ for required_command in awk brew comm jq mktemp nix realpath sort tr uniq wc; do
     exit 2
   fi
 done
-
-if [[ ! -r "$policy_file" ]]; then
-  printf 'Package ownership policy is missing: %s\n' "$policy_file" >&2
-  exit 2
-fi
-
-if ! bash "$repo_root/scripts/checks/check-package-ownership-policy.sh" >/dev/null; then
-  exit 2
-fi
 
 # +++++++++++++++++++++++++++ WORKSPACE & CLEANUP ++++++++++++++++++++++++++++ #
 
@@ -325,28 +309,6 @@ brew_owner() {
   printf '%s' "${full_name:-$short_name}"
 }
 
-# -----------------------------------------------------------------------------
-# lookup_policy
-# @internal
-# @description Looks up the declared ownership policy for one (formula,
-# command) pair.
-# @arg $1 string Formula full name.
-# @arg $2 string Command name.
-# @stdout "<expected-winner>\t<rationale>" if a policy row matches; empty
-# otherwise.
-# -----------------------------------------------------------------------------
-lookup_policy() {
-  local formula="$1"
-  local command_name="$2"
-
-  awk -F '\t' -v formula="$formula" -v command_name="$command_name" '
-    !/^[[:space:]]*#/ && $1 == formula && $2 == command_name {
-      print $3 "\t" $4
-      exit
-    }
-  ' "$policy_file"
-}
-
 # +++++++++++++++++++++++++++++ DATA COLLECTION ++++++++++++++++++++++++++++++ #
 
 printf 'Evaluating declared Homebrew inventory for %s...\n' \
@@ -471,12 +433,12 @@ while IFS= read -r path_entry; do
   if [[ -z "$path_entry" ]]; then
     printf '%-20s %s\n' 'UNSAFE PATH ENTRY' \
       'Empty component implicitly names the current directory.' >&2
-    policy_issues=$((policy_issues + 1))
+    unsafe_path_entries=$((unsafe_path_entries + 1))
     continue
   fi
   if [[ "$path_entry" != /* || "$path_entry" == *[[:cntrl:]]* ]]; then
     printf '%-20s %q\n' 'UNSAFE PATH ENTRY' "$path_entry" >&2
-    policy_issues=$((policy_issues + 1))
+    unsafe_path_entries=$((unsafe_path_entries + 1))
     continue
   fi
   [[ -d "$path_entry" ]] || continue
@@ -484,7 +446,7 @@ while IFS= read -r path_entry; do
     [[ -x "$candidate" && ! -d "$candidate" ]] || continue
     if [[ "$candidate" == *[[:cntrl:]]* ]]; then
       printf '%-20s %q\n' 'UNSAFE PATH ENTRY' "$candidate" >&2
-      policy_issues=$((policy_issues + 1))
+      unsafe_path_entries=$((unsafe_path_entries + 1))
       continue
     fi
     printf '%s\t%d\t%s\t%s\n' \
@@ -518,56 +480,23 @@ awk -F '\t' '
   END { emit() }
 ' "$temp_root/path-candidates" >"$temp_root/path-overlaps"
 
-: >"$temp_root/matched-policies"
 while IFS=$'\t' read -r command_name winner_provider winner \
   nix_candidate brew_candidate; do
   overlaps=$((overlaps + 1))
   formula="$(brew_owner "$brew_candidate")"
-  policy="$(lookup_policy "$formula" "$command_name")"
-  expected="${policy%%$'\t'*}"
-  rationale=''
-  if [[ "$policy" == *$'\t'* ]]; then
-    rationale="${policy#*$'\t'}"
-  fi
-
-  if [[ -n "$policy" ]]; then
-    printf '%s\t%s\n' "$formula" "$command_name" \
-      >>"$temp_root/matched-policies"
-  fi
-
-  if [[ -n "$expected" && "$winner_provider" != "$expected" ]]; then
-    printf '%-20s %s expected %s, found %s (%s)\n' \
-      'POLICY MISMATCH' "$command_name" "$expected" \
-      "$winner_provider" "$rationale"
-    if [[ "$winner_provider" == "homebrew" ]]; then
-      path_conflicts=$((path_conflicts + 1))
-    else
-      policy_issues=$((policy_issues + 1))
-    fi
-    continue
-  fi
 
   case "$winner_provider" in
   homebrew)
-    if [[ "$expected" == "homebrew" ]]; then
-      printf '%-20s %s (%s; policy: %s)\n' \
-        'HOMEBREW-WINS' "$command_name" "$formula" "$rationale"
-    else
-      printf '%-20s %s -> %s (Nix: %s; owner: %s)\n' \
-        'UNEXPECTED WINNER' "$command_name" "$winner" \
-        "$nix_candidate" "$formula"
-      [[ -n "$rationale" ]] &&
-        printf '%-20s %s\n' 'POLICY' "$rationale"
-      path_conflicts=$((path_conflicts + 1))
-    fi
+    printf '%-20s %s -> %s (Nix: %s; owner: %s)\n' \
+      'UNEXPECTED WINNER' "$command_name" "$winner" \
+      "$nix_candidate" "$formula"
+    path_conflicts=$((path_conflicts + 1))
     ;;
   nix)
     printf '%s\n' "$formula" >>"$temp_root/nix-wins"
-    if ((verbose)) || [[ "$expected" == "nix" ]]; then
+    if ((verbose)); then
       printf '%-20s %s -> %s (Homebrew: %s; owner: %s)\n' \
         'NIX-WINS' "$command_name" "$winner" "$brew_candidate" "$formula"
-      [[ -n "$rationale" ]] &&
-        printf '%-20s %s\n' 'POLICY' "$rationale"
     fi
     ;;
   *)
@@ -581,18 +510,6 @@ while IFS=$'\t' read -r command_name winner_provider winner \
     ;;
   esac
 done <"$temp_root/path-overlaps"
-
-# ++++++++++++++++++++++++++++ POLICY CROSS-CHECK ++++++++++++++++++++++++++++ #
-
-awk -F '\t' '!/^[[:space:]]*#/ && NF { print $1 "\t" $2 }' "$policy_file" |
-  sort -u >"$temp_root/declared-policies"
-sort -u "$temp_root/matched-policies" >"$temp_root/matched-policies-sorted"
-comm -23 "$temp_root/declared-policies" "$temp_root/matched-policies-sorted" \
-  >"$temp_root/stale-policies"
-if [[ -s "$temp_root/stale-policies" ]]; then
-  print_items 'STALE POLICY' "$temp_root/stale-policies"
-  policy_issues=$((policy_issues + $(wc -l <"$temp_root/stale-policies")))
-fi
 
 if ((overlaps)) && ((verbose == 0)) && [[ -s "$temp_root/nix-wins" ]]; then
   printf '%-20s ' 'BENIGN OVERLAPS'
@@ -625,13 +542,13 @@ fi
 
 # +++++++++++++++++++++++++++++++++ SUMMARY ++++++++++++++++++++++++++++++++++ #
 
-issues=$((inventory_drift + path_conflicts + other_winners + policy_issues))
+issues=$((inventory_drift + path_conflicts + other_winners + unsafe_path_entries))
 printf '\nSummary\n'
 printf 'Top-level inventory drift: %d item(s).\n' "$inventory_drift"
 printf 'Visible Nix/Homebrew command overlaps: %d.\n' "$overlaps"
 printf 'Unexpected Homebrew PATH winners: %d.\n' "$path_conflicts"
 printf 'Other PATH winners: %d.\n' "$other_winners"
-printf 'Ownership policy issues: %d.\n' "$policy_issues"
+printf 'Unsafe PATH entries: %d.\n' "$unsafe_path_entries"
 
 if ((issues)); then
   printf 'Package ownership audit found %d actionable issue(s); no changes were made.\n' \

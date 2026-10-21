@@ -4,8 +4,8 @@
 # ++++++++++++++++++++++++++++ REPOSITORY CHECKS +++++++++++++++++++++++++++++ #
 # ============================================================================ #
 # Every check CI runs on a configuration change: Nix formatting and lint,
-# workflow lint, Python lint and formatting, the state-boundary, package
-# ownership and secret policies, the script regression tests and ShellCheck.
+# workflow lint, Python lint and formatting, state-boundary and secret policies,
+# package precedence and script regressions, and ShellCheck.
 # The locked CI shell provides every tool.
 #
 # Usage:
@@ -31,6 +31,7 @@ python_sources=(
   scripts/updates
   scripts/tests/test_update_runtime_baseline.py
   scripts/tests/test_update_font_codepoint_maps.py
+  scripts/tests/test_package_ownership_audit.py
 )
 
 mapfile -t nix_files < <(find flake.nix darwin home hosts -type f -name '*.nix' | sort)
@@ -42,7 +43,6 @@ ruff format --isolated --target-version py313 --line-length 79 --check "${python
 statix check .
 deadnix --fail flake.nix darwin home hosts
 bash scripts/checks/check-out-of-store-allowlist.sh
-bash scripts/checks/check-package-ownership-policy.sh
 bash scripts/checks/check-declared-secrets.sh
 bash scripts/tests/run.sh
 shellcheck scripts/*/*.sh home/cli/cli-tools/scripts/*.sh

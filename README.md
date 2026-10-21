@@ -74,9 +74,9 @@ shell, compares the evaluated `homebrew.brews`, `homebrew.casks` and
 - Only formulae that Homebrew records as explicitly requested can be reported
   as undeclared. Transitive dependencies are counted, and each potential
   removal lists its installed reverse dependencies.
-- A Homebrew command that precedes an available Nix command is a failure unless
-  `home/package-ownership-allowlist.tsv` records the overlap, its expected
-  winner and the reason. `--verbose` also lists the overlaps that Nix wins.
+- A Homebrew command that precedes an available Nix command is a failure.
+  `--verbose` also lists the overlaps that Nix wins. A third provider
+  shadowing both package managers and unsafe PATH entries are also reported.
 - The audit never installs, upgrades, removes, taps or untaps anything. A
   nonzero exit status means the report contains drift or a precedence problem.
 
@@ -283,7 +283,6 @@ Dotfiles/
     ├── darwin.nix             # macOS-only application imports
     ├── linux.nix              # Linux application imports shared by KDE and Hyprland
     ├── out-of-store-allowlist.tsv
-    ├── package-ownership-allowlist.tsv
     ├── apps/                  # blog
     ├── cli/                   # bat, btop, cli-tools, git, lazygit, tealdeer
     ├── desktop/

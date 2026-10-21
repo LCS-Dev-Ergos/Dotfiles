@@ -15,6 +15,7 @@ let
       pkgs.actionlint
       pkgs.bash
       pkgs.deadnix
+      pkgs.jq
       pkgs.nixfmt
       pkgs.python3
       pkgs.ripgrep
