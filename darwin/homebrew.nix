@@ -212,8 +212,6 @@ _: {
       "calibre"
       "copilot-cli"
       "d12frosted/emacs-plus/emacs-plus-app"
-      "font-sf-mono"
-      "font-sf-pro"
       "ghostty"
       "git-credential-manager"
       "iterm2"

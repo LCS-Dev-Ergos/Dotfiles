@@ -6,7 +6,6 @@ _: {
   # `lib.mkIf pkgs.stdenv.hostPlatform.isLinux`, so a module stays correct on its own even
   # if it is ever imported from somewhere other than this file.
   imports = [
-    ./desktop/fonts
     ./dev/languages/fortran
     ./dev/languages/pascal
     ./dev/languages/racket
