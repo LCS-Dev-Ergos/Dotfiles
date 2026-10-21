@@ -1,0 +1,16 @@
+# =====-----------------------------------------------------------------=====
+# HYDE DROPDOWN TERMINAL
+#
+# Kitty scratchpad preferences for the optional HyDE desktop. Home Manager
+# deploys this configuration at the current Pyprland configuration path.
+# =====-----------------------------------------------------------------=====
+
+[pyprland]
+plugins = ["scratchpads"]
+
+[scratchpads.console]
+animation = "fromTop"
+class = "console-dropdown"
+command = "kitty --class console-dropdown"
+max_size = "90% 100%"
+size = "75% 60%"

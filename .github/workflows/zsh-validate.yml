@@ -14,7 +14,7 @@ on:
       - "home/file-managers/nnn/**"
       - "home/terminals/kitty/**"
       - "home/editors/doom/**"
-      - "home/desktop/hyprdots/**"
+      - "home/desktop/linux/hyde/**"
       - "home/dev/languages/cpp/**"
       - "home/dev/bootstrap/**"
       - "hosts/**/*.nix"
@@ -37,7 +37,7 @@ on:
       - "home/file-managers/nnn/**"
       - "home/terminals/kitty/**"
       - "home/editors/doom/**"
-      - "home/desktop/hyprdots/**"
+      - "home/desktop/linux/hyde/**"
       - "home/dev/languages/cpp/**"
       - "home/dev/bootstrap/**"
       - "hosts/**/*.nix"
@@ -76,6 +76,9 @@ jobs:
           nix develop --impure \
             --expr 'import ./scripts/bootstrap/development-bootstrap.nix { target = "ci"; }' \
             --command bash scripts/checks/run-all.sh
+
+      - name: Check the optional HyDE overlay
+        run: nix shell --inputs-from . nixpkgs#lua --command python3 home/desktop/linux/hyde/tests/test_overlay.py
 
       # GCC and LLVM must come from the binary cache: building GCC locally has
       # failed on the workstation before. A nixpkgs update that leaves the

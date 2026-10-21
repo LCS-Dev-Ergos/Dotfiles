@@ -47,15 +47,16 @@ WezTerm and ueberzugpp executables while retaining their shared configuration.
 This avoids mixing independently packaged graphical runtimes and native
 libraries. Cava configuration is immutable on this host.
 
-HyDE compositor and shell assets remain available for historical reference.
-They are excluded from the active desktop and deployed Zsh source.
+The optional [HyDE overlay](../../home/desktop/linux/hyde/README.md) preserves
+personal settings for future reactivation. It is excluded from the active
+desktop. Historical HyDE shell assets remain excluded from deployed Zsh sources.
 `~/.hyde.zshrc` and `~/.user.zsh` do not participate in startup. Generic
 Linux environment defaults live in `conf.d/linux/env.zsh`; prompt and plugin
 ownership remains in the shared Zsh modules.
 
 ## Session Integration
 
-Native Hyprland uses the Lua configuration in `home/desktop/hyprland/`.
+Native Hyprland uses the Lua configuration in `home/desktop/linux/hyprland/`.
 `hyprland.lua` loads `legion.lua`, which defines host-specific input and
 display settings. HyprMod writes GUI changes to the unmanaged
 `~/.config/hypr/hyprland-gui.lua`, which `hyprland.lua` loads last when it
@@ -78,8 +79,8 @@ are scoped through `uwsm/env-hyprland`, so they do not alter KDE.
 
 No desktop shell, notification daemon or screen locker is provisioned by the
 selected Hyprland modules. Those capabilities require an explicitly selected
-native implementation; the retained Caelestia module must not be treated as an
-active service.
+native implementation. The retired Caelestia module is recoverable from Git
+history; the optional HyDE overlay is a separate desktop choice.
 
 ## Portals, Secrets and Power Policy
 

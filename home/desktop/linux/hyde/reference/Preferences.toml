@@ -1,0 +1,45 @@
+# =====-----------------------------------------------------------------=====
+# HYDE HISTORICAL PREFERENCES
+#
+# Retain previous appearance, monitor, battery and startup choices for future
+# reactivation review. This reference is never sourced or deployed.
+# =====-----------------------------------------------------------------=====
+
+# Historical preferences; this file is never sourced or deployed.
+[display]
+external = "DP-1,2560x1440@60,0x0,1"
+internal = "eDP-1,2560x1600@60,auto,1.333333,bitdepth,10"
+
+[appearance]
+animation = "vertical"
+shader = "vibrance"
+lock_layout = "HyDE"
+workflow = "default"
+theme = "Gruvbox-Retro"
+editor_theme = "jdinhlife.gruvbox~Gruvbox Dark Medium"
+wallpaper = "~/.config/swww/Gruvbox-Retro/night_moon.png"
+
+[power]
+dim_seconds = 60
+lock_seconds = 120
+dpms_seconds = 300
+battery_suspend_seconds = 900
+battery_full_threshold = 100
+battery_critical_threshold = 10
+battery_low_threshold = 20
+unplug_charger_threshold = 80
+countdown_seconds = 120
+notify_minutes = 1140
+interval_percent = 5
+undock = false
+critical_command = "systemctl suspend"
+
+[nvidia]
+LIBVA_DRIVER_NAME = "nvidia"
+__GLX_VENDOR_LIBRARY_NAME = "nvidia"
+GBM_BACKEND = "nvidia-drm"
+no_hardware_cursors = true
+
+[startup]
+gestures = "libinput-gestures"
+keyboard_rgb = "~/Scripts/exec_openrgb.sh"

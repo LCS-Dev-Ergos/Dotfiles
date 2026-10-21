@@ -15,7 +15,6 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 PLUGINS = REPO / "home/file-managers/nnn/plugins"
-DESKTOP = REPO / "home/desktop/hyprdots/hyprdots/scripts"
 
 
 class SecurityRegressions(unittest.TestCase):
@@ -224,30 +223,6 @@ class SecurityRegressions(unittest.TestCase):
         cache.chmod(0o755)
         self.assertNotEqual(self.run_command(["python3", str(helper), str(cache)]).returncode, 0)
 
-    def test_gpu_cache_is_literal_and_private(self):
-        """Parse GPU cache fields as data and retain ordinary GPU selection.
-
-        Embedded shell syntax must not run; a symlinked query and a traversal
-        selector must fail instead of reading or changing an outside object.
-        """
-        runtime = self.root / "runtime"
-        runtime.mkdir(mode=0o700)
-        cache = runtime / f"hyprdots-{os.geteuid()}-gpuinfo"
-        cache.mkdir(mode=0o700)
-        query = cache / "query"
-        query.write_text('touch "$MARKER"\nnvidia_gpu="$(touch \'injected\')"\namd_flag=1\nintel_flag=1\nprioGPU=amd_flag\n')
-        query.chmod(0o600)
-        env = dict(self.env, XDG_RUNTIME_DIR=str(runtime), WLR_DRM_DEVICES="")
-        result = self.run_command(["bash", str(DESKTOP / "gpuinfo.sh"), "--toggle"], env=env)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("intel", result.stdout)
-        self.assertIn("prioGPU=intel_flag", query.read_text())
-        self.assertFalse(self.marker.exists())
-        query.unlink()
-        query.symlink_to(self.root / "outside")
-        self.assertNotEqual(self.run_command(["bash", str(DESKTOP / "gpuinfo.sh"), "--toggle"], env=env).returncode, 0)
-        self.assertNotEqual(self.run_command(["bash", str(DESKTOP / "gpuinfo.sh"), "--use", "../../escape"], env=env).returncode, 0)
-
     def test_preview_converter_and_source_traversal(self):
         """Confine generated previews after canonicalizing an aliased source path.
 
@@ -277,86 +252,6 @@ class SecurityRegressions(unittest.TestCase):
         self.assertEqual(output.read_text(), "generated album art")
         self.assertEqual(converter[0][2], str(source))
 
-
-    def test_wallpaper_reader_preserves_literal_paths(self):
-        """Expand only a leading home marker without evaluating wallpaper text."""
-        text = (DESKTOP / "themeswitch.sh").read_text()
-        block = text.split("# wallpaper\n", 1)[1].split('"${ScrDir}/swwwallpaper.sh"', 1)[0]
-        control = self.root / "theme.ctl"
-        for path, expected in (("~/.config/wall paper.jpg", str(self.home / ".config/wall paper.jpg")),
-                               ('$(touch "$MARKER").jpg', '$(touch "$MARKER").jpg'),
-                               ("a~b.jpg", "a~b.jpg")):
-            control.write_text("1|theme|" + path + "\n")
-            result = self.run_command(["bash", "-c", block + '\nprintf "%s" "$getWall"'],
-                                      env=dict(self.env, ThemeCtl=str(control)))
-            self.assertEqual(result.stdout, expected, result.stderr)
-            self.assertFalse(self.marker.exists())
-
-    def test_wallpaper_state_writer_preserves_backslashes(self):
-        """Round-trip literal backslashes through both theme-state writers.
-
-        Their POSIX guards must reject actual newline/pipe delimiters while
-        accepting backslash spellings, spaces, quotes and dollar signs.
-        """
-        control = self.root / "theme.ctl"
-        for script, expression in (("swwwallkon.sh", 'case "$OPTARG" in'),
-                                   ("swwwallpaper.sh", 'case "$1" in')):
-            source = (DESKTOP / script).read_text()
-            guard = expression + source.split(expression, 1)[1].split("esac", 1)[0] + "esac"
-            for path, accepted in ((r"literal\nname.jpg", True),
-                                   ("literal\nname.jpg", False), ("literal|name.jpg", False)):
-                result = self.run_command(["sh", "-c", "guard() { " + guard +
-                                           "; }; guard \"$1\"", "wallpaper-guard", path],
-                                          env=dict(self.env, OPTARG=path))
-                self.assertEqual(result.returncode == 0, accepted, result.stderr)
-        for filename in (r"literal\nname.jpg", r"literal\tname.jpg", "space quote'$.jpg"):
-            path = self.root / filename
-            control.write_text("1|theme|old.jpg\n")
-            source = (DESKTOP / "swwwallkon.sh").read_text()
-            block = source.split('    wallpaper_theme="$setTheme"', 1)[1].split('\n    ${ScrDir}/themeswitch.sh', 1)[0]
-            result = self.run_command(["bash", "-c", 'wallpaper_theme="$setTheme"' + block],
-                                      env=dict(self.env, setTheme="theme", xWall=str(path),
-                                               ThemeCtl=str(control), ScrDir=str(self.root)))
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(control.read_text(), f"1|theme|{path}\n")
-            source = (DESKTOP / "swwwallpaper.sh").read_text()
-            block = source.split('    wallpaper_theme="$curTheme"', 1)[1].split('\n    ln -fs', 1)[0]
-            result = self.run_command(["bash", "-c", 'wallpaper_theme="$curTheme"' + block],
-                                      env=dict(self.env, curTheme="theme", x_update=str(path),
-                                               ThemeCtl=str(control), ScrDir=str(self.root)))
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(control.read_text(), f"1|theme|{path}\n")
-
-    def test_spotify_does_not_grant_shared_permissions(self):
-        """Stop before privilege or Spicetify calls for a non-writable install.
-
-        A writable fixture must still receive its theme colors, without pkexec;
-        no real Spotify installation or permissions are touched.
-        """
-        scripts = self.root / "scripts"
-        scripts.mkdir()
-        spotify = self.root / "spotify"
-        apps = spotify / "Apps"
-        apps.mkdir(parents=True, mode=0o700)
-        fixture = scripts / "wallbashspotify.sh"
-        fixture.write_text((DESKTOP / "wallbashspotify.sh").read_text().replace("/opt/spotify", str(spotify)))
-        self.script(scripts / "globalcontrol.sh", "pkg_installed() { return 0; }\n")
-        self.spy("notify-send")
-        self.spy("pkexec")
-        self.spy("spicetify", "print('color_scheme Wallbash')\n")
-        self.script(self.bin / "pgrep", "exit 1\n")
-        colors = self.home / ".config/spicetify/Themes/Sleek"
-        colors.mkdir(parents=True)
-        (colors / "Wall-Dcol.ini").write_text("theme colors")
-        apps.chmod(0o500)
-        result = self.run_command(["bash", str(fixture)])
-        self.assertNotEqual(result.returncode, 0)
-        self.assertFalse(any(Path(a[0]).name in ("pkexec", "spicetify") for a in self.args()))
-        apps.chmod(0o700)
-        result = self.run_command(["bash", str(fixture)])
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual((colors / "color.ini").read_text(), "theme colors")
-        self.assertFalse(any(Path(a[0]).name == "pkexec" for a in self.args()))
 
     def test_clipboard_writes_and_native_paste_remain(self):
         """Deny protocol clipboard reads while retaining writes and native paste.
