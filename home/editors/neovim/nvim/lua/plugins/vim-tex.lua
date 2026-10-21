@@ -1,4 +1,4 @@
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 -- LATEX (VIMTEX)
 --
 -- LazyVim's lang.tex extra already loads vimtex; this file overrides the
@@ -9,7 +9,7 @@
 -- neither installed nor the natural choice (checkhealth confirmed it's not
 -- executable here) — Skim is already installed and is vimtex's documented
 -- macOS backend, with the same forward/inverse SyncTeX search.
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 return {
   {
     "lervag/vimtex",

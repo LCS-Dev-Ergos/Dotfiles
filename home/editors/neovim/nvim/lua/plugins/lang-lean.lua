@@ -1,10 +1,10 @@
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 -- LEAN 4
 --
 -- Functional programming language and interactive theorem prover. lean.nvim
 -- manages its own LSP connection (lean-language-server via lake), so there is
 -- no Mason, Conform, or separate NVIM-LSPCONFIG section here.
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 
 return {
   -- 1. LEAN.NVIM: LSP integration, infoview (goals/messages), and unicode input.

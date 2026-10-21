@@ -1,11 +1,11 @@
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 -- C#
 --
 -- csharp-ls comes from `dotnet tool install --global csharp-ls`, on PATH via
 -- ~/.dotnet/tools -- the same server Doom Emacs' eglot config expects (see
 -- home/editors/doom/doom/config.el, C# section). csharpier (formatter) comes from
 -- home/editors/doom/default.nix (Nix). Neither tool needs Mason.
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 
 return {
   -- 1. NVIM-LSPCONFIG: Configures csharp_ls.

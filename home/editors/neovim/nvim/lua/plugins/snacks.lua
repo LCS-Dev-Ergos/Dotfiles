@@ -1,4 +1,4 @@
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 -- SNACKS (FOLKE/SNACKS.NVIM)
 --
 -- lazyvim.plugins.extras.editor.snacks_picker and .snacks_explorer (enabled
@@ -9,7 +9,7 @@
 -- have no other source (zen, bufdelete, lazygit, terminal, the plugin-file
 -- finder). The dashboard itself lives in dashboard.lua (its own file: header
 -- art, keys, and sections are enough content to warrant separating it out).
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 
 return {
   "folke/snacks.nvim",

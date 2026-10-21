@@ -1,4 +1,4 @@
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 -- NIX (LINUX GUARD)
 --
 -- Not a language-support file like its siblings: this disables the Nix LSP
@@ -6,7 +6,7 @@
 -- install), without turning off Mason's automatic installation for anything
 -- else. It skips `nil_ls` in lspconfig and strips it from Mason's
 -- ensure_installed, then returns no specs at all on other platforms.
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 
 local uname = vim.loop.os_uname().sysname
 

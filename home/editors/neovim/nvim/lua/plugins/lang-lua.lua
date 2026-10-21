@@ -1,10 +1,10 @@
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 -- LUA
 --
 -- lua-language-server (LSP) and stylua (formatter) both come from Mason. The
 -- lspconfig settings below teach the server about Neovim's own runtime, so it
 -- recognizes globals like `vim` instead of flagging them as undefined.
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 
 return {
   -- 1. MASON: Ensures lua-language-server and stylua are installed.

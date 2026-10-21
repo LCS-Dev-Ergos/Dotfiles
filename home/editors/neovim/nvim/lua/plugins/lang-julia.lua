@@ -1,4 +1,4 @@
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 -- JULIA
 --
 -- LanguageServer.jl is installed with Julia's Pkg in the nvim-lspconfig
@@ -8,7 +8,7 @@
 -- Install with the active Julia runtime:
 -- julia --project=~/.julia/environments/nvim-lspconfig \
 --   -e 'using Pkg; Pkg.add("LanguageServer")'
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 
 return {
   -- 1. MASON: Excludes the Julia-owned language server.

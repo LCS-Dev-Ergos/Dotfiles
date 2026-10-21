@@ -1,4 +1,4 @@
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 -- RUST
 --
 -- LazyVim's lang.rust extra already enables rustaceanvim, Mason
@@ -6,7 +6,7 @@
 -- rustaceanvim settings and disables the plain lspconfig rust_analyzer entry
 -- that would otherwise conflict with it. rustfmt (formatter) ships with the
 -- Rust toolchain (rustup), not Mason.
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 
 return {
   -- 1. RUSTACEANVIM: override server settings (clippy, all features).

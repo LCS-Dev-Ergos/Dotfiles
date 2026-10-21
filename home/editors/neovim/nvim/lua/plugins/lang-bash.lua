@@ -1,4 +1,4 @@
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 -- BASH / SH / ZSH
 --
 -- The LSP (bash-language-server) comes from Mason. shfmt and shellcheck are
@@ -6,7 +6,7 @@
 -- already on PATH, so only bash-language-server needs Mason to manage it.
 -- Shellcheck stays off by default and runs on demand via <leader>cs, since
 -- it's noisy against zsh's non-POSIX syntax.
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 
 return {
   -- 1. MASON: Installs the LSP.

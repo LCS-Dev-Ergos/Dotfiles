@@ -1,4 +1,4 @@
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 -- GO
 --
 -- Overrides LazyVim's lang.go extra (lazyvim.json) to use the Go toolchain's
@@ -11,7 +11,7 @@
 -- Go tools that need cgo (golangci-lint) use the declarative CC/CXX written
 -- by home/dev/toolchains/llvm. On Darwin those resolve to LLVM 22 with the pinned macOS 26
 -- SDK, both through the environment and Go's Home Manager-owned env file.
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 
 return {
   -- 1. NVIM-LSPCONFIG: gopls resolves via PATH, not Mason's registry path.

@@ -1,4 +1,4 @@
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 -- DEBUGGING (DAP)
 --
 -- LazyVim's dap.core extra provides nvim-dap, dap-ui, dap-virtual-text, and
@@ -6,7 +6,7 @@
 -- adapters that are already installed via Mason in the lang-*.lua files, and
 -- makes <F5>/<leader>dc switch to a source window first when invoked from a
 -- DAP UI pane, so the debugger picks up the right filetype.
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 
 -- Filetypes that belong to DAP UI windows, not to source files.
 local dap_ui_filetypes = {

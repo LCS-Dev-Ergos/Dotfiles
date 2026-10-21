@@ -1,4 +1,4 @@
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 -- HASKELL
 --
 -- haskell-tools.nvim manages the LSP (haskell-language-server) directly, the
@@ -13,7 +13,7 @@
 -- haskell-language-server and haskell-debug-adapter. Both are GHCup-owned
 -- (and the debug adapter isn't wired to any dap.adapters.haskell config
 -- here), so exclude them or Mason silently reinstalls them.
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 
 return {
   -- 1. MASON: Exclude the LazyVim extra's HLS/debug-adapter duplicates.

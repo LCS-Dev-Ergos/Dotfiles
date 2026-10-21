@@ -1,10 +1,10 @@
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 -- TYPESCRIPT / JAVASCRIPT
 --
 -- LazyVim's lang.typescript and formatting.prettier extras already handle
 -- the LSP, formatter, and treesitter parsers. This file only adds inlay
 -- hints and eslint_d linting (eslint_d comes from Mason).
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 
 return {
   -- 1. NVIM-LSPCONFIG: Inlay hints (parameter names, types, return types).

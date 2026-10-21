@@ -1,4 +1,4 @@
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 -- DASHBOARD (SNACKS)
 --
 -- Start screen, replacing alpha-nvim (and LazyVim's lazyvim.json ui.alpha
@@ -9,7 +9,7 @@
 --
 -- The two-pane structure follows Snacks' own "advanced" example, while the
 -- header, menu, and other visual choices below stay personal.
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 
 return {
   "folke/snacks.nvim",

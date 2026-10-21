@@ -1,4 +1,4 @@
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 -- CODECOMPANION.NVIM
 --
 -- Agentic AI chat/edit in Neovim (buffer-native chat, inline edits, @lsp
@@ -10,7 +10,7 @@
 -- lazyvim.json's ai.copilot extra already sets up (no new credential to
 -- manage). Switch the adapters below to "anthropic" (needs ANTHROPIC_API_KEY
 -- on PATH) to talk to Claude directly instead.
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 
 return {
   "olimorris/codecompanion.nvim",

@@ -1,11 +1,11 @@
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 -- MARKDOWN
 --
 -- markdownlint (linter) comes from Mason and stays off by default, toggled
 -- with <leader>tl. prettier (formatter) isn't installed here: the
 -- formatting.prettier LazyVim extra already provides it. This file also adds
 -- an in-browser live preview and its own which-key group label.
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 
 return {
   -- 1. MASON: markdownlint for linting.

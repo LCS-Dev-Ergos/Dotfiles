@@ -1,11 +1,11 @@
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 -- File: lua/lang_util.lua
 --
 -- Shared boilerplate for the lang-*.lua plugin specs: extending or filtering
 -- Mason's and Treesitter's `ensure_installed` lists is the same three lines
 -- in nearly every one of them. Deliberately kept outside lua/plugins/, which
 -- lazy.nvim scans and requires every file in to return a plugin spec.
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 
 local M = {}
 

@@ -1,4 +1,4 @@
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 -- C / C++
 --
 -- lazyvim.plugins.extras.lang.clangd (enabled in lazyvim.json) already wires
@@ -7,7 +7,7 @@
 -- the dap.core extra. This file only redirects clangd and clang-format off
 -- Mason and onto home/dev/toolchains/llvm's Nix-managed clang-tools (already on PATH),
 -- matching every other language here that owns its own toolchain.
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 
 return {
   -- 1. NVIM-LSPCONFIG: don't let Mason manage clangd; home/dev/toolchains/llvm provides it.

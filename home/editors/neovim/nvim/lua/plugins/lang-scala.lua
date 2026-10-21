@@ -1,4 +1,4 @@
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 -- SCALA
 --
 -- nvim-metals manages the LSP (Metals) directly, the same way
@@ -7,7 +7,7 @@
 -- doesn't provide, so there is no Mason or NVIM-LSPCONFIG section here.
 -- Metals and scalafmt (formatter) both come from Coursier
 -- (`cs install metals`), already on PATH.
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 
 return {
   -- 1. NVIM-METALS: LSP integration (build import, decorations, etc.).

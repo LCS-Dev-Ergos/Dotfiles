@@ -1,4 +1,4 @@
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 -- KOTLIN
 --
 -- kotlin-language-server comes from Mason. ktlint (formatter) comes from
@@ -9,7 +9,7 @@
 -- treesitter/lspconfig/debug-adapter wiring, but that extra also declares
 -- Mason's own ktlint, duplicating the Nix-installed copy. Exclude it or
 -- Mason silently reinstalls it.
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 
 return {
   -- 1. MASON: Installs the LSP; excludes the LazyVim extra's ktlint duplicate.

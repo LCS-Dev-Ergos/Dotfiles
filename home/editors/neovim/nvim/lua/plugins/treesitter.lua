@@ -1,10 +1,10 @@
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 -- TREESITTER (GENERIC PARSERS)
 --
 -- Parsers for generic config/utility filetypes that don't have their own
 -- lang-*.lua file. Language-specific parsers are ensure_installed from the
 -- respective lang-*.lua file instead.
--- =====-----------------------------------------------------------------=====
+-- =====-------------------------------------------------------------------=====
 
 return {
   {
