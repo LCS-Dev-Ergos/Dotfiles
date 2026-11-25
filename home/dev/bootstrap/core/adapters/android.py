@@ -1,17 +1,15 @@
-"""The Android SDK through sdkmanager, from Google's command-line tools.
+"""The Android SDK through the pinned Android CLI.
 
 The SDK root holds one directory per package, each with a source.properties
 naming what it is: platform-tools (adb), build-tools/<release> and
-platforms/android-<API level>. sdkmanager installs build tools by exact
+platforms/android-<API level>. The manager installs build tools by exact
 release, but only the newest platform-tools and a platform's newest
 revision, so the platform-tools declaration is a floor.
 
 Every package needs the Android SDK License. An apply names it with
 `--accept android-sdk-license`, and the adapter records that acceptance under
 licenses/ itself, as the hash of the reviewed text the declaration pins
-(native-managers.nix). sdkmanager then asks nothing for these packages, and
-every question it still asks is declined: a package that needs other terms
-is not installed, and the row fails.
+(native-managers.nix). Additional terms block installation.
 
 Command-line tools 23 ship a download-capable launcher. The bootstrap runs
 the separately pinned Android CLI with metrics disabled and checks the
@@ -350,8 +348,7 @@ class AndroidAdapter(JdkTool, ToolchainAdapter):
         path = self.package_binary(component, row["version"])
         if not path.is_file():
             raise BootstrapError(
-                f"sdkmanager did not install {package}: it asked for terms "
-                f"other than {LICENSE}, which were declined; see the log"
+                f"Android manager did not install {package}; see the log"
             )
         row["path"] = str(path)
 
@@ -399,20 +396,23 @@ class AndroidAdapter(JdkTool, ToolchainAdapter):
             )
 
     def keep_licenses(self, before, package):
-        """Revert every license record but the accepted one, then fail.
-
-        Nothing records another license while every question is declined;
-        a change here means sdkmanager accepted terms on its own.
-        """
+        """Restore any license changes beyond the explicit acceptance."""
+        after = self.licenses()
         changed = []
-        for name, content in self.licenses().items():
-            if name != LICENSE and before.get(name) != content:
-                path = self.root / "licenses" / name
-                if name in before:
-                    path.write_bytes(before[name])
-                else:
-                    path.unlink()
-                changed.append(name)
+        for name in sorted(before.keys() | after.keys()):
+            if before.get(name) == after.get(name):
+                continue
+            # A manager may reformat the preaccepted hash on disk.
+            if name == LICENSE and set(before.get(name, b"").split()) == set(
+                after.get(name, b"").split()
+            ):
+                continue
+            path = self.root / "licenses" / name
+            if name in before:
+                path.write_bytes(before[name])
+            else:
+                path.unlink()
+            changed.append(name)
         if changed:
             raise BootstrapError(
                 f"Installing {package} recorded {', '.join(sorted(changed))}, "

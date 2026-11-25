@@ -129,15 +129,13 @@ let
   # Terms an apply records as accepted once its --accept names them, as the
   # hash sdkmanager itself writes under licenses/: SHA-1 of the reviewed text
   # in Google's repository index, normalized the way sdkmanager reads it.
-  # With it on file sdkmanager asks nothing, and bootstrap declines every
-  # question it still asks, so no package needing other terms is installed.
+  # The adapter checks each package against this license before installation.
   # scripts/updates/update-runtime-baseline.py reports a changed text, and
   # --accept-license records the hash of the reviewed one.
   licenses.android-sdk-license = "24333f8a63b6825ea9c5514f83c2829b004d1fee";
   # Release assets above the 1 MiB script bound, pinned per platform with their
   # exact size. Coursier's native launcher, the alr binary in Alire's archive
-  # and Google's command-line tools (sdkmanager, at the release
-  # runtime-baseline.nix names in android.tools) need no setup run.
+  # and Google's tools archive and standalone Android CLI need no setup run.
   releaseInstallers = {
     aarch64-darwin = {
       ada = {

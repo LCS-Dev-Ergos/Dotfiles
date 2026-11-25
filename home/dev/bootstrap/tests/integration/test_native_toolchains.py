@@ -1540,6 +1540,69 @@ class NativeTransitions(unittest.TestCase):
             sorted(path.name for path in ada.home.rglob("*")), ["alr", "bin"]
         )
 
+    def test_android_cli_checks_terms_binary_and_metrics_before_install(self):
+        android = self.adapter("android")
+        android.spec["tools"] = "23.0"
+        cli = self.executable(android.manager_candidates()[0])
+        self.data["setup"]["installers"] = {
+            "android-cli": {
+                "sha256": hashlib.sha256(cli.read_bytes()).hexdigest()
+            }
+        }
+        self.executable(self.adapter("jvm").binary())
+        name = "android-sdk-license"
+        digest = hashlib.sha1(
+            b"Reviewed text", usedforsecurity=False
+        ).hexdigest()
+        self.data["setup"]["licenses"][name] = digest
+        row = android.baseline()[0]
+        package = row["component"]
+        index = (
+            f'<repository><license id="{name}">Reviewed text</license>'
+            f'<remotePackage path="{package}"><uses-license ref="{name}"/>'
+            "</remotePackage></repository>"
+        )
+        with (
+            patch(
+                "urllib.request.urlopen",
+                return_value=io.BytesIO(index.encode()),
+            ),
+            patch.object(process, "run") as run,
+        ):
+            run.side_effect = lambda *a, **kw: self.android_package(
+                *ANDROID_PACKAGES[package]
+            )
+            android.install(row)
+            self.assertEqual(
+                run.call_args.args[0],
+                [
+                    str(cli),
+                    "--no-metrics",
+                    f"--sdk={android.root}",
+                    "sdk",
+                    "install",
+                    package,
+                ],
+            )
+        for changed in (
+            index.replace("Reviewed text", "Other text"),
+            index.replace("uses-license ref=", "uses-license other="),
+            index.replace("</remotePackage>", "<dependency/></remotePackage>"),
+        ):
+            with (
+                patch(
+                    "urllib.request.urlopen",
+                    return_value=io.BytesIO(changed.encode()),
+                ),
+                patch.object(process, "run") as run,
+                self.assertRaises(BootstrapError),
+            ):
+                android.install(row)
+            run.assert_not_called()
+        cli.write_text("changed")
+        with self.assertRaisesRegex(BootstrapError, "checksum mismatch"):
+            android.invoke("--uninstall", package)
+
     def test_android_records_the_accepted_license_and_declines_the_rest(
         self,
     ):
