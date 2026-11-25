@@ -6,6 +6,11 @@ name: Development Bootstrap Native
 on:
   workflow_dispatch:
     inputs:
+      platform:
+        description: Platforms to qualify
+        type: choice
+        options: [both, macOS, Arch]
+        default: both
       harness:
         description: adapters (from zero), lifecycle (manager updates, package upgrades and user evolution), interruption (LANGUAGE:SIGINT, LANGUAGE:SIGTERM or LANGUAGE:network[:BYTES] scenarios) or guided (setup in a pseudo-terminal with the real Gum)
         type: choice
@@ -24,7 +29,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.platform || 'both' }}
   cancel-in-progress: false
 
 jobs:
@@ -79,23 +84,16 @@ jobs:
           echo "groups=$groups" >> "$GITHUB_OUTPUT"
 
   native:
-    name: Native ${{ inputs.harness }} (${{ matrix.platform }}, ${{ matrix.group.ecosystems }})
+    name: Native ${{ inputs.harness }} (${{ matrix.os == 'macos-26' && 'macOS' || 'Arch container' }}, ${{ matrix.group.ecosystems }})
     needs: groups
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
-        platform: [macOS, Arch container]
+        # The macOS release must support the compiler drivers' deployment target.
+        os: ${{ fromJSON(inputs.platform == 'macOS' && '["macos-26"]' || inputs.platform == 'Arch' && '["ubuntu-24.04"]' || '["macos-26","ubuntu-24.04"]') }}
         group: ${{ fromJSON(needs.groups.outputs.groups) }}
-        include:
-          # macOS builds target the deployment target the compiler drivers
-          # declare (home/dev/toolchains/cc-toolchain.nix), so their canaries
-          # run only on a release at least as new.
-          - platform: macOS
-            os: macos-26
-          - platform: Arch container
-            os: ubuntu-24.04
     env:
       ECOSYSTEMS: ${{ matrix.group.ecosystems }}
       HARNESS: native-${{ inputs.harness }}.zsh

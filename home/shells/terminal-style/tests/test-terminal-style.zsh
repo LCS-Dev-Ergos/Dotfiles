@@ -505,7 +505,7 @@ spin_output="$(
 if zmodload zsh/zpty 2>/dev/null; then
   typeset spin_script
   spin_script="source ${(q)style_module}"
-  spin_script+='; work() { /bin/sleep 0.3; print -r -- pty-payload; print -u2 -r -- pty-diagnostic; return 4 }'
+  spin_script+='; work() { command sleep 0.3; print -r -- pty-payload; print -u2 -r -- pty-diagnostic; return 4 }'
   spin_script+='; out=$(ZSH_UI_STYLE=gum _zsh_ui_spinner_fn Working work)'
   spin_script+='; print -r -- "SPINRESULT=${out}=$?"'
 
@@ -517,7 +517,7 @@ if zmodload zsh/zpty 2>/dev/null; then
       pty_buffer+="$pty_chunk"
       [[ "$pty_buffer" == *SPINRESULT=* ]] && break
     fi
-    /bin/sleep 0.1
+    command sleep 0.1
     # Post-increment yields the old value, so the first pass would return 1 and
     # err_return would abort the suite mid-loop.
     (( ++pty_ticks ))
