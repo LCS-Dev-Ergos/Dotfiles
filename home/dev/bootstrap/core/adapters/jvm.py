@@ -6,6 +6,8 @@ from ..errors import BootstrapError
 from .sdkman import SdkmanAdapter
 from .toolchain import IDENTITY
 
+TEMURIN_CANDIDATE = re.compile(rf"{IDENTITY}(?:\+[0-9]+(?:\.[0-9]+)*)?-tem")
+
 
 class JvmAdapter(SdkmanAdapter):
     language = "jvm"
@@ -19,9 +21,7 @@ class JvmAdapter(SdkmanAdapter):
     @classmethod
     def validate_declaration(cls, spec):
         super().validate_declaration(spec)
-        if not re.fullmatch(
-            r"[0-9]+\.[0-9]+\.[0-9]+(?:\+[0-9.]+)?-tem", spec["candidate"]
-        ):
+        if not TEMURIN_CANDIDATE.fullmatch(spec["candidate"]):
             raise BootstrapError("Invalid SDKMAN Java candidate")
 
     def identifier(self):

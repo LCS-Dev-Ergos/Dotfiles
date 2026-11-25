@@ -43,7 +43,7 @@ let
   installers = {
     rust = {
       url = "https://sh.rustup.rs";
-      sha256 = "7d0ea0f8eba7fa1ebfe998091cd7ec4501e33ec5ca6b884eb4d894d7da5170af";
+      sha256 = "d890e2fef6fa991b19cde2e608199bc1dca4e37f41f884edf8849ff693048de6";
       shell = "/bin/sh";
       arguments = [
         "-y"
@@ -79,7 +79,7 @@ let
     # installer, and every `sdk` call, with its own Bash (sdkmanShell).
     jvm = {
       url = "https://get.sdkman.io?rcupdate=false";
-      sha256 = "e030f9814f5c78ba704b7aee6cb57efd4406012b6735fc1c25dbbfa2aee0ef35";
+      sha256 = "434360efbde4d2ee31940ff28130fc6ec66121f1e1afc84aa37504752c4babb0";
       arguments = [ ];
     };
     # .NET has no version manager: the script installs one exact SDK per run,
@@ -100,7 +100,7 @@ let
     };
     julia = {
       url = "https://install.julialang.org";
-      sha256 = "f6df6bf41ccae382466efdf00848c33670a33ea0030313d8594e676d6b297cf5";
+      sha256 = "1d511625586b747272a9ce7008d38a622ed38ca58431cee8d42452e457ae5168";
       shell = "/bin/sh";
       arguments = [
         "--yes"
@@ -117,7 +117,7 @@ let
   # Miniforge3 installs conda and its base environment in batch mode, which
   # never runs `conda init`.
   miniforge = asset: {
-    url = "https://github.com/conda-forge/miniforge/releases/download/26.7.2-0/${asset.name}";
+    url = "https://github.com/conda-forge/miniforge/releases/download/26.9.4-2/${asset.name}";
     inherit (asset) sha256 size;
     shell = "/bin/bash";
     arguments = [
@@ -151,15 +151,15 @@ let
         size = 156083281;
       };
       scala = {
-        url = "https://github.com/coursier/coursier/releases/download/v2.1.26/cs-aarch64-apple-darwin.gz";
-        sha256 = "8e4d36aa2565276f262af073f0999399e4c2f920f2fe436bb0ae67665eb505e9";
-        size = 29271147;
+        url = "https://github.com/coursier/coursier/releases/download/v2.1.27/cs-aarch64-apple-darwin.gz";
+        sha256 = "468a4c08483d77f8896b33bcf474e303f716ad43a3f7fb9639cc1112fca9dc1f";
+        size = 29095465;
         format = "gzip";
       };
       conda = miniforge {
-        name = "Miniforge3-26.7.2-0-MacOSX-arm64.sh";
-        sha256 = "d70bfa2e97afcda96927c9b9ca0e2316cb7750e4ce651c94388267cbe9588711";
-        size = 83747533;
+        name = "Miniforge3-26.9.4-2-MacOSX-arm64.sh";
+        sha256 = "fb567612b76f4ef46de326f04425dbe381b6afc6a66c545f5043255a5ef34258";
+        size = 86880973;
       };
     };
     x86_64-linux = {
@@ -174,15 +174,15 @@ let
         size = 181833628;
       };
       scala = {
-        url = "https://github.com/coursier/coursier/releases/download/v2.1.26/cs-x86_64-pc-linux.gz";
-        sha256 = "348e37bc2a8c706640e6b032c4551a0e055a7f1537485b4a91540e9d3598ec6d";
-        size = 30253002;
+        url = "https://github.com/coursier/coursier/releases/download/v2.1.27/cs-x86_64-pc-linux.gz";
+        sha256 = "9bf62b300a043260f39bc738ddb90dd02a1d2cc998931251614e1749d3231e07";
+        size = 30036399;
         format = "gzip";
       };
       conda = miniforge {
-        name = "Miniforge3-26.7.2-0-Linux-x86_64.sh";
-        sha256 = "281b0ac7d550802efc81af633225a5e6116d29ae72f3ab4eae7168c3931a4c05";
-        size = 124514161;
+        name = "Miniforge3-26.9.4-2-Linux-x86_64.sh";
+        sha256 = "bbaf16b3897da24c4be50315934ba74848f617b4495982841d6a0a60e0edbbdf";
+        size = 128272241;
       };
     };
   };

@@ -12,12 +12,11 @@
 # ============================================================================ #
 #
 # This runs LAST. It takes the messy PATH and rebuilds it in the desired order.
-# This guarantees that shims have top priority and the order is consistent.
 #
 # Priority order:
-#   1. Dynamic shims (pyenv, rbenv, etc.).
-#   2. Static language bins (SDKMAN, opam, etc.).
-#   3. FNM current session.
+#   1. FNM current session.
+#   2. Active Python environment bins in inherited order.
+#   3. Language shims and static language bins.
 #   4. Nix user and system profiles.
 #   5. Homebrew/Linuxbrew and system tools.
 #   6. User and app-specific paths.
@@ -38,7 +37,7 @@ typeset -f _zsh_cache_is_fresh >/dev/null 2>&1 ||
 
 # -----------------------------------------------------------------------------
 # zsh_rebuild_path
-# @description Rebuilds PATH deterministically with version-manager shims first.
+# @description Rebuilds PATH while preserving active language environments.
 # Removes duplicates and caches each result for up to 24 hours.
 # @noargs
 # @exitcode 1 If PATH rebuilding or cache handling fails.
@@ -73,21 +72,22 @@ zsh_rebuild_path() {
 
   local cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/zsh"
   local cache_file="$cache_dir/path.cache"
+  local fnm_root="${FNM_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/fnm}"
   local native_fnm_bin=""
   if [[ "${LCS_RUNTIME_MANAGER_BACKEND:-}" == native &&
         "${LCS_NATIVE_FNM_READY:-}" == 1 ]]; then
-    local fnm_root="${FNM_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/fnm}"
     [[ ! -x "$fnm_root/fnm" ]] || native_fnm_bin="$fnm_root"
   fi
 
   # Bump whenever priority semantics change so live shells cannot reuse a
   # structurally valid cache containing the previous order.
-  local cache_version="16"
+  local cache_version="18"
   local cache_signature="${cache_version}|${stable_original_path}|${PLATFORM}"
   cache_signature+="|${HOME}|${USER}|${XDG_DATA_HOME}"
   cache_signature+="|${OPAM_SWITCH_PREFIX}"
   cache_signature+="|${LCS_RUNTIME_MANAGER_BACKEND}|${LCS_NATIVE_FNM_READY}|${native_fnm_bin}"
   cache_signature+="|${PYENV_ROOT}|${SDKMAN_DIR}"
+  cache_signature+="|${VIRTUAL_ENV:-}|${CONDA_PREFIX:-}"
   cache_signature+="|${RBENV_ROOT}|${CARGO_HOME}|${ELAN_HOME}"
   cache_signature+="|${GHCUP_INSTALL_BASE_PREFIX}|${JULIAUP_HOME}"
   cache_signature+="|${COURSIER_BIN_DIR}|${DOTNET_ROOT}|${CONDA_ROOT_PREFIX}"
@@ -142,12 +142,9 @@ zsh_rebuild_path() {
   if [[ "$PLATFORM" == 'macOS' ]]; then
     path_template=(
       # ----- DYNAMIC SHIMS (TOP PRIORITY) ------ #
-      # This shell's fnm link carries `fnm use`, so it must beat the default
-      # alias below, as it does when a cache hit prepends it.
-      "${FNM_MULTISHELL_PATH:+$FNM_MULTISHELL_PATH/bin}"
       "${RBENV_ROOT:-$HOME/.rbenv}/shims"
       "${PYENV_ROOT:-$HOME/.pyenv}/shims"
-      "${FNM_DIR:-$HOME/.local/share/fnm}/aliases/default/bin"
+      "$fnm_root/aliases/default/bin"
       "${NPM_CONFIG_PREFIX:-${XDG_DATA_HOME:-$HOME/.local/share}/npm-global}/bin"
 
       # ----- STATIC SHIMS & LANGUAGE BINS ------ #
@@ -230,12 +227,9 @@ zsh_rebuild_path() {
   elif [[ "$PLATFORM" == 'Linux' ]]; then
     path_template=(
       # ----- DYNAMIC SHIMS (TOP PRIORITY) ------ #
-      # This shell's fnm link carries `fnm use`, so it must beat the default
-      # alias below, as it does when a cache hit prepends it.
-      "${FNM_MULTISHELL_PATH:+$FNM_MULTISHELL_PATH/bin}"
       "${RBENV_ROOT:-$HOME/.rbenv}/shims"
       "${PYENV_ROOT:-$HOME/.pyenv}/shims"
-      "${FNM_DIR:-$HOME/.local/share/fnm}/aliases/default/bin"
+      "$fnm_root/aliases/default/bin"
       "${NPM_CONFIG_PREFIX:-${XDG_DATA_HOME:-$HOME/.local/share}/npm-global}/bin"
 
       # ----- STATIC SHIMS & LANGUAGE BINS ------ #
@@ -352,14 +346,23 @@ zsh_rebuild_path() {
     fi
   }
 
+  _add_to_path "${FNM_MULTISHELL_PATH:+$FNM_MULTISHELL_PATH/bin}"
+  # Activation sets PATH order, including when a venv and Conda are nested.
+  local -a original_path_array=("${(@s/:/)original_path}")
+  if [[ -n "${VIRTUAL_ENV:-}${CONDA_PREFIX:-}" ]]; then
+    for dir in "${original_path_array[@]}"; do
+      if [[ "$dir" == "${VIRTUAL_ENV:+$VIRTUAL_ENV/bin}" || "$dir" == "${CONDA_PREFIX:+$CONDA_PREFIX/bin}" ]]; then
+        _add_to_path "$dir"
+      fi
+    done
+  fi
+
   # 1. Add prioritized paths from template.
   for dir in "${path_template[@]}"; do
     _add_to_path "$dir"
   done
 
   # 2. Add remaining paths from original PATH (e.g., VS Code extensions).
-  # Split original PATH by colon.
-  local -a original_path_array=("${(@s/:/)original_path}")
   for dir in "${original_path_array[@]}"; do
     _add_to_path "$dir"
   done
