@@ -73,6 +73,7 @@ RESOLVERS: dict[str, Resolver] = {
         sources.ruby_lang,
         2,
         installable=sources.ruby_build_definition,
+        check_pinned=True,
     ),
     "jvm": jvm.resolve,
     **{

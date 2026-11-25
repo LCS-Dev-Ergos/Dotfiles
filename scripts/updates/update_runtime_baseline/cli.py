@@ -158,7 +158,16 @@ def main(argv: list[str] | None = None) -> int:
     if errors:
         return 2
     if args.check:
-        return 1 if any(f.actionable for f in findings) else 0
+        updates = sum(f.kind == Kind.UPDATE for f in findings)
+        drift = sum(f.kind == Kind.DRIFT for f in findings)
+        blocked = sum(f.kind == Kind.BLOCKED for f in findings)
+        actionable = any(f.actionable for f in findings)
+        if actionable and not args.markdown:
+            print(
+                f"\nCheck completed: {updates} update(s), {drift} drift finding(s), "
+                f"{blocked} blocked pin(s) (exit 1)."
+            )
+        return 1 if actionable else 0
     chosen = [
         f
         for f in findings

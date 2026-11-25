@@ -27,7 +27,8 @@ _snapshot_home > "$log/real-home-before.txt"
 _snapshot_packages > "$log/packages-before.txt"
 _requirements || return 1
 
-typeset language step name
+typeset sandbox_home="$root/home"
+typeset language step name header
 typeset -a selection
 typeset -F start
 typeset -i index code failed=0
@@ -46,6 +47,15 @@ for language in "$@"; do
     [[ "$step" != apply ]] || events=(--events "$log/$name.events")
     _executor ${=step} "${selection[@]}" --json "${events[@]}" \
       > "$log/$name.json" 2> "$log/$name.err" || code=$?
+    # SDKMAN removes an invalid archive and reports only the unzip error.
+    # Its transfer headers distinguish an HTTP failure from damaged bytes.
+    # Record only numeric statuses, never cookies or signed redirect URLs.
+    if (( code != 0 )) && [[ "$step" == apply ]]; then
+      for header in "$sandbox_home/.sdkman/tmp"/${language/jvm/java}-*.headers.tmp(N.); do
+        awk '{sub(/\r$/, "", $2)} $1 ~ /^HTTP\// && $2 ~ /^[0-9][0-9][0-9]$/ { print $2 }' \
+          "$header" > "$log/$name-${header:t}.status"
+      done
+    fi
     printf '%s\t%s\t%d\t%.1f\n' "$language" "$step" "$code" \
       $(( EPOCHREALTIME - start )) >> "$log/steps.tsv"
     printf '%-8s %-16s exit=%d %6.1fs\n' "$language" "$step" "$code" \

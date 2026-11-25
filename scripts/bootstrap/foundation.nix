@@ -3,10 +3,10 @@
 # `name = "value";` per line. update-runtime-baseline.py checks both pins.
 {
   # Homebrew's official installer at a reviewed commit of Homebrew/install.
-  homebrewRevision = "8ab1549dfa1189fd4d818a2116592d8f0ee06d8c";
-  homebrewSha256 = "5f333bbe53bc490e51e7ccb1df8779b3dd6ee73a1a7379efda216edb08ccb148";
+  homebrewRevision = "ca45114992228ce6d708d49ef6becf5fb19100a1";
+  homebrewSha256 = "8fd2f1a5287a7c2e3d7362924c677edcc04c5a0e16448c77132d056bc88cf1ed";
   # The official Nix installer for the release the locked nixpkgs carries;
   # the script holds each platform's tarball SHA-256.
-  nixVersion = "2.34.9";
-  nixSha256 = "a03ce2e9eaf4ea1560260b9a93e311dbaf589d28fb5c9318f8d9e768ee6339d8";
+  nixVersion = "2.35.6";
+  nixSha256 = "6f7bf206efb54cd4941fb274930dbc74fdfc16fcb06757ef261c8d7d69cfd60e";
 }

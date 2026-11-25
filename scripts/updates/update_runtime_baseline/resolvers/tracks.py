@@ -33,6 +33,7 @@ class Track:
     releases: Listing
     depth: int
     installable: Probe | None = None
+    check_pinned: bool = False
     label: str = ""
     default: bool = True
     # Whether --line may rewrite a newer line; MANUAL_LINES never can.
@@ -62,6 +63,7 @@ class Track:
                 edits=edits,
                 line_edits=edits if self.movable_lines else None,
                 lines=pinned == newest,
+                check_pinned=self.check_pinned,
                 retires=((self.declaration, pinned),) if self.retire else (),
             )
         return found

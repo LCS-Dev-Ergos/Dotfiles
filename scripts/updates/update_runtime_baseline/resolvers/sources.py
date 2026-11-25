@@ -24,6 +24,10 @@ PYTHON_RELEASES = (
 )
 RUST_CHANNEL = "https://static.rust-lang.org/dist/channel-rust-stable.toml"
 RUBY_INDEX = "https://cache.ruby-lang.org/pub/ruby/index.txt"
+ARCH_RUBY_BUILD = (
+    "https://archlinux.org/packages/extra/any/ruby-build/files/json/"
+)
+BREW_RUBY_BUILD = "https://formulae.brew.sh/api/formula/ruby-build.json"
 JULIA_VERSIONS = "https://julialang-s3.julialang.org/bin/versions.json"
 # GHCup's default metadata channel, the one a fresh installation reads.
 GHCUP_METADATA = (
@@ -159,9 +163,38 @@ def build_definition(repository: str, directory: str, manager: str) -> Probe:
 pyenv_definition = build_definition(
     "pyenv/pyenv", "plugins/python-build/share/python-build", "pyenv"
 )
-ruby_build_definition = build_definition(
-    "rbenv/ruby-build", "share/ruby-build", "ruby-build"
-)
+
+
+def ruby_build_definition(upstream: Source) -> Check:
+    """Check the Arch package file list and the source of Homebrew's formula."""
+    prefix = "usr/share/ruby-build/"
+    files = upstream.json(ARCH_RUBY_BUILD)["files"]
+    if not isinstance(files, list):
+        raise SourceError("Arch ruby-build returned an invalid file list")
+    arch = {p.removeprefix(prefix) for p in files if p.startswith(prefix)}
+    if not any(re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", v) for v in arch):
+        raise SourceError("Arch ruby-build lists no release definitions")
+    url = upstream.json(BREW_RUBY_BUILD)["urls"]["stable"]["url"]
+    tag = re.fullmatch(
+        r"https://github\.com/rbenv/ruby-build/archive/refs/tags/(v[0-9.]+)\.tar\.gz",
+        url,
+    )
+    if not tag:
+        raise SourceError(
+            "Homebrew ruby-build has an unrecognized stable source"
+        )
+    raw = f"https://raw.githubusercontent.com/rbenv/ruby-build/{tag[1]}/share/ruby-build"
+
+    def check(version: str) -> str | None:
+        if version not in arch:
+            return f"Arch ruby-build has no definition for {version}"
+        if not upstream.exists(f"{raw}/{version}"):
+            return (
+                f"Homebrew ruby-build {tag[1]} has no definition for {version}"
+            )
+        return None
+
+    return check
 
 
 def ghcup_versions(upstream: Source, tool: str) -> dict[str, dict]:

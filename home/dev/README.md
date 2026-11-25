@@ -354,6 +354,11 @@ value from an upstream reaches a declaration only as a plain release
 identifier, a byte count or a locally computed hash, so no reply can write
 Nix syntax; a reply in an unexpected shape fails its ecosystem only.
 
+An existing Ruby pin whose definition is missing from Arch's ruby-build
+package or the source of Homebrew's stable formula is `blocked` and also
+returns `1`. A future release awaiting a definition stays `pending`.
+The updater keeps a blocked pin until an eligible update is available.
+
 The weekly `Runtime Baseline Freshness` workflow runs `--check` and fails when
 an `update` or a `drift` exists; its summary lists every finding.
 

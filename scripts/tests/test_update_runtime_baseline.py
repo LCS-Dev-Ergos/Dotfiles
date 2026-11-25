@@ -1059,11 +1059,14 @@ class Retirement(unittest.TestCase):
 
     def test_a_release_declared_again_leaves_the_list(self):
         current = self.declared["python"]["version"]
-        (old,) = self.declared["retired"]["python"]["version"]
+        previous = self.declared["retired"]["python"]["version"]
+        old = previous[0]
         after = self.apply(
             self.move("python.version", current, old, "defaults.python")
         )
-        self.assertEqual(after["retired"]["python"]["version"], [current])
+        self.assertCountEqual(
+            after["retired"]["python"]["version"], [*previous[1:], current]
+        )
 
     def test_a_retired_value_matching_a_moved_pin_survives(self):
         # The rewrite of the pin also matches inside the block; the block's
@@ -1148,6 +1151,50 @@ class Entry(unittest.TestCase):
         code, output = self.run_main(["--check", "rust"], unreachable)
         self.assertEqual(code, 2)
         self.assertIn("connection refused", output)
+
+    def test_ruby_checks_packaged_definitions_before_and_after_pinning(self):
+        baseline = copy.deepcopy(BASELINE)
+        tag = "v20261119"
+        raw = f"https://raw.githubusercontent.com/rbenv/ruby-build/{tag}/share/ruby-build/"
+        files = ["usr/share/ruby-build/4.0.7"]
+        upstream = FakeUpstream(
+            {
+                sources.RUBY_INDEX: "ruby-4.0.7\nruby-4.0.10\n",
+                sources.ARCH_RUBY_BUILD: {"files": files},
+                sources.BREW_RUBY_BUILD: {
+                    "urls": {
+                        "stable": {
+                            "url": f"https://github.com/rbenv/ruby-build/archive/refs/tags/{tag}.tar.gz"
+                        }
+                    }
+                },
+            },
+            existing=[raw + "4.0.7", raw + "4.0.10"],
+        )
+
+        def check(version, mode="--check"):
+            baseline["nativeToolchains"]["ruby"] = {"version": version}
+            return self.run_main([mode, "ruby"], upstream, baseline)
+
+        code, output = check("4.0.7")
+        self.assertEqual(code, 0, output)
+        self.assertIn("pending", output)
+        code, output = check("4.0.10")
+        self.assertEqual(code, 1, output)
+        self.assertIn("blocked", output)
+        self.assertIn("Arch ruby-build", output)
+        code, output = check("4.0.10", "--apply")
+        self.assertEqual(code, 0, output)
+        self.assertIn("Nothing to apply", output)
+        files.append("usr/share/ruby-build/4.0.10")
+        self.assertEqual(check("4.0.10")[0], 0)
+        self.assertIn("update", check("4.0.7")[1])
+        upstream.existing.remove(raw + "4.0.10")
+        code, output = check("4.0.10")
+        self.assertEqual(code, 1, output)
+        self.assertIn("Homebrew ruby-build", output)
+        files.clear()
+        self.assertEqual(check("4.0.10")[0], 2)
 
     def test_a_reply_in_an_unexpected_shape_is_an_error_row(self):
         upstream = FakeUpstream({sources.NODE_INDEX: ["v26.11.1"]})

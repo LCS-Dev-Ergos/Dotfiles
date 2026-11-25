@@ -26,6 +26,7 @@ class SourceError(Exception):
 
 class Kind(enum.StrEnum):
     CURRENT = "current"
+    BLOCKED = "blocked"
     UPDATE = "update"
     PENDING = "pending"
     LINE = "line"
@@ -100,7 +101,7 @@ class Finding:
 
     @property
     def actionable(self) -> bool:
-        return self.kind in (Kind.UPDATE, Kind.DRIFT)
+        return self.kind in (Kind.UPDATE, Kind.DRIFT, Kind.BLOCKED)
 
 
 def classify(
@@ -114,6 +115,7 @@ def classify(
     line_edits: Callable[[str], list[Edit]] | None = None,
     lines: bool = True,
     retires: Retired = (),
+    check_pinned: bool = False,
 ) -> list[Finding]:
     """Findings for one pinned release among an upstream's stable releases.
 
@@ -124,6 +126,10 @@ def classify(
     the newest reports `lines`; the others are covered by it.
     """
     found = []
+    if check_pinned and installable and (reason := installable(pinned)):
+        found.append(
+            Finding(ecosystem, name, pinned, kind=Kind.BLOCKED, note=reason)
+        )
     candidates = newer(candidates, pinned)
     in_line = [v for v in candidates if same_line(v, pinned, depth)]
     blocked = []

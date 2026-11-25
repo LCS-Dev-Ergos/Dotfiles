@@ -11,11 +11,12 @@ Findings are classified:
   pending  upstream has it, but the manager cannot install it yet (no
            python-build or ruby-build definition in the latest release, no
            SDKMAN candidate, a missing platform asset);
+  blocked  a declared pin lacks a required native package definition;
   line     a newer line (a new major, or minor where lines are maintained);
   drift    an installer script's bytes, or a recorded license's text, no
            longer match the pinned hash.
 
-Only update and drift are actionable. --apply rewrites update findings, and
+Update, drift and blocked are actionable. --apply rewrites update findings, and
 line findings of the ecosystems named with --line, by exact replacement, and
 lists each replaced release under `retired`; every source resolves first,
 the rewritten files are re-evaluated, and both files are restored if
