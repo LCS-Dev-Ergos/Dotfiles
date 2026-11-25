@@ -46,17 +46,17 @@ let
       # Selected only by `--only android`, with --accept android-sdk-license.
       # version is platform-tools, a floor: sdkmanager serves only its newest.
       # The platform is an API level as sdkmanager names it (android-37.2).
-      # tools is the command-line tools release whose sdkmanager the
-      # bootstrap runs; 23.0 replaced it with the Android CLI. Its archive in
+      # tools is the command-line tools release used with the pinned Android
+      # CLI. Its archive in
       # native-managers.nix moves together with it.
       android = {
         version = "37.0.3";
         buildTools = "37.0.0";
         platform = "37.2";
-        tools = "22.0";
+        tools = "23.0";
       };
-      # The current LTS feature band; dotnet-install fetches it by version.
-      dotnet.version = "10.0.404";
+      # The selected SDK feature band; dotnet-install fetches it by version.
+      dotnet.version = "11.0.100";
       # Selected only by `--only conda`. Miniforge3 <version>-<build> ships
       # this conda; its installers in native-managers.nix move together with it.
       conda.version = "26.9.4";
@@ -80,9 +80,11 @@ let
     # installed; the updater's --apply adds every release it replaces.
     retired = {
       nativeToolchains = {
+        android.tools = [ "22.0" ];
         dotnet.version = [
           "10.0.401"
           "10.0.402"
+          "10.0.404"
         ];
         gradle.version = [
           "9.8.1"

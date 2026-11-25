@@ -13,19 +13,19 @@ licenses/ itself, as the hash of the reviewed text the declaration pins
 every question it still asks is declined: a package that needs other terms
 is not installed, and the row fails.
 
-From command-line tools 23.0 on, sdkmanager only hands its arguments to the
-`android` CLI, which downloads itself unpinned, records the terms without
-asking and collects usage data unless told not to. The bootstrap therefore
-keeps its own sdkmanager, the declared release from before that change, in
-cmdline-tools/<release>; cmdline-tools/latest, the one on PATH, stays the
-account's or Android Studio's.
+Command-line tools 23 ship a download-capable launcher. The bootstrap runs
+the separately pinned Android CLI with metrics disabled and checks the
+published package terms before installation.
 """
 
+import hashlib
 import os
 import re
 import shutil
 import stat
 import tempfile
+import urllib.request
+import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
 
@@ -117,7 +117,50 @@ class AndroidAdapter(JdkTool, ToolchainAdapter):
         return self.root / "cmdline-tools" / self.spec["tools"]
 
     def manager_candidates(self):
+        if self.uses_cli:
+            return [self.tools / "bin/android-cli"]
         return [self.tools / "bin/sdkmanager"]
+
+    @property
+    def uses_cli(self):
+        return int(self.spec["tools"].split(".")[0]) >= 23
+
+    def acquire(self):
+        if not self.uses_cli:
+            super().acquire()
+            return
+        if not self.occupied():
+            self.run_installer()
+        # An SDK installed by Studio already has the tools archive. Add the
+        # verified executable beside its launcher without replacing either.
+        if properties(self.tools).get("Pkg.Revision") != self.spec["tools"]:
+            raise BootstrapError(
+                f"Inspect incomplete Android tools: {self.tools}"
+            )
+        path = self.manager_candidates()[0]
+        if not path.parent.resolve().is_relative_to(self.root.resolve()):
+            raise BootstrapError(
+                f"Android CLI directory escapes SDK root: {path}"
+            )
+        if not os.path.lexists(path):
+            with tempfile.TemporaryDirectory(dir=path.parent) as directory:
+                payload = self.fetch_installer(
+                    self.recipe["installers"]["android-cli"], Path(directory)
+                )
+                payload.chmod(0o755)
+                os.link(payload, path)
+        self.checked_cli()
+
+    def checked_cli(self):
+        path = self.manager()
+        recipe = self.recipe["installers"]["android-cli"]
+        if not path.resolve().is_relative_to(self.root.resolve()):
+            raise BootstrapError(f"Android CLI escapes SDK root: {path}")
+        with path.open("rb") as binary:
+            digest = hashlib.file_digest(binary, "sha256").hexdigest()
+        if digest != recipe["sha256"]:
+            raise BootstrapError(f"Android CLI checksum mismatch: {path}")
+        return path
 
     def occupied(self):
         return os.path.lexists(self.tools)
@@ -134,8 +177,25 @@ class AndroidAdapter(JdkTool, ToolchainAdapter):
         return self.locate("ANDROID_USER_HOME", Path.home() / ".android")
 
     def invoke(self, *arguments, timeout=3600, answers=None):
+        if self.uses_cli:
+            operation, package = arguments
+            verb = {"--install": "install", "--uninstall": "remove"}[operation]
+            command = [
+                str(self.checked_cli()),
+                "--no-metrics",
+                f"--sdk={self.root}",
+                "sdk",
+                verb,
+                package.replace(";", "/"),
+            ]
+        else:
+            command = [
+                str(self.manager()),
+                f"--sdk_root={self.root}",
+                *arguments,
+            ]
         return process.run(
-            [str(self.manager()), f"--sdk_root={self.root}", *arguments],
+            command,
             env=self.build_environment
             | self.environment()
             | {
@@ -168,8 +228,7 @@ class AndroidAdapter(JdkTool, ToolchainAdapter):
                         or stat.S_ISLNK(mode)
                     ):
                         raise BootstrapError(
-                            f"Unexpected entry in the Android archive: "
-                            f"{member.filename}"
+                            f"Unexpected entry in the Android archive: {member.filename}"
                         )
                     target = staging.joinpath(*parts)
                     if member.is_dir():
@@ -196,7 +255,10 @@ class AndroidAdapter(JdkTool, ToolchainAdapter):
 
         It needs the JDK, which the runtimes stage installs after readiness.
         """
-        self.manager()
+        if self.uses_cli:
+            self.checked_cli()
+        else:
+            self.manager()
         revision = properties(self.tools).get("Pkg.Revision", "")
         if revision != self.spec["tools"]:
             raise BootstrapError(
@@ -277,6 +339,8 @@ class AndroidAdapter(JdkTool, ToolchainAdapter):
     def install(self, row):
         component = row["component"]
         package = PACKAGES[component].format(row["version"])
+        if self.uses_cli:
+            self.check_package_terms(package)
         self.accept_license()
         before = self.licenses()
         try:
@@ -290,6 +354,49 @@ class AndroidAdapter(JdkTool, ToolchainAdapter):
                 f"other than {LICENSE}, which were declined; see the log"
             )
         row["path"] = str(path)
+
+    def check_package_terms(self, package):
+        """The CLI accepts terms automatically. Check before it can run."""
+        url = "https://dl.google.com/android/repository/repository2-3.xml"
+        limit = 8 * 1024 * 1024
+        try:
+            with urllib.request.urlopen(url, timeout=60) as response:
+                data = response.read(limit + 1)
+            if len(data) > limit:
+                raise BootstrapError(
+                    "Android repository index exceeds size limit"
+                )
+            index = ET.fromstring(data)
+        except (OSError, ET.ParseError) as error:
+            raise BootstrapError(
+                f"Cannot verify Android package terms: {error}"
+            ) from error
+        entries = index.findall(f"remotePackage[@path='{package}']")
+        if not entries or any(
+            [item.get("ref") for item in entry.findall("uses-license")]
+            != [LICENSE]
+            or entry.find(".//dependency") is not None
+            for entry in entries
+        ):
+            raise BootstrapError(
+                f"Unreviewed Android terms or dependencies for {package}"
+            )
+        terms = index.findall(f"license[@id='{LICENSE}']")
+        if len(terms) != 1 or not terms[0].text:
+            raise BootstrapError(f"Missing Android license text for {package}")
+        # Match sdkmanager's TrimStringAdapter, also used by the freshness check.
+        normalized = re.sub(r"(?<=[ \t\n\x0b\f\r])[ \t]*", "", terms[0].text)
+        normalized = re.sub(r"(?<!\n)\n(?!\n)", " ", normalized)
+        normalized = re.sub(" +", " ", normalized).strip(
+            "".join(map(chr, range(33)))
+        )
+        digest = hashlib.sha1(
+            normalized.encode(), usedforsecurity=False
+        ).hexdigest()
+        if digest != self.recipe.get("licenses", {}).get(LICENSE):
+            raise BootstrapError(
+                f"Android license text changed for {package}; review it first"
+            )
 
     def keep_licenses(self, before, package):
         """Revert every license record but the accepted one, then fail.
@@ -371,8 +478,7 @@ class AndroidAdapter(JdkTool, ToolchainAdapter):
                 matches = identity == row["version"]
             if not matches:
                 raise BootstrapError(
-                    f"{self.language} identity mismatch: "
-                    f"expected {row['version']}, got {identity}"
+                    f"{self.language} identity mismatch: expected {row['version']}, got {identity}"
                 )
         self.canary(row, path, complete=exact)
         return identity

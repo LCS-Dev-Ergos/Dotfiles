@@ -42,7 +42,7 @@ typeset -A installing=(
   kotlin 'dev-bootstrap-sdkman.* install' maven 'dev-bootstrap-sdkman.* install'
   gradle 'dev-bootstrap-sdkman.* install' scala 'cs install' julia
   'juliaup add' dotnet dotnet-install conda Miniforge3
-  ada 'alr .*toolchain --select --local' android 'sdkmanager.* --install'
+  ada 'alr .*toolchain --select --local' android 'android-cli.* sdk install'
 )
 # A non-interactive shell starts background jobs with SIGINT ignored, and
 # Python keeps an inherited ignore; a terminal's foreground apply has the

@@ -146,9 +146,14 @@ let
         size = 8816840;
       };
       android = {
-        url = "https://dl.google.com/android/repository/commandlinetools-mac_arm64-15859902_latest.zip";
-        sha256 = "835b62a26162b229b441d1f6d4680383815a270809eb33522c0d480fa5002c4e";
-        size = 156083281;
+        url = "https://dl.google.com/android/repository/commandlinetools-mac_arm64-16111833_latest.zip";
+        sha256 = "58da8f215781cc0208743e88b65ae259780c55e7eb40e50373d377cf369232d6";
+        size = 155384151;
+      };
+      android-cli = {
+        url = "https://dl.google.com/android/cli/1.1.16919734/darwin_arm64/android-cli";
+        sha256 = "b559c8b87373b43bd3b4bba4564c8808981c1b74bc7e18aa41f55bf6af3c3f5b";
+        size = 75861744;
       };
       scala = {
         url = "https://github.com/coursier/coursier/releases/download/v2.1.27/cs-aarch64-apple-darwin.gz";
@@ -169,9 +174,14 @@ let
         size = 12800698;
       };
       android = {
-        url = "https://dl.google.com/android/repository/commandlinetools-linux-15859902_latest.zip";
-        sha256 = "4e4c464f145a7512b57d088ac6c278c03c9eea610886b35a5e0804e74eedf583";
-        size = 181833628;
+        url = "https://dl.google.com/android/repository/commandlinetools-linux-16111833_latest.zip";
+        sha256 = "0877a1d048fe4a24efe2eff536ca4223f7adeb58648bb81909d33c446918cfa8";
+        size = 181052239;
+      };
+      android-cli = {
+        url = "https://dl.google.com/android/cli/1.1.16919734/linux_x86_64/android-cli";
+        sha256 = "9803784ddf24d4699929eece519ffa8b066afa9a2b93bd58749b3c6d2caaeeec";
+        size = 79497240;
       };
       scala = {
         url = "https://github.com/coursier/coursier/releases/download/v2.1.27/cs-x86_64-pc-linux.gz";
